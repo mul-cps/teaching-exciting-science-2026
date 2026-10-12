@@ -1,0 +1,24 @@
+name: Validate workshop
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[test,materials]'
+      - run: python -m pytest -q
+      - run: python -m workshop --cycles 5
+      - run: python tools/build_materials.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workshop-docx-pptx
+          path: |
+            docs/*.docx
+            docs/*.pptx
