@@ -15,3 +15,6 @@ ev3 = ["rpyc>=5,<7"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["workshop*"]

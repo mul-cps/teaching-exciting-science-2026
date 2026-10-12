@@ -61,6 +61,7 @@ Never advertise the physical sorting station as working before completing `docs/
 - [Four-hour teaching plan](docs/lesson-plan.md)
 - [Student worksheet](docs/student-worksheet.md)
 - [Instructor setup and safety](docs/instructor.md)
+- [Smooth instructor choreography and trajectory replay](docs/choreography.md)
 - [HERO10 / UVC camera decision guide](docs/cameras.md)
 - [Hardware acceptance criteria and unfinished tasks](docs/acceptance.md)
 - [References and licenses](docs/references.md)
