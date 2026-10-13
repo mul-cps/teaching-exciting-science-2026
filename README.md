@@ -51,7 +51,7 @@ This intentionally keeps **robot and conveyor simulated** even with a real camer
 | GoPro HERO10 via official Open GoPro | Official SDK walkthrough | Not connected here | BENCH TEST NEEDED |
 | EV3 motor via ev3dev2/ RPyC | Instructor-only *probe* | No physical motor test | BENCH TEST NEEDED |
 | LeRobot leader-follower | Official commands documented | No arm attached | BENCH TEST NEEDED |
-| Autonomous physical pick-and-place | Not implemented | None | **TODO / DO NOT ENABLE** |
+| EV3 + SO-ARM101 station (both workflows) | CLI, backends, commissioning and rootless installer | Automated simulation/protocol tests; physical cycle pending | **BENCH ACCEPTANCE REQUIRED** |
 | Neural detector (YOLO-World, Jetson) | Not installed | None | OPTIONAL / DEFERRED |
 
 Never advertise the physical sorting station as working before completing `docs/acceptance.md`.
@@ -62,6 +62,7 @@ Never advertise the physical sorting station as working before completing `docs/
 - [Student worksheet](docs/student-worksheet.md)
 - [Instructor setup and safety](docs/instructor.md)
 - [Smooth instructor choreography and trajectory replay](docs/choreography.md)
+- [EV3 + arm station installation, commissioning and activation](docs/ev3-arm-station.md)
 - [HERO10 / UVC camera decision guide](docs/cameras.md)
 - [Hardware acceptance criteria and unfinished tasks](docs/acceptance.md)
 - [References and licenses](docs/references.md)
@@ -79,7 +80,7 @@ Produces `docs/instructor-guide.docx`, `docs/student-worksheet.docx`, and `docs/
 
 ## Dependencies / platform
 
-Python 3.11–3.13 recommended. Main simulator: standard library only; optional OpenCV and numpy for CPU vision. **No CUDA, PyTorch, ROS 2, Docker, or GPU required.** An NVIDIA Jetson Thor is an optional instructor demonstration machine, never a student dependency.
+Python 3.11–3.13 recommended. Main simulator: standard library only; optional OpenCV and numpy for CPU vision. **No CUDA, PyTorch, ROS 2, Docker, or GPU required for the student simulator.** The optional physical station installer uses pinned CPU PyTorch and LeRobot. An NVIDIA Jetson Thor is an optional instructor demonstration machine, never a student dependency.
 
 ## Design rules
 
