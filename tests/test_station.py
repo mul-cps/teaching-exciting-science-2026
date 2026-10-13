@@ -282,3 +282,28 @@ def test_feeder_home_direction_is_independent_of_feed(direction):
     config['ev3']['directions']['feeder'] = -direction
     config['ev3']['feeder']['home_direction'] = direction
     assert validate_config(config) is config
+
+
+def test_provisional_color_routes_load_until_physical_admission(tmp_path):
+    config = example()
+    pose = {k: 50 if k == 'gripper' else 0 for k in config['arm']['limits']}
+    config['arm']['poses'] = {'pickup': pose, 'red': pose}
+    config['arm']['trajectories'] = {'pick_and_place': {'red': ['pickup', 'red']}}
+    path = tmp_path/'provisional.json'; path.write_text(json.dumps(config))
+    assert load_config(path)['arm']['trajectories']['pick_and_place'] == {'red': ['pickup', 'red']}
+    with pytest.raises(ValueError): load_config(path, physical=True)
+    config['arm']['trajectories']['pick_and_place']['purple'] = ['pickup', 'red']
+    with pytest.raises(ValueError): validate_config(config)
+    del config['arm']['trajectories']['pick_and_place']['purple']
+    config['arm']['trajectories']['pick_and_place']['red'] = []
+    with pytest.raises(ValueError): validate_config(config)
+
+
+def test_partial_color_routes_cannot_pass_physical_schema(tmp_path):
+    config = commissioned(tmp_path)
+    paths = config['arm']['trajectories']['pick_and_place']
+    saved = paths.pop('blue')
+    assert validate_config(config) is config
+    with pytest.raises(ValueError, match='all four'): validate_config(config, physical=True)
+    paths['blue'] = saved
+    assert validate_config(config, physical=True) is config

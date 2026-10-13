@@ -237,3 +237,101 @@ def test_abort_between_startup_read_and_enable_rejected(setup, monkeypatch):
     monkeypatch.setattr('workshop.station.arm.arm_current_pose', startup)
     with pytest.raises(RuntimeError, match='abort'): a.home()
     assert not any(b.registers['Torque_Enable'].values())
+
+
+def test_directory_sync_failure_never_arms(setup, monkeypatch):
+    a, b, _ = setup
+    import stat
+    import os
+    fsync = os.fsync
+    def fail_directory(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode): raise OSError('directory sync failed')
+        fsync(fd)
+    monkeypatch.setattr('workshop.station.arm.os.fsync', fail_directory)
+    with pytest.raises(OSError, match='directory sync failed'): a.home()
+    assert not any(b.registers['Torque_Enable'].values())
+
+
+def test_commission_exports_pose_home_and_route_config(setup, tmp_path):
+    from workshop.station.commission import update_config
+    from workshop.station.config import load_config
+    a, _, c = setup
+    # Use complete public template as the surrounding station schema.
+    from pathlib import Path
+    complete = json.loads(Path('workshop/station/resources/station.example.json').read_text())
+    complete['arm'] = c['arm']
+    complete['arm']['poses'] = {}
+    complete['arm']['trajectories'] = {}
+    a.config = complete; a.settings = complete['arm']
+    destination = tmp_path / 'station.json'
+    pose = dict.fromkeys(JOINTS, 0.); pose['gripper'] = 50.
+    captured = dict(name='home', position=pose, calibration_sha256=a.settings['calibration']['sha256'], arm_id='rig', units='body degrees; gripper percent')
+    update_config(a, destination, captured=captured, capture_path=tmp_path/'taught-home.json')
+    assert load_config(destination)['arm']['poses']['home'] == pose
+    assert load_config(destination)['arm']['home_file'] == str(tmp_path/'taught-home.json')
+    update_config(a, destination, route=['home', 'home'])
+    exported = load_config(destination)
+    assert exported['arm']['trajectories']['home'] == ['home']
+    assert exported['commissioned'] is False
+    assert list(tmp_path.glob('station.json.backup-*'))
+
+
+def test_route_export_rejects_large_displacement_and_hash(setup, tmp_path):
+    from workshop.station.commission import update_config
+    a, _, c = setup
+    c['arm']['poses']['source']['shoulder_pan'] = 30
+    with pytest.raises(ValueError, match='envelope'):
+        update_config(a, tmp_path/'station.json', route=['load_piece', 'source', 'loading'])
+    c['arm']['calibration']['sha256'] = '0'*64
+    with pytest.raises(ValueError, match='hash'):
+        update_config(a, tmp_path/'station.json', route=['home', 'home'])
+
+
+def test_atomic_startup_overrides_time_without_prearm_write(setup, monkeypatch):
+    a, b, _ = setup
+    b.registers['Goal_Time'] = dict.fromkeys(JOINTS, 37)
+    def startup(bus, acceleration, velocity):
+        assert all(bus.read('Goal_Time', k) == 0 for k in JOINTS)
+        assert not any(r == 'Goal_Time' for r, k, v in b.writes)
+        bus.registers['Torque_Enable'] = dict.fromkeys(JOINTS, 1)
+        bus.registers['Goal_Time'] = dict.fromkeys(JOINTS, 0)
+        a.abort_event.set()
+        return dict(bus.raw)
+    monkeypatch.setattr('workshop.station.arm.arm_current_pose', startup)
+    with pytest.raises(RuntimeError, match='abort'): a.home()
+    assert set(b.registers['Goal_Time'].values()) == {37}
+    assert not any(b.registers['Torque_Enable'].values())
+
+
+def test_commission_cli_exports_taught_pose_and_route(setup, tmp_path, monkeypatch):
+    from pathlib import Path
+    from workshop.station import commission
+    from workshop.station.config import load_config
+    a, _, c = setup
+    complete = json.loads(Path('workshop/station/resources/station.example.json').read_text())
+    complete['arm'] = c['arm']; a.config = complete
+    config_file = tmp_path/'input.json'; config_file.write_text(json.dumps(complete))
+    exported = tmp_path/'exported.json'; captured = tmp_path/'pickup.json'
+    monkeypatch.setattr(commission, 'LeRobotArm', lambda config: a)
+    commission.main(['--config', str(config_file), '--capture-pose', 'pickup', '--output', str(captured), '--update-config', str(exported)])
+    assert load_config(exported)['arm']['poses']['pickup'] == json.loads(captured.read_text())['position']
+    commission.main(['--config', str(exported), '--set-route', 'pick_and_place', 'pickup', 'red', '--color', 'red', '--update-config', str(exported)])
+    assert load_config(exported)['arm']['trajectories']['pick_and_place']['red'] == ['pickup', 'red']
+    assert load_config(exported)['commissioned'] is False
+
+
+def test_route_only_cli_builds_first_color_without_device_access(setup, tmp_path, monkeypatch):
+    from pathlib import Path
+    from workshop.station import commission
+    from workshop.station.config import load_config
+    a, _, c = setup
+    complete = json.loads(Path('workshop/station/resources/station.example.json').read_text())
+    complete['arm'] = copy.deepcopy(c['arm'])
+    complete['arm']['trajectories'] = {}
+    source = tmp_path/'input.json'; source.write_text(json.dumps(complete))
+    exported = tmp_path/'routes.json'
+    monkeypatch.setattr(LeRobotArm, 'connect', lambda *args: pytest.fail('route export must not open a bus'))
+    commission.main(['--config', str(source), '--set-route', 'pick_and_place', 'pickup', 'red', '--color', 'red', '--update-config', str(exported)])
+    config = load_config(exported)
+    assert config['arm']['trajectories'] == {'pick_and_place': {'red': ['pickup', 'red']}}
+    assert not config['commissioned'] and not config['automatic_start']

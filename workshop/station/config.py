@@ -116,8 +116,8 @@ def validate_config(config, physical=False):
             raise ValueError('missing commissioned trajectories')
         for name, path in paths.items():
             candidates = path.values() if name == 'pick_and_place' and isinstance(path, dict) else [path]
-            if name == 'pick_and_place' and (not isinstance(path, dict) or set(path) != set(COLORS)):
-                raise ValueError('pick_and_place paths must cover colors')
+            if name == 'pick_and_place' and (not isinstance(path, dict) or not set(path) <= set(COLORS) or physical and set(path) != set(COLORS)):
+                raise ValueError('pick_and_place paths require supported colors; physical admission requires all four')
             for sequence in candidates:
                 if not isinstance(sequence, list) or not sequence or any(not isinstance(p, str) or p not in poses for p in sequence):
                     raise ValueError('trajectory must reference nonempty taught pose sequence')

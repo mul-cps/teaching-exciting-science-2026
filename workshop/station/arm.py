@@ -37,6 +37,9 @@ def atomic_json(path, data, backup=False):
         if backup and path.exists():
             atomic_json(path.with_name(path.name + '.backup-' + uuid.uuid4().hex), json.loads(path.read_text()))
         temporary.replace(path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try: os.fsync(directory)
+        finally: os.close(directory)
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -249,9 +252,6 @@ class LeRobotArm:
                 if velocity[k]*unit > requested or velocity[k] > 32767:
                     raise ValueError('velocity below native representable cap')
             atomic_json(self.output / ('plan-' + stem + '.json'), dict(schema=1, arm_id=self.settings['id'], calibration_sha256=self.settings['calibration']['sha256'], units=UNITS, operation=name, color=color, current_raw=raw, segments=segments, native_acceleration=acceleration, native_velocity=velocity, native_goal_time=0))
-            for k in JOINTS:
-                self.bus.write('Goal_Time', k, 0, normalize=False, num_retry=0)
-                if self.bus.read('Goal_Time', k, num_retry=0) != 0: raise RuntimeError('Goal_Time readback failed')
             self._check(deadline)
             self._raw_pose()  # raw checks immediately before atomic enable
             adapter = self
@@ -259,7 +259,10 @@ class LeRobotArm:
                 def __getattr__(self, name): return getattr(adapter.bus, name)
                 def read(self, register, joint, **kwargs):
                     adapter._check(deadline)
-                    value = adapter.bus.read(register, joint, **kwargs)
+                    # Override only this atomic helper's time source: zero is
+                    # emitted in the same register packet as torque/current goal.
+                    # The original RAM value was snapshotted for off-only restore.
+                    value = 0 if register == 'Goal_Time' else adapter.bus.read(register, joint, **kwargs)
                     adapter._check(deadline)
                     return value
                 def sync_read(self, register, **kwargs):
