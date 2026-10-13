@@ -60,6 +60,9 @@ def validate_config(config, physical=False):
             _number(value, name, 0, 720)
         for name in ('speed_dps', 'max_travel_deg', 'timeout_s', 'backoff_deg'):
             _positive(ev3['homing'][name], 'homing.' + name)
+        home_direction = ev3['feeder'].get('home_direction', 1)
+        if type(home_direction) is not int or home_direction not in (-1, 1):
+            raise ValueError('feeder.home_direction must be -1 or 1')
         for name in ('speed_dps', 'travel_deg', 'home_speed_dps', 'home_timeout_s', 'home_backoff_deg', 'stall_window_s', 'stall_tolerance_deg'):
             _positive(ev3['feeder'][name], 'feeder.' + name)
         _number(ev3['feeder']['home_travel_deg'], 'feeder.home_travel_deg', 0)

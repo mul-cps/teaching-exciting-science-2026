@@ -33,8 +33,9 @@
     },
     "feeder": {
       "speed_dps": 120,
-      "travel_deg": 360,
+      "travel_deg": 180,
       "home_speed_dps": 120,
+      "home_direction": 1,
       "home_travel_deg": 0,
       "home_timeout_s": 15,
       "home_backoff_deg": 200,

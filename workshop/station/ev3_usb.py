@@ -39,6 +39,28 @@ def _lc(value):
     return bytes([value & 0x3f]) if -32 <= value <= 31 else b'\x83' + struct.pack('<i', value)
 
 
+def read_stable_color(read_value, deadline):
+    """Require three identical supported numeric colors, 50 ms apart.
+
+    Backends can share this admission rule by providing a deadline-bound reader.
+    Any unknown/mismatched value faults immediately; no routing or polling retry.
+    """
+    colors = {2: 'blue', 3: 'green', 4: 'yellow', 5: 'red'}
+    previous = None
+    for sample in range(3):
+        _remaining(deadline)
+        value = read_value()
+        _remaining(deadline)
+        if value not in colors:
+            raise EV3Error('unsupported color classification')
+        if previous is not None and value != previous:
+            raise EV3Error('unstable color classification')
+        previous = value
+        if sample < 2:
+            time.sleep(min(0.05, _remaining(deadline)))
+    return colors[previous]
+
+
 class DirectUSB:
     """Injected transport exposes PyUSB write/read(endpoint, ..., timeout=ms)."""
     def __init__(self, transport):
@@ -276,12 +298,17 @@ class OriginalEV3:
         return dict(self.identity)
 
     def read_color(self):
+        if self.faulted:
+            raise EV3Error('EV3 fault is latched')
         if not self.preflighted:
             raise EV3Error('preflight required')
-        value = self._value('color', self._deadline())
-        if value not in (2, 3, 4, 5):
-            raise EV3Error('unsupported color classification')
-        return {2: 'blue', 3: 'green', 4: 'yellow', 5: 'red'}[value]
+        deadline = self._deadline()
+        try:
+            return read_stable_color(lambda: self._value('color', deadline), deadline)
+        except BaseException:
+            self.faulted = True
+            self.homed = False
+            raise
 
     def _stop(self, deadline):
         mask = self._mask('feeder') | self._mask('sorter')
@@ -428,10 +455,10 @@ class OriginalEV3:
             if feeder['home_travel_deg'] <= 0:
                 raise EV3Error('feeder stall homing travel must be commissioned')
             end = min(deadline, time.monotonic() + feeder['home_timeout_s'])
-            fdir = self.ev3['directions']['feeder']
-            stalled = self._track('feeder', -fdir, feeder['home_speed_dps'], end, feeder['home_travel_deg'], stall_home=True)
+            home_direction = feeder.get('home_direction', 1)
+            stalled = self._track('feeder', home_direction, feeder['home_speed_dps'], end, feeder['home_travel_deg'], stall_home=True)
             self._stop(end)
-            self._track('feeder', fdir, feeder['home_speed_dps'], end, feeder['home_backoff_deg'] + self.ev3['tolerance_deg'], target=stalled + fdir * feeder['home_backoff_deg'])
+            self._track('feeder', -home_direction, feeder['home_speed_dps'], end, feeder['home_backoff_deg'] + self.ev3['tolerance_deg'], target=stalled - home_direction * feeder['home_backoff_deg'])
             self._stop(end)
             self._wait_stopped(end)
             self._command(b'\xb2\0' + _lc(self._mask('feeder')), 0, end)
@@ -453,8 +480,12 @@ class OriginalEV3:
         def action(deadline):
             fdir, feeder = self.ev3['directions']['feeder'], self.ev3['feeder']
             start = self._value('feeder', deadline)
-            return self._track('feeder', fdir, feeder['speed_dps'], deadline,
-                               feeder['travel_deg'] + self.ev3['tolerance_deg'], target=start + fdir * feeder['travel_deg'])
+            self._track('feeder', fdir, feeder['speed_dps'], deadline,
+                        feeder['travel_deg'] + self.ev3['tolerance_deg'], target=start + fdir * feeder['travel_deg'])
+            self._stop(deadline)
+            self._wait_stopped(deadline)
+            return self._track('feeder', -fdir, feeder['speed_dps'], deadline,
+                               feeder['travel_deg'] + self.ev3['tolerance_deg'], target=start)
         return self._run(action)
 
     def close(self):

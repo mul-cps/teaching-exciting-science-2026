@@ -287,6 +287,7 @@ def test_home_proves_release_and_approach_then_feeder_stall_backoff():
     c['timeouts']['operation_s'] = 3
     c['ev3']['homing']['backoff_deg'] = 5
     c['ev3']['feeder']['home_backoff_deg'] = 5
+    c['ev3']['feeder']['home_direction'] = -1
     c['ev3']['feeder']['stall_window_s'] = 0.02
     brick = MovingBrick()
     ev3 = OriginalEV3(c, brick)
@@ -314,8 +315,8 @@ def test_position_and_feed_stop_after_encoder_arrival():
     ev3.homed = True
     ev3.position('blue')
     ev3.feed()
-    assert brick.encoders[19] == 10 and brick.encoders[16] == 5
-    assert brick.stop_masks == [9, 9]
+    assert brick.encoders[19] == 10 and brick.encoders[16] == 0
+    assert brick.stop_masks == [9, 9, 9]
 
 
 def test_cancellation_stops_without_rearming():
@@ -719,3 +720,120 @@ def test_stop_during_usb_lock_wait_cannot_deliver_a_late_motor_slice():
     with pytest.raises(EV3Error):
         ev3._slice('feeder', 1, 120, ev3._deadline())
     assert not brick.motion
+
+
+def test_feed_is_plus_180_then_minus_180_returning_actual_start(monkeypatch):
+    c = config()
+    c['timeouts']['operation_s'] = 2
+    c['ev3']['feeder']['travel_deg'] = 180
+    brick = Brick()
+    brick.stalled = False
+    brick.encoders[16] = 37.
+    ev3 = OriginalEV3(c, brick)
+    ev3.connect()
+    ev3.preflight()
+    ev3.homed = True
+    monkeypatch.setattr(ev3, 'CHUNK_MS', 1)
+    ev3.feed()
+    directions = [struct.unpack('b', p[4:5])[0] for p in brick.motion]
+    assert len(directions) == 72
+    assert all(p > 0 for p in directions[:36])
+    assert all(p < 0 for p in directions[36:])
+    assert brick.encoders[16] == 37.
+
+
+def test_feed_return_failure_latches_without_another_outbound(monkeypatch):
+    c = config()
+    c['timeouts']['operation_s'] = 1
+    c['ev3']['feeder']['travel_deg'] = 5
+    brick = Brick()
+    brick.stalled = False
+    original = brick.read
+    def fail_reverse_ack(endpoint, size, timeout):
+        ops = brick.writes[-1][7:]
+        if ops[0] == 0xaf and struct.unpack('b', ops[4:5])[0] < 0:
+            raise EOFError('return delivery uncertain')
+        return original(endpoint, size, timeout)
+    brick.read = fail_reverse_ack
+    ev3 = OriginalEV3(c, brick)
+    ev3.connect()
+    ev3.preflight()
+    ev3.homed = True
+    monkeypatch.setattr(ev3, 'CHUNK_MS', 1)
+    with pytest.raises(EOFError, match='return'):
+        ev3.feed()
+    assert len(brick.motion) == 2
+    with pytest.raises(EV3Error, match='fault'):
+        ev3.feed()
+    assert len(brick.motion) == 2
+
+
+@pytest.mark.parametrize('home_direction', [1, -1])
+def test_feeder_home_direction_independent_of_positive_feed(monkeypatch, home_direction):
+    c = config()
+    c['timeouts']['operation_s'] = 1
+    c['ev3']['feeder'].update(home_direction=home_direction, home_backoff_deg=5, stall_window_s=0.002)
+    c['ev3']['homing']['backoff_deg'] = 5
+    class HomingBrick(Brick):
+        def __init__(self):
+            super().__init__()
+            self.touch = 1.
+            self.stalled = False
+        def write(self, endpoint, packet, timeout):
+            result = super().write(endpoint, packet, timeout)
+            ops = packet[7:]
+            if ops[0] == 0xaf:
+                if ops[2] == 8:
+                    self.touch = float(self.encoders[19] <= 0)
+                else:
+                    speed = struct.unpack('b', ops[4:5])[0]
+                    if speed * home_direction > 0 and self.encoders[16] * home_direction >= 5:
+                        self.encoders[16] = home_direction * 5.
+            elif ops[0] == 0xb2:
+                self.encoders[16 if ops[2] == 1 else 19] = 0.
+            return result
+    brick = HomingBrick()
+    ev3 = OriginalEV3(c, brick)
+    ev3.connect()
+    ev3.preflight()
+    monkeypatch.setattr(ev3, 'CHUNK_MS', 1)
+    ev3.home()
+    directions = [struct.unpack('b', p[4:5])[0] for p in brick.motion if p[2] == 1]
+    assert directions[0] * home_direction > 0
+    assert directions[-1] * home_direction < 0
+    assert ev3.homed and brick.encoders[16] == 0.
+
+
+def test_unstable_valid_colors_latch_before_sorter_or_feed(monkeypatch):
+    ev3, brick = ready()
+    ev3.homed = True
+    values = iter([2., 3., 2.])
+    original = brick.read
+    def alternating_color(endpoint, size, timeout):
+        if brick.writes[-1][7:9] == b'\x99\x1d' and brick.writes[-1][10] == 2:
+            brick.color = next(values)
+        return original(endpoint, size, timeout)
+    brick.read = alternating_color
+    with pytest.raises(EV3Error, match='unstable'):
+        ev3.read_color()
+    with pytest.raises(EV3Error, match='fault'):
+        ev3.position('blue')
+    with pytest.raises(EV3Error, match='fault'):
+        ev3.feed()
+    assert not brick.motion
+
+
+def test_stable_color_uses_three_classification_reads():
+    ev3, brick = ready()
+    before = len(brick.writes)
+    assert ev3.read_color() == 'blue'
+    reads = [p for p in brick.writes[before:] if p[7:9] == b'\x99\x1d' and p[10] == 2]
+    assert len(reads) == 3
+
+
+def test_stable_color_does_not_exceed_operation_deadline():
+    ev3, brick = ready()
+    ev3.config['timeouts']['operation_s'] = 0.01
+    with pytest.raises(TimeoutError):
+        ev3.read_color()
+    assert ev3.faulted and not brick.motion

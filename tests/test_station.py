@@ -266,3 +266,19 @@ def test_success_logging_failure_stops_both_and_preserves_logger_fault(log_event
     assert fault.value is failure
     assert 'ev3.stop' in events and 'arm.stop' in events
     assert ev3.stopped and arm.stopped
+
+
+@pytest.mark.parametrize('direction', [0, 2, -2, True, 1.0, '1', None])
+def test_feeder_home_direction_requires_signed_integer(direction):
+    config = example()
+    config['ev3']['feeder']['home_direction'] = direction
+    with pytest.raises(ValueError, match='home_direction'):
+        validate_config(config)
+
+
+@pytest.mark.parametrize('direction', [-1, 1])
+def test_feeder_home_direction_is_independent_of_feed(direction):
+    config = example()
+    config['ev3']['directions']['feeder'] = -direction
+    config['ev3']['feeder']['home_direction'] = direction
+    assert validate_config(config) is config
