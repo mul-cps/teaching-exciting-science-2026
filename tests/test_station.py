@@ -235,3 +235,34 @@ def test_trajectory_semantics_require_safe_destination(tmp_path, operation, path
     config['arm']['trajectories'][operation] = path
     with pytest.raises(ValueError):
         validate_config(config, physical=True)
+
+
+def test_cleanup_logging_failure_preserves_original_fault_and_second_stop():
+    config, ev3, arm, events = station('arm_unloads_sorter')
+    ev3.color = 'unknown'
+    ev3.stop_error = RuntimeError('first stop failed')
+    attempted_logs = []
+    def broken_cleanup_logger(record):
+        attempted_logs.append(record['event'])
+        if record['event'] in ('cleanup_failure', 'fault'):
+            raise OSError('log unavailable')
+    with pytest.raises(ValueError, match='unsupported or unstable color') as fault:
+        run_cycle(config, ev3, arm, broken_cleanup_logger)
+    assert type(fault.value) is ValueError
+    assert 'ev3.stop' in events and 'arm.stop' in events
+    assert arm.stopped
+    assert attempted_logs[-2:] == ['cleanup_failure', 'fault']
+
+
+@pytest.mark.parametrize('log_event', ['cycle_start', 'operation_complete', 'cycle_complete'])
+def test_success_logging_failure_stops_both_and_preserves_logger_fault(log_event):
+    config, ev3, arm, events = station()
+    failure = OSError('cannot write log')
+    def broken_logger(record):
+        if record['event'] == log_event or record['event'] == 'fault':
+            raise failure
+    with pytest.raises(OSError) as fault:
+        run_cycle(config, ev3, arm, broken_logger)
+    assert fault.value is failure
+    assert 'ev3.stop' in events and 'arm.stop' in events
+    assert ev3.stopped and arm.stopped

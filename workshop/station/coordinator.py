@@ -82,10 +82,20 @@ def _run_cycle(config, ev3, arm, log):
         return color
     except BaseException as error:
         # Includes operator cancellation. Each device gets its own cleanup attempt.
+        cleanup_failures = []
         for name, device in (('ev3', ev3), ('arm', arm)):
             try:
                 device.stop()
             except BaseException as cleanup_error:
+                cleanup_failures.append((name, cleanup_error))
+        # Finish both physical shutdown attempts before calling fallible logging.
+        for name, cleanup_error in cleanup_failures:
+            try:
                 _emit(log, 'cleanup_failure', device=name, error=str(cleanup_error))
-        _emit(log, 'fault', error=str(error))
+            except BaseException:
+                pass  # Preserve the originating fault even if observability fails.
+        try:
+            _emit(log, 'fault', error=str(error))
+        except BaseException:
+            pass
         raise
