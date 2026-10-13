@@ -129,6 +129,8 @@ class OriginalEV3:
         self.faulted = False
         self.preflighted = False
         self.cancel = threading.Event()
+        self.stop_generation = 0
+        self.operation_generation = 0
         self.motion_lock = threading.Lock()
         self.ports = self.ev3['ports']
 
@@ -202,7 +204,7 @@ class OriginalEV3:
         self._command(b'\xa3\0' + _lc(mask) + b'\x01', 0, deadline)
 
     def stop(self):
-        self.cancel.set()
+        self.stop_generation += 1
         self._stop(self._deadline(stop=True))
 
     def wait_stopped(self):
@@ -219,18 +221,32 @@ class OriginalEV3:
             time.sleep(min(0.01, _remaining(deadline)))
 
     def _admit(self, deadline, needs_home):
-        if self.faulted:
-            raise EV3Error('EV3 fault is latched; create a new backend after inspection')
-        if not self.preflighted or needs_home and not self.homed:
-            raise EV3Error('preflight and home required')
-        if not self.injected and not (self.config['enabled'] and self.config['commissioned']):
-            raise EV3Error('commissioned enabled station required for motion')
+        generation = self.stop_generation
         if not self.motion_lock.acquire(timeout=_remaining(deadline)):
             raise TimeoutError('EV3 motion lock deadline')
-        self.cancel.clear()
+        try:
+            # State can change while a command waits behind an active move.
+            # Check only after acquiring ownership; never reset cancellation.
+            if self.faulted:
+                raise EV3Error('EV3 fault is latched; create a new backend after inspection')
+            if not self.preflighted or needs_home and not self.homed:
+                raise EV3Error('preflight and home required')
+            if self.cancel.is_set():
+                raise EV3Error('EV3 movement cancelled')
+            if generation != self.stop_generation:
+                raise EV3Error('queued EV3 movement revoked by stop')
+            if not self.injected and not (self.config['enabled'] and self.config['commissioned']):
+                raise EV3Error('commissioned enabled station required for motion')
+            self.operation_generation = generation
+        except BaseException:
+            self.motion_lock.release()
+            raise
+
+    def _cancelled(self):
+        return self.cancel.is_set() or self.operation_generation != self.stop_generation
 
     def _slice(self, name, direction, speed_dps, deadline):
-        if self.cancel.is_set():
+        if self._cancelled():
             raise EV3Error('EV3 movement cancelled')
         # Percent speed is nominal, not calibrated dps. Conservative 20% cap;
         # encoder feedback, not this conversion, determines completion.
@@ -250,7 +266,7 @@ class OriginalEV3:
         released = False
         feeder = self.ev3['feeder']
         while True:
-            if self.cancel.is_set():
+            if self._cancelled():
                 raise EV3Error('EV3 movement cancelled')
             current = self._value(name, deadline)
             if abs(current - start) > max_travel:
@@ -307,8 +323,8 @@ class OriginalEV3:
             self._finish(error)
 
     def home(self):
-        self.homed = False
         def action(deadline):
+            self.homed = False
             homing, feeder = self.ev3['homing'], self.ev3['feeder']
             direction = self.ev3['directions']['sorter']
             end = min(deadline, time.monotonic() + homing['timeout_s'])

@@ -469,3 +469,64 @@ def test_invalid_firmware_identity_prevents_admission():
     with pytest.raises(EV3Error, match='firmware'):
         ev3.preflight()
     assert not brick.motion and not ev3.preflighted
+
+
+def test_queued_feed_rechecks_fault_and_home_after_lock(monkeypatch):
+    ev3, brick = ready()
+    ev3.homed = True
+    class QueuedLock:
+        released = False
+        def acquire(self, timeout):
+            assert timeout > 0
+            ev3.faulted = True
+            ev3.homed = False
+            ev3.cancel.set()
+            return True
+        def release(self):
+            self.released = True
+    lock = QueuedLock()
+    ev3.motion_lock = lock
+    with pytest.raises(EV3Error, match='fault'):
+        ev3.feed()
+    assert not brick.motion
+    assert ev3.cancel.is_set() and lock.released
+
+
+def test_queued_feed_cannot_clear_cancellation():
+    ev3, brick = ready()
+    ev3.homed = True
+    class QueuedLock:
+        def acquire(self, timeout):
+            ev3.cancel.set()
+            return True
+        def release(self):
+            pass
+    ev3.motion_lock = QueuedLock()
+    with pytest.raises(EV3Error, match='cancel'):
+        ev3.feed()
+    assert not brick.motion and ev3.cancel.is_set()
+
+
+def test_stop_revokes_feed_already_queued_for_motion_lock():
+    ev3, brick = ready()
+    ev3.homed = True
+    class QueuedLock:
+        def acquire(self, timeout):
+            ev3.stop()
+            return True
+        def release(self):
+            pass
+    ev3.motion_lock = QueuedLock()
+    with pytest.raises(EV3Error, match='revoked'):
+        ev3.feed()
+    assert not brick.motion and brick.stop_masks == [9]
+
+
+def test_new_command_after_completed_stop_is_admitted():
+    ev3, brick = ready()
+    ev3.homed = True
+    brick.stalled = False
+    ev3.stop()
+    ev3.wait_stopped()
+    ev3.position('blue')
+    assert brick.encoders[19] == 10
