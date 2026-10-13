@@ -530,3 +530,192 @@ def test_new_command_after_completed_stop_is_admitted():
     ev3.wait_stopped()
     ev3.position('blue')
     assert brick.encoders[19] == 10
+
+
+class USBInterface:
+    bInterfaceNumber = 0
+    bAlternateSetting = 0
+    bInterfaceClass = 3
+    def __iter__(self):
+        from types import SimpleNamespace
+        return iter([SimpleNamespace(bEndpointAddress=1, bmAttributes=3, wMaxPacketSize=1024),
+                     SimpleNamespace(bEndpointAddress=0x81, bmAttributes=3, wMaxPacketSize=1024)])
+
+
+class USBDevice:
+    bus = 1
+    address = 8
+    idVendor = 0x694
+    idProduct = 5
+    iSerialNumber = 1
+    def __init__(self, active=True):
+        self.active = active
+        self.events = []
+        self.reply = b'\x03\0\x01\0\x02' + bytes(1019)
+        self.interfaces = [USBInterface()]
+    def get_active_configuration(self):
+        self.events.append('configuration')
+        return self.interfaces
+    def is_kernel_driver_active(self, interface):
+        self.events.append(('active', interface))
+        return self.active
+    def detach_kernel_driver(self, interface):
+        self.events.append(('detach', interface))
+    def attach_kernel_driver(self, interface):
+        self.events.append(('attach', interface))
+    def read(self, endpoint, size, timeout):
+        assert timeout > 0
+        self.events.append(('read', endpoint))
+        return self.reply
+
+
+def fake_pyusb(monkeypatch, device, claim_error=None, serial='001122334455'):
+    import sys
+    from types import ModuleType
+    usb = ModuleType('usb')
+    usb.__path__ = []
+    core, util = ModuleType('usb.core'), ModuleType('usb.util')
+    core.find = lambda **kwargs: [device]
+    def claim(dev, interface):
+        assert dev is device
+        device.events.append(('claim', interface))
+        if claim_error:
+            raise claim_error
+    util.claim_interface = claim
+    util.release_interface = lambda dev, interface: device.events.append(('release', interface))
+    util.dispose_resources = lambda dev: device.events.append('dispose')
+    util.get_string = lambda dev, index: serial
+    usb.core, usb.util = core, util
+    for name, module in [('usb', usb), ('usb.core', core), ('usb.util', util)]:
+        monkeypatch.setitem(sys.modules, name, module)
+    return {'vendor_id':0x694, 'product_id':5, 'serial':'001122334455', 'bus':1, 'address':8}
+
+
+def test_native_claims_only_selected_hid_and_restores_driver(monkeypatch):
+    from workshop.station.ev3_usb import _PyUSBTransport
+    device = USBDevice()
+    identity = fake_pyusb(monkeypatch, device)
+    transport = _PyUSBTransport(identity)
+    assert ('detach', 0) in device.events and ('claim', 0) in device.events
+    assert not any(isinstance(e, tuple) and e[1] != 0 for e in device.events)
+    transport.close()
+    assert device.events[-3:] == [('release', 0), ('attach', 0), 'dispose']
+    transport.close()
+    assert device.events.count(('attach', 0)) == 1
+
+
+def test_native_partial_connect_failure_reattaches_selected_driver(monkeypatch):
+    from workshop.station.ev3_usb import _PyUSBTransport
+    device = USBDevice()
+    identity = fake_pyusb(monkeypatch, device, claim_error=EOFError('claim lost'))
+    with pytest.raises(EOFError, match='claim'):
+        _PyUSBTransport(identity)
+    assert device.events[-2:] == [('attach', 0), 'dispose']
+
+
+def test_native_does_not_attach_originally_unbound_driver(monkeypatch):
+    from workshop.station.ev3_usb import _PyUSBTransport
+    device = USBDevice(active=False)
+    transport = _PyUSBTransport(fake_pyusb(monkeypatch, device))
+    transport.close()
+    assert ('release', 0) in device.events
+    assert not any(isinstance(e, tuple) and e[0] in ('detach', 'attach') for e in device.events)
+
+
+def test_native_checks_exact_serial_before_ownership_change(monkeypatch):
+    from workshop.station.ev3_usb import _PyUSBTransport
+    device = USBDevice()
+    identity = fake_pyusb(monkeypatch, device, serial='leader')
+    with pytest.raises(EV3Error, match='serial'):
+        _PyUSBTransport(identity)
+    assert not any(isinstance(e, tuple) and e[0] in ('detach', 'claim') for e in device.events)
+
+
+@pytest.mark.parametrize('interfaces', [[], [USBInterface(), USBInterface()]])
+def test_native_rejects_missing_or_ambiguous_hid_interface(monkeypatch, interfaces):
+    from workshop.station.ev3_usb import _PyUSBTransport
+    device = USBDevice()
+    device.interfaces = interfaces
+    with pytest.raises(EV3Error, match='interface'):
+        _PyUSBTransport(fake_pyusb(monkeypatch, device))
+    assert not any(isinstance(e, tuple) and e[0] in ('detach', 'claim') for e in device.events)
+
+
+def test_native_normalizes_fixed_hid_report_retaining_exact_frame(monkeypatch):
+    from workshop.station.ev3_usb import _PyUSBTransport
+    device = USBDevice()
+    # Firmware fixed reports copy a reused buffer; trailing bytes need not zero.
+    device.reply = b'\x03\0\x01\0\x02' + b'\xff' * 1019
+    transport = _PyUSBTransport(fake_pyusb(monkeypatch, device))
+    assert transport.read(0x81, 1024, 20) == b'\x03\0\x01\0\x02'
+    transport.close()
+
+
+@pytest.mark.parametrize('reply', [b'\0', b'\x01\0'+bytes(1022), b'\xff\xff'+bytes(1022), b'\x03\0\x01\0\x02\xff'])
+def test_native_rejects_truncation_bad_declared_length_and_unknown_padding(monkeypatch, reply):
+    from workshop.station.ev3_usb import _PyUSBTransport
+    device = USBDevice()
+    device.reply = reply
+    transport = _PyUSBTransport(fake_pyusb(monkeypatch, device))
+    with pytest.raises(EV3Error):
+        transport.read(0x81, 1024, 20)
+    transport.close()
+
+
+def test_native_leaves_unrelated_interface_ownership_untouched(monkeypatch):
+    from workshop.station.ev3_usb import _PyUSBTransport
+    class Unrelated(USBInterface):
+        bInterfaceNumber = 1
+        bInterfaceClass = 255
+    device = USBDevice()
+    device.interfaces.append(Unrelated())
+    transport = _PyUSBTransport(fake_pyusb(monkeypatch, device))
+    transport.close()
+    assert all(e[1] == 0 for e in device.events if isinstance(e, tuple) and e[0] in ('active', 'detach', 'claim', 'release', 'attach'))
+
+
+def test_native_full_speed_64_byte_report_is_normalized(monkeypatch):
+    from workshop.station.ev3_usb import _PyUSBTransport
+    from types import SimpleNamespace
+    class FullSpeed(USBInterface):
+        def __iter__(self):
+            return iter([SimpleNamespace(bEndpointAddress=1, bmAttributes=3, wMaxPacketSize=64),
+                         SimpleNamespace(bEndpointAddress=0x81, bmAttributes=3, wMaxPacketSize=64)])
+    device = USBDevice()
+    device.interfaces = [FullSpeed()]
+    device.reply = b'\x03\0\x01\0\x02' + b'\xaa' * 59
+    transport = _PyUSBTransport(fake_pyusb(monkeypatch, device))
+    assert transport.read(0x81, 1024, 20) == b'\x03\0\x01\0\x02'
+    transport.close()
+
+
+def test_native_close_attempts_restore_even_if_release_fails(monkeypatch):
+    from workshop.station.ev3_usb import _PyUSBTransport
+    import sys
+    device = USBDevice()
+    transport = _PyUSBTransport(fake_pyusb(monkeypatch, device))
+    def fail_release(dev, interface):
+        device.events.append(('release', interface))
+        raise OSError('release failed')
+    sys.modules['usb.util'].release_interface = fail_release
+    with pytest.raises(OSError, match='release'):
+        transport.close()
+    assert ('attach', 0) in device.events and device.events[-1] == 'dispose'
+
+
+def test_stop_during_usb_lock_wait_cannot_deliver_a_late_motor_slice():
+    ev3, brick = ready()
+    ev3.homed = True
+    class StopDuringTransportLock:
+        stopped = False
+        def acquire(self, timeout):
+            if not self.stopped:
+                self.stopped = True
+                ev3.stop()
+            return True
+        def release(self):
+            pass
+    ev3.protocol.lock = StopDuringTransportLock()
+    with pytest.raises(EV3Error):
+        ev3._slice('feeder', 1, 120, ev3._deadline())
+    assert not brick.motion

@@ -46,13 +46,15 @@ class DirectUSB:
         self.lock = threading.Lock()
         self.counter = 0
 
-    def command(self, operations, globals_size, seconds):
+    def command(self, operations, globals_size, seconds, *, guard=None):
         deadline = time.monotonic() + _positive(seconds)
         if not 0 <= globals_size <= 1023:
             raise ValueError('invalid global memory size')
         if not self.lock.acquire(timeout=_remaining(deadline)):
             raise TimeoutError('EV3 transport lock deadline')
         try:
+            if guard is not None and not guard():
+                raise EV3Error('EV3 movement cancelled before USB delivery')
             self.counter = (self.counter + 1) & 0xffff
             body = struct.pack('<HBH', self.counter, 0, globals_size) + operations
             packet = struct.pack('<H', len(body)) + body
@@ -78,37 +80,119 @@ class DirectUSB:
 
 
 class _PyUSBTransport:
+    """Own only the selected original EV3 HID interface; restore on close.
+
+    LEGO usb_function.c defines HID interrupt reports of 64/1024 bytes. Their
+    reused trailing buffer is not zero-filled, so normalize only a validated
+    fixed-size report (or an exact unpadded frame); DirectUSB remains strict.
+    """
     def __init__(self, identity):
         import usb.core
-        # No set_configuration, reset, or kernel-driver detach. Match the sysfs
-        # identity to the enumerated bus/address before opening a transfer.
+        import usb.util
+        self.device = None
+        self.interface = None
+        self.claimed = False
+        self.detached = False
+        self.closed = False
+        self.report_size = None
         matches = list(usb.core.find(find_all=True, idVendor=identity['vendor_id'], idProduct=identity['product_id']))
         matches = [d for d in matches if d.bus == identity['bus'] and d.address == identity['address']]
         if len(matches) != 1:
             raise EV3Error('selected USB device disappeared or is ambiguous')
         self.device = matches[0]
-        self.device.default_timeout = 100  # also bounds descriptor control transfers
-        import usb.util
-        actual_serial = usb.util.get_string(self.device, self.device.iSerialNumber)
-        if actual_serial != identity['serial']:
-            raise EV3Error('live USB serial differs from selected sysfs identity')
-        self.identity = identity
+        try:
+            self.device.default_timeout = 100  # bounds descriptor control transfers
+            if (self.device.idVendor, self.device.idProduct) != (identity['vendor_id'], identity['product_id']):
+                raise EV3Error('live USB VID/PID differs from selected identity')
+            actual_serial = usb.util.get_string(self.device, self.device.iSerialNumber)
+            if actual_serial != identity['serial']:
+                raise EV3Error('live USB serial differs from selected sysfs identity')
+            configuration = self.device.get_active_configuration()
+            candidates = []
+            for interface in configuration:
+                endpoints = list(interface)
+                if interface.bInterfaceClass == 3 and interface.bAlternateSetting == 0 and {e.bEndpointAddress for e in endpoints} == {1, 0x81}:
+                    candidates.append((interface, endpoints))
+            if len(candidates) != 1:
+                raise EV3Error('selected EV3 HID interface absent or ambiguous')
+            interface, endpoints = candidates[0]
+            sizes = {e.wMaxPacketSize for e in endpoints}
+            if interface.bInterfaceNumber != 0 or any(e.bmAttributes & 3 != 3 for e in endpoints) or sizes not in ({64}, {1024}):
+                raise EV3Error('unexpected EV3 HID interface/endpoint descriptor')
+            self.interface = interface.bInterfaceNumber
+            self.report_size = sizes.pop()
+            # Deliberately no reset, set_configuration, or unrelated detach.
+            if self.device.is_kernel_driver_active(self.interface):
+                self.device.detach_kernel_driver(self.interface)
+                self.detached = True
+            usb.util.claim_interface(self.device, self.interface)
+            self.claimed = True
+            self.identity = identity
+        except BaseException:
+            try:
+                self.close()
+            except BaseException:
+                pass  # Preserve the original connect failure.
+            raise
 
     def write(self, endpoint, packet, timeout):
+        _positive(timeout)
+        if self.closed or endpoint != 1 or len(packet) > self.report_size:
+            raise EV3Error('invalid or closed EV3 HID write')
         return self.device.write(endpoint, packet, timeout=timeout)
 
     def read(self, endpoint, size, timeout):
-        return self.device.read(endpoint, size, timeout=timeout)
+        _positive(timeout)
+        if self.closed or endpoint != 0x81 or size < self.report_size:
+            raise EV3Error('invalid or closed EV3 HID read')
+        report = bytes(self.device.read(endpoint, self.report_size, timeout=timeout))
+        if len(report) < 5:
+            raise EV3Error('truncated EV3 HID report')
+        frame_size = struct.unpack('<H', report[:2])[0] + 2
+        if frame_size < 5 or frame_size > len(report):
+            raise EV3Error('invalid declared EV3 HID frame length')
+        if len(report) not in (frame_size, self.report_size):
+            raise EV3Error('unexpected EV3 HID report padding length')
+        return report[:frame_size]
 
     def close(self):
         import usb.util
-        usb.util.dispose_resources(self.device)
+        if self.closed:
+            return
+        self.closed = True
+        error = None
+        if self.claimed:
+            try:
+                usb.util.release_interface(self.device, self.interface)
+                self.claimed = False
+            except BaseException as caught:
+                error = caught
+                # A failed release may still leave the claim held. Dispose it
+                # before attempting reattach, then dispose the re-opened handle.
+                try:
+                    usb.util.dispose_resources(self.device)
+                except BaseException:
+                    pass
+        if self.detached:
+            try:
+                self.device.attach_kernel_driver(self.interface)
+                self.detached = False
+            except BaseException as caught:
+                error = error or caught
+        if self.device is not None:
+            try:
+                usb.util.dispose_resources(self.device)
+            except BaseException as caught:
+                error = error or caught
+        if error is not None:
+            raise error
 
 
 class OriginalEV3:
     """Accept the full station configuration, not just its ev3 section.
 
-    connect/preflight perform no motor command. home is explicit and requires
+    connect/preflight perform no motor command; connect owns the selected HID
+    interface. home is explicit and requires
     enabled + commissioned configuration for physical (non-injected) transport.
     Faults latch; stop remains available, but movement never retries after fault.
     """
@@ -135,7 +219,7 @@ class OriginalEV3:
         self.ports = self.ev3['ports']
 
     def connect(self):
-        """Select exact device; no homing, reset or output bytecodes."""
+        """Select/claim exact device; no homing, reset or output bytecodes."""
         if self.transport is None:
             self.identity = select_identity(discover_ev3(), self.ev3['usb'])
             self.transport = _PyUSBTransport(self.identity)
@@ -147,10 +231,10 @@ class OriginalEV3:
     def _deadline(self, stop=False):
         return time.monotonic() + self.config['timeouts']['stop_s' if stop else 'operation_s']
 
-    def _command(self, ops, size, deadline):
+    def _command(self, ops, size, deadline, *, guard=None):
         if self.protocol is None:
             raise EV3Error('EV3 is not connected')
-        return self.protocol.command(ops, size, _remaining(deadline))
+        return self.protocol.command(ops, size, _remaining(deadline), guard=guard)
 
     def _index(self, name):
         port = self.ports[name]
@@ -257,7 +341,7 @@ class OriginalEV3:
             raise TimeoutError('no time remains for motor watchdog')
         ops = b'\xaf\0' + _lc(self._mask(name)) + b'\x81' + struct.pack('b', percent)
         ops += b'\x83' + struct.pack('<i', 0) + b'\x83' + struct.pack('<i', ms) + b'\x83' + struct.pack('<i', 0) + b'\x01'
-        self._command(ops, 0, deadline)
+        self._command(ops, 0, deadline, guard=lambda: not self._cancelled())
         time.sleep(min(ms / 1000, _remaining(deadline)))
 
     def _track(self, name, direction, speed, deadline, max_travel, target=None, switch=None, stall_home=False):
