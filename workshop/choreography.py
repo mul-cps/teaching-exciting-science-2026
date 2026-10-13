@@ -157,6 +157,10 @@ def make_plan(start, hz, body_wave=False):
 
 
 def plan_at(plan, elapsed):
+    if plan["interpolation"] == "harmonic-phase-ramp":
+        from workshop.rhythm import rhythm_state
+        state = rhythm_state(plan, elapsed)
+        return state["position"], state["phase"]
     previous = plan["start"]
     for stage in plan["stages"]:
         if elapsed <= stage["begin"] + stage["move"] + stage["hold"]:
@@ -170,6 +174,9 @@ def plan_at(plan, elapsed):
 
 
 def profile_at(plan, elapsed):
+    if plan["interpolation"] == "harmonic-phase-ramp":
+        from workshop.rhythm import rhythm_state
+        return rhythm_state(plan, elapsed)
     previous = plan["start"]
     for stage in plan["stages"]:
         if elapsed <= stage["begin"] + stage["move"] + stage["hold"]:
@@ -188,7 +195,7 @@ def profile_at(plan, elapsed):
 
 
 def validate_replay(plan, current, arm_id, calibration_sha256):
-    if (plan.get("schema"), plan.get("interpolation")) not in ((1, "quintic-rest-to-rest"), (2, "septic-flow")):
+    if (plan.get("schema"), plan.get("interpolation")) not in ((1, "quintic-rest-to-rest"), (2, "septic-flow"), (3, "harmonic-phase-ramp")):
         raise ValueError("Unsupported trajectory format")
     if plan.get("arm_id") != arm_id or plan.get("calibration_sha256") != calibration_sha256:
         raise ValueError("Replay arm ID or calibration differs")
@@ -200,6 +207,10 @@ def validate_replay(plan, current, arm_id, calibration_sha256):
         raise ValueError("Invalid replay timing")
     if max(abs(current[k] - plan["start"][k]) for k in JOINTS) > 3:
         raise ValueError("Replay starting pose differs by more than 3 degrees/percent; no motion started")
+    if plan["schema"] == 3:
+        from workshop.rhythm import validate_rhythm
+        validate_rhythm(plan)
+        return
     previous, expected_begin = plan["start"], 0.0
     for stage in plan["stages"]:
         if not all(math.isfinite(stage[k]) for k in ("begin", "move", "hold")):
@@ -237,6 +248,26 @@ def validate_replay(plan, current, arm_id, calibration_sha256):
         for peak, limits in zip(curve_peaks(plan), (FLOW_SPEED, FLOW_ACCELERATION, FLOW_JERK)):
             if any(peak[k] > limits[k] + 1e-6 for k in JOINTS):
                 raise ValueError("Replay exceeds velocity, acceleration or jerk limits")
+
+
+def validate_calibrated_bounds(plan, bounds):
+    """Check the complete planned position envelope before enabling torque."""
+    for k in JOINTS:
+        if plan['schema'] == 3:
+            lo = hi = plan['start'][k]
+            for term in plan['harmonics'][k]:
+                amplitude = term['amplitude']
+                if term['kind'] == 'sin':
+                    lo -= abs(amplitude)
+                    hi += abs(amplitude)
+                else:
+                    lo += min(0, -2*amplitude)
+                    hi += max(0, -2*amplitude)
+        else:
+            positions = [plan['start'][k]] + [s['target'][k] for s in plan['stages']]
+            lo, hi = min(positions), max(positions)
+        if lo < bounds[k][0]-1e-7 or hi > bounds[k][1]+1e-7:
+            raise ValueError(f'{k} trajectory exceeds calibrated bounds')
 
 
 class Recorder:
@@ -308,11 +339,14 @@ def run_hardware(args):
     camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    camera.set(cv2.CAP_PROP_FPS, 25)
+    camera.set(cv2.CAP_PROP_FPS, 30)
     writer = recorder = None
     trace = []
     original_acceleration = None
     torque_verified = False
+    acceleration_restored = False
+    completed = False
+    failure = None
     gc_was_enabled = gc.isenabled()
     try:
         for _ in range(10):
@@ -322,7 +356,7 @@ def run_hardware(args):
         cv2.imwrite(str(args.output / "before.jpg"), frame)
         height, width = frame.shape[:2]
         writer = cv2.VideoWriter(str(args.output / "dance.avi"),
-                                 cv2.VideoWriter_fourcc(*"MJPG"), 25, (width, height))
+                                 cv2.VideoWriter_fourcc(*"MJPG"), 30, (width, height))
         if not writer.isOpened():
             raise RuntimeError("Video recording unavailable; no movement started")
         bus.connect()
@@ -336,10 +370,21 @@ def run_hardware(args):
             validate_replay(plan, start, args.id, digest)
             plan["source_trajectory_sha256"] = hashlib.sha256(replay_bytes).hexdigest()
         else:
-            plan = make_plan(start, args.hz, args.body_wave)
+            if args.rhythm:
+                from workshop.rhythm import make_rhythm_plan
+                plan = make_rhythm_plan(start, args.hz)
+            else:
+                plan = make_plan(start, args.hz, args.body_wave)
             plan.update(arm_id=args.id, calibration_sha256=digest)
-        servo_acceleration = args.servo_acceleration or plan.get("servo_acceleration", 50)
-        if not 1 <= servo_acceleration <= 150:
+        validate_replay(plan, start, args.id, digest)
+        from workshop.teleop_capture import normalized_position
+        calibration = json.loads((args.calibration_dir / f"{args.id}.json").read_text())
+        bounds = {k: (normalized_position(calibration[k]['range_min'], calibration[k], k == 'gripper'),
+                      normalized_position(calibration[k]['range_max'], calibration[k], k == 'gripper')) for k in JOINTS}
+        validate_calibrated_bounds(plan, bounds)
+        plan['camera_fps'] = 30
+        servo_acceleration = args.servo_acceleration or plan.get("servo_acceleration", 254 if plan["schema"] == 3 else 50)
+        if not 1 <= servo_acceleration <= 254:
             raise ValueError("Invalid saved servo acceleration")
         plan["servo_acceleration"] = servo_acceleration
         plan["hz"] = args.hz
@@ -393,7 +438,11 @@ def run_hardware(args):
                 break
             # Skip missed ticks rather than sending a burst of stale goals.
             tick = max(tick + 1, math.floor((time.monotonic() - routine_start) * args.hz) + 1)
+        completed = True
         print("Completed; returned to starting target", flush=True)
+    except BaseException as exc:
+        failure = str(exc)
+        raise
     finally:
         try:
             if bus.is_connected:
@@ -406,6 +455,7 @@ def run_hardware(args):
                         bus.sync_write("Acceleration", original_acceleration, num_retry=2)
                         if any(bus.read("Acceleration", k, num_retry=2) != original_acceleration[k] for k in JOINTS):
                             raise RuntimeError("Servo acceleration restore failed")
+                        acceleration_restored = True
                 finally:
                     bus.disconnect(disable_torque=False)
         finally:
@@ -420,6 +470,10 @@ def run_hardware(args):
                     camera.release()
             finally:
                 (args.output / "trace.json").write_text(json.dumps(trace))
+                (args.output / "result.json").write_text(json.dumps(dict(
+                    status="complete" if completed and torque_verified and acceleration_restored and (recorder is None or recorder.error is None) else "failed", failure=failure, samples=len(trace),
+                    cleanup=dict(torque_off=torque_verified,
+                                 acceleration_restored=acceleration_restored if original_acceleration else None)), indent=2))
                 if gc_was_enabled:
                     gc.enable()
         print("Connections closed; " + ("torque disabled and read back" if torque_verified
@@ -435,17 +489,20 @@ def main():
     parser.add_argument("--camera", default="/dev/video1")
     parser.add_argument("--hz", type=int, default=100)
     parser.add_argument("--body-wave", action="store_true", help="Candidate stronger body-wave variation; see validation notes")
+    parser.add_argument("--rhythm", action="store_true", help="Continuous dance with smooth phase acceleration and deceleration")
     parser.add_argument("--servo-acceleration", type=int,
-                        help="Temporary native servo acceleration register (1..150); restored on exit")
+                        help="Temporary native servo acceleration register (1..254); restored on exit")
     parser.add_argument("--replay", type=Path, help="Replay a saved trajectory.json after checking start/calibration")
     parser.add_argument("--output", type=Path, default=Path("/tmp/cps-spline-dance"))
     args = parser.parse_args()
     if not 100 <= args.hz <= 200:
         parser.error("--hz must be between 100 and 200")
-    if args.servo_acceleration is not None and not 1 <= args.servo_acceleration <= 150:
-        parser.error("--servo-acceleration must be between 1 and 150")
+    if args.servo_acceleration is not None and not 1 <= args.servo_acceleration <= 254:
+        parser.error("--servo-acceleration must be between 1 and 254")
     if args.replay and args.replay.resolve() == (args.output / "trajectory.json").resolve():
         parser.error("Replay output must differ from the source trajectory directory")
+    if args.rhythm and (args.body_wave or args.replay):
+        parser.error("--rhythm cannot combine with --body-wave or --replay")
     if args.replay and args.body_wave:
         parser.error("--replay preserves the saved choreography; do not combine with --body-wave")
     if args.run:
@@ -457,6 +514,9 @@ def main():
         run_hardware(args)
     else:
         plan = json.loads(args.replay.read_text()) if args.replay else make_plan({k: 0.0 for k in JOINTS}, args.hz, args.body_wave)
+        if args.rhythm:
+            from workshop.rhythm import make_rhythm_plan
+            plan = make_rhythm_plan({k: 0.0 for k in JOINTS}, args.hz)
         for stage in plan["stages"]:
             print(f"{stage['name']}: move {stage['move']:.2f}s, hold {stage['hold']:.1f}s; target {stage['target']}")
         print(f"Dry run only: total {plan['duration']:.1f}s at requested {args.hz} Hz")

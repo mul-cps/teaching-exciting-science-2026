@@ -136,3 +136,40 @@ curve checks but its physical trial is pending: the webcam subsequently stopped
 streaming with `VIDIOC_STREAMON: Protocol error`, and the trial aborted before
 motor connection. The default remains the completed flow routine. Reconnect the
 webcam and verify the full view before testing this candidate.
+
+## Continuous rhythm with smooth ramps
+
+`--rhythm` is the new candidate for the requested smooth dance:
+
+```bash
+python -m workshop.choreography --rhythm --hz 125
+```
+
+It uses coordinated harmonic joint curves and a quintic phase-velocity ramp.
+Position, velocity, acceleration and jerk start and finish continuously at rest.
+During the dance, acceleration flows through intermediate poses instead of being
+reset to zero at every waypoint. Reversals remain smooth; no minimum-speed clamp
+or intermediate holds are introduced. The two-cycle plan lasts about 14.5 seconds.
+
+The native acceleration setting is 254 for this candidate because the controlled
+probe found no oscillation-energy improvement from 50. This is a servo register
+value, not the planned acceleration in degrees/s². The original register is still
+restored on exit. Existing saved spline trajectories retain their own setting.
+
+The rhythm keeps the previous joint displacement envelope and checks the entire
+position envelope against the actual calibration before torque is enabled.
+Schema 3 saves every harmonic, the phase ramp, time scale, limits and start pose;
+`--replay` follows the same continuous curve without fitting measured feedback.
+New recordings request 30 fps, while motor commands remain at 125 Hz. Each run
+also saves `result.json`, including completion/failure and cleanup verification.
+
+**Physical acceptance is pending.** Two trials on 2026-10-13 aborted at the existing
+10-degree tracking limit on wrist rotation. The second trial tracked initially,
+then stopped near -74 degrees while the target continued. A cable/contact
+constraint is possible and needs inspection; it is not a confirmed diagnosis.
+Neither interrupted recording is an accepted smooth dance. Torque-off and original
+setting restoration were verified. Do not widen the tracking threshold to make
+these trials pass.
+
+See [measured arm response](arm-smoothness-analysis.md) for the distinction between
+continuous command ramps and motion-induced servo/arm oscillation.

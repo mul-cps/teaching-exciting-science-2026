@@ -42,3 +42,36 @@ Raw footage and trajectories remain in ignored `artifacts/choreography/` directo
 - `base-system-probe-2026-10-13-01`: probe plan, profiles, feedback, video, analyses and optical tracks.
 
 `python -m workshop.motion_diagnostics --help` describes offline comparison. `python -m workshop.system_probe --help` describes the bounded physical probe; its default is planning only, with `--run` required for hardware motion. `python -m workshop.teleop_replay --help` describes saved-command replay. Hardware operation requires the correct calibration, clear envelope and reachable power cutoff.
+
+## Follow-up controlled settings trials
+
+At the same base pose and 3 deg/s path, single-setting comparisons gave:
+
+| Base setting changed | Positive RMS | Negative RMS | Backward events, positive / negative |
+|---|---:|---:|---:|
+| Original P=16, D=32, startup force=16 | 0.233 deg | 0.234 deg | 56 / 56 |
+| D=48 | 0.222 deg | 0.227 deg | 58 / 58 |
+| D=64 | 0.272 deg | 0.285 deg | 61 / 53 |
+| Startup force=8 | 0.219 deg | 0.192 deg | 23 / 4 |
+| P=8 | 0.185 deg | 0.194 deg | 11 / 0 |
+
+D=64 made the ripple worse. Startup force=8 and P=8 reduced backward excursions,
+but did not remove residual motion. P=8 introduced about one degree of average
+tracking lag in each direction. These single-pose, single-trial results do not
+justify a new general servo default. All changed settings were backed up before
+motion, restored afterward, and verified by readback. The arm was left torque-off.
+
+The probe now supports `--quick`, `--focus-speed 3`, `--base-d`, `--base-p` and
+`--base-startup-force` for explicit experimental trials. Gain/startup-force fields
+are EEPROM parameters: software restoration is verified on normal/error exit,
+but a power interruption can prevent it. Keep the saved `probe-plan.json` backup.
+The CLI never tunes settings without the corresponding explicit flags.
+`python -m workshop.probe_analysis <run-directory>` reproduces cruise/hold metrics,
+including settled-hold ranges after the first 0.5 seconds.
+
+New continuous-rhythm commands use a quintic phase-speed ramp and harmonic joint
+motion. They carry acceleration through intermediate poses instead of forcing
+zero acceleration and jerk at every spline knot. The two hardware trials remain
+unaccepted because wrist tracking stopped near -74 degrees; the original tracking
+limit aborted them. Physical inspection and full webcam coverage are needed before
+continuing. Saved ramp profiles prove command continuity, not physical smoothness.

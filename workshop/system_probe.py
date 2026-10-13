@@ -29,7 +29,7 @@ def sweep_profile(t,distance,speed):
     return speed*ramp/2+speed*(t-ramp),speed,0,0
 
 
-def make_stages():
+def make_stages(quick=False, focus_speed=None):
     stages=[];begin=0.;position=0.
     def hold(name,duration,accel):
         nonlocal begin
@@ -39,7 +39,7 @@ def make_stages():
         duration=abs(target-position)/speed+max(.8,speed*.085)
         stages.append(dict(name=name,begin=begin,duration=duration,from_angle=position,to_angle=target,speed=speed,acceleration_register=accel));begin+=duration;position=target
     hold('baseline-hold',4,254);move('approach',-12,6,254)
-    for speed,accel in [(1,254),(3,254),(8,254),(12,254),(3,50)]:
+    for speed,accel in ([(focus_speed,254)] if focus_speed is not None else [(1,254),(3,254),(8,254)] if quick else [(1,254),(3,254),(8,254),(12,254),(3,50)]):
         label=f'speed-{speed}-accel-{accel}'
         move(label+'-positive',12,speed,accel);hold(label+'-hold-positive',1.5,accel)
         move(label+'-negative',-12,speed,accel);hold(label+'-hold-negative',1.5,accel)
@@ -48,8 +48,11 @@ def make_stages():
 
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--run',action='store_true');p.add_argument('--port',required=True);p.add_argument('--calibration-dir',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--camera',default='/dev/video1');a=p.parse_args()
-    stages=make_stages();duration=stages[-1]['begin']+stages[-1]['duration'];print(f'Base-only ±12 degree probe, {duration:.2f}s, 125 Hz',flush=True)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--run',action='store_true');p.add_argument('--port',required=True);p.add_argument('--calibration-dir',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--camera',default='/dev/video1')
+    p.add_argument('--quick',action='store_true',help='Compare 1/3/8 deg/s with native acceleration 254');p.add_argument('--base-d',type=int,choices=[32,48,64],help='Experimental base derivative gain; backed up and restored after trial')
+    p.add_argument('--focus-speed',type=int,choices=[1,3,8],help='Only test one speed in both directions');p.add_argument('--base-p',type=int,choices=[8,12,16],help='Experimental base proportional gain, restored after trial');p.add_argument('--base-startup-force',type=int,choices=[8,12,16],help='Experimental base startup force, restored after trial')
+    a=p.parse_args()
+    stages=make_stages(a.quick,a.focus_speed);duration=stages[-1]['begin']+stages[-1]['duration'];print(f'Base-only ±12 degree probe, {duration:.2f}s, 125 Hz',flush=True)
     if not a.run:return
     a.output.mkdir(parents=True,exist_ok=False)
     from lerobot.robots.so_follower.so_follower import SOFollower
@@ -57,14 +60,14 @@ def main():
     from lerobot.utils.robot_utils import precise_sleep
     import cv2
     arm=SOFollower(SOFollowerRobotConfig(port=a.port,id='hs_rig01_follower',calibration_dir=a.calibration_dir,use_degrees=True));bus=arm.bus
-    camera=writer=recorder=None;trace=[];original_acceleration=None;status='failed';failure=None;cleanup={};was_gc=gc.isenabled()
+    camera=writer=recorder=None;trace=[];original_acceleration=None;original_d=None;original_extra={};status='failed';failure=None;cleanup={};was_gc=gc.isenabled()
     def interrupt(signum,frame):raise KeyboardInterrupt('Stop requested')
     signal.signal(signal.SIGTERM,interrupt)
     try:
-        camera=cv2.VideoCapture(a.camera,cv2.CAP_V4L2);camera.set(cv2.CAP_PROP_FOURCC,cv2.VideoWriter_fourcc(*'MJPG'));camera.set(cv2.CAP_PROP_FRAME_WIDTH,640);camera.set(cv2.CAP_PROP_FRAME_HEIGHT,480);camera.set(cv2.CAP_PROP_FPS,25)
+        camera=cv2.VideoCapture(a.camera,cv2.CAP_V4L2);camera.set(cv2.CAP_PROP_FOURCC,cv2.VideoWriter_fourcc(*'MJPG'));camera.set(cv2.CAP_PROP_FRAME_WIDTH,640);camera.set(cv2.CAP_PROP_FRAME_HEIGHT,480);camera.set(cv2.CAP_PROP_FPS,30)
         for _ in range(10):ok,frame=camera.read()
         if not ok:raise RuntimeError('Camera preflight failed')
-        cv2.imwrite(str(a.output/'before.jpg'),frame);h,w=frame.shape[:2];writer=cv2.VideoWriter(str(a.output/'dance.avi'),cv2.VideoWriter_fourcc(*'MJPG'),25,(w,h))
+        cv2.imwrite(str(a.output/'before.jpg'),frame);h,w=frame.shape[:2];writer=cv2.VideoWriter(str(a.output/'dance.avi'),cv2.VideoWriter_fourcc(*'MJPG'),30,(w,h))
         if not writer.isOpened():raise RuntimeError('Video writer failed')
         bus.connect()
         if not bus.is_calibrated:raise RuntimeError('Hardware calibration mismatch')
@@ -76,10 +79,13 @@ def main():
             lo=normalized_position(cal[k]['range_min'],cal[k],k=='gripper');hi=normalized_position(cal[k]['range_max'],cal[k],k=='gripper')
             margin=12 if k=='shoulder_pan' else 0
             if start[k]-margin<lo or start[k]+margin>hi:raise RuntimeError(f'{k} probe outside calibration')
+        original_d=bus.read('D_Coefficient','shoulder_pan',num_retry=2)
+        trial_extra={reg:value for reg,value in [('P_Coefficient',a.base_p),('Minimum_Startup_Force',a.base_startup_force)] if value is not None}
+        original_extra={reg:bus.read(reg,'shoulder_pan',num_retry=2) for reg in trial_extra}
         original_acceleration={k:bus.read('Acceleration',k,num_retry=2) for k in JOINTS}
         velocity={k:bus.read('Goal_Velocity',k,num_retry=2) for k in JOINTS}
         if velocity['shoulder_pan']!=0:raise RuntimeError('Unexpected base native velocity setting')
-        metadata={'schema':1,'probe':'base only; other targets fixed at measured start; quintic velocity ramps, C3 position','start':start,'hz':125,'duration_s':duration,'stages':stages,'original_acceleration':original_acceleration,'goal_velocity':velocity,'calibration_sha256':hashlib.sha256(calibration_path.read_bytes()).hexdigest(),'max_base_velocity':12,'max_base_acceleration':24,'max_base_jerk':100}
+        metadata={'schema':1,'probe':'base only; other targets fixed at measured start; quintic velocity ramps, C3 position','start':start,'hz':125,'duration_s':duration,'stages':stages,'original_acceleration':original_acceleration,'goal_velocity':velocity,'calibration_sha256':hashlib.sha256(calibration_path.read_bytes()).hexdigest(),'max_base_velocity':12,'max_base_acceleration':24,'max_base_jerk':100,'base_d_original':original_d,'base_d_trial':a.base_d if a.base_d is not None else original_d,'camera_fps':30,'base_extra_original':original_extra,'base_extra_trial':trial_extra}
         (a.output/'probe-plan.json').write_text(json.dumps(metadata,indent=2))
         with (a.output/'planned-profiles.jsonl').open('w') as planned:
             for stage in stages:
@@ -89,6 +95,12 @@ def main():
                     q,v,acc,j=sweep_profile(local,abs(stage['to_angle']-stage['from_angle']),stage['speed']) if stage['speed'] else (0,0,0,0)
                     if abs(v)>12+1e-6 or abs(acc)>24+1e-6 or abs(j)>100+1e-6:raise RuntimeError('Offline probe profile exceeds limits')
                     planned.write(json.dumps({'t':stage['begin']+local,'phase':stage['name'],'offset':stage['from_angle']+direction*q,'velocity':direction*v,'acceleration':direction*acc,'jerk':direction*j})+'\n')
+        for reg,value in trial_extra.items():
+            bus.write(reg,'shoulder_pan',value,num_retry=2)
+            if bus.read(reg,'shoulder_pan',num_retry=2)!=value:raise RuntimeError(f'{reg} readback failed')
+        if a.base_d is not None:
+            bus.write('D_Coefficient','shoulder_pan',a.base_d,num_retry=2)
+            if bus.read('D_Coefficient','shoulder_pan',num_retry=2)!=a.base_d:raise RuntimeError('Derivative gain readback failed')
         recorder=Recorder(camera,writer,a.output);gc.collect();gc.disable()
         bus.sync_write('Goal_Position',start,num_retry=2);bus.sync_write('Torque_Enable',dict.fromkeys(JOINTS,1),num_retry=2)
         routine_start=last=time.monotonic();tick=0;stage_index=0;previous_phase=None
@@ -123,6 +135,10 @@ def main():
         if bus.is_connected:
             try:
                 bus.disable_torque(num_retry=2);cleanup['torque_off']=all(bus.read('Torque_Enable',k,num_retry=2)==0 for k in JOINTS)
+                for reg,value in original_extra.items():
+                    bus.write(reg,'shoulder_pan',value,num_retry=2);cleanup[reg+'_restored']=bus.read(reg,'shoulder_pan',num_retry=2)==value
+                if original_d is not None and a.base_d is not None:
+                    bus.write('D_Coefficient','shoulder_pan',original_d,num_retry=2);cleanup['base_d_restored']=bus.read('D_Coefficient','shoulder_pan',num_retry=2)==original_d
                 if original_acceleration is not None:
                     bus.sync_write('Acceleration',original_acceleration,num_retry=2);cleanup['acceleration_restored']=all(bus.read('Acceleration',k,num_retry=2)==original_acceleration[k] for k in JOINTS)
             except Exception as exc:cleanup['error']=str(exc)
