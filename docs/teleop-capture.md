@@ -36,3 +36,20 @@ Estimated moving-joint velocity lag: pan 64 ms, elbow 88 ms, wrist flex/roll 72 
 Teleop retained native acceleration register 254; dance used 50. Speed, motion size, servo profiling, and trajectory shape all differ, so this recording does NOT causally prove that faster speed alone fixes jerk. The useful next controlled test is to replay the captured commands at the original timestamps and register setting, then compare the exact same path with acceleration 50. Preserve the successful measured path as the baseline before adding spline resampling, retiming, or feedforward. For subsequent choreographies, investigate avoiding extended tiny creeping movements, while retaining smooth acceleration and reversals.
 
 First take was interrupted after 3,760 samples because the initial recorder incorrectly reused dance displacement bounds; it is not a valid natural-teleop comparison. All local video/raw artifacts stay under ignored `artifacts/choreography/` and are not uploaded by this code.
+
+## Original-timing physical replay
+
+`workshop.teleop_replay` replays the captured **sent commands**, not raw leader samples or interpolated splines. It checks the source completion status, calibration hash, calibrated joint bounds, increasing timestamps/gaps, and per-tick rate limits before opening hardware. Recorded command timing includes serial latency jitter; step bounds use the larger of the actual command interval and the original capture period. No trajectory retiming is applied.
+
+```bash
+/tmp/lerobot-so101-test/bin/python -m workshop.teleop_replay \
+  artifacts/choreography/teleop-paired-2026-10-13-02 \
+  --run \
+  --port /dev/serial/by-id/usb-1a86_USB_Single_Serial_5AB9068906-if00 \
+  --calibration-dir /home/bjoern/git/soarm101-highschool-demos/.calibration \
+  --output artifacts/choreography/teleop-replay-new-take
+```
+
+Omit `--run` for offline validation. Hardware requires a working camera and current pose within 3 degrees/percent of the recorded start or finish. If at the finish, the arm returns along the captured commands in reverse, omitting the original initial idle period, then begins the forward replay. Intermediate poses are refused. The complete return/forward plan and source SHA256 are saved before torque engagement. Native acceleration and goal velocity are temporarily restored to the captured values and verified, then their previous values are restored on exit. The leader is not opened or actuated.
+
+Commands follow the original relative command-write timestamps, with overdue commands skipped instead of burst-sent. Bus/control gaps over 50 ms, tracking error over 10 degrees/percent, and camera failures stop the replay. Output includes camera video, feedback JSONL, final trace, replay plan and cleanup readbacks. Like the capture controller, this is a monitored joint-space replay, not collision detection.
