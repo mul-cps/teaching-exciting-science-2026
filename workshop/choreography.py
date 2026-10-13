@@ -364,35 +364,52 @@ def run_hardware(args):
             raise RuntimeError("Saved calibration does not match the arm")
         start = bus.sync_read("Present_Position", num_retry=2)
         digest = hashlib.sha256((args.calibration_dir / f"{args.id}.json").read_bytes()).hexdigest()
+        from workshop.safe_home import load_home, make_home_move, restart_at, home_at, validate_home_start
+        home = load_home(args.home, args.id, digest)
         if args.replay:
             replay_bytes = args.replay.read_bytes()
             plan = json.loads(replay_bytes)
-            validate_replay(plan, start, args.id, digest)
+            validate_replay(plan, home, args.id, digest)
+            validate_home_start(plan["start"], home)
             plan["source_trajectory_sha256"] = hashlib.sha256(replay_bytes).hexdigest()
         else:
             if args.rhythm:
                 from workshop.rhythm import make_rhythm_plan
-                plan = make_rhythm_plan(start, args.hz)
+                plan = make_rhythm_plan(home, args.hz)
             else:
-                plan = make_plan(start, args.hz, args.body_wave)
+                plan = make_plan(home, args.hz, args.body_wave)
             plan.update(arm_id=args.id, calibration_sha256=digest)
-        validate_replay(plan, start, args.id, digest)
+        validate_replay(plan, home, args.id, digest)
         from workshop.teleop_capture import normalized_position
         calibration = json.loads((args.calibration_dir / f"{args.id}.json").read_text())
         bounds = {k: (normalized_position(calibration[k]['range_min'], calibration[k], k == 'gripper'),
                       normalized_position(calibration[k]['range_max'], calibration[k], k == 'gripper')) for k in JOINTS}
-        validate_calibrated_bounds(plan, bounds)
+        home_move = make_home_move(start, home, bounds, args.hz)
+        if not args.home_only:
+            validate_calibrated_bounds(plan, bounds)
+        plan['home_path'] = str(args.home)
+        plan['home_sha256'] = hashlib.sha256(args.home.read_bytes()).hexdigest()
+        plan['home_move'] = home_move
+        (args.output / 'home-trajectory.json').write_text(json.dumps(home_move, indent=2))
         plan['camera_fps'] = 30
         servo_acceleration = args.servo_acceleration or plan.get("servo_acceleration", 254 if plan["schema"] == 3 else 50)
         if not 1 <= servo_acceleration <= 254:
             raise ValueError("Invalid saved servo acceleration")
         plan["servo_acceleration"] = servo_acceleration
         plan["hz"] = args.hz
+        if args.home_only:
+            plan["execution_mode"] = "home-only"
         # Complete replayable plan is durable BEFORE torque is enabled.
         (args.output / "trajectory.json").write_text(json.dumps(plan, indent=2))
         with (args.output / "planned-profiles.jsonl").open("w") as planned:
             for tick in range(math.ceil(plan["duration"] * args.hz) + 1):
                 planned.write(json.dumps(profile_at(plan, tick / args.hz)) + "\n")
+        with (args.output / 'planned-home-profiles.jsonl').open('w') as planned:
+            zero = dict.fromkeys(JOINTS, 0.)
+            for tick in range(math.ceil(home_move['duration']*args.hz)+1):
+                elapsed = min(tick/args.hz, home_move['duration'])
+                p, v, acc, jerk = smooth_state(start, home, zero, zero, home_move['duration'], elapsed/home_move['duration'])
+                planned.write(json.dumps(dict(t=elapsed, position=p, velocity=v, acceleration=acc, jerk=jerk))+'\n')
         original_acceleration = {k: bus.read("Acceleration", k, num_retry=2) for k in JOINTS}
         (args.output / "hardware-before.json").write_text(json.dumps(dict(acceleration=original_acceleration)))
         bus.sync_write("Acceleration", {k: servo_acceleration for k in JOINTS}, num_retry=2)
@@ -408,6 +425,8 @@ def run_hardware(args):
         bus.sync_write("Torque_Enable", {k: 1 for k in JOINTS}, num_retry=2)
         routine_start = time.monotonic()
         tick, phase, last_command = 0, None, routine_start
+        home_reached = False
+        total_duration = home_move['duration'] + (0 if args.home_only else plan['duration'])
         while True:
             deadline = routine_start + tick / args.hz
             precise_sleep(max(0, deadline - time.monotonic()), spin_threshold=0.0003, sleep_margin=0.0003)
@@ -418,7 +437,13 @@ def run_hardware(args):
             last_command = now
             if recorder.error:
                 raise RuntimeError(f"Recording failed: {recorder.error}")
-            goal, current_phase = plan_at(plan, elapsed)
+            if elapsed >= home_move['duration'] and not home_reached:
+                measured = bus.sync_read('Present_Position', num_retry=2)
+                if max(abs(measured[k]-home[k]) for k in JOINTS) > 1:
+                    raise RuntimeError('Home tracking tolerance exceeded; choreography not started')
+                home_reached = True
+                print('Home reached and verified', flush=True)
+            goal, current_phase = (home_at(home_move, elapsed) if args.home_only else restart_at(home_move, plan, elapsed))
             if current_phase != phase:
                 phase = current_phase
                 print(f"{phase} @ {elapsed:.2f}s", flush=True)
@@ -434,7 +459,7 @@ def run_hardware(args):
             errors = {k: abs(actual[k] - goal[k]) for k in JOINTS}
             if max(errors.values()) > 10:
                 raise RuntimeError(f"Tracking limit exceeded: {errors}")
-            if elapsed >= plan["duration"]:
+            if elapsed >= total_duration:
                 break
             # Skip missed ticks rather than sending a burst of stale goals.
             tick = max(tick + 1, math.floor((time.monotonic() - routine_start) * args.hz) + 1)
@@ -489,6 +514,9 @@ def main():
     parser.add_argument("--camera", default="/dev/video1")
     parser.add_argument("--hz", type=int, default=100)
     parser.add_argument("--body-wave", action="store_true", help="Candidate stronger body-wave variation; see validation notes")
+    from workshop.safe_home import DEFAULT_HOME
+    parser.add_argument('--home', type=Path, default=DEFAULT_HOME, help='Measured home file, required before every hardware start')
+    parser.add_argument('--home-only', action='store_true', help='Return to and verify home without starting choreography')
     parser.add_argument("--rhythm", action="store_true", help="Continuous dance with smooth phase acceleration and deceleration")
     parser.add_argument("--servo-acceleration", type=int,
                         help="Temporary native servo acceleration register (1..254); restored on exit")
@@ -501,6 +529,8 @@ def main():
         parser.error("--servo-acceleration must be between 1 and 254")
     if args.replay and args.replay.resolve() == (args.output / "trajectory.json").resolve():
         parser.error("Replay output must differ from the source trajectory directory")
+    if args.home_only and (args.replay or args.rhythm or args.body_wave):
+        parser.error('--home-only cannot combine with choreography/replay selection')
     if args.rhythm and (args.body_wave or args.replay):
         parser.error("--rhythm cannot combine with --body-wave or --replay")
     if args.replay and args.body_wave:

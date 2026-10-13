@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "kind": "measured-home",
+  "arm_id": "hs_rig01_follower",
+  "port": "/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AB9068906-if00",
+  "units": "body degrees; gripper percent",
+  "calibration_sha256": "bc688147848f386899f8f34eb09cdb285fcdb0fc8de576b78a50a8efaf7f424c",
+  "captured_utc": "2026-10-13T11:20:49.890186+00:00",
+  "position": {
+    "shoulder_pan": -1.6263736263736264,
+    "shoulder_lift": -105.71428571428571,
+    "elbow_flex": 93.67032967032966,
+    "wrist_flex": 74.06593406593407,
+    "wrist_roll": -69.05494505494505,
+    "gripper": 4.0829986613119145
+  },
+  "models": {
+    "shoulder_pan": 777,
+    "shoulder_lift": 777,
+    "elbow_flex": 777,
+    "wrist_flex": 777,
+    "wrist_roll": 777,
+    "gripper": 777
+  },
+  "torque_at_capture": {
+    "shoulder_pan": 0,
+    "shoulder_lift": 0,
+    "elbow_flex": 0,
+    "wrist_flex": 0,
+    "wrist_roll": 0,
+    "gripper": 0
+  },
+  "raw_position": {
+    "shoulder_pan": 2089,
+    "shoulder_lift": 949,
+    "elbow_flex": 3017,
+    "wrist_flex": 2838,
+    "wrist_roll": 1262,
+    "gripper": 1933
+  },
+  "actuation_ready": false,
+  "issue": "Measured shoulder home is below the enforced lower limit; extension decision pending"
+}

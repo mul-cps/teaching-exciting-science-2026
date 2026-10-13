@@ -53,3 +53,9 @@ First take was interrupted after 3,760 samples because the initial recorder inco
 Omit `--run` for offline validation. Hardware requires a working camera and current pose within 3 degrees/percent of the recorded start or finish. If at the finish, the arm returns along the captured commands in reverse, omitting the original initial idle period, then begins the forward replay. Intermediate poses are refused. The complete return/forward plan and source SHA256 are saved before torque engagement. Native acceleration and goal velocity are temporarily restored to the captured values and verified, then their previous values are restored on exit. The leader is not opened or actuated.
 
 Commands follow the original relative command-write timestamps, with overdue commands skipped instead of burst-sent. Bus/control gaps over 50 ms, tracking error over 10 degrees/percent, and camera failures stop the replay. Output includes camera video, feedback JSONL, final trace, replay plan and cleanup readbacks. Like the capture controller, this is a monitored joint-space replay, not collision detection.
+
+Recorded-command hardware replay now begins with the bounded safe-home move from
+`trajectories/rig01-home.json` (or `--home`). Its recorded first command must match
+that saved home. A recording from a different home is rejected; recapture from the
+new home to preserve the original command mapping and timing. The home path and
+home-file hash are saved in `replay-plan.json` before torque is enabled.

@@ -173,3 +173,42 @@ these trials pass.
 
 See [measured arm response](arm-smoothness-analysis.md) for the distinction between
 continuous command ramps and motion-induced servo/arm oscillation.
+
+## Measured home and restart
+
+Rig01's current measured rest pose is saved in
+[`trajectories/rig01-home.json`](../trajectories/rig01-home.json). Every choreography
+hardware start first loads this home, checks its arm ID and calibration hash, and
+plans a bounded septic rest-to-rest return from the measured current pose. It seeds
+current goals before enabling torque, follows the return with limited speed,
+acceleration and jerk, and verifies arrival within one degree/percentage point
+before starting the dance. Excessive tracking error aborts the return. A current
+pose outside the bounded return envelope is refused rather than driven home blindly.
+These are joint-space checks; they do not prove Cartesian collision clearance.
+
+The initial home capture is currently **not actuation-ready**: its shoulder encoder
+position is 949, below the existing hardware minimum 1063. The file preserves the
+requested physical pose and raw encoder readings. The return refuses it until the
+lower-limit decision is resolved. No calibration or EEPROM limit was changed by
+home capture. The proposed change and original backup are retained locally in
+`artifacts/choreography/home-limit-proposal-2026-10-13/` for review.
+
+`--home` selects another explicit home file. `--home-only` performs and verifies
+just the home move. `home-trajectory.json` and `planned-home-profiles.jsonl` are
+saved before torque is enabled; the run's `trajectory.json` also references the
+home file/hash and return plan. A replay whose saved start differs from home is
+refused; regenerate or recapture from home rather than shifting old commands.
+Paired-command replay through `workshop.teleop_replay` also goes through home first.
+Interactive teleoperation and diagnostic probes retain their separate start rules.
+
+To explicitly redefine home from a new supported, torque-off pose inside the
+calibrated range:
+
+```bash
+python -m workshop.safe_home --capture \
+  --port /dev/serial/by-id/usb-1a86_USB_Single_Serial_5AB9068906-if00 \
+  --calibration-dir /home/bjoern/git/soarm101-highschool-demos/.calibration
+```
+
+Capture reads the arm and saves the home atomically; it never enables torque or
+writes calibration registers.

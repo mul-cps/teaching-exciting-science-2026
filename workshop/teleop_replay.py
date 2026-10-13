@@ -48,6 +48,8 @@ def main():
     p.add_argument('--calibration-dir',required=True,type=Path)
     p.add_argument('--output',required=True,type=Path)
     p.add_argument('--camera',default='/dev/video1')
+    from workshop.safe_home import DEFAULT_HOME,load_home,make_home_move,home_at,validate_home_start
+    p.add_argument('--home',type=Path,default=DEFAULT_HOME,help='Measured home; required before replay')
     a=p.parse_args()
     metadata=json.loads((a.source/'metadata.json').read_text())
     result=json.loads((a.source/'result.json').read_text())
@@ -86,14 +88,17 @@ def main():
         bus.disable_torque(num_retry=2)
         if any(bus.read('Torque_Enable',k,num_retry=2) for k in JOINTS):raise RuntimeError('Torque off preflight failed')
         current=bus.sync_read('Present_Position',num_retry=2)
-        at_start=max(abs(current[k]-samples[0]['goal'][k]) for k in JOINTS)<=3
-        if not at_start and max(abs(current[k]-samples[-1]['goal'][k]) for k in JOINTS)>3:
-            raise RuntimeError('Arm is neither at recorded start nor finish; no motion started')
-        phases=[('forward',samples)] if at_start else [('return',returning),('forward',samples)]
+        home=load_home(a.home,'hs_rig01_follower',digest)
+        validate_home_start(samples[0]['goal'],home)
+        home_move=make_home_move(current,home,bounds,metadata['hz'])
+        home_path=[{'t':min(i/metadata['hz'],home_move['duration']),
+                    'goal':home_at(home_move,min(i/metadata['hz'],home_move['duration']))[0]}
+                   for i in range(math.ceil(home_move['duration']*metadata['hz'])+1)]
+        phases=[('home',home_path),('forward',samples)]
         original_acceleration={k:bus.read('Acceleration',k,num_retry=2) for k in JOINTS}
         original_velocity={k:bus.read('Goal_Velocity',k,num_retry=2) for k in JOINTS}
         acceleration=metadata['follower']['acceleration'];velocity=metadata['follower']['goal_velocity']
-        replay_meta={'schema':1,'mode':'original command timestamps, zero-order hold; no smoothing or retiming','source_trace_sha256':hashlib.sha256(source_bytes).hexdigest(),'calibration_sha256':digest,'acceleration':acceleration,'goal_velocity':velocity,'original_acceleration':original_acceleration,'original_velocity':original_velocity,'start':current,'phases':[{'name':name,'samples':path} for name,path in phases]}
+        replay_meta={'schema':1,'mode':'original command timestamps, zero-order hold; no smoothing or retiming','source_trace_sha256':hashlib.sha256(source_bytes).hexdigest(),'calibration_sha256':digest,'acceleration':acceleration,'goal_velocity':velocity,'original_acceleration':original_acceleration,'original_velocity':original_velocity,'start':current,'home_move':home_move,'home_sha256':hashlib.sha256(a.home.read_bytes()).hexdigest(),'phases':[{'name':name,'samples':path} for name,path in phases]}
         (a.output/'replay-plan.json').write_text(json.dumps(replay_meta))
         bus.sync_write('Acceleration',acceleration,num_retry=2);bus.sync_write('Goal_Velocity',velocity,num_retry=2)
         for reg,target in [('Acceleration',acceleration),('Goal_Velocity',velocity)]:
@@ -104,7 +109,7 @@ def main():
         routine_start=time.monotonic()
         for phase,path in phases:
             actual=bus.sync_read('Present_Position',num_retry=2)
-            if max(abs(actual[k]-path[0]['goal'][k]) for k in JOINTS)>3:raise RuntimeError('Phase starting pose mismatch')
+            if max(abs(actual[k]-path[0]['goal'][k]) for k in JOINTS)>(1 if phase=='forward' else 3):raise RuntimeError('Phase starting pose mismatch')
             print(f'{phase.upper()} starting: {path[-1]["t"]:.1f}s, acceleration {acceleration}',flush=True)
             times=[s['t'] for s in path]; index=0; start=last=time.monotonic(); last_report=-5
             while index<len(path):
