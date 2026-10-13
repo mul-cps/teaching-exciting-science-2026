@@ -54,7 +54,8 @@
       "user": "robot",
       "port": 22,
       "identity_file": "",
-      "remote_dir": "cps-station"
+      "remote_dir": "/home/robot/cps-station",
+      "expected_machine_id": ""
     }
   },
   "arm": {

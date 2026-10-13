@@ -74,7 +74,7 @@ def validate_config(config, physical=False):
             for name in ('vendor_id', 'product_id'):
                 if type(usb[name]) is not int or not 0 <= usb[name] <= 65535:
                     raise ValueError('USB IDs must be 16 bit integers')
-            _text(usb['serial'], 'USB serial', physical)
+            _text(usb['serial'], 'USB serial', physical and (device is arm or ev3['firmware'] == 'original'))
         _text(arm['id'], 'arm.id', True)
         _text(arm['home_file'], 'arm.home_file', physical)
         _positive(arm['hz'], 'arm.hz')
@@ -133,6 +133,10 @@ def validate_config(config, physical=False):
         pb = ev3['pybricks']
         for name in ('host', 'user', 'identity_file', 'remote_dir'):
             _text(pb[name], 'pybricks.' + name, physical and ev3['firmware'] == 'pybricks' and name != 'identity_file')
+        machine_id = pb.get('expected_machine_id', '')
+        _text(machine_id, 'pybricks.expected_machine_id', physical and ev3['firmware'] == 'pybricks')
+        if machine_id and (len(machine_id) != 32 or any(c not in '0123456789abcdef' for c in machine_id)):
+            raise ValueError('pybricks.expected_machine_id must be lowercase 32 hex')
         if type(pb['port']) is not int or not 1 <= pb['port'] <= 65535:
             raise ValueError('invalid Pybricks port')
         if physical:

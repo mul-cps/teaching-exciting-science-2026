@@ -1,0 +1,256 @@
+"""EV3 MicroPython 2 over pinned SSH, finite JSON requests and motor slices."""
+import json
+import math
+import os
+import re
+import secrets
+import selectors
+import shlex
+import subprocess
+import threading
+import time
+from copy import deepcopy
+from pathlib import Path
+
+from .config import validate_config
+from .ev3_motion import EV3Motion, EV3Error, _remaining
+
+PROTOCOL = 'ev3-station'
+VERSION = 1
+DRIVERS = {'feeder': 'lego-ev3-l-motor', 'sorter': 'lego-ev3-m-motor',
+           'touch': 'lego-ev3-touch', 'color': 'lego-ev3-color'}
+IDENTITY_SCRIPT = """import glob,json,pathlib,platform
+p=pathlib.Path
+ports={}
+for root in ('/sys/class/tacho-motor/*','/sys/class/lego-sensor/*'):
+ for d in glob.glob(root):
+  q=p(d); ports[(q/'address').read_text().strip()]=(q/'driver_name').read_text().strip()
+model=p('/proc/device-tree/model')
+print(json.dumps({'machine_id':p('/etc/machine-id').read_text().strip(),'platform':platform.machine()+' '+p('/proc/cpuinfo').read_text()+' '+(model.read_text() if model.exists() else ''),'ports':ports}))
+"""
+
+
+def validate_identity(identity, ev3):
+    if not isinstance(identity, dict) or identity.get('machine_id') != ev3['pybricks'].get('expected_machine_id') or not re.fullmatch('[0-9a-f]{32}', identity.get('machine_id', '')):
+        raise EV3Error('remote machine identity mismatch')
+    platform = identity.get('platform', '').lower()
+    if not any(x in platform for x in ('ev3', 'am1808', 'da850')) or 'arm' not in platform:
+        raise EV3Error('remote platform is not EV3 ARM')
+    ports = identity.get('ports', {})
+    for name, port in ev3['ports'].items():
+        address = 'ev3-ports:' + (port if port.startswith('S') else 'out' + port)
+        address = address.replace(':S', ':in')
+        if ports.get(address) != DRIVERS[name]:
+            raise EV3Error(name + ' actual remote port driver mismatch')
+    return identity
+
+
+class SSHTransport:
+    """Own a single bounded subprocess; no password or network setup."""
+    def __init__(self, config):
+        self.config = config
+        pb = config['ev3']['pybricks']
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]*', pb['host']) or not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_-]*', pb['user']):
+            raise ValueError('invalid SSH host/user')
+        if not re.fullmatch(r'/[A-Za-z0-9_./-]+', pb['remote_dir']) or '..' in pb['remote_dir'].split('/'):
+            raise ValueError('invalid absolute remote_dir')
+        self.argv = ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5', '-p', str(pb['port'])]
+        if pb['identity_file']:
+            self.argv += ['-i', pb['identity_file']]
+        self.argv += [pb['user'] + '@' + pb['host']]
+        self.process = None
+        self.buffer = bytearray()
+        self.selector = None
+
+    def _remote(self, command, deadline, data=None):
+        # Capture finite identity/deployment replies in files, avoiding unbounded
+        # subprocess PIPE collection from a malfunctioning remote peer.
+        import tempfile
+        with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+            result = subprocess.run(self.argv + [command], input=data, stdout=out, stderr=err, timeout=_remaining(deadline), check=False)
+            if result.returncode:
+                raise EV3Error('SSH identity/deployment failed')
+            out.seek(0)
+            content = out.read(8193)
+            if len(content) > 8192:
+                raise EV3Error('oversized SSH identity output')
+            return content
+
+    def connect(self, deadline, nonce):
+        raw = self._remote('python3 -c ' + shlex.quote(IDENTITY_SCRIPT), deadline)
+        try:
+            identity = validate_identity(json.loads(raw), self.config['ev3'])
+        except (ValueError, TypeError) as error:
+            raise EV3Error('malformed remote identity') from error
+        directory = self.config['ev3']['pybricks']['remote_dir']
+        target = directory.rstrip('/') + '/ev3_agent.py'
+        source = Path(__file__).parent / 'resources' / 'ev3_agent.py'
+        self._remote('mkdir -p -- ' + shlex.quote(directory) + ' && cat > ' + shlex.quote(target), deadline, source.read_bytes())
+        settings = json.dumps({'nonce': nonce, 'ports': self.config['ev3']['ports'], 'lease_ms': 500})
+        command = ' '.join(shlex.quote(s) for s in ['brickrun', '-r', '--', 'pybricks-micropython', target, settings])
+        self.process = subprocess.Popen(self.argv + [command], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.selector = selectors.DefaultSelector()
+        for pipe in (self.process.stdout, self.process.stderr, self.process.stdin):
+            os.set_blocking(pipe.fileno(), False)
+        for pipe in (self.process.stdout, self.process.stderr):
+            self.selector.register(pipe, selectors.EVENT_READ)
+        return identity
+
+    def send(self, request, deadline):
+        packet = (json.dumps(request, separators=(',', ':')) + '\n').encode()
+        if len(packet) > 4096:
+            raise EV3Error('oversized request')
+        offset = 0
+        while offset < len(packet):
+            _remaining(deadline)
+            try:
+                written = os.write(self.process.stdin.fileno(), packet[offset:])
+                if written <= 0:
+                    raise EOFError('SSH write EOF')
+                offset += written
+            except BlockingIOError:
+                self._pump(deadline)
+
+    def _pump(self, deadline):
+        for key, _ in self.selector.select(min(.05, _remaining(deadline))):
+            data = os.read(key.fileobj.fileno(), 4096)
+            if key.fileobj is self.process.stdout:
+                if not data:
+                    raise EOFError('agent disconnected')
+                self.buffer.extend(data)
+                if len(self.buffer) > 8192:
+                    raise EV3Error('oversized agent output')
+            elif not data:
+                self.selector.unregister(key.fileobj)
+            # Diagnostics drained and discarded; never an unbounded queue.
+
+    def receive(self, deadline):
+        while b'\n' not in self.buffer:
+            if len(self.buffer) > 4096:
+                raise EV3Error('oversized response frame')
+            self._pump(deadline)
+        raw, _, rest = self.buffer.partition(b'\n')
+        self.buffer = bytearray(rest)
+        if len(raw) > 4096:
+            raise EV3Error('oversized response')
+        try:
+            return json.loads(raw)
+        except (ValueError, UnicodeError) as error:
+            raise EV3Error('malformed agent JSON') from error
+
+    def close(self):
+        if self.process is not None:
+            self.process.stdin.close()
+            try:
+                self.process.wait(timeout=.5)
+            except subprocess.TimeoutExpired:
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=.5)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait(timeout=.5)
+            self.process.stdout.close()
+            self.process.stderr.close()
+        if self.selector:
+            self.selector.close()
+
+
+class PybricksEV3(EV3Motion):
+    CHUNK_MS = 100
+
+    def __init__(self, config, transport=None):
+        validate_config(config)
+        self.config = deepcopy(config)
+        self.ev3 = self.config['ev3']
+        if self.ev3['firmware'] != 'pybricks':
+            raise ValueError('PybricksEV3 requires pybricks firmware')
+        self.injected = transport is not None
+        self.transport = transport
+        self.ports = self.ev3['ports']
+        self.homed = self.faulted = self.preflighted = False
+        self.cancel = threading.Event()
+        self.stop_generation = self.operation_generation = self.counter = 0
+        self.motion_lock = threading.Lock()
+        self.protocol_lock = threading.Lock()
+        self.identity = None
+        self.nonce = secrets.token_hex(16)
+        self.connected = False
+
+    def connect(self):
+        deadline = self._deadline()
+        if self.transport is None:
+            self.transport = SSHTransport(self.config)
+        try:
+            self.identity = validate_identity(self.transport.connect(deadline, self.nonce), self.ev3)
+            ready = self.transport.receive(deadline)
+            if not isinstance(ready, dict) or ready.get('protocol') != PROTOCOL or ready.get('version') != VERSION or ready.get('nonce') != self.nonce or ready.get('ready') is not True or ready.get('ports') != self.ports or ready.get('discovered_ports') != self.identity['ports'] or not isinstance(ready.get('runtime_version'), str):
+                raise EV3Error('invalid agent ready handshake')
+            self.connected = True
+            return dict(self.identity)
+        except BaseException:
+            self.faulted = True
+            self.transport.close()
+            raise
+
+    def _request(self, operation, args, deadline, guard=None):
+        if not self.connected:
+            raise EV3Error('Pybricks is not connected')
+        deadline = min(deadline, time.monotonic() + 0.15)
+        if not self.protocol_lock.acquire(timeout=_remaining(deadline)):
+            raise TimeoutError('agent protocol lock deadline')
+        try:
+            if guard is not None and not guard():
+                raise EV3Error('movement cancelled before agent delivery')
+            self.counter += 1
+            self.transport.send({'id': self.counter, 'nonce': self.nonce, 'operation': operation, 'args': args}, deadline)
+            reply = self.transport.receive(deadline)
+            _remaining(deadline)
+            if not isinstance(reply, dict) or reply.get('id') != self.counter or type(reply.get('id')) is not int or type(reply.get('ok')) is not bool:
+                raise EV3Error('malformed or mismatched agent response')
+            if not reply['ok']:
+                raise EV3Error('agent fault: ' + str(reply.get('fault', 'unknown')))
+            return reply.get('result')
+        except BaseException:
+            self.faulted = True
+            self.homed = False
+            raise
+        finally:
+            self.protocol_lock.release()
+
+    def preflight(self):
+        self.preflighted = False
+        deadline = self._deadline()
+        for name in self.ports:
+            self._value(name, deadline)
+        self.preflighted = True
+        return dict(self.identity)
+
+    def _value(self, name, deadline):
+        value = self._request('value', {'name': name}, deadline)
+        if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value) or name == 'touch' and value not in (0, 1):
+            self.faulted = True
+            self.homed = False
+            raise EV3Error('invalid agent sensor value')
+        return value
+
+    def _zero(self, name, deadline):
+        self._request('zero', {'name': name}, deadline)
+
+    def _busy(self, deadline):
+        return self._request('busy', {}, deadline)
+
+    def _stop(self, deadline):
+        self._request('stop', {}, deadline)
+
+    def _slice(self, name, direction, speed_dps, deadline):
+        ms = min(self.CHUNK_MS, math.floor(_remaining(deadline) * 1000))
+        if ms <= 0:
+            raise TimeoutError('no time for agent watchdog')
+        self._request('feed' if name == 'feeder' else 'slice', {'name': name, 'speed': direction * speed_dps, 'ms': ms}, deadline, guard=lambda: not self._cancelled())
+        time.sleep(min(ms / 1000, _remaining(deadline)))
+
+    def close(self):
+        if self.transport:
+            self.transport.close()
+        self.connected = self.preflighted = self.homed = False
