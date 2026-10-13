@@ -1,10 +1,7 @@
 """Explicit finite station activation; detection and simulation never open hardware."""
 import argparse
-from contextlib import contextmanager
-import fcntl
 from importlib.resources import files
 import json
-import os
 from pathlib import Path
 import signal
 import sys
@@ -13,24 +10,7 @@ import time
 from .config import WORKFLOWS, load_config, validate_config
 from .coordinator import run_cycle
 from .discovery import discover_arm, discover_ev3, discover_serial
-
-
-def state_dir():
-    return Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'exciting-science'
-
-
-@contextmanager
-def station_lock(path):
-    path = Path(path); path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('a') as stream:
-        try:
-            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as error:
-            raise RuntimeError('another process owns the station lock') from error
-        try:
-            yield
-        finally:
-            fcntl.flock(stream, fcntl.LOCK_UN)
+from .locking import state_dir, station_lock, station_lock_path
 
 
 class HealthChecked:
@@ -113,7 +93,7 @@ def execute(config, ev3, arm, log, startup=None):
             run_cycle(config, HealthChecked(ev3, ev3), HealthChecked(arm, ev3), log)
     except BaseException as fault:
         error = fault
-        try: log({'timestamp': time.time(), 'event': 'cancelled' if isinstance(fault, KeyboardInterrupt) else 'fault', 'error': str(fault)})
+        try: log({'timestamp': time.time(), 'event': 'cancelled' if isinstance(fault, KeyboardInterrupt) else 'fault', 'error': str(fault), 'notes': getattr(fault, '__notes__', [])})
         except BaseException: pass
         raise
     finally:
@@ -141,7 +121,7 @@ def main(argv=None):
     modes.add_argument('--activate', action='store_true')
     parser.add_argument('--workflow', choices=WORKFLOWS)
     parser.add_argument('--log', type=Path, default=state_dir() / 'station.jsonl')
-    parser.add_argument('--lock', type=Path, default=state_dir() / 'station.lock')
+    parser.add_argument('--lock', type=Path, default=station_lock_path())
     args = parser.parse_args(argv)
     try:
         if args.detect:
@@ -174,6 +154,7 @@ def main(argv=None):
         return 130
     except (Exception,) as error:
         print(f'station error: {error}', file=sys.stderr)
+        for note in getattr(error, '__notes__', []): print(note, file=sys.stderr)
         return 1
 
 

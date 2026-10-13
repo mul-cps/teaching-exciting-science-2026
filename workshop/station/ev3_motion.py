@@ -148,10 +148,11 @@ class EV3Motion:
             deadline = self._deadline(stop=True)
             self._stop(deadline)
             self._wait_stopped(deadline)
-        except BaseException:
+        except BaseException as cleanup_error:
             self.faulted = True
             if error is None:
                 raise
+            error.add_note(f'EV3 movement stop/wait cleanup failed: {cleanup_error}')
         finally:
             self.motion_lock.release()
 
@@ -227,5 +228,3 @@ class EV3Motion:
             return self._track('feeder', -fdir, feeder['speed_dps'], deadline,
                                feeder['travel_deg'] + self.ev3['tolerance_deg'], target=start)
         return self._run(action)
-
-

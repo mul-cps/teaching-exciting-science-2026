@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 from .arm import LeRobotArm, UNITS, atomic_json
 from .config import JOINTS, COLORS, load_config, validate_config
+from .locking import station_lock, station_lock_path
 
 
 def capture_pose(arm, path, name):
@@ -92,6 +93,7 @@ def update_config(arm, path, captured=None, capture_path=None, route=None, color
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', required=True)
+    parser.add_argument('--lock', type=Path, default=station_lock_path())
     parser.add_argument('--capture-pose', metavar='NAME')
     parser.add_argument('--output', help='measured pose file (required for capture)')
     parser.add_argument('--update-config', metavar='PATH', help='atomically export taught poses/routes; invalidate commissioned admission')
@@ -102,10 +104,13 @@ def main(argv=None):
     if args.capture_pose and not args.output: parser.error('--capture-pose requires --output')
     if args.set_route and not args.update_config: parser.error('--set-route requires --update-config')
     if args.color and (not args.set_route or args.set_route[0] != 'pick_and_place'): parser.error('--color requires pick_and_place route')
-    arm = LeRobotArm(load_config(args.config))
-    captured = capture_pose(arm, args.output, args.capture_pose) if args.capture_pose else None
-    if args.update_config:
-        update_config(arm, args.update_config, captured, args.output, args.set_route, args.color)
+    # Hold ownership through capture cleanup and configuration export. Route-only
+    # teaching also serializes against activation's configuration admission.
+    with station_lock(args.lock):
+        arm = LeRobotArm(load_config(args.config))
+        captured = capture_pose(arm, args.output, args.capture_pose) if args.capture_pose else None
+        if args.update_config:
+            update_config(arm, args.update_config, captured, args.output, args.set_route, args.color)
     print('Saved taught data; geometry and grasp commissioning remain required')
 
 

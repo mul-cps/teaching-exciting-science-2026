@@ -837,3 +837,31 @@ def test_stable_color_does_not_exceed_operation_deadline():
     with pytest.raises(TimeoutError):
         ev3.read_color()
     assert ev3.faulted and not brick.motion
+
+
+def test_movement_fault_preserves_transient_cleanup_failure_and_outer_shutdown(monkeypatch):
+    from workshop.station.__main__ import execute
+    ev3 = OriginalEV3(config(), transport=Wire())
+    original = EV3Error('movement failed')
+    attempts = []
+    def admit(*args): ev3.motion_lock.acquire()
+    def stop(deadline):
+        attempts.append('ev3.stop')
+        if len(attempts) == 1: raise EV3Error('transient cleanup stop failed')
+    monkeypatch.setattr(ev3, '_admit', admit)
+    monkeypatch.setattr(ev3, '_stop', stop)
+    monkeypatch.setattr(ev3, '_wait_stopped', lambda deadline: None)
+    monkeypatch.setattr(ev3, 'close', lambda: attempts.append('ev3.close'))
+    class Arm:
+        def stop(self): attempts.append('arm.stop')
+        def close(self): attempts.append('arm.close')
+    def motion():
+        ev3._run(lambda deadline: (_ for _ in ()).throw(original))
+    records = []
+    with pytest.raises(EV3Error, match='movement failed') as caught:
+        execute({}, ev3, Arm(), records.append, startup=motion)
+    assert caught.value is original
+    assert any('transient cleanup stop failed' in note for note in original.__notes__)
+    assert any('transient cleanup stop failed' in note for record in records for note in record.get('notes', []))
+    assert attempts == ['ev3.stop', 'ev3.stop', 'arm.stop', 'ev3.close', 'arm.close']
+    assert not ev3.motion_lock.locked()

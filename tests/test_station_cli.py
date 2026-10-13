@@ -133,3 +133,48 @@ def test_saved_home_below_calibration_rejected_before_factory(tmp_path, monkeypa
     monkeypatch.setattr(cli, 'make_devices', lambda *a: pytest.fail('device access'))
     assert cli.main(['--config', str(p), '--activate', '--lock', str(tmp_path / 'lock')]) == 1
     assert 'outside calibrated/configured limits' in capsys.readouterr().err
+
+
+def test_commission_capture_observes_activation_lock_before_construction(tmp_path, monkeypatch):
+    from workshop.station import commission
+    monkeypatch.setattr(commission, 'LeRobotArm', lambda *a: pytest.fail('constructed device while locked'))
+    monkeypatch.setattr(commission, 'capture_pose', lambda *a: pytest.fail('capture while locked'))
+    with cli.station_lock(tmp_path / 'lock'):
+        with pytest.raises(RuntimeError, match='owns'):
+            commission.main(['--config', str(config_file(tmp_path)), '--capture-pose', 'home',
+                             '--output', str(tmp_path / 'home.json'), '--lock', str(tmp_path / 'lock')])
+
+
+@pytest.mark.parametrize('fail', [False, True])
+def test_commission_holds_lock_through_capture_export_and_releases(tmp_path, monkeypatch, fail):
+    from workshop.station import commission
+    lock = tmp_path / 'lock'
+    monkeypatch.setattr(commission, 'LeRobotArm', lambda *a: object())
+    def capture(*args):
+        with pytest.raises(RuntimeError, match='owns'):
+            with cli.station_lock(lock): pass
+        if fail: raise ValueError('capture failed')
+        return {'captured': True}
+    def export(*args):
+        with pytest.raises(RuntimeError, match='owns'):
+            with cli.station_lock(lock): pass
+    monkeypatch.setattr(commission, 'capture_pose', capture)
+    monkeypatch.setattr(commission, 'update_config', export)
+    argv = ['--config', str(config_file(tmp_path)), '--capture-pose', 'home', '--output', 'home.json',
+            '--update-config', 'export.json', '--lock', str(lock)]
+    if fail:
+        with pytest.raises(ValueError, match='capture failed'): commission.main(argv)
+    else: commission.main(argv)
+    with cli.station_lock(lock): pass
+
+
+def test_commission_default_lock_matches_activation_and_blocks_route_export(tmp_path, monkeypatch):
+    from workshop.station import commission
+    from workshop.station.locking import state_dir
+    monkeypatch.setenv('XDG_STATE_HOME', str(tmp_path))
+    monkeypatch.setattr(commission, 'LeRobotArm', lambda *a: pytest.fail('device constructed while locked'))
+    with cli.station_lock(state_dir() / 'station.lock'):
+        for action in (['--capture-pose', 'home', '--output', 'home.json'],
+                       ['--set-route', 'home', 'home', '--update-config', 'export.json']):
+            with pytest.raises(RuntimeError, match='owns'):
+                commission.main(['--config', str(config_file(tmp_path)), *action])

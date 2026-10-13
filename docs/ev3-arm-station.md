@@ -128,7 +128,11 @@ preflights both devices, confirms EV3 stop before arm home, confirms arm
 clearance before EV3 home, then runs the configured finite cycles. A Pybricks
 lease fault prevents the next operation and shares cancellation with the arm.
 There is no automatic reconnect or feed replay. Keep all processes under the
-same account and default lock path; changing `--lock` defeats mutual exclusion.
+same account and default lock path for activation and commissioning. Both
+entry points share the same lock; capture holds it through shutdown and config
+export. Route-only export also takes it to serialize configuration teaching
+against activation. If overriding `--lock`, pass the identical path to both
+commands; different paths defeat mutual exclusion.
 
 Logs append JSON lines to
 `$XDG_STATE_HOME/exciting-science/station.jsonl` (default
