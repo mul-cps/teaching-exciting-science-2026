@@ -212,3 +212,24 @@ python -m workshop.safe_home --capture \
 
 Capture reads the arm and saves the home atomically; it never enables torque or
 writes calibration registers.
+
+`--g28` is an alias for `--home-only`: a speed-limited, ramped return and arrival
+check without playback. Choreography/replay use this same return stage automatically.
+
+A monitored raw-position return on 2026-10-13 confirmed the home mismatch: the
+shoulder followed the slow ramp down to encoder 1065, then failed to follow goals
+below its configured minimum 1063. The error check stopped the trial at a goal of
+about 1031, with torque-off verified. Thus the saved physical home at 949 is valid
+as a manually reachable pose, but is outside the current powered travel range.
+The calibration and EEPROM limits remain unchanged. The recording and feedback
+are in `artifacts/choreography/home-recovery-2026-10-13-02/`.
+
+A single-register goal probe also observed torque becoming enabled after writing
+`Goal_Position`. Restoring an old goal then caused unintended shoulder movement;
+torque was disabled immediately afterward. Startup now writes torque-on,
+acceleration, the **current** raw goal and a finite speed cap together in one
+contiguous register packet per servo. Goal writes are treated as actuation,
+including when torque was previously off. Cleanup never restores old position
+goals, and torque-off is checked again after restoring other temporary settings.
+The speed-cap conversion reads the Phase register to select the documented units.
+See [FEETECH's register table](https://ftservo.github.io/ftservo-wiki/reference/parameter/memory-sts/).

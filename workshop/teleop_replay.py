@@ -100,16 +100,20 @@ def main():
         acceleration=metadata['follower']['acceleration'];velocity=metadata['follower']['goal_velocity']
         replay_meta={'schema':1,'mode':'original command timestamps, zero-order hold; no smoothing or retiming','source_trace_sha256':hashlib.sha256(source_bytes).hexdigest(),'calibration_sha256':digest,'acceleration':acceleration,'goal_velocity':velocity,'original_acceleration':original_acceleration,'original_velocity':original_velocity,'start':current,'home_move':home_move,'home_sha256':hashlib.sha256(a.home.read_bytes()).hexdigest(),'phases':[{'name':name,'samples':path} for name,path in phases]}
         (a.output/'replay-plan.json').write_text(json.dumps(replay_meta))
-        bus.sync_write('Acceleration',acceleration,num_retry=2);bus.sync_write('Goal_Velocity',velocity,num_retry=2)
-        for reg,target in [('Acceleration',acceleration),('Goal_Velocity',velocity)]:
-            if any(bus.read(reg,k,num_retry=2)!=target[k] for k in JOINTS):raise RuntimeError(f'{reg} readback failed')
+        from workshop.servo_start import arm_current_pose,startup_caps
+        from workshop.safe_home import SPEED as HOME_SPEED
+        home_caps=startup_caps(bus,HOME_SPEED,calibration)
         recorder=Recorder(camera,writer,a.output)
         gc.collect();gc.disable()
-        bus.sync_write('Goal_Position',current,num_retry=2);bus.sync_write('Torque_Enable',dict.fromkeys(JOINTS,1),num_retry=2)
+        arm_current_pose(bus,dict.fromkeys(JOINTS,4),home_caps)
         routine_start=time.monotonic()
         for phase,path in phases:
             actual=bus.sync_read('Present_Position',num_retry=2)
             if max(abs(actual[k]-path[0]['goal'][k]) for k in JOINTS)>(1 if phase=='forward' else 3):raise RuntimeError('Phase starting pose mismatch')
+            if phase=='forward':
+                bus.sync_write('Acceleration',acceleration,num_retry=2);bus.sync_write('Goal_Velocity',velocity,num_retry=2)
+                for reg,target in [('Acceleration',acceleration),('Goal_Velocity',velocity)]:
+                    if any(bus.read(reg,k,num_retry=2)!=target[k] for k in JOINTS):raise RuntimeError(f'{reg} readback failed')
             print(f'{phase.upper()} starting: {path[-1]["t"]:.1f}s, acceleration {acceleration}',flush=True)
             times=[s['t'] for s in path]; index=0; start=last=time.monotonic(); last_report=-5
             while index<len(path):
@@ -139,7 +143,10 @@ def main():
                         bus.sync_write(reg,target,num_retry=2)
                         cleanup[reg+'_restored']=all(bus.read(reg,k,num_retry=2)==target[k] for k in JOINTS)
             except Exception as exc:cleanup['error']=str(exc)
-            finally:bus.disconnect(disable_torque=False)
+            finally:
+                bus.disable_torque(num_retry=2)
+                cleanup['torque_off']=all(bus.read('Torque_Enable',k,num_retry=2)==0 for k in JOINTS)
+                bus.disconnect(disable_torque=False)
         try:
             if recorder:recorder.stop()
             else:

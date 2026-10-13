@@ -343,6 +343,7 @@ def run_hardware(args):
     writer = recorder = None
     trace = []
     original_acceleration = None
+    original_velocity = None
     torque_verified = False
     acceleration_restored = False
     completed = False
@@ -411,18 +412,19 @@ def run_hardware(args):
                 p, v, acc, jerk = smooth_state(start, home, zero, zero, home_move['duration'], elapsed/home_move['duration'])
                 planned.write(json.dumps(dict(t=elapsed, position=p, velocity=v, acceleration=acc, jerk=jerk))+'\n')
         original_acceleration = {k: bus.read("Acceleration", k, num_retry=2) for k in JOINTS}
-        (args.output / "hardware-before.json").write_text(json.dumps(dict(acceleration=original_acceleration)))
-        bus.sync_write("Acceleration", {k: servo_acceleration for k in JOINTS}, num_retry=2)
-        if any(bus.read("Acceleration", k, num_retry=2) != servo_acceleration for k in JOINTS):
-            raise RuntimeError("Servo acceleration readback failed")
+        original_velocity = {k: bus.read('Goal_Velocity', k, num_retry=2) for k in JOINTS}
+        (args.output / "hardware-before.json").write_text(json.dumps(dict(acceleration=original_acceleration, goal_velocity=original_velocity)))
+        from workshop.servo_start import arm_current_pose, startup_caps
+        from workshop.safe_home import SPEED as HOME_SPEED
+        home_caps = startup_caps(bus, HOME_SPEED, calibration)
         recorder = Recorder(camera, writer, args.output)
         # Avoid unpredictable cyclic-GC pauses in the deadline-driven phase.
         # Samples contain no reference cycles; reference counting remains active.
         gc.collect()
         gc.disable()
-        bus.sync_write("Goal_Position", start, num_retry=2)
-        # Engage together after seeding current goals, avoiding drift during sequential activation.
-        bus.sync_write("Torque_Enable", {k: 1 for k in JOINTS}, num_retry=2)
+        # Goal writes may enable torque: current goal and caps must share the arming packet.
+        armed_raw = arm_current_pose(bus, dict.fromkeys(JOINTS, 4), home_caps)
+        (args.output / 'hardware-armed.json').write_text(json.dumps(dict(raw_position=armed_raw, velocity_caps=home_caps)))
         routine_start = time.monotonic()
         tick, phase, last_command = 0, None, routine_start
         home_reached = False
@@ -441,6 +443,13 @@ def run_hardware(args):
                 measured = bus.sync_read('Present_Position', num_retry=2)
                 if max(abs(measured[k]-home[k]) for k in JOINTS) > 1:
                     raise RuntimeError('Home tracking tolerance exceeded; choreography not started')
+                if not args.home_only:
+                    bus.sync_write('Acceleration', dict.fromkeys(JOINTS, servo_acceleration), num_retry=2)
+                    bus.sync_write('Goal_Velocity', original_velocity, num_retry=2)
+                    if any(bus.read('Acceleration', k, num_retry=2) != servo_acceleration for k in JOINTS):
+                        raise RuntimeError('Choreography acceleration readback failed')
+                    if any(bus.read('Goal_Velocity', k, num_retry=2) != original_velocity[k] for k in JOINTS):
+                        raise RuntimeError('Choreography velocity restore failed')
                 home_reached = True
                 print('Home reached and verified', flush=True)
             goal, current_phase = (home_at(home_move, elapsed) if args.home_only else restart_at(home_move, plan, elapsed))
@@ -481,6 +490,14 @@ def run_hardware(args):
                         if any(bus.read("Acceleration", k, num_retry=2) != original_acceleration[k] for k in JOINTS):
                             raise RuntimeError("Servo acceleration restore failed")
                         acceleration_restored = True
+                    if original_velocity:
+                        bus.sync_write('Goal_Velocity', original_velocity, num_retry=2)
+                        if any(bus.read('Goal_Velocity', k, num_retry=2) != original_velocity[k] for k in JOINTS):
+                            raise RuntimeError('Servo velocity restore failed')
+                    bus.disable_torque(num_retry=2)
+                    torque_verified = all(bus.read('Torque_Enable', k, num_retry=2) == 0 for k in JOINTS)
+                    if not torque_verified:
+                        raise RuntimeError('Final torque-disable readback failed')
                 finally:
                     bus.disconnect(disable_torque=False)
         finally:
@@ -516,7 +533,7 @@ def main():
     parser.add_argument("--body-wave", action="store_true", help="Candidate stronger body-wave variation; see validation notes")
     from workshop.safe_home import DEFAULT_HOME
     parser.add_argument('--home', type=Path, default=DEFAULT_HOME, help='Measured home file, required before every hardware start')
-    parser.add_argument('--home-only', action='store_true', help='Return to and verify home without starting choreography')
+    parser.add_argument('--home-only', '--g28', action='store_true', help='Return to and verify home without starting choreography')
     parser.add_argument("--rhythm", action="store_true", help="Continuous dance with smooth phase acceleration and deceleration")
     parser.add_argument("--servo-acceleration", type=int,
                         help="Temporary native servo acceleration register (1..254); restored on exit")
