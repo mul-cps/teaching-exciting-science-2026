@@ -119,6 +119,10 @@ class Agent:
                     raise RuntimeError('motor command still active')
                 motor.run_time(speed, ms, then=self.brake, wait=False)
                 result = None
+            elif operation == 'heartbeat':
+                if args:
+                    raise ValueError('heartbeat requires empty arguments')
+                result = None
             elif operation == 'stop':
                 self.stop()
                 result = None
@@ -174,10 +178,21 @@ def run(agent, poller, stdin, stdout):
         agent.stop()
 
 
+def runtime_identity(implementation, python_version):
+    """Read native sys.implementation, not Python language sys.version alone."""
+    name, version = implementation[0], implementation[1]
+    if name != 'pybricks-micropython' or len(version) != 5 or version[0] != 2:
+        raise ValueError('EV3 requires actual Pybricks major version 2')
+    if not isinstance(python_version, str) or not python_version.strip():
+        raise ValueError('missing actual runtime version')
+    return {'runtime_name': name, 'pybricks_version': list(version), 'runtime_version': python_version}
+
+
 def main():
     from pybricks.ev3devices import Motor, TouchSensor, ColorSensor
     from pybricks.parameters import Port, Color, Stop
     from pybricks.tools import StopWatch
+    runtime = runtime_identity(sys.implementation, sys.version)
     settings = json.loads(sys.argv[1])
     nonce, ports = settings['nonce'], settings['ports']
     if not isinstance(nonce, str) or len(nonce) != 32 or settings['lease_ms'] != 500:
@@ -200,8 +215,10 @@ def main():
         agent.stop()
         poller = select.poll()
         poller.register(sys.stdin, select.POLLIN)
-        sys.stdout.write(json.dumps({'protocol': PROTOCOL, 'version': VERSION, 'nonce': nonce, 'ready': True,
-                                     'runtime_version': sys.version, 'ports': ports, 'discovered_ports': inventory}) + '\n')
+        ready = {'protocol': PROTOCOL, 'version': VERSION, 'nonce': nonce, 'ready': True,
+                 'ports': ports, 'discovered_ports': inventory}
+        ready.update(runtime)
+        sys.stdout.write(json.dumps(ready) + '\n')
         sys.stdout.flush()
         run(agent, poller, sys.stdin, sys.stdout)
     finally:

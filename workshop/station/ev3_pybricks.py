@@ -19,6 +19,12 @@ PROTOCOL = 'ev3-station'
 VERSION = 1
 DRIVERS = {'feeder': 'lego-ev3-l-motor', 'sorter': 'lego-ev3-m-motor',
            'touch': 'lego-ev3-touch', 'color': 'lego-ev3-color'}
+RUNTIME_SCRIPT = """import sys,ujson
+from pybricks.ev3devices import Motor, TouchSensor, ColorSensor
+from pybricks.parameters import Stop
+from pybricks.tools import StopWatch
+print(ujson.dumps({'runtime_name':sys.implementation[0], 'pybricks_version':list(sys.implementation[1]), 'runtime_version':sys.version}))
+"""
 IDENTITY_SCRIPT = """import glob,json,pathlib,platform
 p=pathlib.Path
 ports={}
@@ -43,6 +49,18 @@ def validate_identity(identity, ev3):
         if ports.get(address) != DRIVERS[name]:
             raise EV3Error(name + ' actual remote port driver mismatch')
     return identity
+
+
+def validate_runtime(runtime):
+    if not isinstance(runtime, dict) or runtime.get('runtime_name') != 'pybricks-micropython':
+        raise EV3Error('unsupported Pybricks runtime identity')
+    version = runtime.get('pybricks_version')
+    if not isinstance(version, (list, tuple)) or len(version) != 5 or any(type(v) is not int or v < 0 for v in version[:3]) or version[0] != 2 or not isinstance(version[3], str) or not version[3] or type(version[4]) is not int or version[4] < 0:
+        raise EV3Error('EV3 requires actual Pybricks major version 2')
+    text = runtime.get('runtime_version')
+    if not isinstance(text, str) or not text.strip():
+        raise EV3Error('missing actual MicroPython runtime version')
+    return runtime
 
 
 class SSHTransport:
@@ -82,6 +100,10 @@ class SSHTransport:
             identity = validate_identity(json.loads(raw), self.config['ev3'])
         except (ValueError, TypeError) as error:
             raise EV3Error('malformed remote identity') from error
+        try:
+            validate_runtime(json.loads(self._remote('pybricks-micropython -c ' + shlex.quote(RUNTIME_SCRIPT), deadline)))
+        except (ValueError, TypeError) as error:
+            raise EV3Error('malformed remote runtime identity') from error
         directory = self.config['ev3']['pybricks']['remote_dir']
         target = directory.rstrip('/') + '/ev3_agent.py'
         source = Path(__file__).parent / 'resources' / 'ev3_agent.py'
@@ -158,6 +180,8 @@ class SSHTransport:
 
 class PybricksEV3(EV3Motion):
     CHUNK_MS = 100
+    HEARTBEAT_INTERVAL = 0.1
+    RPC_SECONDS = 0.15
 
     def __init__(self, config, transport=None):
         validate_config(config)
@@ -176,8 +200,13 @@ class PybricksEV3(EV3Motion):
         self.identity = None
         self.nonce = secrets.token_hex(16)
         self.connected = False
+        self.heartbeat_error = None
+        self.heartbeat_stop = threading.Event()
+        self.heartbeat_thread = None
 
     def connect(self):
+        if self.faulted or self.identity is not None:
+            raise EV3Error('create a new Pybricks backend for a new session')
         deadline = self._deadline()
         if self.transport is None:
             self.transport = SSHTransport(self.config)
@@ -186,7 +215,9 @@ class PybricksEV3(EV3Motion):
             ready = self.transport.receive(deadline)
             if not isinstance(ready, dict) or ready.get('protocol') != PROTOCOL or ready.get('version') != VERSION or ready.get('nonce') != self.nonce or ready.get('ready') is not True or ready.get('ports') != self.ports or ready.get('discovered_ports') != self.identity['ports'] or not isinstance(ready.get('runtime_version'), str):
                 raise EV3Error('invalid agent ready handshake')
+            validate_runtime(ready)
             self.connected = True
+            self._start_heartbeat()
             return dict(self.identity)
         except BaseException:
             self.faulted = True
@@ -196,7 +227,9 @@ class PybricksEV3(EV3Motion):
     def _request(self, operation, args, deadline, guard=None):
         if not self.connected:
             raise EV3Error('Pybricks is not connected')
-        deadline = min(deadline, time.monotonic() + 0.15)
+        if self.heartbeat_error is not None and operation not in ('stop', 'busy'):
+            self.check_health()
+        deadline = min(deadline, time.monotonic() + self.RPC_SECONDS)
         if not self.protocol_lock.acquire(timeout=_remaining(deadline)):
             raise TimeoutError('agent protocol lock deadline')
         try:
@@ -217,6 +250,31 @@ class PybricksEV3(EV3Motion):
             raise
         finally:
             self.protocol_lock.release()
+
+    def _start_heartbeat(self):
+        self.heartbeat_thread = threading.Thread(target=self._heartbeat_loop,
+                                                  name='ev3-agent-heartbeat', daemon=True)
+        self.heartbeat_thread.start()
+
+    def _heartbeat_loop(self):
+        while not self.heartbeat_stop.wait(self.HEARTBEAT_INTERVAL):
+            try:
+                self._request('heartbeat', {}, time.monotonic() + self.RPC_SECONDS)
+            except BaseException as error:
+                # Preserve the causal failure for the caller. Cancellation is
+                # shared with the arm loop by station integration.
+                self.heartbeat_error = error
+                self.faulted = True
+                self.homed = False
+                self.cancel.set()
+                self.heartbeat_stop.set()
+                return
+
+    def check_health(self):
+        if self.heartbeat_error is not None:
+            raise EV3Error('EV3 agent heartbeat failed: ' + str(self.heartbeat_error)) from self.heartbeat_error
+        if self.faulted:
+            raise EV3Error('EV3 fault is latched')
 
     def preflight(self):
         self.preflighted = False
@@ -251,6 +309,16 @@ class PybricksEV3(EV3Motion):
         time.sleep(min(ms / 1000, _remaining(deadline)))
 
     def close(self):
-        if self.transport:
-            self.transport.close()
-        self.connected = self.preflighted = self.homed = False
+        self.heartbeat_stop.set()
+        thread = self.heartbeat_thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=self.RPC_SECONDS + .2)
+        try:
+            if self.transport:
+                self.transport.close()
+        finally:
+            self.connected = self.preflighted = self.homed = False
+        if thread is not None and thread.is_alive():
+            self.faulted = True
+            self.cancel.set()
+            raise EV3Error('EV3 heartbeat thread did not stop within deadline')

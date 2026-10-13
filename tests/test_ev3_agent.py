@@ -9,6 +9,11 @@ from workshop.station.ev3_pybricks import PybricksEV3, SSHTransport, EV3Error, v
 from workshop.station.resources.ev3_agent import Agent, run
 
 
+@pytest.fixture(autouse=True)
+def manual_heartbeat(monkeypatch):
+    monkeypatch.setattr(PybricksEV3, '_start_heartbeat', lambda self: None)
+
+
 def config():
     c = json.loads(Path('workshop/station/resources/station.example.json').read_text())
     c['ev3']['firmware'] = 'pybricks'
@@ -41,7 +46,7 @@ class Transport:
     def receive(self, deadline):
         if self.first:
             self.first = False
-            return {'protocol': 'ev3-station', 'version': 1, 'nonce': self.nonce, 'ready': True, 'ports': self.config['ev3']['ports'], 'runtime_version': '2.0', 'discovered_ports': self.agent_identity['ports']}
+            return {'protocol': 'ev3-station', 'version': 1, 'nonce': self.nonce, 'ready': True, 'ports': self.config['ev3']['ports'], 'runtime_version': '3.4.0', 'runtime_name': 'pybricks-micropython', 'pybricks_version': [2, 0, 0, 'final', 0], 'discovered_ports': self.agent_identity['ports']}
         if isinstance(self.bad, BaseException):
             raise self.bad
         if self.bad is not None:
@@ -118,11 +123,13 @@ def test_deployment_failure_never_launches(monkeypatch):
         calls.append(command)
         if len(calls) == 1:
             return json.dumps(identity(c)).encode()
+        if len(calls) == 2:
+            return json.dumps({'runtime_name': 'pybricks-micropython', 'pybricks_version': [2, 0, 0, 'final', 0], 'runtime_version': '3.4.0'}).encode()
         raise EV3Error('deploy failure')
     monkeypatch.setattr(transport, '_remote', remote)
     with pytest.raises(EV3Error, match='deploy'):
         PybricksEV3(c, transport).connect()
-    assert len(calls) == 2 and transport.process is None
+    assert len(calls) == 3 and transport.process is None
 
 
 def test_pinned_ssh_and_safe_remote_directory():
@@ -360,3 +367,146 @@ def test_host_real_pipe_framing_is_bounded(data, error):
         stdout.close()
         stderr.close()
         transport.selector.close()
+
+
+class HeartbeatClock:
+    def __init__(self, agent, rounds=25):
+        self.agent, self.rounds = agent, rounds
+        self.now, self.waits = 0, 0
+        self.stopped = False
+
+    def wait(self, seconds):
+        assert seconds == .1
+        self.now += 100
+        self.agent.expire()
+        self.waits += 1
+        return self.stopped or self.waits > self.rounds
+
+    def set(self):
+        self.stopped = True
+
+
+def test_heartbeat_keeps_agent_alive_across_simulated_arm_idle(agent):
+    brick, wire = backend()
+    clock = HeartbeatClock(agent)
+    agent.nonce = brick.nonce
+    agent.clock = lambda: clock.now
+    brick.heartbeat_stop = clock
+    def receive(deadline):
+        return agent.dispatch(wire.sent[-1])
+    wire.receive = receive
+    before = len(wire.sent)
+    brick._heartbeat_loop()
+    assert clock.now > 2000 and not agent.faulted and not brick.faulted
+    requests = wire.sent[before:]
+    assert len(requests) == 25
+    assert all(r['operation'] == 'heartbeat' and r['args'] == {} for r in requests)
+    assert [r['id'] for r in requests] == sorted(r['id'] for r in requests)
+    assert not agent.feeder.calls and not agent.sorter.calls
+    assert not agent.feeder.stops and not agent.sorter.stops
+
+
+def test_heartbeat_failure_is_saved_faults_and_sets_shared_abort(agent):
+    brick, wire = backend()
+    clock = HeartbeatClock(agent)
+    brick.heartbeat_stop = clock
+    wire.bad = TimeoutError('heartbeat acknowledgement missing')
+    brick._heartbeat_loop()
+    assert isinstance(brick.heartbeat_error, TimeoutError)
+    assert brick.faulted and brick.cancel.is_set() and clock.stopped
+    with pytest.raises(EV3Error, match='heartbeat acknowledgement missing') as error:
+        brick.check_health()
+    assert error.value.__cause__ is brick.heartbeat_error
+    with pytest.raises(EV3Error, match='fault'):
+        brick.feed()
+    assert sum(r['operation'] == 'heartbeat' for r in wire.sent) == 1
+
+
+def test_close_stops_and_joins_heartbeat_with_finite_budget():
+    brick, wire = backend()
+    calls = []
+    brick.heartbeat_thread = SimpleNamespace(join=lambda timeout: calls.append(timeout), is_alive=lambda: False)
+    brick.close()
+    assert brick.heartbeat_stop.is_set() and calls == [.35]
+    assert wire.closed and not brick.connected
+
+
+def test_heartbeat_starts_only_after_verified_ready(monkeypatch):
+    started = []
+    monkeypatch.setattr(PybricksEV3, '_start_heartbeat', lambda self: started.append(self.connected))
+    brick, wire = backend()
+    assert started == [True]
+    c = config()
+    bad = Transport(c)
+    bad.agent_identity['machine_id'] = 'b' * 32
+    with pytest.raises(EV3Error):
+        PybricksEV3(c, bad).connect()
+    assert started == [True]
+
+
+def test_real_heartbeat_thread_shutdown_is_bounded(monkeypatch):
+    import threading, time
+    brick, wire = backend()
+    sent = threading.Event()
+    original_send = wire.send
+    def send(request, deadline):
+        original_send(request, deadline)
+        if request['operation'] == 'heartbeat':
+            sent.set()
+    wire.send = send
+    # Exercise actual worker start despite the default deterministic fixture.
+    brick.heartbeat_thread = threading.Thread(target=brick._heartbeat_loop, daemon=True)
+    brick.heartbeat_thread.start()
+    assert sent.wait(timeout=.5)
+    start = time.monotonic()
+    brick.close()
+    assert time.monotonic() - start < .4
+    assert not brick.heartbeat_thread.is_alive()
+
+
+def test_existing_session_never_reconnects_or_resumes():
+    brick, wire = backend()
+    brick.close()
+    with pytest.raises(EV3Error, match='new session'):
+        brick.connect()
+
+
+@pytest.mark.parametrize('change', [{'runtime_version': ''}, {'runtime_name': 'micropython'}, {'pybricks_version': ''}, {'pybricks_version': [4, 0, 0, 'final', 0]}])
+def test_blank_or_wrong_runtime_ready_rejected_before_motion(change):
+    c = config()
+    wire = Transport(c)
+    original = wire.receive
+    def receive(deadline):
+        result = original(deadline)
+        result.update(change)
+        return result
+    wire.receive = receive
+    brick = PybricksEV3(c, wire)
+    with pytest.raises(EV3Error):
+        brick.connect()
+    assert brick.faulted and wire.closed and not wire.sent
+    assert brick.heartbeat_thread is None
+
+
+def test_remote_runtime_wrong_major_never_uploads(monkeypatch):
+    c = config()
+    transport = SSHTransport(c)
+    calls = []
+    def remote(command, deadline, data=None):
+        calls.append((command, data))
+        if len(calls) == 1:
+            return json.dumps(identity(c)).encode()
+        return json.dumps({'runtime_name': 'pybricks-micropython', 'pybricks_version': [4, 0, 0, 'final', 0], 'runtime_version': '3.4.0'}).encode()
+    monkeypatch.setattr(transport, '_remote', remote)
+    with pytest.raises(EV3Error, match='major version 2'):
+        PybricksEV3(c, transport).connect()
+    assert len(calls) == 2 and all(data is None for _, data in calls)
+    assert transport.process is None
+
+
+def test_agent_runtime_identity_uses_actual_implementation_tuple():
+    from workshop.station.resources.ev3_agent import runtime_identity
+    result = runtime_identity(('pybricks-micropython', (2, 0, 0, 'final', 0)), '3.4.0')
+    assert result['pybricks_version'] == [2, 0, 0, 'final', 0]
+    with pytest.raises(ValueError):
+        runtime_identity(('pybricks-micropython', (4, 0, 0, 'final', 0)), '3.4.0')
