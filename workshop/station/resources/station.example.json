@@ -1,0 +1,114 @@
+{
+  "workflow": "arm_loads_sorter",
+  "enabled": false,
+  "commissioned": false,
+  "automatic_start": false,
+  "cycle_count": 1,
+  "timeouts": {
+    "operation_s": 30,
+    "stop_s": 5
+  },
+  "ev3": {
+    "firmware": "original",
+    "usb": {
+      "vendor_id": 1684,
+      "product_id": 5,
+      "serial": ""
+    },
+    "ports": {
+      "feeder": "A",
+      "sorter": "D",
+      "touch": "S1",
+      "color": "S3"
+    },
+    "directions": {
+      "feeder": 1,
+      "sorter": 1
+    },
+    "homing": {
+      "speed_dps": 120,
+      "max_travel_deg": 720,
+      "timeout_s": 15,
+      "backoff_deg": 30
+    },
+    "feeder": {
+      "speed_dps": 120,
+      "travel_deg": 360,
+      "home_speed_dps": 120,
+      "home_travel_deg": 0,
+      "home_timeout_s": 15,
+      "home_backoff_deg": 200,
+      "stall_window_s": 0.5,
+      "stall_tolerance_deg": 2
+    },
+    "destinations": {
+      "blue": 10,
+      "green": 132,
+      "yellow": 360,
+      "red": 530
+    },
+    "tolerance_deg": 2,
+    "pybricks": {
+      "host": "",
+      "user": "robot",
+      "port": 22,
+      "identity_file": "",
+      "remote_dir": "cps-station"
+    }
+  },
+  "arm": {
+    "id": "hs_rig01_follower",
+    "home_file": "",
+    "hz": 125,
+    "usb": {
+      "vendor_id": 0,
+      "product_id": 0,
+      "serial": ""
+    },
+    "calibration": {
+      "path": "",
+      "sha256": ""
+    },
+    "limits": {
+      "shoulder_pan": {
+        "min": -90,
+        "max": 90,
+        "speed": 10,
+        "acceleration": 20
+      },
+      "shoulder_lift": {
+        "min": -90,
+        "max": 90,
+        "speed": 10,
+        "acceleration": 20
+      },
+      "elbow_flex": {
+        "min": -90,
+        "max": 90,
+        "speed": 10,
+        "acceleration": 20
+      },
+      "wrist_flex": {
+        "min": -90,
+        "max": 90,
+        "speed": 10,
+        "acceleration": 20
+      },
+      "wrist_roll": {
+        "min": -90,
+        "max": 90,
+        "speed": 10,
+        "acceleration": 20
+      },
+      "gripper": {
+        "min": 0,
+        "max": 100,
+        "speed": 10,
+        "acceleration": 20
+      }
+    },
+    "poses": {},
+    "trajectories": {},
+    "tolerance": 2
+  }
+}
