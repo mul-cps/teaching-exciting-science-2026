@@ -372,7 +372,7 @@ class Tests(unittest.TestCase):
             if not blocked[0]:
                 blocked[0] = True
                 self.clock.ms += 470
-                motor.value = 62  # 38 degrees at the configured 120 dps.
+                motor.value = 76  # 24 degrees during the blocked sensor read.
             return original_pressed()
         self.touch.pressed = delayed_pressed
         self.api.tick()  # angle is sampled before the blocking touch read
@@ -380,7 +380,7 @@ class Tests(unittest.TestCase):
         self.api.tick()  # the next angle sample spans the full 490 ms
         self.assertIsNotNone(self.api.job)
         self.assertEqual(self.api.job['_last_sample_ms'], self.clock.ms)
-        self.assertEqual(self.api.job['_last'], 62)
+        self.assertEqual(self.api.job['_last'], 76)
 
     def test_wake_home_uses_fresh_angle_baseline_across_blocking_native_start(self):
         motor = self.motors['sorter']
@@ -391,14 +391,14 @@ class Tests(unittest.TestCase):
         def delayed_run_target(speed, target, then, wait):
             original_run_target(speed, target, then, wait)
             self.clock.ms += 470
-            motor.value = 62  # 38 degrees during native command startup.
+            motor.value = 76  # 24 degrees during native command startup.
         motor.run_target = delayed_run_target
         self.assertTrue(self.request('home_touch')['ok'])
         self.assertEqual(self.api.job['_start'], 100)
         self.api.last_heartbeat = self.clock.ms
         self.api.tick()
         self.assertIsNotNone(self.api.job)
-        self.assertEqual(self.api.job['_last'], 62)
+        self.assertEqual(self.api.job['_last'], 76)
 
     def test_delayed_samples_retain_jump_budget_and_direction_guards(self):
         for target, angle, delay in ((209, 150, 200), (50, 60, 200), (209, -4, 200)):
@@ -444,7 +444,43 @@ class Tests(unittest.TestCase):
         self.assertEqual(diagnostic['signed_displacement_deg'], -4)
         self.assertEqual([sample['angle_deg'] for sample in diagnostic['history']], [100, 104])
         self.assertLessEqual(len(diagnostic['history']), 16)
-        self.assertIn('speed_dps', diagnostic['speed_sample'])
+        self.assertIn('speed_dps', diagnostic['native_status'])
+
+    def test_home_touch_uses_gentle_command_speed_with_native_limits(self):
+        self.motors['sorter'].value = 100
+        self.request('home_touch')
+        job = self.api.job
+        self.assertEqual(job['_speed'], 50)
+        self.assertEqual(self.motors['sorter'].commands[-1], (50, -450))
+        self.assertEqual(job['native_control']['limits'], [120, 400, 30])
+        self.assertEqual(self.motors['sorter'].control.settings, (120, 400, 30))
+
+    def test_wrong_direction_captures_native_status_before_cleanup(self):
+        self.motors['sorter'].value = 100
+        motor = self.motors['sorter']
+        events = []
+        original_brake = motor.brake
+        def recorded_brake():
+            events.append('brake')
+            original_brake()
+        motor.brake = recorded_brake
+        motor.speed = lambda: (events.append('speed'), 17)[1]
+        motor.control.done = lambda: (events.append('done'), False)[1]
+        motor.control.stalled = lambda: (events.append('stalled'), False)[1]
+        self.request('home_touch')
+        events.clear()
+        self.clock.ms = 20
+        motor.value = 104
+        self.api.tick()
+        diagnostic = self.api.last_job['encoder_diagnostics']
+        sample = diagnostic['native_status']
+        self.assertEqual(sample['speed_dps'], 17)
+        self.assertFalse(sample['done'])
+        self.assertFalse(sample['stalled'])
+        self.assertLessEqual(sample['started_ms'], sample['speed_dps_sampled_ms'])
+        self.assertLessEqual(sample['speed_dps_sampled_ms'], sample['done_sampled_ms'])
+        self.assertLessEqual(sample['done_sampled_ms'], sample['stalled_sampled_ms'])
+        self.assertEqual(events[-4:], ['speed', 'done', 'stalled', 'brake'])
 
     def test_encoder_history_is_allocated_only_for_motion_and_capped_at_16(self):
         self.assertIsNone(self.api.job)
