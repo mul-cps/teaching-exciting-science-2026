@@ -1,5 +1,9 @@
 import json
 from datetime import datetime, timezone
+import os
+from pathlib import Path
+import subprocess
+import sys
 
 from tools.record_rgbd_experiment import (MAX_ARM_PAIRING_DELTA_S,
                                          arm_transition, atomic_json,
@@ -108,3 +112,16 @@ def test_fake_camera_frame_metadata_keeps_acquisition_and_arm_provenance():
     assert frame_metadata["paths"]["snapshot_depth"] == "frames/000004.npy"
     assert frame_metadata["arm"]["raw"] == resident_state()["raw"]
     assert frame_metadata["arm"]["qualified_sync"] is True
+
+
+def test_direct_script_help_starts_without_pythonpath():
+    repo_root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    environment.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [sys.executable, "tools/record_rgbd_experiment.py", "--help"],
+        cwd=repo_root, env=environment, capture_output=True, text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--phase-file" in result.stdout
