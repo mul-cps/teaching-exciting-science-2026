@@ -85,6 +85,12 @@ class Tests(unittest.TestCase):
         return self.api.request({'id': self.id, 'operation': operation, 'args': args})
     def confirm(self, name):
         return self.request('confirm_reference', name=name, reference='home' if name == 'sorter' else 'eject')
+    def quiet_api(self):
+        self.api = self.lib.LiveAPI(self.motors, self.touch, Color(), self.brick,
+                                   self.clock, Stop, 'quiet-test', diagnostic_home_quiet=True)
+        self.api.connect()
+        self.id = 0
+        return self.api
     def tick(self, ms=20, heartbeat=True):
         for _ in range(ms // 20):
             self.clock.ms += 20
@@ -500,6 +506,100 @@ class Tests(unittest.TestCase):
         self.assertEqual(self.motors['sorter'].resets,[0])
         self.assertEqual(self.api.status()['references']['sorter'],'home')
         self.assertFalse(self.motors['feeder'].commands)
+
+    def test_quiet_home_skips_peripherals_and_status_speed_reads_then_resumes(self):
+        self.quiet_api()
+        self.touch.override = False
+        self.assertTrue(self.api.diagnostic_home_quiet)
+        self.request('home_touch')
+        speed_reads = sum(m.speed_reads for m in self.motors.values())
+        self.tick(20)
+        self.assertEqual(self.api.color.reads, 0)
+        self.assertEqual(self.brick.screen.frames, 0)
+        self.assertEqual(self.brick.speaker.calls, [])
+        self.assertEqual(self.api.beep_left, 1)
+        self.request('status')
+        self.assertEqual(sum(m.speed_reads for m in self.motors.values()), speed_reads)
+        timing = self.api.job['timing_diagnostics']
+        self.assertGreaterEqual(timing['status_ms']['count'], 1)
+        self.assertEqual(timing['status_speed_read_ms']['count'], 0)
+        self.assertEqual(timing['status_speed_read_ms']['skipped'], 2)
+
+        self.touch.override = True
+        self.tick(240)
+        self.assertIsNone(self.api.job)
+        timing = self.api.last_job['timing_diagnostics']
+        self.assertGreaterEqual(timing['loop_gap_ms']['count'], 1)
+        self.assertGreaterEqual(timing['angle_read_ms']['count'], 1)
+        self.assertGreaterEqual(timing['touch_read_ms']['count'], 1)
+        self.assertGreaterEqual(timing['job_tick_ms']['count'], 1)
+        self.assertGreater(timing['beep_ms']['skipped'], 0)
+        self.assertGreater(timing['color_ms']['skipped'], 0)
+        self.assertGreater(timing['render_ms']['skipped'], 0)
+        self.assertGreaterEqual(timing['captured_before_cleanup_ms'], 0)
+        self.assertGreater(self.api.color.reads, 0)
+        self.assertGreater(self.brick.screen.frames, 0)
+        self.assertTrue(any(call[0] == 'beep' for call in self.brick.speaker.calls))
+        self.assertEqual(len(timing), 10)
+
+    def test_default_home_keeps_peripherals_and_has_no_diagnostic_overhead(self):
+        self.touch.override = False
+        self.request('home_touch')
+        self.tick(20)
+        self.assertFalse(self.api.diagnostic_home_quiet)
+        self.assertNotIn('timing_diagnostics', self.api.job)
+        self.assertGreater(self.api.color.reads, 0)
+        self.assertGreater(self.brick.screen.frames, 0)
+        self.assertTrue(any(call[0] == 'beep' for call in self.brick.speaker.calls))
+
+    def test_quiet_mode_does_not_suppress_other_motor_jobs(self):
+        self.quiet_api()
+        self.confirm('feeder')
+        self.request('eject', cycles=1)
+        self.tick(20)
+        self.assertGreater(self.api.color.reads, 0)
+        self.assertGreater(self.brick.screen.frames, 0)
+        self.assertTrue(any(call[0] == 'beep' for call in self.brick.speaker.calls))
+        speed_reads = sum(m.speed_reads for m in self.motors.values())
+        self.request('status')
+        self.assertEqual(sum(m.speed_reads for m in self.motors.values()), speed_reads + 2)
+        self.assertNotIn('timing_diagnostics', self.api.job)
+
+    def test_quiet_home_mutes_an_existing_beep_before_motor_dispatch(self):
+        self.quiet_api()
+        self.touch.override = False
+        self.api.beep_active = True
+        self.api.next_beep = 100
+        original = self.motors['sorter'].run_target
+        def run_target(*args, **kwargs):
+            self.assertIn(('volume', 0, 'Beep'), self.brick.speaker.calls)
+            return original(*args, **kwargs)
+        self.motors['sorter'].run_target = run_target
+        self.request('home_touch')
+        self.assertFalse(self.api.beep_active)
+        calls_after_start = list(self.brick.speaker.calls)
+        self.tick(20)
+        self.assertEqual(self.brick.speaker.calls, calls_after_start)
+
+    def test_quiet_home_fault_preserves_bounded_timing_before_cleanup(self):
+        self.quiet_api()
+        self.touch.override = False
+        self.request('home_touch')
+        self.motors['sorter'].advance = lambda: setattr(
+            self.motors['sorter'], 'value', self.motors['sorter'].value + 5)
+        self.tick(20)
+        last = self.api.last_job
+        self.assertEqual(last['state'], 'fault')
+        timing = last['timing_diagnostics']
+        self.assertEqual(timing['job_tick_ms']['count'], 1)
+        self.assertLessEqual(len(timing), 10)
+
+    def test_diagnostic_home_quiet_cli_argument_is_opt_in_and_strict(self):
+        self.assertFalse(self.lib.parse_args(['live_api.py']))
+        self.assertTrue(self.lib.parse_args(['live_api.py', '--diagnostic-home-quiet']))
+        with self.assertRaises(ValueError):
+            self.lib.parse_args(['live_api.py', '--unknown'])
+
     def test_home_touch_deadline_never_resets_without_switch(self):
         self.touch.override = False
         self.request('home_touch'); self.tick(4000)
@@ -656,5 +756,13 @@ class Tests(unittest.TestCase):
         self.assertIsInstance(timeout, ast.Call)
         self.assertEqual(timeout.func.attr, 'poll_timeout_ms')
         self.assertEqual(timeout.func.value.id, 'api')
+        main = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main')
+        self.assertTrue(any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and
+                            node.func.id == 'parse_args' and node.args and
+                            isinstance(node.args[0], ast.Attribute) and node.args[0].attr == 'argv'
+                            for node in ast.walk(main)))
+        live_api = next(node for node in ast.walk(main) if isinstance(node, ast.Call) and
+                        isinstance(node.func, ast.Name) and node.func.id == 'LiveAPI')
+        self.assertTrue(any(keyword.arg == 'diagnostic_home_quiet' for keyword in live_api.keywords))
 
 if __name__=='__main__': unittest.main()
