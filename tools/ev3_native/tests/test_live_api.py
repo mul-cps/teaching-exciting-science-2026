@@ -429,6 +429,23 @@ class Tests(unittest.TestCase):
         self.assertLessEqual(len(diagnostic['history']), 16)
         self.assertEqual(diagnostic['history'][-1]['angle_deg'], 60)
 
+    def test_wrong_direction_fault_exposes_bounded_encoder_history(self):
+        self.motors['sorter'].value = 100
+        self.request('home_touch')
+        self.clock.ms = 20
+        self.motors['sorter'].value = 104  # Home approaches in the negative direction.
+        self.api.tick()
+        failed = self.api.status()['last_job']
+        diagnostic = failed['encoder_diagnostics']
+        self.assertEqual(failed['fault']['message'], 'Motor moved in wrong direction')
+        self.assertEqual(diagnostic['fault_reason'], 'wrong_direction')
+        self.assertEqual(diagnostic['expected_direction'], -1)
+        self.assertEqual(diagnostic['step_deg'], 4)
+        self.assertEqual(diagnostic['signed_displacement_deg'], -4)
+        self.assertEqual([sample['angle_deg'] for sample in diagnostic['history']], [100, 104])
+        self.assertLessEqual(len(diagnostic['history']), 16)
+        self.assertIn('speed_dps', diagnostic['speed_sample'])
+
     def test_encoder_history_is_allocated_only_for_motion_and_capped_at_16(self):
         self.assertIsNone(self.api.job)
         self.assertFalse(any(key.startswith('_encoder_history') for key in self.api.__dict__))
