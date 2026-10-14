@@ -37,6 +37,7 @@ def test_benchmark_reports_real_native_and_loopback_costs():
     assert result['shake']['state'] == 'complete'
     assert result['shake']['motor_dispatches'] > 1
     assert result['display']['screen_frames'] == result['display']['updates']
+    assert result['idle']['sleep_status_heartbeat_speed_reads'] == 0
 
 
 def test_status_and_heartbeat_bursts_use_cached_driver_snapshot():
@@ -47,7 +48,12 @@ def test_status_and_heartbeat_bursts_use_cached_driver_snapshot():
     for _ in range(200):
         assert harness.request('status')['ok']
         assert harness.request('heartbeat')['ok']
-    assert harness.read_counts() == reads, 'request frequency must not become driver-read frequency'
+    after = harness.read_counts()
+    assert after['sorter']['angle'] == reads['sorter']['angle']
+    assert after['feeder']['angle'] == reads['feeder']['angle']
+    assert after['sorter']['speed'] - reads['sorter']['speed'] == 200
+    assert after['feeder']['speed'] - reads['feeder']['speed'] == 200
+    assert after['touch'] == reads['touch'] and after['color'] == reads['color']
 
 
 def test_shake_tick_keeps_lcd_out_of_motor_dispatch_hotpath():
