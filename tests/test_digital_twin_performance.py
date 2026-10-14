@@ -50,12 +50,60 @@ def test_offline_twin_does_not_import_hardware_control_interfaces():
     forbidden = ('serial', 'usb', 'pyrealsense2', 'scservo_sdk', 'lerobot',
                  'workshop.station', 'workshop.servo_start', 'subprocess')
     for path in Path(inspect.getfile(unproject)).parent.rglob('*.py'):
-        tree = ast.parse(path.read_text())
+        source = path.read_text()
+        tree = ast.parse(source)
         for node in ast.walk(tree):
             names = ([alias.name for alias in node.names] if isinstance(node, ast.Import)
                      else [node.module or ''] if isinstance(node, ast.ImportFrom) else [])
+            if isinstance(node, ast.Call) and node.args:
+                # Catch importlib.import_module(...) and __import__(...) as well.
+                func = ast.unparse(node.func)
+                if func in ('__import__', 'importlib.import_module'):
+                    arg = node.args[0]
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                        names.append(arg.value)
+            if path.name == 'ik.py' and isinstance(node, ast.ImportFrom):
+                # This exact LeRobot module supplies the offline RobotKinematics
+                # math model; robot and motor interfaces remain forbidden.
+                if node.module == 'lerobot.model.kinematics' and [a.name for a in node.names] == ['RobotKinematics']:
+                    continue
             assert not any(name == item or name.startswith(item + '.')
                            for name in names for item in forbidden), path
+
+
+@pytest.mark.parametrize('source, allowed', [
+    ('from lerobot.model.kinematics import RobotKinematics', True),
+    ('from lerobot.robots.so_follower import SOFollower', False),
+    ('from lerobot.motors import Motor', False),
+    ("importlib.import_module('lerobot.robots.so_follower')", False),
+    ("__import__('serial')", False),
+])
+def test_offline_import_guard_only_allows_the_kinematics_math_import(source, allowed):
+    tree = ast.parse(source)
+    names = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            names.append(node.module or '')
+        elif isinstance(node, ast.Import):
+            names.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.Call) and node.args and ast.unparse(node.func) in (
+                '__import__', 'importlib.import_module'):
+            if isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                names.append(node.args[0].value)
+    forbidden = ('serial', 'usb', 'pyrealsense2', 'scservo_sdk', 'lerobot',
+                 'workshop.station', 'workshop.servo_start', 'subprocess')
+    exact_kinematics_import = (
+        len(tree.body) == 1
+        and isinstance(tree.body[0], ast.ImportFrom)
+        and tree.body[0].module == 'lerobot.model.kinematics'
+        and [alias.name for alias in tree.body[0].names] == ['RobotKinematics']
+    )
+    if allowed:
+        assert exact_kinematics_import
+        names = []
+    is_forbidden = any(name == item or name.startswith(item + '.')
+                       for name in names for item in forbidden)
+    assert is_forbidden is (not allowed)
 
 
 def test_cpu_benchmark_exercises_full_frame_projection_and_actual_virtual_pose():
