@@ -109,3 +109,49 @@ This feeder diagnostic does not validate product code, all-nine-piece sorting,
 or either full station workflow. Video `one-eject-cycle-repeat-camera.mkv` and
 log `one-eject-cycle-repeat.jsonl` remain in the local evidence directory;
 raw video and logs are not included here.
+
+
+## Native profile replay follow-up — 2026-10-14
+
+The reusable [native replay tools](../tools/ev3_native/README.md) preserve the
+verified diagnostic helper and native sorter/feeder motion guards. The
+production station agent retains its 100 ms slice backend. These component
+replays do not admit the production station or either full workflow.
+
+The recorded sorter traverse used speed 600 degrees/second, acceleration 1200
+degrees/second squared, and a 50% actuation limit. Settled positions and elapsed
+time through settling were:
+
+| Target (degrees) | Actual (degrees) | Elapsed through settling (ms) |
+| --- | --- | --- |
+| 10 | 10 | 449 |
+| 132 | 133 | 914 |
+| 360 | 359 | 1150 |
+| 530 | 530 | 1020 |
+| 15 | 15 | 1876 |
+
+The sorter then finished at its verified switch home. Motor A remained at
+session angle 0 with no feeder strokes. The fast profile uses native finite
+targets rather than repeatedly replanning 100 ms maneuvers. The existing slow
+homing routine and its repeat criterion remain unchanged.
+
+Recorded one-cycle feeder times were:
+
+| Speed (degrees/s) | Acceleration (degrees/s squared) | Actuation (%) | Cycle time (s) |
+| --- | --- | --- | --- |
+| 120 | 400 | 50 | 4.573 |
+| 360 | 1200 | 50 | 2.259 |
+| 600 | 2400 | 50 | 1.708 |
+
+Each feeder replay used the accepted current relaxed negative EJECT pose as
+its session reference and performed only LOAD/READY 209 → EJECT 0 degrees.
+That reference is a physical prerequisite, not a persistent absolute encoder
+coordinate. The reusable feeder tool does not rehome or establish it after
+manual moves. Completion logs and beeps establish motor stroke completion;
+recording review establishes piece movement. These times do not establish
+landing, disposal, all-piece sorting, high-frequency vibration behavior, or
+full station acceptance.
+
+Camera videos `fast-sorter-camera.mkv` and `faster-eject-camera.mkv`, with their
+corresponding JSONL motion logs, remain in the local evidence directory named
+above. Raw videos and logs are not included in the repository.
