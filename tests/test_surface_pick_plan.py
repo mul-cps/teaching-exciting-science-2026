@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 
+from workshop.digital_twin.frame_conventions import convert_native_pinch_offset
 from tools.plan_surface_pick import _pinch_rotation, plan_surface_pick
 
 
@@ -20,7 +21,9 @@ def inputs(footprint=False):
     ext = {'base_frame': 'urdf:base_link', 'direction': 'base_from_camera',
            'base_from_camera': np.eye(4), 'qualified': False}
     offset = {'parent_frame': 'urdf:gripper_frame_link',
-              'gripper_frame_from_pinch': np.eye(4), 'opening_raw': 2200,
+              'gripper_frame_from_pinch': convert_native_pinch_offset(
+                  [.0059602, .0000590, .0163374]),
+              'opening_raw': 2200,
               'qualified': False}
     return candidate, plane, ext, offset, CAL, SEED
 
@@ -197,6 +200,18 @@ def test_opening_must_match_offset_and_target_frame_offsets_are_explicit():
     report = run_plan()
     assert report['frames']['base'] == 'urdf:base_link'
     assert report['frames']['pinch_axes'].startswith('native-MuJoCo-gripper_frame_site')
+
+
+def test_rejects_pinch_offset_without_native_site_axis_bridge():
+    bridge = inputs()[3]['gripper_frame_from_pinch'][:3, :3]
+    wrong_rotations = [np.eye(3), bridge @ np.array([
+        [np.cos(.1), -np.sin(.1), 0.], [np.sin(.1), np.cos(.1), 0.], [0., 0., 1.]])]
+    for rotation in wrong_rotations:
+        docs = list(inputs())
+        docs[3]['gripper_frame_from_pinch'] = np.eye(4)
+        docs[3]['gripper_frame_from_pinch'][:3, :3] = rotation
+        with pytest.raises(ValueError, match='native-site axes'):
+            plan_surface_pick(*docs, 2200, ik_factory=FakeIK)
 
 
 def test_native_site_target_axes_follow_official_mujoco_gripper_body_axes():

@@ -110,6 +110,8 @@ def plan_surface_pick(candidate, support_plane, extrinsic, pinch_offset, calibra
     `candidate.center_cam`, `candidate.closing_axis_cam`, `support_plane.normal`,
     and `support_plane.d` are in camera coordinates. Optional
     `candidate.footprint_axes_cam` is a list of additional unoriented axes.
+    The pinch transform must use native MuJoCo site axes in its child frame,
+    with the URDF link/site bridge from `frame_conventions` and any translation.
     No resulting candidate is executable or physically qualified.
     """
     if extrinsic.get('base_frame') != 'urdf:base_link' or extrinsic.get('direction') != 'base_from_camera':
@@ -120,6 +122,13 @@ def plan_surface_pick(candidate, support_plane, extrinsic, pinch_offset, calibra
         raise ValueError("Support plane frame must be exactly 'camera'")
     if pinch_offset.get('parent_frame') != 'urdf:gripper_frame_link':
         raise ValueError("Pinch parent_frame must be exactly 'urdf:gripper_frame_link'")
+    from workshop.digital_twin.frame_conventions import convert_native_pinch_offset
+    native_bridge = convert_native_pinch_offset([0., 0., 0.])[:3, :3]
+    declared_offset = _se3(pinch_offset['gripper_frame_from_pinch'],
+                           'gripper_frame_from_pinch')
+    if not np.allclose(declared_offset[:3, :3], native_bridge, rtol=0., atol=1e-8):
+        raise ValueError('Pinch offset must retain native-site axes using '
+                         'frame_conventions.convert_native_pinch_offset')
     if not isinstance(pinch_offset.get('qualified'), bool):
         raise ValueError('Pinch offset qualified must be an explicit boolean')
     if pinch_offset.get('opening_raw') != opening_raw:
@@ -144,7 +153,7 @@ def plan_surface_pick(candidate, support_plane, extrinsic, pinch_offset, calibra
                  ('grasp', 0.), ('lift', .080))
 
     base_from_camera = _se3(extrinsic['base_from_camera'], 'base_from_camera')
-    gripper_from_pinch = _se3(pinch_offset['gripper_frame_from_pinch'], 'gripper_frame_from_pinch')
+    gripper_from_pinch = declared_offset
     plane_normal_cam = _unit(support_plane['normal'], 'support plane normal')
     plane_d_cam = float(support_plane['d']) / np.linalg.norm(support_plane['normal'])
     if not np.isfinite(plane_d_cam):
