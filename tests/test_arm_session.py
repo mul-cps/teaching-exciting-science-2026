@@ -46,12 +46,16 @@ class FakeBus:
         self.on_goal_write = None
         self.delay_after_goal = None
         self._delay_present_pending = False
+        self.present_read_delays = []
+        self.on_present_read = None
         self.clock = None
         self.present_read_times = []
 
     def ping(self, joint, **kwargs): return 777
     def sync_read(self, register, **kwargs):
         if register == "Present_Position":
+            if self.present_read_delays:
+                self.clock.value += self.present_read_delays.pop(0)
             if self._delay_present_pending and self.delay_after_goal is not None:
                 self.clock.value += self.delay_after_goal
                 self._delay_present_pending = False
@@ -69,6 +73,8 @@ class FakeBus:
             if self.gripper_read_sequence:
                 self.data[register]["gripper"] = self.gripper_read_sequence.pop(0)
             self.present_read_times.append(self.clock.value if self.clock is not None else 0.0)
+            if self.on_present_read is not None:
+                self.on_present_read()
         return dict(self.data[register])
     def read(self, register, joint, **kwargs): return self.data[register][joint]
     def write(self, register, joint, value, **kwargs):
@@ -380,8 +386,32 @@ def test_feedback_timestamps_follow_driver_reads_and_sleep_is_rate_limited(tmp_p
     session.close_log()
 
 
+def test_single_210ms_feedback_gap_resynchronizes_with_three_missed_ticks(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    arm.bus.delay_after_goal = 0.21
+    result = session.move_plan([{"label": "one-late-read",
+                                 "target_raw": target(shoulder_pan=2050)}])
+    assert result["completed_legs"] == ["one-late-read"]
+    records = [json.loads(line) for line in session.log_path.read_text().splitlines()]
+    overruns = [row for row in records if row.get("event") == "feedback_overrun"]
+    assert len(overruns) == 1
+    assert overruns[0]["missed_ticks"] == 3
+    assert overruns[0]["missed_ticks_total"] == 3
+    assert overruns[0]["resynchronized"] is True
+    assert overruns[0]["feedback_gap_s"] == pytest.approx(0.21)
+    samples = [row for row in records if row.get("event") == "sample" and
+               row.get("label") == "one-late-read"]
+    assert any(0 < right["monotonic"] - left["monotonic"] <= 0.06
+               for left, right in zip(samples, samples[1:]))
+    assert all("position_read_duration_s" in row.get("feedback_timing", {})
+               for row in samples)
+    session.shutdown()
+    session.close_log()
+
+
 @pytest.mark.parametrize(("delay", "message"), [
-    (0.06, "feedback cadence exceeded 20 Hz"),
+    (0.30, "feedback freshness exceeded bounded period budget"),
     (6.0, "leg 6 second deadline expired"),
 ])
 def test_delayed_driver_reads_abort_with_torque_off_and_ram_restore(tmp_path, delay, message):
@@ -390,6 +420,64 @@ def test_delayed_driver_reads_abort_with_torque_off_and_ram_restore(tmp_path, de
     arm.bus.delay_after_goal = delay
     with pytest.raises((RuntimeError, TimeoutError), match=message):
         session.move_plan([{"label": "delayed-driver", "target_raw": target(shoulder_pan=2050)}])
+    assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
+    assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)
+    assert arm.bus.eeprom_writes == []
+    if delay == 0.30:
+        records = [json.loads(line) for line in session.log_path.read_text().splitlines()]
+        fault = next(row for row in records if row.get("event") == "feedback_cadence_fault")
+        assert fault["feedback_gap_s"] == pytest.approx(delay)
+        assert fault["position_read_duration_s"] == pytest.approx(delay)
+        assert fault["missed_ticks"] == 5
+        assert fault["previous_tick_timing"] is None
+    session.close_log()
+
+
+def test_repeated_subquarter_second_gaps_exhaust_per_leg_miss_budget(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    arm.bus.present_read_delays = [0.10] * 4
+    with pytest.raises(RuntimeError, match="feedback freshness exceeded bounded period budget"):
+        session.move_plan([{"label": "repeated-late-read",
+                            "target_raw": target(shoulder_pan=2050)}])
+    records = [json.loads(line) for line in session.log_path.read_text().splitlines()]
+    fault = next(row for row in records if row.get("event") == "feedback_cadence_fault")
+    assert fault["feedback_gap_s"] == pytest.approx(0.15)
+    assert fault["missed_ticks_total"] > 4
+    assert fault["previous_tick_timing"]["sample_publish_duration_s"] >= 0
+    assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
+    assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)
+    assert arm.bus.eeprom_writes == []
+    session.close_log()
+
+
+def test_stop_while_feedback_read_is_late_is_serviced_before_gap_fault(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    read_fd, write_fd = os.pipe()
+    plan = {"command": "move_plan", "legs": [
+        {"label": "late-stop", "target_raw": target(shoulder_pan=2050)}]}
+    os.write(write_fd, (json.dumps(plan) + "\n").encode())
+    arm.bus.delay_after_goal = 0.21
+    def stop_after_motion_read():
+        if session._motion_busy and arm.bus.goal_history:
+            arm.bus.on_present_read = None
+            os.write(write_fd, b'{"command":"stop"}\n')
+    arm.bus.on_present_read = stop_after_motion_read
+    results = []
+
+    def emit(value):
+        results.append(value)
+        if value.get("stopped"):
+            os.write(write_fd, b'{"command":"exit"}\n')
+
+    try:
+        assert session.serve(fd=read_fd, emit=emit) == 0
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+    assert any(row.get("reason") == "busy_stop" for row in results)
+    assert len(arm.bus.goal_history) == 1
     assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
     assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)
     assert arm.bus.eeprom_writes == []

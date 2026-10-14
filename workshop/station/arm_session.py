@@ -21,11 +21,19 @@ import time
 import uuid
 
 from workshop.safe_home import load_home
-from .arm import atomic_json
 from .config import JOINTS, load_config
 from .locking import station_lock, station_lock_path
 
 PERIOD_S = 0.05
+# The native servo profile (Goal_Velocity 160 body / 220 gripper) executes
+# independently of this Python feedback loop. Tolerate at most four missing
+# 50 ms observations per leg (one 250 ms freshness window), then re-anchor the
+# next tick to the fresh read. This does not scale the absolute raw-count jump
+# budgets: body/gripper remain capped at 80/150 counts per observed frame and
+# 180/650 counts per leg, with the existing six-second deadline unchanged.
+MAX_MISSED_FEEDBACK_TICKS_PER_LEG = 4
+MAX_FEEDBACK_GAP_S = PERIOD_S * (MAX_MISSED_FEEDBACK_TICKS_PER_LEG + 1)
+FEEDBACK_GAP_EPSILON_S = 0.001
 BODY_STEP = 180
 GRIPPER_STEP = 650
 ARRIVAL_COUNTS = 10
@@ -44,6 +52,27 @@ PROFILE = {
     "Torque_Limit": {joint: (250 if joint == "gripper" else 700) for joint in JOINTS},
 }
 RAM_REGISTERS = tuple(PROFILE)
+
+
+def _atomic_snapshot_json(path, data):
+    """Atomically replace a live snapshot without forcing storage to flush.
+
+    Readers never observe a partial JSON document. The camera twin needs the
+    newest snapshot while the session runs; per-frame fsync of both the file
+    and directory adds blocking latency without improving that live contract.
+    Durable command logs and calibration/home files keep their own policies.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
+    try:
+        with temporary.open("x") as stream:
+            json.dump(data, stream, indent=2, allow_nan=False)
+            stream.write("\n")
+            stream.flush()
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 class ArmSessionCancelled(RuntimeError):
@@ -122,6 +151,29 @@ class ArmSession:
         self._poll_busy_input()
         if self.clock() - started >= LEG_DEADLINE_S:
             raise TimeoutError("leg 6 second deadline expired: " + label)
+
+    def _check_feedback_freshness(self, *, label, phase, previous_read_at,
+                                  read_started, read_ended, total_missed,
+                                  previous_tick_timing):
+        gap = max(0.0, read_ended - previous_read_at)
+        periods = max(1, int((gap + FEEDBACK_GAP_EPSILON_S) / PERIOD_S))
+        missed = periods - 1
+        missed_total = total_missed + missed
+        details = dict(label=label, phase=phase,
+                       previous_position_read_monotonic=previous_read_at,
+                       position_read_started_monotonic=read_started,
+                       position_read_ended_monotonic=read_ended,
+                       feedback_gap_s=gap,
+                       position_read_duration_s=max(0.0, read_ended - read_started),
+                       missed_ticks=missed, missed_ticks_total=missed_total,
+                       max_gap_s=MAX_FEEDBACK_GAP_S,
+                       max_missed_ticks_per_leg=MAX_MISSED_FEEDBACK_TICKS_PER_LEG,
+                       previous_tick_timing=previous_tick_timing)
+        if (gap > MAX_FEEDBACK_GAP_S or
+                missed_total > MAX_MISSED_FEEDBACK_TICKS_PER_LEG):
+            self._event("feedback_cadence_fault", **details)
+            raise RuntimeError("arm feedback freshness exceeded bounded period budget: " + label)
+        return gap, missed, missed_total
 
     def _cancel(self, reason, *, exiting=False):
         self._cancel_requested = True
@@ -286,7 +338,7 @@ class ArmSession:
 
     def publish_state(self, *, event="sample", torque=None, phase=None, label=None, raw=None,
                       position_monotonic=None, position_utc=None,
-                      torque_monotonic=None, torque_utc=None):
+                      torque_monotonic=None, torque_utc=None, feedback_timing=None):
         raw = self._read("Present_Position") if raw is None else dict(raw)
         if position_monotonic is None:
             position_monotonic = self.clock()
@@ -331,11 +383,19 @@ class ArmSession:
                      violations=violations,
                      profile=self.profile,
                      profile_registers=(PROFILE if self.saved_ram is not None and self.profile != "unmodified" else None),
-                     phase=phase, label=label)
-        atomic_json(self.state_file, state)
+                     phase=phase, label=label, feedback_timing=feedback_timing)
+        snapshot_started = self.clock()
+        _atomic_snapshot_json(self.state_file, state)
+        if feedback_timing is not None:
+            feedback_timing["snapshot_replace_duration_s"] = max(
+                0.0, self.clock() - snapshot_started)
         # The JSONL event trail carries the same timestamped actual samples as
         # the atomically replaced latest-state file for downstream replay.
+        log_started = self.clock()
         self._record(state)
+        if feedback_timing is not None:
+            feedback_timing["sample_log_append_duration_s"] = max(
+                0.0, self.clock() - log_started)
         return state
 
     def read_state(self):
@@ -458,44 +518,77 @@ class ArmSession:
         recovery = self._validate_transition(start, target, label, allow_sag=allow_sag)
         active = {joint for joint in JOINTS if target[joint] != start[joint]}
         started = self.clock()
+        self._event("leg_start", label=label, start_raw=start, target_raw=target,
+                    active_joints=sorted(active), sag_recovery=recovery)
+        setup_started = self.clock()
         self._enable_current_goal(target, started, label)
+        setup_duration = self.clock() - setup_started
+        self._event("command_setup_complete", label=label,
+                    setup_duration_s=setup_duration,
+                    elapsed_from_leg_start_s=self.clock() - started)
+        # The native profile moves the servo between observations. Start the
+        # feedback freshness window only after the goal broadcast and its
+        # readback have completed, rather than charging command setup against
+        # the first 20 Hz sample.
+        last_feedback_at = self.clock()
         previous = dict(start)
         frames = []
-        next_frame = started
-        next_trim = started + 0.6
+        next_frame = last_feedback_at
+        next_trim = last_feedback_at + 0.6
         commanded = dict(target)
         trim = dict.fromkeys(JOINTS, 0)
         contact_inferred = False
-        self._event("leg_start", label=label, start_raw=start, target_raw=target,
-                    active_joints=sorted(active), sag_recovery=recovery)
+        missed_total = 0
+        previous_tick_timing = None
+
+        def poll_control(timing):
+            poll_started = self.clock()
+            self._poll_busy_input()
+            timing["control_input_duration_s"] += max(0.0, self.clock() - poll_started)
+
         settled = False
         while not settled:
-            self._poll_busy_input()
-            scheduled = next_frame
+            timing = {"command_setup_duration_s": setup_duration,
+                      "control_input_duration_s": 0.0}
+            poll_control(timing)
+            read_started = self.clock()
             actual = self._read("Present_Position")
             position_monotonic = self.clock()
             position_utc = self.wall_clock()
             now = position_monotonic
             if now - started >= LEG_DEADLINE_S:
                 raise TimeoutError("leg 6 second deadline expired: " + label)
-            if now - scheduled > PERIOD_S:
-                raise RuntimeError("arm feedback cadence exceeded 20 Hz: " + label)
-            self._poll_busy_input()
+            poll_control(timing)
+            gap, missed, missed_total = self._check_feedback_freshness(
+                label=label, phase=phase, previous_read_at=last_feedback_at,
+                read_started=read_started, read_ended=position_monotonic,
+                total_missed=missed_total, previous_tick_timing=previous_tick_timing)
+            timing.update(feedback_gap_s=gap, missed_ticks=missed,
+                          missed_ticks_total=missed_total,
+                          position_read_duration_s=max(0.0, position_monotonic - read_started))
+            poll_control(timing)
             self._guard_actual(actual, previous, start, active, recovery, started)
+            goal_read_started = self.clock()
             goals = self._read("Goal_Position")
-            self._poll_busy_input()
+            timing["goal_read_duration_s"] = max(0.0, self.clock() - goal_read_started)
+            poll_control(timing)
             if any(abs(goals[j] - commanded[j]) > 1 for j in JOINTS):
                 raise RuntimeError("goal changed or was clamped: " + label)
             frames.append(actual)
             frames = frames[-4:]
+            torque_read_started = self.clock()
             torque = self._read("Torque_Enable")
             torque_monotonic = self.clock()
             torque_utc = self.wall_clock()
-            self._poll_busy_input()
+            timing["torque_read_duration_s"] = max(0.0, torque_monotonic - torque_read_started)
+            poll_control(timing)
+            publish_started = self.clock()
             self.publish_state(event="sample", phase=phase, label=label, raw=actual,
                                torque=torque, position_monotonic=position_monotonic,
                                position_utc=position_utc, torque_monotonic=torque_monotonic,
-                               torque_utc=torque_utc)
+                               torque_utc=torque_utc, feedback_timing=timing)
+            timing["sample_publish_duration_s"] = max(0.0, self.clock() - publish_started)
+            previous_tick_timing = dict(timing)
             body_quiet = len(frames) >= 3 and all(
                 max(frame[j] for frame in frames[-3:]) - min(frame[j] for frame in frames[-3:]) <= QUIET_COUNTS
                 for j in JOINTS[:-1])
@@ -509,8 +602,7 @@ class ArmSession:
             if normal_ready or contact_ready:
                 contact_inferred = bool(contact_ready)
                 settled = True
-                break
-            if now >= next_trim:
+            elif now >= next_trim:
                 revised = dict(commanded)
                 if body_quiet:
                     for joint in JOINTS[:-1]:
@@ -529,45 +621,82 @@ class ArmSession:
                     self._event("bounded_gravity_trim", label=label,
                                 command_raw=commanded, trim_raw=trim)
                 next_trim = now + 0.1
+            if settled:
+                last_feedback_at = position_monotonic
+                if missed:
+                    self._event("feedback_overrun", **timing,
+                                label=label, phase=phase,
+                                resynchronized=True,
+                                max_gap_s=MAX_FEEDBACK_GAP_S,
+                                max_missed_ticks_per_leg=MAX_MISSED_FEEDBACK_TICKS_PER_LEG)
+                break
             previous = actual
-            next_frame += PERIOD_S
+            last_feedback_at = position_monotonic
+            next_frame = position_monotonic + PERIOD_S
+            if missed:
+                self._event("feedback_overrun", **timing,
+                            label=label, phase=phase,
+                            resynchronized=True,
+                            max_gap_s=MAX_FEEDBACK_GAP_S,
+                            max_missed_ticks_per_leg=MAX_MISSED_FEEDBACK_TICKS_PER_LEG)
             self.sleep(max(0.0, next_frame - self.clock()))
 
         dwell_started = self.clock()
         previous = dict(actual)
-        next_frame = dwell_started
         settled_raw = dict(actual)
         while self.clock() - dwell_started < DWELL_S:
-            self._poll_busy_input()
-            scheduled = next_frame
+            timing = {"command_setup_duration_s": setup_duration,
+                      "control_input_duration_s": 0.0}
+            poll_control(timing)
+            read_started = self.clock()
             actual = self._read("Present_Position")
             position_monotonic = self.clock()
             position_utc = self.wall_clock()
             if position_monotonic - started >= LEG_DEADLINE_S:
                 raise TimeoutError("leg 6 second deadline expired during dwell: " + label)
-            if position_monotonic - scheduled > PERIOD_S:
-                raise RuntimeError("arm feedback cadence exceeded 20 Hz during dwell: " + label)
-            self._poll_busy_input()
+            poll_control(timing)
+            gap, missed, missed_total = self._check_feedback_freshness(
+                label=label, phase=phase + "_dwell", previous_read_at=last_feedback_at,
+                read_started=read_started, read_ended=position_monotonic,
+                total_missed=missed_total, previous_tick_timing=previous_tick_timing)
+            timing.update(feedback_gap_s=gap, missed_ticks=missed,
+                          missed_ticks_total=missed_total,
+                          position_read_duration_s=max(0.0, position_monotonic - read_started))
+            poll_control(timing)
             self._guard_actual(actual, previous, start, active, recovery, started)
             for joint in JOINTS:
                 reference = settled_raw[joint] if joint == "gripper" and contact_inferred else target[joint]
                 tolerance = QUIET_COUNTS if joint == "gripper" and contact_inferred else ARRIVAL_COUNTS + QUIET_COUNTS
                 if abs(actual[joint] - reference) > tolerance:
                     raise RuntimeError("dwell outside arrival tolerance: " + label + "/" + joint)
+            goal_read_started = self.clock()
             goals = self._read("Goal_Position")
-            self._poll_busy_input()
+            timing["goal_read_duration_s"] = max(0.0, self.clock() - goal_read_started)
+            poll_control(timing)
             if any(abs(goals[j] - commanded[j]) > 1 for j in JOINTS):
                 raise RuntimeError("goal changed during dwell: " + label)
+            torque_read_started = self.clock()
             torque = self._read("Torque_Enable")
             torque_monotonic = self.clock()
             torque_utc = self.wall_clock()
-            self._poll_busy_input()
+            timing["torque_read_duration_s"] = max(0.0, torque_monotonic - torque_read_started)
+            poll_control(timing)
+            publish_started = self.clock()
             self.publish_state(event="sample", phase=phase + "_dwell", label=label, raw=actual,
                                torque=torque, position_monotonic=position_monotonic,
                                position_utc=position_utc, torque_monotonic=torque_monotonic,
-                               torque_utc=torque_utc)
+                               torque_utc=torque_utc, feedback_timing=timing)
+            timing["sample_publish_duration_s"] = max(0.0, self.clock() - publish_started)
+            previous_tick_timing = dict(timing)
             previous = actual
-            next_frame += PERIOD_S
+            last_feedback_at = position_monotonic
+            next_frame = position_monotonic + PERIOD_S
+            if missed:
+                self._event("feedback_overrun", **timing,
+                            label=label, phase=phase + "_dwell",
+                            resynchronized=True,
+                            max_gap_s=MAX_FEEDBACK_GAP_S,
+                            max_missed_ticks_per_leg=MAX_MISSED_FEEDBACK_TICKS_PER_LEG)
             self.sleep(max(0.0, next_frame - self.clock()))
             if self.clock() - started >= LEG_DEADLINE_S:
                 raise TimeoutError("leg 6 second deadline expired during dwell: " + label)
