@@ -1,6 +1,8 @@
 import json
 import os
 import time
+import ast
+import inspect
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -213,6 +215,87 @@ def test_live_surface_frame_uses_full_registration_and_compacts_bounds(tmp_path,
     assert np.all(center >= np.minimum(surface['mesh'].vertices.min(0), [1., 2., 0.]) - 1e-9)
 
 
+def test_dark_rgb_uses_depth_texture_only_for_visualization_and_masks_invalid_depth(tmp_path, monkeypatch):
+    from PIL import Image
+    import numpy as np
+    from workshop.digital_twin import registration, viewer
+
+    image, depth = tmp_path / 'dark.png', tmp_path / 'depth.npy'
+    raw = np.full((480, 480, 3), 4, dtype=np.uint8)
+    depth_mm = np.full((480, 480), 400., dtype=np.float32)
+    depth_mm[400:, :] = 0.
+    Image.fromarray(raw).save(image)
+    np.save(depth, depth_mm)
+    monkeypatch.setattr(registration, 'white_arm_mask', lambda rgb, points, valid: np.zeros(valid.shape, bool))
+    report = {'camera': {'intrinsics': {'fx': 100., 'fy': 100., 'ppx': 240., 'ppy': 240., 'coeffs': []},
+                         'depth_scale_m': .001, 'timestamp': 1.},
+              'world_from_camera': np.eye(4).tolist()}
+    cloud, surface = viewer._rgbd_frame(image, depth, report, np.eye(4))
+    assert surface['visualization_mode'] == 'DEPTH_VIEW'
+    assert surface['mean_luminance'] < 15.
+    assert np.array_equal(surface['rgb'], raw)
+    assert np.all(surface['display_texture'][400:] == 0)
+    assert np.any(surface['display_texture'][:400] != 0)
+    assert np.all(cloud['colors'] == 4)  # Perception RGB is never replaced with synthetic colors.
+    assert np.all(cloud['focused_colors'] == 4)
+    assert surface['faces'].size and np.all(np.isfinite(surface['mesh'].vertices))
+    assert np.all(surface['faces'] < 400 * 480)
+    valid_pixels = np.ones((480, 480), bool)
+    valid_pixels[400:] = False
+    assert np.all(valid_pixels.reshape(-1)[surface['faces']])
+    display_flat = surface['display_texture'].reshape(-1, 3)
+    np.testing.assert_array_equal(surface['colors'][surface['used_vertices']],
+                                  display_flat[surface['used_vertices']])
+
+
+def test_lit_rgb_switches_back_to_photograph_and_depth_map_cost_is_bounded():
+    import numpy as np
+    from workshop.digital_twin import viewer
+
+    depth = np.linspace(.2, 1.2, 640 * 480, dtype=np.float32).reshape(480, 640)
+    valid = np.ones(depth.shape, bool)
+    valid[::11, ::13] = False
+    rgb = np.full((480, 640, 3), 80, dtype=np.uint8)
+    rows = np.broadcast_to(np.arange(480)[:, None], depth.shape)
+    lit_texture, mode, mean_luminance = viewer._display_rgbd_texture(rgb, depth, valid, rows, 150)
+    assert mode == 'RGB' and lit_texture is rgb and mean_luminance >= 15.
+    texture = viewer._depth_visualization_texture(depth, valid)
+    assert texture.shape == (480, 640, 3)
+    assert np.all(texture[~valid] == 0)
+    tree = ast.parse(inspect.getsource(viewer._depth_visualization_texture))
+    assert not any(isinstance(node, (ast.For, ast.While, ast.ListComp, ast.GeneratorExp))
+                   for node in ast.walk(tree))
+    timings = []
+    for _ in range(10):
+        start = time.perf_counter_ns()
+        viewer._depth_visualization_texture(depth, valid)
+        timings.append((time.perf_counter_ns() - start) / 1e6)
+    assert sorted(timings)[int(.95 * (len(timings) - 1))] < 100.
+
+
+def test_compiled_texture_uses_depth_visualization_payload(monkeypatch):
+    from types import SimpleNamespace
+    import numpy as np
+    from workshop.digital_twin import viewer
+
+    model = SimpleNamespace(geom_dataid=np.array([0]), mesh_vertadr=np.array([0]), mesh_vertnum=np.array([3]),
+        mesh_faceadr=np.array([0]), mesh_facenum=np.array([1]), mesh_normaladr=np.array([0]), mesh_normalnum=np.array([3]),
+        mesh_texcoordadr=np.array([0]), mesh_texcoordnum=np.array([3]), mesh_quat=np.array([[1.,0,0,0]]),
+        mesh_pos=np.zeros((1,3)), mesh_vert=np.zeros((3,3),np.float32), mesh_face=np.zeros((1,3),np.int32),
+        mesh_normal=np.zeros((3,3),np.float32), mesh_facenormal=np.zeros((1,3),np.int32),
+        mesh_facetexcoord=np.zeros((1,3),np.int32), geom_aabb=np.zeros((1,6)), geom_rbound=np.zeros(1),
+        tex_nchannel=np.array([3]), tex_width=np.array([2]), tex_height=np.array([2]), tex_adr=np.array([0]),
+        tex_data=np.zeros(12,np.uint8))
+    monkeypatch.setattr(viewer.mujoco, 'mj_name2id', lambda *args: 0)
+    raw = np.full((2,2,3), 3, np.uint8)
+    depth_view = np.full((2,2,3), 90, np.uint8)
+    surface = {'vertices_scene': np.array([[0.,0,0],[1,0,0],[0,1,0]]),
+        'faces': np.array([[0,1,2]],np.int32), 'used_vertices': np.array([0,1,2]),
+        'rgb': raw, 'display_texture': depth_view}
+    viewer._update_compiled_surface(model, 0, surface)
+    np.testing.assert_array_equal(model.tex_data, depth_view.reshape(-1))
+
+
 def test_compiled_surface_update_is_in_place_and_validates_before_mutating(monkeypatch):
     from types import SimpleNamespace
     import numpy as np
@@ -234,7 +317,8 @@ def test_compiled_surface_update_is_in_place_and_validates_before_mutating(monke
     surface = {'vertices_scene': np.array([[0,0,0],[1,0,0],[0,1,0],[0,0,1]], dtype=float),
                'faces': np.array([[0,1,2],[0,2,3]], dtype=np.int32),
                'used_vertices': np.array([0,1,2,3]),
-               'rgb': np.full((2,2,3), 21, dtype=np.uint8)}
+               'rgb': np.full((2,2,3), 21, dtype=np.uint8),
+               'display_texture': np.full((2,2,3), 21, dtype=np.uint8)}
     viewer._update_compiled_surface(model, 0, surface)
     assert np.allclose(model.mesh_vert, surface['vertices_scene'])
     assert np.array_equal(model.mesh_face[:2], surface['faces'])

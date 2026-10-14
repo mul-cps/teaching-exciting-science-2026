@@ -87,6 +87,11 @@ RGB-D triangles and photograph texture; holes and unobserved backs remain
 missing. Layer toggles expose the cropped cloud, room context and small hidden
 camera frustum. Dark labels identify estimates. Photograph and MuJoCo render
 panels are distinct. `--render-only` writes PNGs without starting a server.
+When valid tabletop RGB has mean luminance below 15/255, the surface and sample
+panel switch to an explicitly labeled `DEPTH_VIEW` using a vectorized 0.3–0.9 m
+depth colormap; invalid depth pixels remain black. This visualization texture
+does not alter captured RGB/depth files or point-cloud RGB used for perception.
+When the tabletop is lit again, the photograph texture returns automatically.
 Headless EGL is selected before importing MuJoCo; `MUJOCO_GL=osmesa` is another
 supported backend where available. The launcher installs nothing.
 
