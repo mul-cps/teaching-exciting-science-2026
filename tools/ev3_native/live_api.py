@@ -14,6 +14,9 @@ POWER_SAVE_IDLE_MS = 60000
 POWER_SAVE_POLL_MS = 250
 MAX_EMPIRICAL_SPEED_HEADROOM_DPS = 30
 MAX_ENCODER_SAMPLE_UNCERTAINTY_MS = 20
+DIAGNOSTIC_TIMING_FIELDS = ('loop_gap_ms', 'angle_read_ms', 'touch_read_ms',
+                            'job_tick_ms', 'beep_ms', 'color_ms', 'render_ms',
+                            'status_ms', 'status_speed_read_ms')
 
 
 def native_runtime(implementation):
@@ -24,6 +27,14 @@ def native_runtime(implementation):
     if version is None:
         version = implementation[1]
     return name == 'pybricks-micropython' and version[0] == 2
+
+
+def parse_args(argv):
+    if len(argv) == 1:
+        return False
+    if len(argv) == 2 and argv[1] == '--diagnostic-home-quiet':
+        return True
+    raise ValueError('Usage: live_api.py [--diagnostic-home-quiet]')
 
 
 def fault(code, message):
@@ -48,12 +59,16 @@ class APIError(Exception):
 
 class LiveAPI:
     def __init__(self, motors, touch, color, brick, clock, Stop, session,
-                 power_save_idle_ms=POWER_SAVE_IDLE_MS):
+                 power_save_idle_ms=POWER_SAVE_IDLE_MS,
+                 diagnostic_home_quiet=False):
         self.motors, self.touch, self.color, self.brick = motors, touch, color, brick
         self.clock, self.Stop, self.session = clock, Stop, session
         if type(power_save_idle_ms) is not int or not 1000 <= power_save_idle_ms <= 3600000:
             raise ValueError('power-save idle timeout must be an integer in 1000..3600000 ms')
         self.power_save_idle_ms = power_save_idle_ms
+        if type(diagnostic_home_quiet) is not bool:
+            raise ValueError('diagnostic_home_quiet must be bool')
+        self.diagnostic_home_quiet = diagnostic_home_quiet
         self.power_mode = 'awake'
         self.last_activity = clock()
         self.references = {'sorter': None, 'feeder': None}
@@ -100,12 +115,45 @@ class LiveAPI:
         self.last_heartbeat = self.clock()
 
     def refresh_angles(self):
+        job = self.diagnostic_home_job()
+        timing_started = self.clock() if job else None
         for name, motor in self.motors.items():
             started = self.clock()
             self.angles[name] = motor.angle()
             self.angle_sample_ms[name] = self.clock()
             self.angle_read_ms[name] = max(0, self.angle_sample_ms[name] - started)
         self.last_angles = self.clock()
+        if job:
+            self.record_timing(job, 'angle_read_ms', self.clock() - timing_started)
+
+    def diagnostic_home_job(self):
+        job = self.job
+        if (self.diagnostic_home_quiet and job and
+                job.get('operation') == 'home_touch'):
+            return job
+        return None
+
+    def record_timing(self, job, name, duration=None, skipped=False):
+        timing = job.get('timing_diagnostics') if job else None
+        if not timing:
+            return
+        metric = timing.get(name)
+        if metric is None:
+            return
+        if skipped:
+            metric['skipped'] += 1
+        else:
+            metric['count'] += 1
+            metric['max_ms'] = max(metric['max_ms'], max(0, duration))
+
+    def timed_call(self, job, name, function, *args):
+        if not job:
+            return function(*args)
+        started = self.clock()
+        try:
+            return function(*args)
+        finally:
+            self.record_timing(job, name, self.clock() - started)
 
     def control_parameters(self, motor):
         """Read native controller settings when available; never set them."""
@@ -170,10 +218,16 @@ class LiveAPI:
         return {key: value for key, value in job.items() if not key.startswith('_')}
 
     def status(self):
+        diagnostic_job = self.diagnostic_home_job()
+        status_started = self.clock() if diagnostic_job else None
         motor_control = {}
         for name, motor in self.motors.items():
             if self.power_mode != 'power_save':
-                self.speed_samples[name] = self.speed_sample(motor)
+                if diagnostic_job:
+                    self.record_timing(diagnostic_job, 'status_speed_read_ms', skipped=True)
+                else:
+                    self.speed_samples[name] = self.timed_call(
+                        diagnostic_job, 'status_speed_read_ms', self.speed_sample, motor)
             speed = self.speed_samples[name]
             motor_control[name] = dict(self.motor_control[name])
             motor_control[name]['speed_sample'] = dict(speed)
@@ -181,13 +235,16 @@ class LiveAPI:
             motor_control[name]['angle_read_ms'] = self.angle_read_ms[name]
             if self.job and self.job['motor'] == name:
                 self.job['speed_sample'] = speed
-        return {'session': self.session, 'connected': self.connected, 'busy': self.job is not None,
-                'job': self.public_job(self.job), 'last_job': self.public_job(self.last_job),
-                'angles': dict(self.angles), 'sampled_ms': self.last_angles,
-                'motor_control': motor_control,
-                'references': dict(self.references), 'touch': self.sensor_touch,
-                'color': self.sensor_color, 'last_error': self.last_error,
-                'power_mode': self.power_mode, 'power_save_idle_ms': self.power_save_idle_ms}
+        result = {'session': self.session, 'connected': self.connected, 'busy': self.job is not None,
+                  'job': self.public_job(self.job), 'last_job': self.public_job(self.last_job),
+                  'angles': dict(self.angles), 'sampled_ms': self.last_angles,
+                  'motor_control': motor_control,
+                  'references': dict(self.references), 'touch': self.sensor_touch,
+                  'color': self.sensor_color, 'last_error': self.last_error,
+                  'power_mode': self.power_mode, 'power_save_idle_ms': self.power_save_idle_ms}
+        if diagnostic_job:
+            self.record_timing(diagnostic_job, 'status_ms', self.clock() - status_started)
+        return result
 
     def poll_timeout_ms(self):
         """The sleeping poll still wakes immediately when TCP data arrives."""
@@ -398,6 +455,11 @@ class LiveAPI:
     def start_job(self, request_id, operation, name, targets, speed, acceleration, actuation,
                   dispatch=True, limit_speed=None):
         now = self.clock()
+        if self.diagnostic_home_quiet and operation == 'home_touch' and self.beep_active:
+            # A prior negative-duration beep remains on until its volume is
+            # cleared. Mute it before dispatch so quiet mode never strands it.
+            self.brick.speaker.set_volume(0, 'Beep')
+            self.beep_active = False
         motor = self.motors[name]
         motor.brake()
         motor.control.limits(speed=speed if limit_speed is None else limit_speed,
@@ -411,6 +473,12 @@ class LiveAPI:
                     '_speed': speed, '_other': other, '_other_start': self.angles[other],
                     'native_control': dict(self.motor_control[name]),
                     'speed_sample': dict(self.speed_samples[name])}
+        if self.diagnostic_home_quiet and operation == 'home_touch':
+            self.job['timing_diagnostics'] = {
+                name: {'count': 0, 'max_ms': 0, 'skipped': 0}
+                for name in DIAGNOSTIC_TIMING_FIELDS}
+            self.job['timing_diagnostics']['captured_before_cleanup_ms'] = None
+            self.job['_diagnostic_last_tick_ms'] = now
         self.last_error = None
         if dispatch:
             self.target_phase()
@@ -449,6 +517,11 @@ class LiveAPI:
 
     def finish(self, state, failure=None):
         job = self.job
+        if job and job.get('timing_diagnostics'):
+            tick_started = job.pop('_diagnostic_job_tick_started_ms', None)
+            if tick_started is not None:
+                self.record_timing(job, 'job_tick_ms', self.clock() - tick_started)
+            job['timing_diagnostics']['captured_before_cleanup_ms'] = self.clock()
         errors = self.brakes()
         if not job:
             return errors
@@ -715,6 +788,12 @@ class LiveAPI:
 
     def tick(self):
         now = self.clock()
+        diagnostic_job = self.diagnostic_home_job()
+        if diagnostic_job:
+            previous_tick = diagnostic_job.get('_diagnostic_last_tick_ms')
+            if previous_tick is not None:
+                self.record_timing(diagnostic_job, 'loop_gap_ms', now - previous_tick)
+            diagnostic_job['_diagnostic_last_tick_ms'] = now
         if self.job and now - self.last_heartbeat >= HEARTBEAT_MS:
             self.disconnect('heartbeat_expired')
         active = self.job is not None
@@ -733,22 +812,40 @@ class LiveAPI:
             if now - self.last_angles >= (20 if active else 500):
                 self.refresh_angles()
             if (active and due and self.job['motor'] == 'sorter') or sensors_due:
-                self.sensor_touch = bool(self.touch.pressed())
+                touch_job = self.diagnostic_home_job()
+                self.sensor_touch = bool(self.timed_call(
+                    touch_job, 'touch_read_ms', self.touch.pressed))
             if active and due:
                 now = self.clock()
                 self.last_motion_tick = now
+                job = self.job
+                job_timing = self.diagnostic_home_job()
+                if job_timing:
+                    job_timing['_diagnostic_job_tick_started_ms'] = self.clock()
                 self.job_tick(now)
+                if job_timing and self.job is job:
+                    tick_started = job_timing.pop('_diagnostic_job_tick_started_ms', now)
+                    self.record_timing(job_timing, 'job_tick_ms', self.clock() - tick_started)
         except Exception as error:
             if self.job:
                 self.finish('fault', fault('motion_fault', str(error)))
             else:
                 self.last_error = fault('telemetry_error', str(error))
         try:
-            self.beep_tick(now)
-            if sensors_due:
-                self.sensor_color = str(self.color.color())
-                self.last_sensors = now
-            self.render(now)
+            peripheral_job = self.diagnostic_home_job()
+            if peripheral_job:
+                if now >= self.next_beep and (self.beep_active or self.beep_left):
+                    self.record_timing(peripheral_job, 'beep_ms', skipped=True)
+                if sensors_due:
+                    self.record_timing(peripheral_job, 'color_ms', skipped=True)
+                if now - self.last_render >= 500:
+                    self.record_timing(peripheral_job, 'render_ms', skipped=True)
+            else:
+                self.beep_tick(now)
+                if sensors_due:
+                    self.sensor_color = str(self.color.color())
+                    self.last_sensors = now
+                self.render(now)
         except Exception as error:
             self.last_error = fault('peripheral_error', str(error))
             if self.job:
@@ -883,6 +980,7 @@ def serve(api, socket_module, select_module):
 def main():
     if not native_runtime(sys.implementation):
         raise RuntimeError('Requires pybricks-micropython major 2')
+    diagnostic_home_quiet = parse_args(sys.argv)
     import usocket
     import uselect
     import utime
@@ -903,7 +1001,8 @@ def main():
         brick = EV3Brick()
         brick.screen.set_font(Font(size=12))
         api = LiveAPI({'sorter': sorter, 'feeder': feeder}, TouchSensor(Port.S1), ColorSensor(Port.S3),
-                      brick, clock.time, Stop, 'ev3-' + str(utime.time()) + '-' + str(utime.ticks_us()))
+                      brick, clock.time, Stop, 'ev3-' + str(utime.time()) + '-' + str(utime.ticks_us()),
+                      diagnostic_home_quiet=diagnostic_home_quiet)
         serve(api, usocket, uselect)
     finally:
         for motor in initialized:
