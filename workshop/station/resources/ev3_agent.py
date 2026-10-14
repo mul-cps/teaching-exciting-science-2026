@@ -18,6 +18,25 @@ VERSION = 1
 MAX_LINE = 4096
 
 
+def flush_output(stream):
+    """Flush buffered hosts; native Pybricks 2 stdout writes are unbuffered.
+
+    Its POSIX stream flush calls fsync(), which returns EINVAL on the SSH pipe.
+    https://github.com/pybricks/micropython/blob/v1.12/ports/unix/file.c
+    Preserve every other I/O failure and EINVAL from unsupported runtimes.
+    """
+    try:
+        stream.flush()
+    except OSError as error:
+        implementation = sys.implementation
+        try:
+            native = implementation[0] == 'pybricks-micropython' and implementation[1][0] == 2
+        except (TypeError, IndexError):
+            native = False
+        if not native or not error.args or error.args[0] != 22:
+            raise
+
+
 def port_inventory():
     ports = {}
     for root in ('/sys/class/tacho-motor', '/sys/class/lego-sensor'):
@@ -173,7 +192,7 @@ def run(agent, poller, stdin, stdout):
                     reply = agent.character(stdin.read(1))
                     if reply is not None:
                         stdout.write(json.dumps(reply) + '\n')
-                        stdout.flush()
+                        flush_output(stdout)
     finally:
         agent.stop()
 
@@ -219,7 +238,7 @@ def main():
                  'ports': ports, 'discovered_ports': inventory}
         ready.update(runtime)
         sys.stdout.write(json.dumps(ready) + '\n')
-        sys.stdout.flush()
+        flush_output(sys.stdout)
         run(agent, poller, sys.stdin, sys.stdout)
     finally:
         agent.stop()

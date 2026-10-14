@@ -630,3 +630,78 @@ for line in sys.stdin:
         assert transport.receive(time.monotonic() + 1) == {'id': 42, 'ok': True, 'result': 123}
     finally:
         transport.close()
+
+
+@pytest.mark.parametrize('implementation,errno,ignored', [
+    (('pybricks-micropython', (2, 0, 0, 'final', 0)), 22, True),
+    (('pybricks-micropython', (2, 0, 0, 'final', 0)), 5, False),
+    (('pybricks-micropython', (2, 0, 0, 'final', 0)), 32, False),
+    (('pybricks-micropython', (3, 0, 0, 'final', 0)), 22, False),
+    (('cpython', (3, 13, 0)), 22, False),
+])
+def test_native_pipe_flush_ignores_only_pybricks2_einval(monkeypatch, implementation, errno, ignored):
+    from workshop.station.resources import ev3_agent
+    class Output:
+        def flush(self): raise OSError(errno)
+    monkeypatch.setattr(ev3_agent.sys, 'implementation', implementation)
+    if ignored: ev3_agent.flush_output(Output())
+    else:
+        with pytest.raises(OSError) as error: ev3_agent.flush_output(Output())
+        assert error.value.args[0] == errno
+
+
+def test_host_buffered_output_is_flushed():
+    from workshop.station.resources import ev3_agent
+    class Output:
+        flushed = False
+        def flush(self): self.flushed = True
+    output = Output()
+    ev3_agent.flush_output(output)
+    assert output.flushed
+
+
+@pytest.mark.parametrize('flush_errno,fail_after', [(22, 1), (5, 1), (5, 2)])
+def test_native_main_ready_then_rpc_with_unbuffered_pipe_flush(monkeypatch, flush_errno, fail_after):
+    import io
+    import sys
+    import select
+    from types import ModuleType
+    from workshop.station.resources import ev3_agent
+    motors = []
+    def motor(port):
+        result = Motor(); motors.append(result); return result
+    devices = ModuleType('pybricks.ev3devices')
+    devices.Motor = motor
+    devices.TouchSensor = lambda port: SimpleNamespace(pressed=lambda: False)
+    devices.ColorSensor = lambda port: SimpleNamespace(color=lambda: 'blue')
+    parameters = ModuleType('pybricks.parameters')
+    parameters.Port = SimpleNamespace(A='A', D='D', S1='S1', S3='S3')
+    parameters.Color = SimpleNamespace(BLUE='blue', GREEN='green', YELLOW='yellow', RED='red')
+    parameters.Stop = SimpleNamespace(BRAKE='BRAKE')
+    tools = ModuleType('pybricks.tools'); tools.StopWatch = lambda: SimpleNamespace(time=lambda: 0)
+    for name, module in [('pybricks.ev3devices', devices), ('pybricks.parameters', parameters), ('pybricks.tools', tools)]:
+        monkeypatch.setitem(sys.modules, name, module)
+    class UnbufferedOutput(io.StringIO):
+        flushes = 0
+        def flush(self):
+            self.flushes += 1
+            if self.flushes >= fail_after: raise OSError(flush_errno)
+    output = UnbufferedOutput()
+    input_stream = io.StringIO(json.dumps({'id': 1, 'nonce': 'n' * 32, 'operation': 'heartbeat', 'args': {}}) + '\n')
+    poller = SimpleNamespace(register=lambda *a: None, poll=lambda timeout: [(0, select.POLLIN)])
+    monkeypatch.setattr(ev3_agent.select, 'poll', lambda: poller)
+    c = config()
+    monkeypatch.setattr(ev3_agent, 'port_inventory', lambda: identity(c)['ports'])
+    monkeypatch.setattr(sys, 'implementation', ('pybricks-micropython', (2, 0, 0, 'final', 0)))
+    monkeypatch.setattr(sys, 'argv', ['agent', json.dumps(dict(nonce='n' * 32, lease_ms=500, ports=c['ev3']['ports']))])
+    monkeypatch.setattr(sys, 'stdin', input_stream)
+    monkeypatch.setattr(sys, 'stdout', output)
+    with pytest.raises(EOFError if flush_errno == 22 else OSError):
+        ev3_agent.main()
+    records = [json.loads(line) for line in output.getvalue().splitlines()]
+    assert records[0]['ready'] is True
+    assert len(records) == (2 if flush_errno == 22 or fail_after == 2 else 1)
+    if flush_errno == 22:
+        assert records[1]['id'] == 1 and records[1]['ok'] is True
+        assert output.flushes == 2
+    assert len(motors) == 2 and all(motor.stops >= 2 for motor in motors)
