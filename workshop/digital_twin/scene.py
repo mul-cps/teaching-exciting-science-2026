@@ -140,7 +140,7 @@ def add_measured_camera(world, intrinsics, width, height, position, rotation):
                          principalpixel=f"{width/2-intrinsics['ppx']} {height/2-intrinsics['ppy']}")
 
 
-def prepare(snapshot, calibration_path, output, latest=True, home_path=None, image_override=None, depth_override=None, pose_series=True, convention="new", base_yaw=None, register_icp=False):
+def prepare(snapshot, calibration_path, output, latest=True, home_path=None, image_override=None, depth_override=None, pose_series=True, convention="new", base_yaw=None, register_icp=False, external_camera_arm_registration=None):
     snapshot, output = Path(snapshot), Path(output)
     output.mkdir(parents=True, exist_ok=True)
     metadata = json.loads((snapshot / 'capture.json').read_text())
@@ -171,6 +171,9 @@ def prepare(snapshot, calibration_path, output, latest=True, home_path=None, ima
                         focused_points=world_points[focus].astype(np.float32), focused_colors=rgb[focus])
     camera_position = -center @ basis
     camera_rotation = Rotation.from_matrix(basis.T).as_quat()[[3, 0, 1, 2]]
+    scene_world_from_camera = np.eye(4)
+    scene_world_from_camera[:3, :3] = basis.T
+    scene_world_from_camera[:3, 3] = camera_position
     # Pixel ROIs locate objects roughly; no camera-to-arm registration is claimed.
     pixel_y, pixel_x = np.indices(depth.shape)
     arm_position = np.median(world_points[valid & (pixel_x > 380) & (pixel_y > 290)], axis=0)
@@ -195,14 +198,31 @@ def prepare(snapshot, calibration_path, output, latest=True, home_path=None, ima
     arm_mask = white_arm_mask(rgb, world_points, valid)
     initial_model = mujoco.MjModel.from_xml_string(make_model([0, 0, 0], sorter_position, camera_position, camera_rotation, convention=convention))
     initial_data = mujoco.MjData(initial_model)
-    set_pose(initial_model, initial_data, joint_degrees)
-    registration = fit_registration(cad_surface(initial_model, initial_data), world_points[arm_mask])
+    if external_camera_arm_registration is None:
+        set_pose(initial_model, initial_data, joint_degrees)
+        registration = fit_registration(cad_surface(initial_model, initial_data), world_points[arm_mask])
+    else:
+        from .evidence_bridge import _rigid_transform
+        board_world_from_camera = _rigid_transform(
+            external_camera_arm_registration['world_from_camera'], 'world_from_camera')
+        board_world_from_base = _rigid_transform(
+            external_camera_arm_registration['world_from_base'], 'world_from_base')
+        scene_from_board = scene_world_from_camera @ np.linalg.inv(board_world_from_camera)
+        scene_from_base = scene_from_board @ board_world_from_base
+        base_euler = Rotation.from_matrix(scene_from_base[:3, :3]).as_euler('xyz', degrees=True)
+        registration = {'world_from_arm_base': scene_from_base.tolist(),
+            'position_m': scene_from_base[:3, 3].tolist(), 'yaw_deg': float(base_euler[2] % 360),
+            'observed_samples': 0, 'cad_samples': 0, 'surface_residual_median_m': None,
+            'surface_residual_p95_m': None, 'fraction_within_10mm': None,
+            'qualified': False, 'status': 'SKIPPED_RGB_FIT_EXPLICIT_SE3_UNQUALIFIED',
+            'method': 'RGB-dependent arm-surface fit skipped; supplied full-SE(3) transform used as a provisional placement',
+            'uncertainty': 'both supplied camera/arm and target calibrations remain unqualified'}
     from .registration import load_pose_series, fit_pose_series
     frames = []
     if pose_series:
         frames = load_pose_series(snapshot, center, basis, metadata, result_name='scene-calibration-recorded-result.json', folder='scene-calibration-recorded')
         if len(frames) < 3: frames = load_pose_series(snapshot, center, basis, metadata)
-    if pose_series and len(frames) >= 3:
+    if pose_series and len(frames) >= 3 and external_camera_arm_registration is None:
         registration = fit_pose_series(initial_model, frames)
         for name, offset in registration['joint_zero_offsets_deg'].items(): joint_degrees[name] += offset
     user_landmark = None
@@ -249,7 +269,7 @@ def prepare(snapshot, calibration_path, output, latest=True, home_path=None, ima
     model_xml = ET.tostring(model_root, encoding='unicode')
     (output / 'scene.xml').write_text(model_xml)
     source = json.loads((ASSETS / 'sources.json').read_text())
-    world_from_camera = np.eye(4); world_from_camera[:3, :3] = basis.T; world_from_camera[:3, 3] = camera_position
+    world_from_camera = scene_world_from_camera
     report = {'schema': 1, 'mode': 'offline snapshot; model controls never actuate hardware',
               'snapshot': str(snapshot), 'image': str(image_path), 'depth': str(depth_path), 'arm_snapshot': str(arm_path),
               'camera': metadata, 'projection_depth_range_m': [.15, 1.5], 'table_fit': plane, 'table_roi_pixels': [180, 340, 580, 470],

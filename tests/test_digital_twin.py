@@ -136,6 +136,46 @@ def test_explicit_frame_requires_rgb_and_depth_pair(tmp_path):
         prepare(tmp_path, tmp_path/'unused.json',tmp_path/'output',image_override=tmp_path/'image.png')
 
 
+def test_prepare_skips_rgb_arm_fit_when_explicit_full_se3_is_supplied(tmp_path, monkeypatch):
+    import json
+    from PIL import Image
+    from workshop.digital_twin import registration as registration_module
+    from workshop.digital_twin.scene import prepare
+
+    snapshot = tmp_path / 'snapshot'
+    output = tmp_path / 'output'
+    snapshot.mkdir()
+    height, width = 480, 640
+    (snapshot / 'capture.json').write_text(json.dumps({
+        'intrinsics': {'fx': 600., 'fy': 600., 'ppx': width / 2, 'ppy': height / 2, 'coeffs': [0] * 5},
+        'depth_scale_m': .001}))
+    Image.fromarray(np.full((height, width, 3), 2, dtype=np.uint8)).save(snapshot / 'color.png')
+    np.save(snapshot / 'aligned-depth.npy', np.full((height, width), 500, dtype=np.uint16))
+    raw = {'shoulder_pan': 2048, 'shoulder_lift': 2048, 'elbow_flex': 2048,
+           'wrist_flex': 2048, 'wrist_roll': 2048, 'gripper': 2000}
+    (snapshot / 'arm-readonly.json').write_text(json.dumps({'raw_position': raw}))
+    ranges = {name: {'range_min': 0, 'range_max': 4095} for name in raw}
+    (tmp_path / 'calibration.json').write_text(json.dumps(ranges))
+    explicit = {'world_from_camera': np.eye(4).tolist(),
+                'world_from_base': np.eye(4).tolist(), 'qualified': False,
+                'status': 'PROVISIONAL_UNQUALIFIED'}
+    def unexpected_fit(*args, **kwargs):
+        raise AssertionError('dark RGB must not trigger a surface fit when full SE(3) is supplied')
+    monkeypatch.setattr(registration_module, 'fit_registration', unexpected_fit)
+
+    report = prepare(snapshot, tmp_path / 'calibration.json', output,
+                     pose_series=False, external_camera_arm_registration=explicit)
+
+    assert report['arm']['registration']['status'] == 'SKIPPED_RGB_FIT_EXPLICIT_SE3_UNQUALIFIED'
+    assert 'skipped' in report['arm']['registration']['method'].lower()
+    assert report['arm']['registration']['qualified'] is False
+    expected_base = (np.asarray(report['world_from_camera'])
+                     @ np.linalg.inv(np.asarray(explicit['world_from_camera']))
+                     @ np.asarray(explicit['world_from_base']))
+    np.testing.assert_allclose(report['arm']['position_estimate_m'], expected_base[:3, 3])
+    assert (output / 'scene.xml').is_file()
+
+
 def test_nominal_fk_remains_separate_from_visual_fit_corrections():
     mujoco = pytest.importorskip('mujoco')
     from workshop.digital_twin.kinematics import export_pose_pair
