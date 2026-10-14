@@ -369,6 +369,11 @@ class LiveAPI:
         # Pair the jump-guard baseline with the encoder sample in ``angles``.
         # Do not timestamp it after unrelated setup work or a blocking command.
         job['_last_sample_ms'] = self.angle_sample_ms[job['motor']]
+        # Keep a small trace only for an active movement phase. This makes a
+        # fault diagnosable without growing state during idle or settling.
+        job['_encoder_history'] = [{'angle_deg': start,
+                                    'sample_ms': job['_last_sample_ms'],
+                                    'event_ms': self.clock()}]
         motor.run_target(job['_speed'], target, then=self.Stop.BRAKE, wait=False)
 
     def begin_settle(self):
@@ -395,6 +400,8 @@ class LiveAPI:
         self.last_activity = job['finished_ms']
         if failure:
             job['fault'] = failure
+            if '_encoder_diagnostic' in job:
+                job['encoder_diagnostics'] = job['_encoder_diagnostic']
             self.last_error = failure
         self.last_job, self.job = job, None
         if state == 'complete':
@@ -468,7 +475,25 @@ class LiveAPI:
         elapsed = max(1, sample_ms - job['_last_sample_ms'])
         jump_bound = 20 if job['operation'] == 'shake' else min(
             job['_budget'], max(20, job['_speed'] * elapsed / 1000.0 + 6))
+        history = job['_encoder_history']
+        history.append({'angle_deg': angle, 'sample_ms': sample_ms, 'event_ms': now})
+        if len(history) > 16:
+            history.pop(0)
         if abs(step) > jump_bound:
+            job['_encoder_diagnostic'] = {
+                'step_deg': step,
+                'elapsed_ms': elapsed,
+                'previous_sample_ms': job['_last_sample_ms'],
+                'sample_ms': sample_ms,
+                'event_ms': now,
+                'job_started_ms': job['started_ms'],
+                'job_elapsed_ms': now - job['started_ms'],
+                'angle_deg': angle,
+                'previous_angle_deg': job['_last'],
+                'jump_bound_deg': jump_bound,
+                'sample_age_ms': now - sample_ms,
+                'history': history,
+            }
             raise ValueError('Encoder step exceeds bounded motion allowance')
         if job['operation'] == 'shake':
             displacement = abs(angle - job['center_angle'])
