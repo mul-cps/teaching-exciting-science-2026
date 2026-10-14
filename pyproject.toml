@@ -21,6 +21,8 @@ station = [
   "torchvision==0.26.0+cpu; python_version >= '3.12'",
 ]
 
+digital-twin = ["mujoco==3.14.0", "viser==1.1.0", "numpy==2.4.6", "scipy==1.17.1", "Pillow==12.2.0", "trimesh==4.12.2"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
@@ -34,3 +36,5 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-data]
 "workshop.station" = ["resources/*.json", "resources/ev3_agent.py"]
+
+"workshop.digital_twin" = ["assets/*.xml", "assets/*.urdf", "assets/*.json", "assets/SO-ARM100-LICENSE", "assets/cad/*.stl"]
