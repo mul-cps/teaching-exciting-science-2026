@@ -322,6 +322,37 @@ class Tests(unittest.TestCase):
             self.assertEqual(self.api.last_job['state'], 'fault', (target, angle))
             self.assertIsNone(self.motors['feeder'].target)
 
+    def test_encoder_fault_exposes_numeric_diagnostics_and_bounded_history(self):
+        self.motors['sorter'].value = 100
+        self.request('home_touch')
+        self.clock.ms = 20
+        self.motors['sorter'].value = 60
+        self.api.tick()
+        failed = self.api.status()['last_job']
+        diagnostic = failed['encoder_diagnostics']
+        self.assertEqual(failed['state'], 'fault')
+        self.assertEqual(diagnostic['step_deg'], -40)
+        self.assertEqual(diagnostic['previous_angle_deg'], 100)
+        self.assertEqual(diagnostic['angle_deg'], 60)
+        self.assertEqual(diagnostic['elapsed_ms'], 20)
+        self.assertEqual(diagnostic['jump_bound_deg'], 20)
+        self.assertEqual(diagnostic['job_started_ms'], 0)
+        self.assertEqual(diagnostic['sample_ms'], 20)
+        self.assertLessEqual(len(diagnostic['history']), 16)
+        self.assertEqual(diagnostic['history'][-1]['angle_deg'], 60)
+
+    def test_encoder_history_is_allocated_only_for_motion_and_capped_at_16(self):
+        self.assertIsNone(self.api.job)
+        self.assertFalse(any(key.startswith('_encoder_history') for key in self.api.__dict__))
+        self.confirm('feeder')
+        self.request('motor_target', name='feeder', target=209, speed=600)
+        self.assertEqual(len(self.api.job['_encoder_history']), 1)
+        for _ in range(24):
+            self.clock.ms += 20
+            self.motors['feeder'].value += 1
+            self.api.tick()
+        self.assertEqual(len(self.api.job['_encoder_history']), 16)
+
     def test_home_touch_only_resets_after_pressed_and_quiet(self):
         self.motors['sorter'].value = 100
         self.request('home_touch'); self.tick(1500)
