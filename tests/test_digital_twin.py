@@ -234,6 +234,24 @@ def test_cad_pinch_center_tracks_jaw_opening_while_official_site_is_fixed():
     assert 'unqualified' in closed['status']
 
 
+def test_pinch_site_offset_is_invariant_to_global_arm_rotation():
+    mujoco=pytest.importorskip('mujoco')
+    from scipy.spatial.transform import Rotation
+    from workshop.digital_twin.kinematics import export_pinch_geometry,set_pose
+    xml=make_model([0,0,0],[1,0,0],[0,0,1],[1,0,0,0])
+    pose=dict(shoulder_pan=23,shoulder_lift=-35,elbow_flex=41,wrist_flex=-21,wrist_roll=15,gripper=20)
+    arm=mujoco.mjtObj.mjOBJ_BODY
+    offsets=[]
+    for quat in ([1,0,0,0],Rotation.from_euler('xyz',[22,-13,39],degrees=True).as_quat()[[3,0,1,2]]):
+        model=mujoco.MjModel.from_xml_string(xml)
+        data=mujoco.MjData(model)
+        base=mujoco.mj_name2id(model,arm,'arm_base')
+        model.body_quat[base]=quat
+        set_pose(model,data,pose)
+        offsets.append(export_pinch_geometry(model,data)['pinch_center_gripper_site_m'])
+    np.testing.assert_allclose(offsets[0],offsets[1],atol=1e-8)
+
+
 def test_pinch_patches_keep_canonical_mesh_vertices_through_full_jaw_sweep():
     mujoco=pytest.importorskip('mujoco')
     from workshop.digital_twin.kinematics import export_pinch_geometry,set_pose
@@ -261,7 +279,9 @@ def test_pinch_patches_keep_canonical_mesh_vertices_through_full_jaw_sweep():
             xmat=data.geom_xmat[geom].reshape(3,3)
             world_vertices=local_vertices@xmat.T+data.geom_xpos[geom]
             np.testing.assert_allclose(contact['selected_vertices_world_m'],world_vertices,atol=1e-10)
-            np.testing.assert_allclose(contact['world_position_m'],np.median(world_vertices,axis=0),atol=1e-10)
+            local_median=np.median(local_vertices,axis=0)
+            expected_world=local_median@xmat.T+data.geom_xpos[geom]
+            np.testing.assert_allclose(contact['world_position_m'],expected_world,atol=1e-10)
             body=int(model.geom_bodyid[geom]); body_rotation=data.xmat[body].reshape(3,3)
             body_vertices=(world_vertices-data.xpos[body])@body_rotation
             np.testing.assert_allclose(contact['selected_vertices_body_m'],body_vertices,atol=1e-10)

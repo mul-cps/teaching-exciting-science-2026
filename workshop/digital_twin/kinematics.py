@@ -143,6 +143,7 @@ def _canonical_pinch_patches(model):
         patches[kind] = {'geom': geom, 'body': int(model.geom_bodyid[geom]),
                          'mesh': mesh, 'vertex_indices': selected,
                          'vertices_local': mesh_vertices[selected].copy(),
+                         'position_local': np.median(mesh_vertices[selected], axis=0),
                          'normal_local': normal / norm}
     if set(patches) != {'fixed', 'moving'}:
         raise ValueError('official finger visual meshes missing')
@@ -168,7 +169,9 @@ def export_pinch_geometry(model, data):
         geom, body = patch['geom'], patch['body']
         geom_rotation = data.geom_xmat[geom].reshape(3, 3)
         world_vertices = patch['vertices_local'] @ geom_rotation.T + data.geom_xpos[geom]
-        world = np.median(world_vertices, axis=0)
+        # The coordinate-wise median is not rotation-equivariant. Select the
+        # physical patch point once in mesh-local coordinates, then transform it.
+        world = patch['position_local'] @ geom_rotation.T + data.geom_xpos[geom]
         body_rotation = data.xmat[body].reshape(3, 3)
         body_vertices = (world_vertices - data.xpos[body]) @ body_rotation
         body_position = (world - data.xpos[body]) @ body_rotation
@@ -213,7 +216,7 @@ def export_pinch_geometry(model, data):
             'gripper_joint_position_rad': qpos,
             'gripper_opening_percent_current': float((qpos - low) / (high - low) * 100),
             'official_site_world_m': data.site_xpos[site].tolist(),
-            'method': 'persistent canonical q=0 native CAD vertex patches; median selected vertices; triangle normals',
+            'method': 'persistent canonical q=0 native CAD vertex patches; mesh-local median transformed rigidly; triangle normals',
             'contact_eligibility': {'eligible': eligible, 'facing_scores': facing,
                                     'basis': 'CAD face normals and opposing-contact direction; not physical calibration'},
             'geometry_status': 'OBSERVED_CAD_ESTIMATE',
