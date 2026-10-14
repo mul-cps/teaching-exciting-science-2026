@@ -10,6 +10,8 @@ PROTOCOL = 'ev3-live-api'
 VERSION = 1
 MAX_FRAME = 4096
 HEARTBEAT_MS = 1000
+POWER_SAVE_IDLE_MS = 60000
+POWER_SAVE_POLL_MS = 250
 
 
 def native_runtime(implementation):
@@ -43,9 +45,15 @@ class APIError(Exception):
 
 
 class LiveAPI:
-    def __init__(self, motors, touch, color, brick, clock, Stop, session):
+    def __init__(self, motors, touch, color, brick, clock, Stop, session,
+                 power_save_idle_ms=POWER_SAVE_IDLE_MS):
         self.motors, self.touch, self.color, self.brick = motors, touch, color, brick
         self.clock, self.Stop, self.session = clock, Stop, session
+        if type(power_save_idle_ms) is not int or not 1000 <= power_save_idle_ms <= 3600000:
+            raise ValueError('power-save idle timeout must be an integer in 1000..3600000 ms')
+        self.power_save_idle_ms = power_save_idle_ms
+        self.power_mode = 'awake'
+        self.last_activity = clock()
         self.references = {'sorter': None, 'feeder': None}
         self.saved = {}
         for name, motor in motors.items():
@@ -117,7 +125,55 @@ class LiveAPI:
                 'job': self.public_job(self.job), 'last_job': self.public_job(self.last_job),
                 'angles': dict(self.angles), 'sampled_ms': self.last_angles,
                 'references': dict(self.references), 'touch': self.sensor_touch,
-                'color': self.sensor_color, 'last_error': self.last_error}
+                'color': self.sensor_color, 'last_error': self.last_error,
+                'power_mode': self.power_mode, 'power_save_idle_ms': self.power_save_idle_ms}
+
+    def poll_timeout_ms(self):
+        """The sleeping poll still wakes immediately when TCP data arrives."""
+        return POWER_SAVE_POLL_MS if self.power_mode == 'power_save' else 20
+
+    def enter_power_save(self):
+        if self.job:
+            raise APIError('busy', 'Cannot enter power save while a motor job is active')
+        if self.power_mode == 'power_save':
+            return
+        errors = self.brakes()
+        self.beep_left, self.beep_active = 0, False
+        try:
+            self.brick.speaker.set_volume(0, 'Beep')
+        except Exception:
+            pass
+        light = getattr(self.brick, 'light', None)
+        if light is not None:
+            try:
+                light.off()
+            except Exception as error:
+                self.last_error = fault('power_save_light_error', str(error))
+        self.power_mode = 'power_save'
+        # The EV3 LCD is reflective. Keep a clear ready message while avoiding
+        # redraws; no backlight control is assumed.
+        try:
+            screen = self.brick.screen
+            screen.clear()
+            screen.draw_text(0, 0, 'POWER SAVE')
+            screen.draw_text(0, 20, 'TCP API ready')
+            self.last_render = self.last_angles
+            self.last_render_signature = ('POWER SAVE', 'TCP API ready')
+            self.last_render_text = self.display_text
+            self.last_render_job = None
+        except Exception as error:
+            self.last_error = fault('power_save_display_error', str(error))
+        if errors:
+            self.last_error = fault('brake_failed', '; '.join(errors))
+
+    def wake(self):
+        if self.power_mode == 'power_save':
+            self.power_mode = 'awake'
+            now = self.clock()
+            self.last_angles = now - 500
+            self.last_sensors = now - 500
+            self.last_render = now - 500
+        self.last_activity = self.clock()
 
     def protocol_fault(self, request_id, message):
         self.protocol_error = True
@@ -135,6 +191,8 @@ class LiveAPI:
         if request_id in self.cache:
             previous, reply = self.cache[request_id]
             if previous == request:
+                if request['operation'] not in ('heartbeat', 'status', 'power_save'):
+                    self.wake()
                 return json.loads(json.dumps(reply))
             return self.protocol_fault(request_id, 'Changed payload for cached ID')
         if request_id <= self.last_id:
@@ -173,6 +231,7 @@ class LiveAPI:
                 return {'alive': True, 'session': self.session}
             if operation == 'status':
                 return self.status()
+            self.wake()
             if self.job:
                 errors = self.finish('aborted', fault('stopped', 'Explicit stop'))
             else:
@@ -180,6 +239,22 @@ class LiveAPI:
             if errors:
                 raise APIError('brake_failed', '; '.join(errors))
             return {'stopped': True, 'status': self.status()}
+        if operation == 'power_save':
+            arguments(args, ('idle_timeout_ms',))
+            if self.job:
+                raise APIError('busy', 'Cannot enter power save while a motor job is active')
+            if 'idle_timeout_ms' in args:
+                self.power_save_idle_ms = number(args['idle_timeout_ms'], 1000, 3600000,
+                                                  'idle_timeout_ms', True)
+            self.enter_power_save()
+            return {'power_mode': self.power_mode, 'idle_timeout_ms': self.power_save_idle_ms}
+        if operation == 'wake':
+            arguments(args, ())
+            self.wake()
+            return {'power_mode': self.power_mode}
+        # Heartbeats and status checks intentionally do not count as user
+        # activity, so the persistent host connection cannot prevent sleep.
+        self.wake()
         if operation == 'display':
             arguments(args, ('text',))
             text = args['text']
@@ -264,6 +339,7 @@ class LiveAPI:
         motor = self.motors[name]
         motor.brake()
         motor.control.limits(speed=speed, acceleration=acceleration, actuation=actuation)
+        self.refresh_angles()
         other = 'feeder' if name == 'sorter' else 'sorter'
         self.job = {'id': request_id, 'operation': operation, 'state': 'running', 'phase': '',
                     'started_ms': now, 'motor': name, '_targets': targets, '_index': 0,
@@ -279,11 +355,13 @@ class LiveAPI:
         job = self.job
         target, phase = job['_targets'][job['_index']]
         motor = self.motors[job['motor']]
-        start = self.angles[job['motor']]
         motor.brake()
+        self.refresh_angles()
+        start = self.angles[job['motor']]
         job.update(phase=phase, target=target, _stage='moving', _start=start, _last=start,
                    _direction=1 if target > start else -1, _budget=abs(target - start) + 6,
                    _deadline=self.clock() + 6000)
+        job['_last_sample_ms'] = self.clock()
         motor.run_target(job['_speed'], target, then=self.Stop.BRAKE, wait=False)
 
     def begin_settle(self):
@@ -307,6 +385,7 @@ class LiveAPI:
         job['state'] = state
         job['finished_ms'] = self.clock()
         job['elapsed_ms'] = self.clock() - job['started_ms']
+        self.last_activity = job['finished_ms']
         if failure:
             job['fault'] = failure
             self.last_error = failure
@@ -375,8 +454,11 @@ class LiveAPI:
                 raise ValueError('Motor did not settle within 1000 ms')
             return
         step = angle - job['_last']
-        if abs(step) > 20:
-            raise ValueError('Encoder step exceeds 20 degrees')
+        elapsed = max(1, now - job['_last_sample_ms'])
+        jump_bound = 20 if job['operation'] == 'shake' else min(
+            job['_budget'], max(20, job['_speed'] * elapsed / 1000.0 + 6))
+        if abs(step) > jump_bound:
+            raise ValueError('Encoder step exceeds bounded motion allowance')
         if job['operation'] == 'shake':
             displacement = abs(angle - job['center_angle'])
             if displacement > 20:
@@ -393,6 +475,7 @@ class LiveAPI:
             if sign:
                 job['_velocity_sign'] = sign
             job['_last'] = angle
+            job['_last_sample_ms'] = now
             if now >= job['_end']:
                 self.begin_settle()
                 return
@@ -413,6 +496,7 @@ class LiveAPI:
         if displacement > job['_budget']:
             raise ValueError('Encoder travel budget exceeded')
         job['_last'] = angle
+        job['_last_sample_ms'] = now
         if now >= job['_deadline']:
             raise ValueError('Native target deadline expired')
         if home and self.sensor_touch:
@@ -454,6 +538,15 @@ class LiveAPI:
         if self.job and now - self.last_heartbeat >= HEARTBEAT_MS:
             self.disconnect('heartbeat_expired')
         active = self.job is not None
+        if (not active and self.power_mode == 'awake' and
+                now - self.last_activity >= self.power_save_idle_ms):
+            try:
+                self.enter_power_save()
+            except Exception as error:
+                self.last_error = fault('power_save_error', str(error))
+            return
+        if self.power_mode == 'power_save':
+            return
         due = now - self.last_motion_tick >= 20
         sensors_due = now - self.last_sensors >= 500
         try:
@@ -462,6 +555,7 @@ class LiveAPI:
             if (active and due and self.job['motor'] == 'sorter') or sensors_due:
                 self.sensor_touch = bool(self.touch.pressed())
             if active and due:
+                now = self.clock()
                 self.last_motion_tick = now
                 self.job_tick(now)
         except Exception as error:
@@ -548,7 +642,7 @@ def serve(api, socket_module, select_module):
             raise
     try:
         while True:
-            events = poll.poll(20)
+            events = poll.poll(api.poll_timeout_ms())
             for descriptor, flags in events:
                 if descriptor == listener or descriptor == listener.fileno():
                     incoming, address = listener.accept()

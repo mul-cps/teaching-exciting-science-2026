@@ -27,8 +27,11 @@ class Control:
 class Motor:
     def __init__(self):
         self.value, self.target, self.stall, self.commands, self.resets = 0, None, False, [], []
+        self.angle_reads = 0
         self.control = Control(self)
-    def angle(self): return int(round(self.value))
+    def angle(self):
+        self.angle_reads += 1
+        return int(round(self.value))
     def brake(self): self.target = None
     def reset_angle(self, value): self.value = value; self.resets.append(value)
     def run_target(self, speed, target, then, wait):
@@ -39,10 +42,15 @@ class Motor:
             delta = self.target - self.value
             self.value += min(5, abs(delta)) * (1 if delta > 0 else -1)
 class Touch:
-    def __init__(self, motor): self.motor, self.override = motor, None
-    def pressed(self): return self.override if self.override is not None else self.motor.angle() <= 0
+    def __init__(self, motor): self.motor, self.override, self.reads = motor, None, 0
+    def pressed(self):
+        self.reads += 1
+        return self.override if self.override is not None else self.motor.angle() <= 0
 class Color:
-    def color(self): return 'RED'
+    def __init__(self): self.reads = 0
+    def color(self):
+        self.reads += 1
+        return 'RED'
 class Screen:
     def __init__(self): self.frames, self.text = 0, []
     def clear(self): self.frames += 1
@@ -53,8 +61,11 @@ class Speaker:
         assert kwargs['duration'] < 0
         self.calls.append(('beep', kwargs))
     def set_volume(self, volume, which): self.calls.append(('volume', volume, which))
+class Light:
+    def __init__(self): self.off_calls = 0
+    def off(self): self.off_calls += 1
 class Brick:
-    def __init__(self): self.screen, self.speaker = Screen(), Speaker()
+    def __init__(self): self.screen, self.speaker, self.light = Screen(), Speaker(), Light()
 class Stop: BRAKE = 'BRAKE'
 
 class Tests(unittest.TestCase):
@@ -104,6 +115,65 @@ class Tests(unittest.TestCase):
         self.assertTrue(all(not m.commands and not m.resets for m in self.motors.values()))
         self.assertEqual(self.api.ready()['protocol'], 'ev3-live-api')
         self.assertEqual(self.api.ready()['version'], 1)
+    def test_idle_auto_power_save_ignores_heartbeat_and_status(self):
+        self.api.power_save_idle_ms = 1000
+        self.confirm('feeder')
+        references = dict(self.api.references)
+        self.tick(1000)
+        self.assertEqual(self.api.status()['power_mode'], 'power_save')
+        self.assertEqual(self.api.status()['references'], references)
+        self.assertEqual(self.api.poll_timeout_ms(), self.lib.POWER_SAVE_POLL_MS)
+        self.assertEqual(self.api.brick.light.off_calls, 1)
+        reads = (sum(m.angle_reads for m in self.motors.values()), self.touch.reads,
+                 self.api.color.reads)
+        for _ in range(8):
+            self.request('status')
+            self.request('heartbeat')
+            self.clock.ms += 250
+            self.api.tick()
+        self.assertEqual(self.api.status()['power_mode'], 'power_save')
+        self.assertEqual((sum(m.angle_reads for m in self.motors.values()), self.touch.reads,
+                          self.api.color.reads), reads)
+        self.assertEqual(self.api.brick.screen.text[-2:], ['POWER SAVE', 'TCP API ready'])
+    def test_power_save_poll_rate_cuts_idle_tick_wakeups(self):
+        active_hz = 1000.0 / self.api.poll_timeout_ms()
+        self.request('power_save')
+        saved_hz = 1000.0 / self.api.poll_timeout_ms()
+        reduction = 100.0 * (1.0 - saved_hz / active_hz)
+        self.assertEqual((active_hz, saved_hz), (50.0, 4.0))
+        self.assertEqual(reduction, 92.0)
+    def test_explicit_sleep_config_and_first_command_wake_keep_references(self):
+        self.confirm('feeder')
+        result = self.request('power_save', idle_timeout_ms=120000)
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['result']['idle_timeout_ms'], 120000)
+        self.assertEqual(self.api.status()['power_mode'], 'power_save')
+        wake = self.request('motor_target', name='feeder', target=100)
+        self.assertTrue(wake['ok'])
+        self.assertEqual(self.api.status()['power_mode'], 'awake')
+        self.assertEqual(self.api.status()['references']['feeder'], 'eject')
+        self.assertEqual(self.motors['feeder'].target, 100)
+    def test_power_save_refuses_active_job_without_interrupting_it(self):
+        self.confirm('feeder')
+        self.request('motor_target', name='feeder', target=100)
+        target = self.motors['feeder'].target
+        reply = self.request('power_save')
+        self.assertFalse(reply['ok'])
+        self.assertEqual(reply['fault']['code'], 'busy')
+        self.assertEqual(self.motors['feeder'].target, target)
+        self.assertTrue(self.api.status()['busy'])
+    def test_wake_operation_and_invalid_foreground_request_wake_immediately(self):
+        self.request('power_save')
+        self.assertTrue(self.request('wake')['ok'])
+        self.assertEqual(self.api.status()['power_mode'], 'awake')
+        self.request('power_save')
+        self.assertFalse(self.request('display', text='bad\ntext')['ok'])
+        self.assertEqual(self.api.status()['power_mode'], 'awake')
+    def test_entering_power_save_keeps_timestamps_of_last_real_samples(self):
+        self.api.last_angles, self.api.last_sensors = 123, 456
+        self.assertTrue(self.request('power_save')['ok'])
+        self.assertEqual(self.api.status()['sampled_ms'], 123)
+        self.assertEqual(self.api.last_sensors, 456)
     def test_duplicate_exact_request_never_repeats_motion_changed_is_protocol_fault(self):
         self.confirm('feeder')
         self.id += 1; req = {'id': self.id, 'operation': 'motor_target', 'args': {'name':'feeder','target':100}}
@@ -159,6 +229,60 @@ class Tests(unittest.TestCase):
             self.api.tick()
             self.assertEqual(self.api.status()['last_job']['state'],'fault',fault)
             self.assertTrue(all(m.target is None for m in self.motors.values()))
+    def test_setup_refreshes_angles_after_limits_and_phase_brake(self):
+        self.confirm('feeder')
+        motor = self.motors['feeder']
+        original_limits = motor.control.limits
+        def moving_limits(*args, **kwargs):
+            result = original_limits(*args, **kwargs)
+            if kwargs: motor.value = 40
+            return result
+        motor.control.limits = moving_limits
+        original_brake = motor.brake
+        calls = []
+        def moving_brake():
+            original_brake()
+            calls.append(True)
+            if len(calls) == 2: motor.value = 50
+        motor.brake = moving_brake
+        self.assertTrue(self.request('motor_target', name='feeder', target=100)['ok'])
+        self.assertEqual(self.api.job['_start'], 50)
+        self.assertEqual(self.api.job['_last'], 50)
+        self.assertEqual(self.api.job['_budget'], 56)
+
+    def test_delayed_samples_allow_speed_bounded_motion(self):
+        for delay, distance in ((50, 30), (200, 90)):
+            self.setUp(); self.confirm('feeder')
+            self.request('motor_target', name='feeder', target=209, speed=600)
+            self.clock.ms += delay
+            self.motors['feeder'].value = distance
+            self.api.tick()
+            self.assertIsNotNone(self.api.job, (delay, self.api.last_job))
+            self.assertEqual(self.api.job['_last_sample_ms'], delay)
+
+    def test_sample_clock_includes_blocking_angle_read(self):
+        self.confirm('feeder')
+        self.request('motor_target', name='feeder', target=209, speed=600)
+        motor = self.motors['feeder']
+        def delayed_angle():
+            self.clock.ms += 180
+            return 90
+        motor.angle = delayed_angle
+        self.clock.ms = 20
+        self.api.tick()
+        self.assertIsNotNone(self.api.job)
+        self.assertEqual(self.api.job['_last_sample_ms'], 200)
+
+    def test_delayed_samples_retain_jump_budget_and_direction_guards(self):
+        for target, angle, delay in ((209, 150, 200), (50, 60, 200), (209, -4, 200)):
+            self.setUp(); self.confirm('feeder')
+            self.request('motor_target', name='feeder', target=target, speed=600)
+            self.clock.ms += delay
+            self.motors['feeder'].value = angle
+            self.api.tick()
+            self.assertEqual(self.api.last_job['state'], 'fault', (target, angle))
+            self.assertIsNone(self.motors['feeder'].target)
+
     def test_home_touch_only_resets_after_pressed_and_quiet(self):
         self.motors['sorter'].value = 100
         self.request('home_touch'); self.tick(1500)
@@ -236,6 +360,11 @@ class Tests(unittest.TestCase):
             self.assertEqual(json.loads(stream.readline())['protocol'],'ev3-live-api')
             client.sendall(b'{"id":1,"operation":"status","args":{}}\n')
             self.assertTrue(json.loads(stream.readline())['ok'])
+            client.sendall(b'{"id":2,"operation":"power_save","args":{}}\n')
+            self.assertEqual(json.loads(stream.readline())['result']['power_mode'], 'power_save')
+            self.assertEqual(api.poll_timeout_ms(), self.lib.POWER_SAVE_POLL_MS)
+            client.sendall(b'{"id":3,"operation":"wake","args":{}}\n')
+            self.assertEqual(json.loads(stream.readline())['result']['power_mode'], 'awake')
             client.sendall(b'{"id":1,"operation":"display","args":{"text":"changed"}}\n')
             line=stream.readline()
             self.assertTrue(line,'Protocol-fault response was dropped before socket close')
@@ -247,10 +376,74 @@ class Tests(unittest.TestCase):
             stopping.set(); thread.join(1)
         self.assertFalse(thread.is_alive()); self.assertNotIn('error',state)
 
+    def test_status_cli_disconnect_preserves_power_save_and_idle_timer(self):
+        import socket, select, threading, time, types
+        ready, stopping, disconnected = threading.Event(), threading.Event(), threading.Event()
+        state = {}
+        api = self.api
+        api.clock = lambda: int(time.monotonic() * 1000)
+        self.request('power_save')
+        idle_since = api.last_activity
+        original_disconnect = api.disconnect
+        def track_disconnect(reason='disconnect'):
+            original_disconnect(reason)
+            disconnected.set()
+        api.disconnect = track_disconnect
+        original_tick = api.tick
+        def tick():
+            if stopping.is_set(): raise RuntimeError('test server exit')
+            original_tick()
+        api.tick = tick
+        class Listener:
+            def __init__(self, *args): self.socket = socket.socket(*args)
+            def __getattr__(self, key): return getattr(self.socket, key)
+            def bind(self, address):
+                if not isinstance(address,(bytes,bytearray)):
+                    raise TypeError('native usocket requires sockaddr buffer')
+                self.socket.bind(('127.0.0.1',0)); state['port']=self.socket.getsockname()[1]
+            def listen(self, count): self.socket.listen(count); ready.set()
+        module = types.SimpleNamespace(socket=Listener, AF_INET=socket.AF_INET,
+                     SOCK_STREAM=socket.SOCK_STREAM, SOL_SOCKET=socket.SOL_SOCKET, SO_REUSEADDR=socket.SO_REUSEADDR,
+                     getaddrinfo=lambda host,port,family,kind: [(family,kind,0,'',bytearray(b'linux-sockaddr'))])
+        def serve():
+            try: self.lib.serve(api,module,select)
+            except Exception as error:
+                if str(error) != 'test server exit': state['error']=str(error)
+        thread=threading.Thread(target=serve); thread.start()
+        try:
+            self.assertTrue(ready.wait(1))
+            from workshop.station import ev3_live_client
+            commands = [
+                ['--port', str(state['port']), 'status'],
+                ['--port', str(state['port']), 'command', '--json',
+                 '{"operation":"power_save","args":{}}'],
+                ['--port', str(state['port']), 'command', '--json',
+                 '{"operation":"heartbeat","args":{}}'],
+            ]
+            for index, command in enumerate(commands):
+                if index:
+                    disconnected.clear()
+                self.assertEqual(ev3_live_client.main(command), 0)
+                self.assertTrue(disconnected.wait(1))
+                self.assertEqual(api.status()['power_mode'], 'power_save')
+                self.assertEqual(api.last_activity, idle_since)
+        finally:
+            stopping.set(); thread.join(1)
+        self.assertFalse(thread.is_alive()); self.assertNotIn('error',state)
+
     def test_python34_syntax_no_blocking_job_waits_or_eval(self):
         tree=ast.parse(MODULE.read_text(),feature_version=(3,4))
         for node in ast.walk(tree):
             if isinstance(node,ast.Call) and isinstance(node.func,ast.Name): self.assertNotIn(node.func.id,('eval','exec'))
             if isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute): self.assertNotIn(node.func.attr,('run_until_stalled','run_angle'))
+        serve = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'serve')
+        polls = [node for node in ast.walk(serve) if isinstance(node, ast.Call) and
+                 isinstance(node.func, ast.Attribute) and node.func.attr == 'poll' and
+                 isinstance(node.func.value, ast.Name) and node.func.value.id == 'poll']
+        self.assertEqual(len(polls), 1)
+        timeout = polls[0].args[0]
+        self.assertIsInstance(timeout, ast.Call)
+        self.assertEqual(timeout.func.attr, 'poll_timeout_ms')
+        self.assertEqual(timeout.func.value.id, 'api')
 
 if __name__=='__main__': unittest.main()
