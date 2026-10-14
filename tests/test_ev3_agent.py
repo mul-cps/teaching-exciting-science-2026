@@ -24,7 +24,7 @@ def config():
 
 def identity(c):
     ports = c['ev3']['ports']
-    drivers = {'feeder': 'lego-ev3-l-motor', 'sorter': 'lego-ev3-m-motor', 'touch': 'lego-ev3-touch', 'color': 'lego-ev3-color'}
+    drivers = {'feeder': 'lego-ev3-m-motor', 'sorter': 'lego-ev3-l-motor', 'touch': 'lego-ev3-touch', 'color': 'lego-ev3-color'}
     return {'machine_id': 'a' * 32, 'platform': 'armv5tel LEGO EV3 AM1808',
             'ports': {'ev3-ports:' + ('in' + port[1:] if port.startswith('S') else 'out' + port): drivers[name] for name, port in ports.items()}}
 
@@ -544,3 +544,38 @@ def test_runtime_probe_uses_brickrun_before_deployment_or_motor_construction(mon
     with pytest.raises(EV3Error, match='deployment boundary'):
         transport.connect(10, 'nonce')
     assert len(calls) == 3
+
+
+@pytest.mark.parametrize('inverted', [False, True])
+def test_official_sorter_model_driver_inventory_before_agent_motor_construction(monkeypatch, inverted):
+    import sys
+    from types import ModuleType
+    from workshop.station.resources import ev3_agent
+    c = config()
+    assert c['ev3']['ports'] == {'feeder': 'A', 'sorter': 'D', 'touch': 'S1', 'color': 'S3'}
+    inventory = {'ev3-ports:outA': 'lego-ev3-m-motor', 'ev3-ports:outD': 'lego-ev3-l-motor',
+                 'ev3-ports:in1': 'lego-ev3-touch', 'ev3-ports:in3': 'lego-ev3-color'}
+    if inverted:
+        inventory['ev3-ports:outA'], inventory['ev3-ports:outD'] = inventory['ev3-ports:outD'], inventory['ev3-ports:outA']
+    record = dict(machine_id='a' * 32, platform='armv5tel LEGO EV3 AM1808', ports=inventory)
+    if inverted:
+        with pytest.raises(EV3Error, match='driver mismatch'): validate_identity(record, c['ev3'])
+    else: assert validate_identity(record, c['ev3']) is record
+    constructors = []
+    def motor(port):
+        constructors.append(port)
+        raise RuntimeError('accepted model reached construction boundary')
+    devices = ModuleType('pybricks.ev3devices')
+    devices.Motor = devices.TouchSensor = devices.ColorSensor = motor
+    parameters = ModuleType('pybricks.parameters')
+    parameters.Port = SimpleNamespace(A='A', D='D', S1='S1', S3='S3')
+    parameters.Color = parameters.Stop = SimpleNamespace()
+    tools = ModuleType('pybricks.tools'); tools.StopWatch = lambda: None
+    for name, module in [('pybricks.ev3devices', devices), ('pybricks.parameters', parameters), ('pybricks.tools', tools)]:
+        monkeypatch.setitem(sys.modules, name, module)
+    monkeypatch.setattr(ev3_agent, 'runtime_identity', lambda *a: {})
+    monkeypatch.setattr(ev3_agent, 'port_inventory', lambda: inventory)
+    monkeypatch.setattr(sys, 'argv', ['agent', json.dumps(dict(nonce='n' * 32, lease_ms=500, ports=c['ev3']['ports']))])
+    with pytest.raises(ValueError if inverted else RuntimeError, match='driver mismatch' if inverted else 'construction boundary'):
+        ev3_agent.main()
+    assert constructors == ([] if inverted else ['A'])

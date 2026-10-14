@@ -198,7 +198,7 @@ def main():
     if not isinstance(nonce, str) or len(nonce) != 32 or settings['lease_ms'] != 500:
         raise ValueError('invalid session settings')
     inventory = port_inventory()
-    drivers = {'feeder': 'lego-ev3-l-motor', 'sorter': 'lego-ev3-m-motor', 'touch': 'lego-ev3-touch', 'color': 'lego-ev3-color'}
+    drivers = {'feeder': 'lego-ev3-m-motor', 'sorter': 'lego-ev3-l-motor', 'touch': 'lego-ev3-touch', 'color': 'lego-ev3-color'}
     if set(ports) != set(drivers):
         raise ValueError('invalid ports')
     for name in ports:

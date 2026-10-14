@@ -234,7 +234,7 @@ class OriginalEV3(EV3Motion):
         return 1 << (self._index(name) - 16)
 
     def _value(self, name, deadline):
-        kind, mode = {'feeder': (8, 0), 'sorter': (7, 0), 'touch': (16, 0), 'color': (29, 2)}[name]
+        kind, mode = {'feeder': (7, 0), 'sorter': (8, 0), 'touch': (16, 0), 'color': (29, 2)}[name]
         ops = b'\x99\x1d\x00' + _lc(self._index(name)) + _lc(kind) + _lc(mode) + b'\x01\x60'
         value = struct.unpack('<f', self._command(ops, 4, deadline))[0]
         if not math.isfinite(value):
@@ -246,7 +246,7 @@ class OriginalEV3(EV3Motion):
     def preflight(self):
         self.preflighted = False
         deadline = self._deadline()
-        for name, kind in (('feeder', 8), ('sorter', 7), ('touch', 16), ('color', 29)):
+        for name, kind in (('feeder', 7), ('sorter', 8), ('touch', 16), ('color', 29)):
             reply = self._command(b'\x99\x05\0' + _lc(self._index(name)) + b'\x60\x61', 2, deadline)
             if reply[0] != kind or reply[1] not in (range(6) if name == 'color' else (0,)):
                 raise EV3Error(f'{name} port type/mode mismatch')

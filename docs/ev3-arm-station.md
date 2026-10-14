@@ -2,7 +2,10 @@
 
 The station supports `arm_loads_sorter` (arm loads a stopped sorter) and
 `arm_unloads_sorter` (EV3 sorts, stops, then arm picks and places). Original EV3
-firmware over direct USB is the default. The optional legacy EV3 Pybricks
+firmware over direct USB is the default. The [official Color Sorter](https://pybricks.com/ev3-micropython/examples/color_sorter.html)
+uses feeder port A and sorter belt port D. The observed model has a medium
+feeder on A (`lego-ev3-m-motor`, original firmware type 7) and a large sorter
+on D (`lego-ev3-l-motor`, type 8); inverted motor types are rejected. The optional legacy EV3 Pybricks
 MicroPython **major version 2** backend uses a pinned SSH connection and a
 bundled brick agent. Current Pybricks hub/browser tooling is not this backend.
 

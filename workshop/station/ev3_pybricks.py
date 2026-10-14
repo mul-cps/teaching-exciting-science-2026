@@ -17,7 +17,7 @@ from .ev3_motion import EV3Motion, EV3Error, _remaining
 
 PROTOCOL = 'ev3-station'
 VERSION = 1
-DRIVERS = {'feeder': 'lego-ev3-l-motor', 'sorter': 'lego-ev3-m-motor',
+DRIVERS = {'feeder': 'lego-ev3-m-motor', 'sorter': 'lego-ev3-l-motor',
            'touch': 'lego-ev3-touch', 'color': 'lego-ev3-color'}
 RUNTIME_SCRIPT = """import sys,ujson
 from pybricks.ev3devices import Motor, TouchSensor, ColorSensor

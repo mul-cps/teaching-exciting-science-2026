@@ -123,7 +123,7 @@ class Brick(Wire):
     """Small independent wire emulator for the documented opcode subset."""
     def __init__(self):
         super().__init__()
-        self.types = {0:16, 2:29, 16:8, 19:7}
+        self.types = {0:16, 2:29, 16:7, 19:8}
         self.encoders = {16:0., 19:0.}
         self.touch = 0.
         self.color = 2.
@@ -179,7 +179,7 @@ def test_constructor_and_preflight_are_torque_safe():
 
 def test_wrong_port_type_prevents_motion():
     brick = Brick()
-    brick.types[16] = 7
+    brick.types[16] = 8
     ev3 = OriginalEV3(config(), brick)
     ev3.connect()
     with pytest.raises(EV3Error, match='type'):
@@ -389,7 +389,7 @@ def test_mode_mismatch_prevents_admission():
 
 def test_preflight_failure_revokes_previous_admission():
     ev3, brick = ready()
-    brick.types[16] = 7
+    brick.types[16] = 8
     with pytest.raises(EV3Error):
         ev3.preflight()
     assert not ev3.preflighted
@@ -865,3 +865,30 @@ def test_movement_fault_preserves_transient_cleanup_failure_and_outer_shutdown(m
     assert any('transient cleanup stop failed' in note for record in records for note in record.get('notes', []))
     assert attempts == ['ev3.stop', 'ev3.stop', 'arm.stop', 'ev3.close', 'arm.close']
     assert not ev3.motion_lock.locked()
+
+
+def test_official_sorter_model_ports_use_medium_feeder_large_sorter(monkeypatch):
+    import time
+    c = config()
+    assert c['ev3']['ports'] == {'feeder': 'A', 'sorter': 'D', 'touch': 'S1', 'color': 'S3'}
+    brick = Brick()
+    # Independent model fixture: live A medium type7, D large type8.
+    brick.types = {0: 16, 2: 29, 16: 7, 19: 8}
+    ev3 = OriginalEV3(c, brick)
+    ev3.connect(); ev3.preflight()
+    values = [packet[7:] for packet in brick.writes if packet[7:9] == b'\x99\x1d']
+    assert all(op[4] == brick.types[op[3]] for op in values)
+    monkeypatch.setattr('workshop.station.ev3_usb.time.sleep', lambda seconds: None)
+    ev3._slice('feeder', 1, 120, time.monotonic() + 1)
+    ev3._slice('sorter', 1, 120, time.monotonic() + 1)
+    assert [struct.unpack('b', op[4:5])[0] for op in brick.motion] == [8, 12]
+
+
+def test_inverted_medium_large_sorter_model_rejected():
+    brick = Brick()
+    brick.types = {0: 16, 2: 29, 16: 8, 19: 7}
+    ev3 = OriginalEV3(config(), brick)
+    ev3.connect()
+    with pytest.raises(EV3Error, match='port type'):
+        ev3.preflight()
+    assert not brick.motion
