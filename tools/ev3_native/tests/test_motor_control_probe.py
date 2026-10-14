@@ -78,6 +78,34 @@ class Env:
 
 
 class Tests(unittest.TestCase):
+    def test_result_persistence_writes_one_bounded_json_then_renames(self):
+        writes = []
+        renames = []
+        class Output:
+            def __init__(self, path): self.path, self.closed = path, False
+            def __enter__(self): return self
+            def __exit__(self, *args): self.closed = True
+            def write(self, content): writes.append((self.path, content, self.closed))
+        def rename(source, target):
+            renames.append((source, target, len(writes), output.closed))
+        output = None
+        def open_file(path, mode):
+            nonlocal output
+            self.assertEqual(mode, 'w')
+            output = Output(path)
+            return output
+
+        result = {'records': [{'sample_ms': n, 'angle_deg': -n} for n in range(100)],
+                  'outcome': 'touch_pressed'}
+        probe_module.persist_result(result, '/tmp/probe.json', open_file, rename)
+        self.assertEqual(len(writes), 1)
+        self.assertTrue(output.closed)
+        self.assertEqual(writes[0][0], '/tmp/probe.json.tmp')
+        self.assertFalse(writes[0][2])
+        self.assertEqual(__import__('json').loads(writes[0][1]), result)
+        self.assertLess(len(writes[0][1]), 20000)
+        self.assertEqual(renames, [('/tmp/probe.json.tmp', '/tmp/probe.json', 1, True)])
+
     def test_native_runtime_guard_accepts_pybricks_tuple_and_named_forms(self):
         self.assertTrue(probe_module.native_runtime(
             ('pybricks-micropython', (2, 0, 0))))

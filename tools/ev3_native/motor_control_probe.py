@@ -23,6 +23,21 @@ MAX_STEP_MIN_DEG = 20
 MAX_STEP_ALLOWANCE_DEG = 6
 MAX_RECORDS = 100
 HOME_DIRECTION_SIGN = -1
+RESULT_PATH = '/home/robot/cps-station/ev3_native/motor-control-probe-last.json'
+
+
+def persist_result(result, path=RESULT_PATH, open_file=None, rename=None):
+    """Persist one complete probe result by closing a temp file before rename."""
+    if open_file is None:
+        open_file = open
+    if rename is None:
+        import os
+        rename = os.rename
+    temporary_path = path + '.tmp'
+    content = json.dumps(result)
+    with open_file(temporary_path, 'w') as output:
+        output.write(content)
+    rename(temporary_path, path)
 
 
 def native_runtime(implementation):
@@ -199,8 +214,9 @@ def main():
     from pybricks.ev3devices import Motor, TouchSensor
     from pybricks.parameters import Direction, Port, Stop
     from pybricks.tools import StopWatch, wait
-    MotorControlProbe(Motor, Port, Direction, Stop, TouchSensor,
-                      StopWatch().time, wait).run()
+    result = MotorControlProbe(Motor, Port, Direction, Stop, TouchSensor,
+                               StopWatch().time, wait).run()
+    persist_result(result)
 
 
 if __name__ == '__main__':
