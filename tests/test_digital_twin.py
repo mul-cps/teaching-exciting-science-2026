@@ -194,6 +194,238 @@ def test_cad_pinch_center_tracks_jaw_opening_while_official_site_is_fixed():
     assert 'unqualified' in closed['status']
 
 
+def test_pinch_patches_keep_canonical_mesh_vertices_through_full_jaw_sweep():
+    mujoco=pytest.importorskip('mujoco')
+    from workshop.digital_twin.kinematics import export_pinch_geometry,set_pose
+    model=mujoco.MjModel.from_xml_string(make_model([0,0,0],[-.2,0,0],[0,-.5,.3],[1,0,0,0]))
+    data=mujoco.MjData(model)
+    pose=dict(shoulder_pan=0,shoulder_lift=-88,elbow_flex=90,wrist_flex=73,wrist_roll=2,gripper=0)
+    outputs=[]
+    for opening in (0,20,40,60,80,100):
+        pose['gripper']=opening
+        set_pose(model,data,pose)
+        outputs.append(export_pinch_geometry(model,data))
+    for kind in ('fixed','moving'):
+        indices=outputs[0]['contacts'][kind]['selected_vertex_indices']
+        for result in outputs[1:]:
+            assert result['contacts'][kind]['selected_vertex_indices']==indices
+    # The point patch is transformed from the same mesh vertices at every pose.
+    for opening,result in zip((0,20,40,60,80,100),outputs):
+        pose['gripper']=opening
+        set_pose(model,data,pose)
+        for kind in ('fixed','moving'):
+            contact=result['contacts'][kind]
+            geom=contact['geom_id']; mesh=int(model.geom_dataid[geom])
+            start=int(model.mesh_vertadr[mesh])
+            local_vertices=model.mesh_vert[start+np.asarray(contact['selected_vertex_indices'])]
+            xmat=data.geom_xmat[geom].reshape(3,3)
+            world_vertices=local_vertices@xmat.T+data.geom_xpos[geom]
+            np.testing.assert_allclose(contact['selected_vertices_world_m'],world_vertices,atol=1e-10)
+            np.testing.assert_allclose(contact['world_position_m'],np.median(world_vertices,axis=0),atol=1e-10)
+            body=int(model.geom_bodyid[geom]); body_rotation=data.xmat[body].reshape(3,3)
+            body_vertices=(world_vertices-data.xpos[body])@body_rotation
+            np.testing.assert_allclose(contact['selected_vertices_body_m'],body_vertices,atol=1e-10)
+            np.testing.assert_allclose(contact['jaw_body_position_m'],
+                                       (contact['world_position_m']-data.xpos[body])@body_rotation,atol=1e-10)
+    gaps=np.array([result['inner_face_gap_m'] for result in outputs])
+    # A closing pivot arc naturally changes the gap by centimetres per 20%;
+    # its increments stay smooth without a patch-switch discontinuity.
+    assert np.max(np.abs(np.diff(gaps, n=2)))<.01
+    assert outputs[0]['geometry_status']=='OBSERVED_CAD_ESTIMATE'
+    assert outputs[0]['physical_calibration_status']=='UNQUALIFIED'
+    np.testing.assert_allclose([result['gripper_opening_percent_current'] for result in outputs],
+                               [0,20,40,60,80,100],atol=1e-5)
+    assert outputs[0]['contact_eligibility']['basis']=='CAD face normals and opposing-contact direction; not physical calibration'
+    assert [result['contact_eligibility']['eligible'] for result in outputs]==[True,True,False,False,False,False]
+    for result in outputs:
+        for jaw in ('fixed','moving'):
+            normal=np.asarray(result['contacts'][jaw]['normal_world'])
+            assert np.linalg.norm(normal)==pytest.approx(1,abs=1e-6)
+            site=mujoco.mj_name2id(model,mujoco.mjtObj.mjOBJ_SITE,'gripper_frame_site')
+            np.testing.assert_allclose(result['contacts'][jaw]['normal_site'],
+                                       data.site_xmat[site].reshape(3,3).T@normal,atol=1e-10)
+
+
+def test_pinch_export_reuses_cached_cad_patch_without_allocating_mesh_data(monkeypatch):
+    mujoco=pytest.importorskip('mujoco')
+    from workshop.digital_twin import kinematics
+    model=mujoco.MjModel.from_xml_string(make_model([0,0,0],[-.2,0,0],[0,-.5,.3],[1,0,0,0]))
+    data=mujoco.MjData(model)
+    kinematics.set_pose(model,data,dict(gripper=0))
+    kinematics.export_pinch_geometry(model,data)
+    patches=kinematics._canonical_pinch_patches(model)
+    def unexpected(_):
+        raise AssertionError('per-frame CAD mesh data allocation')
+    monkeypatch.setattr(kinematics.mujoco,'MjData',unexpected)
+    for opening in range(0,101,10):
+        kinematics.set_pose(model,data,dict(gripper=opening))
+        kinematics.export_pinch_geometry(model,data)
+        assert kinematics._canonical_pinch_patches(model) is patches
+
+
+def test_provisional_camera_extrinsics_compose_full_se3_and_flip_board_vertical(tmp_path):
+    from scipy.spatial.transform import Rotation
+    from workshop.digital_twin.evidence_bridge import compose_camera_arm_registration
+    def transform(translation, angles):
+        result=np.eye(4)
+        result[:3,:3]=Rotation.from_euler('xyz',angles,degrees=True).as_matrix()
+        result[:3,3]=translation
+        return result
+    camera_from_board=transform([-.04,.12,.51],[12,-8,25])
+    base_from_camera=transform([.31,-.52,.19],[92,-5,32])
+    result=compose_camera_arm_registration(camera_from_board,base_from_camera)
+    target_from_world=np.diag([1.,-1.,-1.,1.])
+    expected_world_from_camera=np.linalg.inv(camera_from_board@target_from_world)
+    expected_world_from_base=expected_world_from_camera@np.linalg.inv(base_from_camera)
+    np.testing.assert_allclose(result['world_from_camera'],expected_world_from_camera,atol=1e-10)
+    np.testing.assert_allclose(result['world_from_base'],expected_world_from_base,atol=1e-10)
+    assert not np.allclose(np.asarray(result['world_from_base'])[:3,:3],np.eye(3))
+    assert result['qualified'] is False
+    assert 'provisional' in result['status'].lower()
+
+
+def test_phase_evidence_marks_last_raw_pose_stale_after_half_second(tmp_path):
+    import json
+    from workshop.digital_twin.evidence_bridge import read_phase_evidence
+    path=tmp_path/'phase.json'
+    path.write_text(json.dumps({'phase':'leg_settled_home','pose_raw':{'shoulder_pan':1999},'monotonic':12.0}))
+    fresh=read_phase_evidence(path,now_monotonic=12.5)
+    stale=read_phase_evidence(path,now_monotonic=12.501)
+    assert fresh['freshness']=='fresh' and fresh['pose_raw']['shoulder_pan']==1999
+    assert stale['freshness']=='stale' and stale['pose_raw']['shoulder_pan']==1999
+    assert stale['age_seconds']==pytest.approx(.501)
+
+
+def test_raw_phase_pose_uses_saved_calibration_mapping_without_touching_devices():
+    from workshop.digital_twin.evidence_bridge import raw_pose_to_joint_degrees
+    calibration={name:{'range_min':0,'range_max':4095} for name in
+                 ('shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll','gripper')}
+    converted=raw_pose_to_joint_degrees({'shoulder_pan':1999,'gripper':1935},calibration)
+    assert converted['shoulder_pan']==pytest.approx((1999-2047.5)*360/4095)
+    assert converted['gripper']==pytest.approx(1935*100/4095)
+
+
+def test_scene_frame_delta_reexpresses_camera_points_in_board_up_frame():
+    from scipy.spatial.transform import Rotation
+    from workshop.digital_twin.evidence_bridge import scene_from_camera_world_delta
+    scene_world_from_camera=np.eye(4);scene_world_from_camera[:3,3]=[.3,-.2,.1]
+    board_world_from_camera=np.eye(4)
+    board_world_from_camera[:3,:3]=Rotation.from_euler('xyz',[.1,-.2,.5]).as_matrix()
+    board_world_from_camera[:3,3]=[-.1,.4,.2]
+    delta=scene_from_camera_world_delta(scene_world_from_camera,board_world_from_camera)
+    np.testing.assert_allclose(delta@scene_world_from_camera,board_world_from_camera,atol=1e-10)
+    point_scene=np.array([.2,.1,.3,1.])
+    point_camera=np.linalg.inv(scene_world_from_camera)@point_scene
+    np.testing.assert_allclose(delta@point_scene,board_world_from_camera@point_camera,atol=1e-10)
+
+
+def test_camera_sample_freshness_requires_matching_pose_timestamp():
+    from workshop.digital_twin.evidence_bridge import camera_sample_status
+    now_wall=1000.;now_monotonic=200.
+    report={'camera':{'timestamp':999.8}}
+    fresh_phase={'event_monotonic':199.8}
+    stale_phase={'event_monotonic':198.9}
+    assert camera_sample_status(report,fresh_phase,now_wall,now_monotonic)['freshness']=='fresh'
+    result=camera_sample_status(report,stale_phase,now_wall,now_monotonic,cache_reusable=True)
+    assert result['freshness']=='stale'
+    assert result['pointcloud_cache_reusable'] is True
+    assert result['pose_sample_delta_seconds']==pytest.approx(.9)
+
+
+def test_camera_sample_uses_capture_monotonic_age_for_recorded_keyframes():
+    from workshop.digital_twin.evidence_bridge import camera_sample_status
+    report={'camera_sample_timestamp_wall':1000.,'camera_sample_timestamp_monotonic':50.,
+            'camera':{'timestamp':1000.}}
+    phase={'event_monotonic':49.97}
+    status=camera_sample_status(report,phase,now_wall=1100.,now_monotonic=52.)
+    assert status['freshness']=='stale'
+    assert status['age_seconds']==pytest.approx(2.)
+    assert status['pose_sample_delta_seconds']==pytest.approx(.03)
+
+
+def test_pointcloud_cache_provenance_rejects_changed_camera_or_depth(tmp_path):
+    import json
+    from workshop.digital_twin.evidence_bridge import pointcloud_cache_status,write_pointcloud_provenance
+    image=tmp_path/'camera.png';depth=tmp_path/'depth.npy';output=tmp_path/'out';output.mkdir()
+    image.write_bytes(b'rgb-frame');depth.write_bytes(b'depth-frame')
+    (output/'pointcloud.npz').write_bytes(b'points')
+    (output/'measured-surface.npz').write_bytes(b'surface')
+    report={'image':str(image),'depth':str(depth),'camera':{'timestamp':123.},
+            'scene_world_from_camera':np.eye(4).tolist(),
+            'camera':{'timestamp':123.,'intrinsics':{'fx':10.,'fy':10.},'depth_scale_m':.001}}
+    write_pointcloud_provenance(report,output)
+    assert pointcloud_cache_status(report,output)['reusable'] is True
+    report['scene_world_from_camera'][0][3]=.01
+    assert pointcloud_cache_status(report,output)['reusable'] is False
+    report['scene_world_from_camera'][0][3]=0.
+    image.write_bytes(b'new-rgb-frame')
+    assert pointcloud_cache_status(report,output)['reusable'] is False
+
+
+def test_latest_saved_rgbd_pair_uses_paired_newest_camera_files(tmp_path):
+    from workshop.digital_twin.evidence_bridge import select_latest_rgbd_pair
+    (tmp_path/'color.png').write_bytes(b'old-rgb');(tmp_path/'aligned-depth.npy').write_bytes(b'old-depth')
+    folder=tmp_path/'initial-align-retry'/'frames';folder.mkdir(parents=True)
+    rgb=folder/'newest.png';depth=folder/'newest.npy'
+    rgb.write_bytes(b'new-rgb');depth.write_bytes(b'new-depth')
+    pair=select_latest_rgbd_pair(tmp_path)
+    assert pair['image']==rgb and pair['depth']==depth
+    depth.unlink()
+    pair=select_latest_rgbd_pair(tmp_path)
+    assert pair['image']==tmp_path/'color.png'
+
+
+def test_saved_keyframe_manifest_selects_newest_synchronized_pair(tmp_path):
+    import json
+    from workshop.digital_twin.evidence_bridge import select_latest_keyframe_pair
+    frames=tmp_path/'keyframes';frames.mkdir()
+    records=[]
+    for index, synchronized in ((44, True),(45, True),(46, False)):
+        image=frames/f'{index:06d}.png';depth=frames/f'{index:06d}.npy'
+        image.write_bytes(b'rgb');depth.write_bytes(b'depth')
+        records.append({'index':index,'color':image.name,'depth':depth.name,
+                        'monotonic':100.+index,'utc':f'2026-10-14T15:01:{index:02d}+00:00',
+                        'phase':'pose_step_complete_','phase_event_monotonic':100.+index-.03,
+                        'phase_event_delta_s':.03,'pose_synchronized':synchronized,
+                        'pose_raw':{'shoulder_pan':1999}})
+    (frames/'manifest.jsonl').write_text(''.join(json.dumps(record)+'\n' for record in records))
+    pair=select_latest_keyframe_pair(frames)
+    assert pair['image']==frames/'000045.png'
+    assert pair['depth']==frames/'000045.npy'
+    assert pair['pose_raw']=={'shoulder_pan':1999}
+    assert pair['pose_synchronized'] is True
+    assert pair['phase_event_delta_s']==pytest.approx(.03)
+
+
+def test_full_board_se3_places_native_arm_base_and_reexpresses_scene():
+    from scipy.spatial.transform import Rotation
+    import mujoco
+    from workshop.digital_twin.evidence_bridge import apply_world_registration,compose_camera_arm_registration
+    scene=ET.fromstring(make_model([.2,0,0],[-.2,0,0],[0,-.5,.3],[1,0,0,0]))
+    ET.SubElement(scene.find('worldbody'),'camera',name='measured_camera',pos='.2 -.5 .3',quat='1 0 0 0')
+    model=mujoco.MjModel.from_xml_string(ET.tostring(scene,encoding='unicode'))
+    data=mujoco.MjData(model)
+    old_world_from_camera=np.eye(4)
+    camera_from_board=np.eye(4)
+    camera_from_board[:3,:3]=Rotation.from_euler('xyz',[13,-17,8],degrees=True).as_matrix()
+    camera_from_board[:3,3]=[-.1,.2,.4]
+    base_from_camera=np.eye(4)
+    base_from_camera[:3,:3]=Rotation.from_euler('xyz',[90,2,-4],degrees=True).as_matrix()
+    base_from_camera[:3,3]=[.3,-.5,.2]
+    registration=compose_camera_arm_registration(camera_from_board,base_from_camera)
+    ev3=mujoco.mj_name2id(model,mujoco.mjtObj.mjOBJ_BODY,'ev3_estimated_root')
+    old_ev3=model.body_pos[ev3].copy()
+    camera=mujoco.mj_name2id(model,mujoco.mjtObj.mjOBJ_CAMERA,'measured_camera')
+    old_camera=model.cam_pos[camera].copy()
+    delta=apply_world_registration(model,data,registration,old_world_from_camera)
+    arm=mujoco.mj_name2id(model,mujoco.mjtObj.mjOBJ_BODY,'arm_base')
+    np.testing.assert_allclose(model.body_pos[arm],np.asarray(registration['world_from_base'])[:3,3],atol=1e-10)
+    np.testing.assert_allclose(model.body_quat[arm][[1,2,3,0]],
+                               Rotation.from_matrix(np.asarray(registration['world_from_base'])[:3,:3]).as_quat(),atol=1e-8)
+    np.testing.assert_allclose(model.body_pos[ev3],delta[:3,:3]@old_ev3+delta[:3,3],atol=1e-10)
+    np.testing.assert_allclose(model.cam_pos[camera],delta[:3,:3]@old_camera+delta[:3,3],atol=1e-10)
+
+
 def test_measured_camera_low_level_frustum_preserves_optical_principal_point():
     mujoco=pytest.importorskip('mujoco')
     from workshop.digital_twin.scene import add_measured_camera
