@@ -101,7 +101,7 @@ class SSHTransport:
         except (ValueError, TypeError) as error:
             raise EV3Error('malformed remote identity') from error
         try:
-            validate_runtime(json.loads(self._remote('pybricks-micropython -c ' + shlex.quote(RUNTIME_SCRIPT), deadline)))
+            validate_runtime(json.loads(self._remote('brickrun -r -- pybricks-micropython -c ' + shlex.quote(RUNTIME_SCRIPT), deadline)))
         except (ValueError, TypeError) as error:
             raise EV3Error('malformed remote runtime identity') from error
         directory = self.config['ev3']['pybricks']['remote_dir']

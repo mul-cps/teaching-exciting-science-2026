@@ -510,3 +510,37 @@ def test_agent_runtime_identity_uses_actual_implementation_tuple():
     assert result['pybricks_version'] == [2, 0, 0, 'final', 0]
     with pytest.raises(ValueError):
         runtime_identity(('pybricks-micropython', (4, 0, 0, 'final', 0)), '3.4.0')
+
+
+def test_runtime_probe_uses_brickrun_before_deployment_or_motor_construction(monkeypatch):
+    import ast
+    import shlex
+    c = config()
+    transport = SSHTransport(c)
+    calls = []
+    def remote(command, deadline, data=None):
+        calls.append(command)
+        if len(calls) == 1:
+            assert shlex.split(command)[:2] == ['python3', '-c']
+            return json.dumps(identity(c)).encode()
+        if len(calls) == 2:
+            argv = shlex.split(command)
+            assert argv[:5] == ['brickrun', '-r', '--', 'pybricks-micropython', '-c']
+            assert len(argv) == 6
+            tree = ast.parse(argv[5])
+            constructors = {'Motor', 'TouchSensor', 'ColorSensor'}
+            assert not any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                           and node.func.id in constructors for node in ast.walk(tree))
+            assert data is None
+            return json.dumps({'runtime_name': 'pybricks-micropython',
+                               'pybricks_version': [2, 0, 0, 'final', 0],
+                               'runtime_version': '3.4.0'}).encode()
+        assert len(calls) == 3 and command.startswith('mkdir -p -- ')
+        assert data and b'class Agent' in data
+        raise EV3Error('deployment boundary')
+    monkeypatch.setattr(transport, '_remote', remote)
+    monkeypatch.setattr('workshop.station.ev3_pybricks.subprocess.Popen',
+                        lambda *a, **kw: pytest.fail('launched before successful deployment'))
+    with pytest.raises(EV3Error, match='deployment boundary'):
+        transport.connect(10, 'nonce')
+    assert len(calls) == 3
