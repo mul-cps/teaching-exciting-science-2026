@@ -24,14 +24,19 @@ class Control:
         return self.settings
     def done(self): return self.motor.target is None or abs(self.motor.value - self.motor.target) <= 0.1
     def stalled(self): return self.motor.stall
+    def target_tolerances(self): return (10, 2)
+    def stall_tolerances(self): return (30, 100)
 class Motor:
     def __init__(self):
         self.value, self.target, self.stall, self.commands, self.resets = 0, None, False, [], []
-        self.angle_reads = 0
+        self.angle_reads, self.speed_reads = 0, 0
         self.control = Control(self)
     def angle(self):
         self.angle_reads += 1
         return int(round(self.value))
+    def speed(self):
+        self.speed_reads += 1
+        return 0
     def brake(self): self.target = None
     def reset_angle(self, value): self.value = value; self.resets.append(value)
     def run_target(self, speed, target, then, wait):
@@ -126,15 +131,24 @@ class Tests(unittest.TestCase):
         self.assertEqual(self.api.brick.light.off_calls, 1)
         reads = (sum(m.angle_reads for m in self.motors.values()), self.touch.reads,
                  self.api.color.reads)
+        speed_reads = sum(m.speed_reads for m in self.motors.values())
+        cached_speeds = json.loads(json.dumps(self.api.speed_samples))
         for _ in range(8):
             self.request('status')
             self.request('heartbeat')
             self.clock.ms += 250
             self.api.tick()
+        self.api.disconnect('eof')
+        self.request('status')
         self.assertEqual(self.api.status()['power_mode'], 'power_save')
         self.assertEqual((sum(m.angle_reads for m in self.motors.values()), self.touch.reads,
                           self.api.color.reads), reads)
+        self.assertEqual(sum(m.speed_reads for m in self.motors.values()), speed_reads)
+        self.assertEqual(self.api.speed_samples, cached_speeds)
         self.assertEqual(self.api.brick.screen.text[-2:], ['POWER SAVE', 'TCP API ready'])
+        self.request('wake')
+        self.request('status')
+        self.assertEqual(sum(m.speed_reads for m in self.motors.values()), speed_reads + 2)
     def test_power_save_poll_rate_cuts_idle_tick_wakeups(self):
         active_hz = 1000.0 / self.api.poll_timeout_ms()
         self.request('power_save')
@@ -150,6 +164,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(self.api.status()['power_mode'], 'power_save')
         wake = self.request('motor_target', name='feeder', target=100)
         self.assertTrue(wake['ok'])
+        self.assertEqual(self.motors['feeder'].speed_reads, 1)
         self.assertEqual(self.api.status()['power_mode'], 'awake')
         self.assertEqual(self.api.status()['references']['feeder'], 'eject')
         self.assertEqual(self.motors['feeder'].target, 100)
@@ -259,6 +274,79 @@ class Tests(unittest.TestCase):
             self.api.tick()
             self.assertIsNotNone(self.api.job, (delay, self.api.last_job))
             self.assertEqual(self.api.job['_last_sample_ms'], delay)
+
+    def test_advertised_native_velocity_tolerance_covers_33_degrees_over_211ms(self):
+        self.confirm('feeder')
+        self.request('motor_target', name='feeder', target=209, speed=120)
+        self.clock.ms += 211
+        self.motors['feeder'].value = 33
+        self.api.tick()
+        self.assertIsNotNone(self.api.job)
+        self.assertEqual(self.api.job['native_control']['limits'], [120, 2400, 50])
+        self.assertEqual(self.api.job['native_control']['target_tolerances'], [10, 2])
+
+    def test_native_tolerance_guard_still_rejects_large_jump_and_reports_settings(self):
+        self.confirm('feeder')
+        self.request('motor_target', name='feeder', target=209, speed=120)
+        self.clock.ms += 211
+        self.motors['feeder'].value = 60
+        self.api.tick()
+        diagnostic = self.api.status()['last_job']['encoder_diagnostics']
+        self.assertEqual(self.api.last_job['state'], 'fault')
+        self.assertEqual(diagnostic['native_speed_limit_dps'], 120)
+        self.assertEqual(diagnostic['advertised_speed_tolerance_dps'], 10)
+        self.assertEqual(diagnostic['empirical_speed_headroom_dps'], 10)
+        self.assertEqual(diagnostic['guard_speed_dps'], 130)
+        self.assertEqual(diagnostic['sample_uncertainty_ms'], 0)
+        self.assertEqual(diagnostic['native_control']['stall_tolerances'], [30, 100])
+        self.assertIn('speed_dps', diagnostic['speed_sample'])
+        status_motor = self.api.status()['motor_control']['feeder']
+        self.assertEqual(status_motor['target_tolerances'], [10, 2])
+        self.assertIn('duration_ms', status_motor['speed_sample'])
+
+    def test_native_sample_time_uncertainty_is_capped(self):
+        self.confirm('feeder')
+        motor = self.motors['feeder']
+        original_angle = motor.angle
+        calls = [0]
+        def delayed_baseline_angle():
+            calls[0] += 1
+            if calls[0] == 3:  # target-phase baseline angle read
+                self.clock.ms += 100
+            return original_angle()
+        motor.angle = delayed_baseline_angle
+        self.request('motor_target', name='feeder', target=209, speed=120)
+        self.assertEqual(self.api.job['_last_angle_read_ms'], 100)
+        self.clock.ms += 211
+        motor.value = 38
+        self.api.tick()
+        diagnostic = self.api.status()['last_job']['encoder_diagnostics']
+        self.assertEqual(diagnostic['sample_uncertainty_ms'], 20)
+        self.assertEqual(diagnostic['previous_angle_read_ms'], 100)
+        self.assertEqual(diagnostic['current_angle_read_ms'], 0)
+
+    def test_native_speed_headroom_cap_and_missing_tolerance_fallback(self):
+        self.confirm('feeder')
+        motor = self.motors['feeder']
+        motor.control.target_tolerances = lambda: (1000, 2)
+        self.request('motor_target', name='feeder', target=209, speed=120)
+        self.clock.ms += 211
+        motor.value = 38
+        self.api.tick()
+        capped = self.api.status()['last_job']['encoder_diagnostics']
+        self.assertEqual(capped['advertised_speed_tolerance_dps'], 1000)
+        self.assertEqual(capped['empirical_speed_headroom_dps'], 30)
+
+        self.setUp(); self.confirm('feeder')
+        motor = self.motors['feeder']
+        motor.control.target_tolerances = None
+        self.request('motor_target', name='feeder', target=209, speed=120)
+        self.clock.ms += 211
+        motor.value = 33
+        self.api.tick()
+        missing = self.api.status()['last_job']['encoder_diagnostics']
+        self.assertIsNone(missing['advertised_speed_tolerance_dps'])
+        self.assertEqual(missing['empirical_speed_headroom_dps'], 0)
 
     def test_sample_clock_includes_blocking_angle_read(self):
         self.confirm('feeder')

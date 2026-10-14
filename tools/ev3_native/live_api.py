@@ -12,6 +12,8 @@ MAX_FRAME = 4096
 HEARTBEAT_MS = 1000
 POWER_SAVE_IDLE_MS = 60000
 POWER_SAVE_POLL_MS = 250
+MAX_EMPIRICAL_SPEED_HEADROOM_DPS = 30
+MAX_ENCODER_SAMPLE_UNCERTAINTY_MS = 20
 
 
 def native_runtime(implementation):
@@ -56,19 +58,26 @@ class LiveAPI:
         self.last_activity = clock()
         self.references = {'sorter': None, 'feeder': None}
         self.saved = {}
+        self.motor_control = {}
+        self.speed_samples = {}
         for name, motor in motors.items():
             motor.brake()
             self.saved[name] = motor.control.limits()
+            self.motor_control[name] = self.control_parameters(motor)
+            self.speed_samples[name] = {'speed_dps': None, 'started_ms': None,
+                                        'sampled_ms': None, 'duration_ms': None}
         self.connected = False
         self.protocol_error = False
         self.last_heartbeat = clock()
         self.last_id = 0
         self.cache, self.cache_order = {}, []
         self.job, self.last_job, self.last_error = None, None, None
-        self.angles, self.angle_sample_ms = {}, {}
+        self.angles, self.angle_sample_ms, self.angle_read_ms = {}, {}, {}
         for name, motor in motors.items():
+            started = clock()
             self.angles[name] = motor.angle()
             self.angle_sample_ms[name] = clock()
+            self.angle_read_ms[name] = max(0, self.angle_sample_ms[name] - started)
         self.last_angles = clock()
         self.last_motion_tick = clock() - 20
         self.display_text = ''
@@ -92,9 +101,43 @@ class LiveAPI:
 
     def refresh_angles(self):
         for name, motor in self.motors.items():
+            started = self.clock()
             self.angles[name] = motor.angle()
             self.angle_sample_ms[name] = self.clock()
+            self.angle_read_ms[name] = max(0, self.angle_sample_ms[name] - started)
         self.last_angles = self.clock()
+
+    def control_parameters(self, motor):
+        """Read native controller settings when available; never set them."""
+        control = motor.control
+        result = {'limits': None, 'target_tolerances': None, 'stall_tolerances': None}
+        for key, method_name in (('limits', 'limits'),
+                                 ('target_tolerances', 'target_tolerances'),
+                                 ('stall_tolerances', 'stall_tolerances')):
+            method = getattr(control, method_name, None)
+            if method is None:
+                continue
+            try:
+                value = method()
+                result[key] = list(value) if type(value) is tuple else value
+            except Exception:
+                pass
+        return result
+
+    def speed_sample(self, motor):
+        """Read the existing motor's estimated speed and bracket its call time."""
+        method = getattr(motor, 'speed', None)
+        if method is None:
+            return {'speed_dps': None, 'started_ms': None, 'sampled_ms': None,
+                    'duration_ms': None}
+        started = self.clock()
+        try:
+            speed = method()
+        except Exception:
+            speed = None
+        sampled = self.clock()
+        return {'speed_dps': speed, 'started_ms': started, 'sampled_ms': sampled,
+                'duration_ms': max(0, sampled - started)}
 
     def brakes(self):
         errors, stopped = [], []
@@ -107,6 +150,7 @@ class LiveAPI:
         for name in stopped:
             try:
                 self.motors[name].control.limits(*self.saved[name])
+                self.motor_control[name] = self.control_parameters(self.motors[name])
             except Exception as error:
                 errors.append(str(error))
         if errors:
@@ -126,9 +170,21 @@ class LiveAPI:
         return {key: value for key, value in job.items() if not key.startswith('_')}
 
     def status(self):
+        motor_control = {}
+        for name, motor in self.motors.items():
+            if self.power_mode != 'power_save':
+                self.speed_samples[name] = self.speed_sample(motor)
+            speed = self.speed_samples[name]
+            motor_control[name] = dict(self.motor_control[name])
+            motor_control[name]['speed_sample'] = dict(speed)
+            motor_control[name]['angle_sample_ms'] = self.angle_sample_ms[name]
+            motor_control[name]['angle_read_ms'] = self.angle_read_ms[name]
+            if self.job and self.job['motor'] == name:
+                self.job['speed_sample'] = speed
         return {'session': self.session, 'connected': self.connected, 'busy': self.job is not None,
                 'job': self.public_job(self.job), 'last_job': self.public_job(self.last_job),
                 'angles': dict(self.angles), 'sampled_ms': self.last_angles,
+                'motor_control': motor_control,
                 'references': dict(self.references), 'touch': self.sensor_touch,
                 'color': self.sensor_color, 'last_error': self.last_error,
                 'power_mode': self.power_mode, 'power_save_idle_ms': self.power_save_idle_ms}
@@ -344,11 +400,15 @@ class LiveAPI:
         motor = self.motors[name]
         motor.brake()
         motor.control.limits(speed=speed, acceleration=acceleration, actuation=actuation)
+        self.motor_control[name] = self.control_parameters(motor)
         self.refresh_angles()
+        self.speed_samples[name] = self.speed_sample(motor)
         other = 'feeder' if name == 'sorter' else 'sorter'
         self.job = {'id': request_id, 'operation': operation, 'state': 'running', 'phase': '',
                     'started_ms': now, 'motor': name, '_targets': targets, '_index': 0,
-                    '_speed': speed, '_other': other, '_other_start': self.angles[other]}
+                    '_speed': speed, '_other': other, '_other_start': self.angles[other],
+                    'native_control': dict(self.motor_control[name]),
+                    'speed_sample': dict(self.speed_samples[name])}
         self.last_error = None
         if dispatch:
             self.target_phase()
@@ -369,6 +429,7 @@ class LiveAPI:
         # Pair the jump-guard baseline with the encoder sample in ``angles``.
         # Do not timestamp it after unrelated setup work or a blocking command.
         job['_last_sample_ms'] = self.angle_sample_ms[job['motor']]
+        job['_last_angle_read_ms'] = self.angle_read_ms[job['motor']]
         # Keep a small trace only for an active movement phase. This makes a
         # fault diagnosable without growing state during idle or settling.
         job['_encoder_history'] = [{'angle_deg': start,
@@ -473,8 +534,39 @@ class LiveAPI:
         # using the timestamp captured by refresh_angles().
         sample_ms = self.angle_sample_ms[job['motor']]
         elapsed = max(1, sample_ms - job['_last_sample_ms'])
-        jump_bound = 20 if job['operation'] == 'shake' else min(
-            job['_budget'], max(20, job['_speed'] * elapsed / 1000.0 + 6))
+        if job['operation'] == 'shake':
+            jump_bound = 20
+            native_speed_limit = job['_speed']
+            advertised_speed_tolerance = None
+            empirical_speed_headroom = 0
+            sample_uncertainty_ms = 0
+            guard_speed = job['_speed']
+        else:
+            limits = job['native_control'].get('limits')
+            native_speed_limit = abs(job['_speed'])
+            if type(limits) in (tuple, list) and limits and type(limits[0]) in (int, float):
+                native_speed_limit = min(native_speed_limit, abs(limits[0]))
+            tolerances = job['native_control'].get('target_tolerances')
+            empirical_speed_headroom = 0
+            advertised_speed_tolerance = None
+            if (type(tolerances) in (tuple, list) and tolerances and
+                    type(tolerances[0]) in (int, float) and tolerances[0] > 0):
+                advertised_speed_tolerance = tolerances[0]
+                # Pybricks defines this as allowed speed deviation at maneuver
+                # completion, not as an in-motion tracking guarantee. Use it
+                # only as empirical headroom, capped at 30 dps; missing or
+                # invalid settings add zero headroom.
+                empirical_speed_headroom = min(tolerances[0],
+                                               MAX_EMPIRICAL_SPEED_HEADROOM_DPS)
+            # The sample interval may include the previous angle() call time,
+            # because that sample could have occurred at its entry. Bound this
+            # measured uncertainty to one normal active polling period.
+            sample_uncertainty_ms = min(max(0, job['_last_angle_read_ms']),
+                                        MAX_ENCODER_SAMPLE_UNCERTAINTY_MS)
+            guard_speed = native_speed_limit + empirical_speed_headroom
+            elapsed_upper_ms = elapsed + sample_uncertainty_ms
+            jump_bound = min(job['_budget'], max(
+                20, guard_speed * elapsed_upper_ms / 1000.0 + 6))
         history = job['_encoder_history']
         history.append({'angle_deg': angle, 'sample_ms': sample_ms, 'event_ms': now})
         if len(history) > 16:
@@ -491,6 +583,15 @@ class LiveAPI:
                 'angle_deg': angle,
                 'previous_angle_deg': job['_last'],
                 'jump_bound_deg': jump_bound,
+                'native_speed_limit_dps': native_speed_limit,
+                'advertised_speed_tolerance_dps': advertised_speed_tolerance,
+                'empirical_speed_headroom_dps': empirical_speed_headroom,
+                'guard_speed_dps': guard_speed,
+                'sample_uncertainty_ms': sample_uncertainty_ms,
+                'previous_angle_read_ms': job['_last_angle_read_ms'],
+                'current_angle_read_ms': self.angle_read_ms[job['motor']],
+                'native_control': job['native_control'],
+                'speed_sample': job.get('speed_sample'),
                 'sample_age_ms': now - sample_ms,
                 'history': history,
             }
@@ -512,6 +613,7 @@ class LiveAPI:
                 job['_velocity_sign'] = sign
             job['_last'] = angle
             job['_last_sample_ms'] = sample_ms
+            job['_last_angle_read_ms'] = self.angle_read_ms[job['motor']]
             if now >= job['_end']:
                 self.begin_settle()
                 return
@@ -533,6 +635,7 @@ class LiveAPI:
             raise ValueError('Encoder travel budget exceeded')
         job['_last'] = angle
         job['_last_sample_ms'] = sample_ms
+        job['_last_angle_read_ms'] = self.angle_read_ms[job['motor']]
         if now >= job['_deadline']:
             raise ValueError('Native target deadline expired')
         if home and self.sensor_touch:

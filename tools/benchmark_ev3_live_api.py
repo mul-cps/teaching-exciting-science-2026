@@ -37,9 +37,11 @@ class Clock:
 class Motor:
     def __init__(self):
         self.value, self.target = 0, None
-        self.reads = self.dispatches = 0
+        self.reads = self.speed_reads = self.dispatches = 0
         self.settings = (999, 999, 99)
-        self.control = SimpleNamespace(limits=self.limits, done=self.done, stalled=lambda: False)
+        self.control = SimpleNamespace(limits=self.limits, done=self.done, stalled=lambda: False,
+                                       target_tolerances=lambda: (10, 2),
+                                       stall_tolerances=lambda: (30, 100))
 
     def limits(self, *args, **kwargs):
         if args: self.settings = args
@@ -48,6 +50,7 @@ class Motor:
 
     def done(self): return self.target is None or abs(self.value - self.target) <= .1
     def angle(self): self.reads += 1; return int(round(self.value))
+    def speed(self): self.speed_reads += 1; return 0
     def brake(self): self.target = None
     def reset_angle(self, value): self.value = value
 
@@ -112,7 +115,8 @@ class Harness:
         return json.loads(self.native.encoded(replies[0]))
 
     def read_counts(self):
-        return {**{name: motor.reads for name, motor in self.motors.items()},
+        return {**{name: {'angle': motor.reads, 'speed': motor.speed_reads}
+                   for name, motor in self.motors.items()},
                 'touch': self.touch.reads, 'color': self.color.reads}
 
     def start_shake(self):
@@ -215,6 +219,13 @@ def benchmark(iterations=1000, ticks=250):
         loopback.close()
     for _ in range(ticks): harness.advance(timings['tick'])
     idle_frames = harness.brick.screen.frames
+    harness.request('power_save')
+    speed_reads_before_sleep_status = sum(motor.speed_reads for motor in harness.motors.values())
+    for _ in range(iterations):
+        harness.json_roundtrip('status')
+        harness.json_roundtrip('heartbeat')
+    sleep_status_speed_reads = (sum(motor.speed_reads for motor in harness.motors.values()) -
+                                speed_reads_before_sleep_status)
     shake = Harness()
     shake.start_shake()
     # Fixed virtual run covers the job and quiet settling without physical time.
@@ -232,7 +243,8 @@ def benchmark(iterations=1000, ticks=250):
             'python': platform.python_version(), 'platform': platform.platform(),
             'iterations': iterations, 'tick_ms': 20, 'timings': {k: summary(v) for k, v in timings.items()},
             'loopback_requests': requests, 'display': {'updates': iterations, 'screen_frames': screen.brick.screen.frames},
-            'idle': {'screen_frames': idle_frames, 'driver_reads': harness.read_counts()},
+            'idle': {'screen_frames': idle_frames, 'driver_reads': harness.read_counts(),
+                     'sleep_status_heartbeat_speed_reads': sleep_status_speed_reads},
             'shake': {'state': last['state'], 'ticks': 130, 'screen_frames': shake.brick.screen.frames,
                       'motor_dispatches': shake.motors['sorter'].dispatches, 'driver_reads': shake.read_counts()}}
 
