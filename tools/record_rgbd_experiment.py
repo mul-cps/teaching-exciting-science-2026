@@ -15,9 +15,8 @@ from pathlib import Path
 import re
 import time
 
-from workshop.station.config import JOINTS
-
-
+RAW_JOINT_NAMES = ("shoulder_pan", "shoulder_lift", "elbow_flex",
+                   "wrist_flex", "wrist_roll", "gripper")
 MAX_ARM_PAIRING_DELTA_S = 0.160
 
 
@@ -37,7 +36,7 @@ def pair_arm_state(state, camera_monotonic, *, max_delta=MAX_ARM_PAIRING_DELTA_S
     resident_schema = "raw" in state
     if resident_schema:
         raw = state.get("raw")
-        raw_valid = (isinstance(raw, dict) and set(raw) == set(JOINTS)
+        raw_valid = (isinstance(raw, dict) and set(raw) == set(RAW_JOINT_NAMES)
                      and all(type(value) is int and 0 <= value <= 4095
                              for value in raw.values()))
     else:
