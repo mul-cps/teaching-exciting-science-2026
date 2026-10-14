@@ -7,17 +7,33 @@
   "closed_angle": null,
   "encoder_reference": "start of this uninterrupted measurement session",
   "final_A_angle": -207,
-  "functional_load_ready_test_pending": true,
+  "functional_cycle_evaluation": {
+    "camera_review": "green brick feeds and is pushed out; hopper advances one place, next brick blue; no visible double-feed; landing below frame",
+    "cycle_count": 2,
+    "eject_measured_deg": 0,
+    "evidence_log": "one-eject-cycle-repeat.jsonl",
+    "evidence_video": "one-eject-cycle-repeat-camera.mkv",
+    "final_landing_verified": false,
+    "high_frequency_vibration_assessed": false,
+    "load_ready_measured_deg": 208,
+    "reason_for_repeat": "first recorder expired before motion",
+    "recorded_cycle_seconds": 4.573,
+    "recorded_cycle_verified": true,
+    "sorter_D_drift_deg": 0,
+    "target_eject_deg": 0,
+    "target_load_ready_deg": 209
+  },
+  "functional_load_ready_test_pending": false,
   "functional_positions": {
     "eject": {
       "normalized_angle": 0,
       "session_relaxed_angle": -207,
-      "verified_by": "operator observed brick pushed out at negative endpoint"
+      "verified_by": "operator observation plus recorded one-cycle test: green pushed out; measured0"
     },
     "load_ready": {
       "normalized_angle": 209,
       "session_relaxed_angle": 2,
-      "verified_by": "operator described opposite movement loading next brick; functional endpoint test pending"
+      "verified_by": "recorded native one-cycle test: staged green brick and hopper advanced; measured208 for209 target"
     }
   },
   "hard_stop_proven": false,

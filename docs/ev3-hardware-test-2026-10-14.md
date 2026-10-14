@@ -2,9 +2,10 @@
 
 Bounded EV3 component tests and PC API checks passed on EV3 serial
 `0016538184D5`, running ev3dev-stretch and Pybricks 2.0.0. These results do not
-commission either full SO-ARM101/EV3 workflow. Actual cube exit was not verified:
-the outlet was partly outside the camera view, and the loaded cube order and
-queue were unknown. Disposal and full sorting therefore remain unverified.
+commission either full SO-ARM101/EV3 workflow. Initial diagnostics did not verify cube exit: the outlet was partly outside
+the camera view, and the loaded cube order and queue were unknown. The later
+recorded feeder cycle below verified staging and pushing one piece out; its
+final landing, disposal and full sorting remain unverified.
 
 ## Components and observed results
 
@@ -89,7 +90,22 @@ endpoint is 0 degrees and the relaxed positive endpoint is 209 degrees.
 The user observed the negative **EJECT** movement pushing a piece out. EJECT
 means pushing the staged piece out; **LOAD/READY** means retracting the pusher
 to allow the next piece into the feed position. The positive LOAD/READY movement
-is the opposite phase, but its functional endpoint test remains pending. This
-observation does not establish that all nine pieces were dispensed or sorted,
-and does not commission the station or either full workflow. Raw logs and video
-remain local.
+is the opposite phase and was verified in the later recorded native cycle.
+This observation does not establish that all nine pieces were dispensed or
+sorted, and does not commission the station or either full workflow.
+
+Two native cycles were executed because the first recorder expired before
+motion. The second video captured the full stroke and was reviewed: the green
+piece was staged and pushed out, the hopper advanced one place to the next blue
+piece, and no double feed was visible. The landing occurred below the frame and
+remains unverified. Targets were 209 → 0 degrees and measured positions were
+208 → 0 degrees. The cycle took 4.573 seconds (session timestamps 469 → 5042 ms);
+sorter motor D drift was 0 degrees. Native profiles used 120 degrees/second,
+400 degrees/second squared acceleration and a 50% actuation limit. No motor
+stalls occurred, and both motors stopped.
+
+The 15 fps recording does not establish high-frequency vibration behavior.
+This feeder diagnostic does not validate product code, all-nine-piece sorting,
+or either full station workflow. Video `one-eject-cycle-repeat-camera.mkv` and
+log `one-eject-cycle-repeat.jsonl` remain in the local evidence directory;
+raw video and logs are not included here.
