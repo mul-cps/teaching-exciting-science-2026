@@ -34,11 +34,13 @@ def se3(value):
 
 
 def color_masks(rgb):
-    r, g, b = np.moveaxis(rgb.astype(float), -1, 0)
-    return {'red': (r > 85) & (r > g * 1.35) & (r > b * 1.35),
-            'green': (g > 65) & (g > r * 1.25) & (g > b * 1.12),
-            'blue': (b > 65) & (b > r * 1.3) & (b > g * 1.05),
-            'yellow': (r > 105) & (g > 95) & (b < np.minimum(r, g) * .7)}
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    hue, saturation, value = np.moveaxis(hsv, -1, 0)
+    vivid = (saturation >= 90) & (value >= 50)
+    return {'red': vivid & ((hue <= 10) | (hue >= 170)),
+            'green': vivid & (hue >= 41) & (hue <= 89),
+            'blue': vivid & (hue >= 90) & (hue <= 140),
+            'yellow': vivid & (hue >= 15) & (hue <= 40)}
 
 
 def validate_metadata(metadata, shape):
