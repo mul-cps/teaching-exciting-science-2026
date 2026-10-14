@@ -34,7 +34,7 @@ were necessary before accepting the final repeat result.
 
 ## PC API and lease checks
 
-- Preflight returned four value acknowledgements in 31.08–63.10 ms.
+- Four measured sensor/encoder RPCs returned in 31.08–63.10 ms.
 - Heartbeats remained healthy for 2 seconds.
 - A valid 100 ms D command moved +5 degrees and acknowledged `stopped=True`.
 - An invalid 101 ms command was rejected before motion.
@@ -42,8 +42,8 @@ were necessary before accepting the final repeat result.
   500 ms lease. The SSH process finished after approximately 1015 ms; neither
   that duration nor the configured lease is a measured motor-stop latency.
 
-Previous final state checks showed both motors idle with blank `.state` values.
-The final root readback was still pending when this report was prepared.
+Final root sysfs readback confirmed both A and D motors idle with empty
+`.state` values.
 
 ## Software fixes and remaining gates
 
@@ -58,8 +58,8 @@ The tested API includes these committed corrections:
 | `249c740` | Native chunk I/O |
 | `7a69e57` | Batch parsing |
 
-The supervisor reported a fresh parent-main run of 307 pytest tests passing
-in 5.64 seconds. This documentation update did not rerun those tests.
+A fresh parent-main pytest run passed all 307 tests in 5.64 seconds.
+This documentation update did not rerun those tests.
 
 Full station cycles, loaded cube handling, disposal and complete sorting remain
 pending. The saved arm home value **949** is below the calibrated minimum
