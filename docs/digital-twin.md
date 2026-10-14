@@ -3,9 +3,9 @@
 The viewer combines saved RealSense RGB-D front surfaces with the official
 SO101 native MuJoCo model. Its original STL meshes, six actuators, inertials,
 contacts and joint defaults are preserved. EV3 mechanical parts behind the
-visible surfaces remain estimated primitives, hidden by default. The second,
-stationary white arm remains part of the measured scene; fitting targets the
-rear follower. Nothing imports a camera, serial or device SDK; sliders change
+visible surfaces remain estimated primitives, hidden by default. The stationary front white clamp is the follower’s native base and is
+retained as a registration anchor. A separately connected leader is not assumed
+to be visible merely because it appears in USB evidence. Nothing imports a camera, serial or device SDK; sliders change
 only the virtual model.
 
 ```bash
@@ -72,6 +72,30 @@ Jacobians and uncertainty. `measured-camera-render.png` and
 Photograph-textured static surfaces reconstruct the input; this is distinct
 from predictive robot holdout validation. No grasp, contact dynamics or
 sim-to-real qualification is claimed.
+
+For a reusable stationary-base candidate, `icp.oriented_cad_surface` accepts
+`body_name='arm_base'`, excluding all moving links. `icp.fit_fixed_base` accepts
+those CAD samples/normals, temporally segmented base points in world coordinates,
+the measured `world_from_camera`, a translation initializer and the user mount
+yaw prior. It exports `camera_from_arm_base`, alternating-point holdout residuals
+and sensitivity to three starting angles within the same hard yaw bound. These
+are diagnostics: seed sensitivity is not a confidence interval, and same-capture
+withheld pixels are not independent pose validation. Moving-link depth residuals
+must be evaluated on distinct synchronized poses with the transform held fixed.
+
+`kinematics.export_pinch_geometry` separately exports fixed/moving CAD inner-face
+contacts and their opening-dependent midpoint relative to the native gripper
+site. The official site is near the fixed face, not the midpoint. The current
+calibrated-percent mapping to native gripper angular limits remains a visual
+estimate; raw encoder angle and actual jaw opening require independent comparison.
+Neither this candidate transform nor the CAD pinch estimate enables hardware IK.
+
+The next independent camera/base check should observe a fixed mounting-board
+target or several known mount edges with different surface normals. Use held-out
+features and synchronized distinct arm poses to check the unchanged transform;
+do not qualify it from a height-filtered training patch alone. Separately compare
+actual jaw spans at several encoder openings against the CAD fixed/moving faces
+before treating their modeled midpoint as a calibrated grasp target.
 
 Official assets are pinned to
 [TheRobotStudio SO101 native MuJoCo source](https://github.com/TheRobotStudio/SO-ARM100/blob/a758567c3978dfeefe282ede0500085a48fe8f78/Simulation/SO101/so101_new_calib.xml),

@@ -10,7 +10,6 @@ def white_arm_mask(rgb, world, valid):
     minimum = rgb.min(axis=-1).astype(float)
     saturation = rgb.max(axis=-1).astype(float) - minimum
     return (valid & (x >= 300) & (x < 565) & (y >= 110) & (y < 375)
-            & ((y < 210) | (x > 425))  # Rear follower; front-left white arm is stationary leader.
             & (minimum > 125) & (saturation < 48) & (world[..., 2] > .015)
             & (world[..., 2] < .36))
 
