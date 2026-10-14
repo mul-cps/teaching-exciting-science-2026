@@ -17,6 +17,10 @@ from .ev3_motion import EV3Motion, EV3Error, _remaining
 
 PROTOCOL = 'ev3-station'
 VERSION = 1
+# Native Pybricks startup otherwise dup2s stderr onto stdout. Keep protocol
+# output separate from diagnostics for both the probe and persistent agent.
+# https://github.com/pybricks/micropython/blob/master/ports/unix/main.c
+PYBRICKS_RUN = ('env', 'PYBRICKS_NO_REDIRECT_STDOUT=1', 'brickrun', '-r', '--', 'pybricks-micropython')
 DRIVERS = {'feeder': 'lego-ev3-m-motor', 'sorter': 'lego-ev3-l-motor',
            'touch': 'lego-ev3-touch', 'color': 'lego-ev3-color'}
 RUNTIME_SCRIPT = """import sys,ujson
@@ -101,7 +105,8 @@ class SSHTransport:
         except (ValueError, TypeError) as error:
             raise EV3Error('malformed remote identity') from error
         try:
-            validate_runtime(json.loads(self._remote('brickrun -r -- pybricks-micropython -c ' + shlex.quote(RUNTIME_SCRIPT), deadline)))
+            command = ' '.join(shlex.quote(s) for s in (*PYBRICKS_RUN, '-c', RUNTIME_SCRIPT))
+            validate_runtime(json.loads(self._remote(command, deadline)))
         except (ValueError, TypeError) as error:
             raise EV3Error('malformed remote runtime identity') from error
         directory = self.config['ev3']['pybricks']['remote_dir']
@@ -109,7 +114,7 @@ class SSHTransport:
         source = Path(__file__).parent / 'resources' / 'ev3_agent.py'
         self._remote('mkdir -p -- ' + shlex.quote(directory) + ' && cat > ' + shlex.quote(target), deadline, source.read_bytes())
         settings = json.dumps({'nonce': nonce, 'ports': self.config['ev3']['ports'], 'lease_ms': 500})
-        command = ' '.join(shlex.quote(s) for s in ['brickrun', '-r', '--', 'pybricks-micropython', target, settings])
+        command = ' '.join(shlex.quote(s) for s in (*PYBRICKS_RUN, target, settings))
         self.process = subprocess.Popen(self.argv + [command], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.selector = selectors.DefaultSelector()
         for pipe in (self.process.stdout, self.process.stderr, self.process.stdin):

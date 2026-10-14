@@ -525,9 +525,9 @@ def test_runtime_probe_uses_brickrun_before_deployment_or_motor_construction(mon
             return json.dumps(identity(c)).encode()
         if len(calls) == 2:
             argv = shlex.split(command)
-            assert argv[:5] == ['brickrun', '-r', '--', 'pybricks-micropython', '-c']
-            assert len(argv) == 6
-            tree = ast.parse(argv[5])
+            assert argv[:7] == ['env', 'PYBRICKS_NO_REDIRECT_STDOUT=1', 'brickrun', '-r', '--', 'pybricks-micropython', '-c']
+            assert len(argv) == 8
+            tree = ast.parse(argv[7])
             constructors = {'Motor', 'TouchSensor', 'ColorSensor'}
             assert not any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                            and node.func.id in constructors for node in ast.walk(tree))
@@ -579,3 +579,54 @@ def test_official_sorter_model_driver_inventory_before_agent_motor_construction(
     with pytest.raises(ValueError if inverted else RuntimeError, match='driver mismatch' if inverted else 'construction boundary'):
         ev3_agent.main()
     assert constructors == ([] if inverted else ['A'])
+
+
+def test_launch_preserves_stdout_protocol_and_separate_stderr_diagnostics(monkeypatch):
+    import shlex
+    import subprocess
+    import sys
+    import time
+    c = config()
+    transport = SSHTransport(c)
+    prefix = ['env', 'PYBRICKS_NO_REDIRECT_STDOUT=1', 'brickrun', '-r', '--', 'pybricks-micropython']
+    calls = []
+    def remote(command, deadline, data=None):
+        calls.append(command)
+        argv = shlex.split(command)
+        if len(calls) == 1:
+            assert argv[:2] == ['python3', '-c']
+            assert 'PYBRICKS_NO_REDIRECT_STDOUT' not in command
+            return json.dumps(identity(c)).encode()
+        if len(calls) == 2:
+            assert argv[:6] == prefix and argv[6] == '-c'
+            return json.dumps({'runtime_name': 'pybricks-micropython',
+                               'pybricks_version': [2, 0, 0, 'final', 0],
+                               'runtime_version': '3.4.0'}).encode()
+        assert command.startswith('mkdir -p -- ') and data
+        return b''
+    original_popen = subprocess.Popen
+    child = """import sys,json
+# JSON-shaped diagnostics must never enter the protocol frame queue.
+print('{"id":999,"ok":true,"result":"diagnostic"}', file=sys.stderr, flush=True)
+print('{"ready":true}', flush=True)
+for line in sys.stdin:
+    request=json.loads(line)
+    print('{"id":999,"ok":true,"result":"diagnostic"}', file=sys.stderr, flush=True)
+    print(json.dumps({'id':request['id'],'ok':True,'result':123}), flush=True)
+"""
+    def launch(argv, **kwargs):
+        assert argv[:-1] == transport.argv  # Keep SSH -T and strict host checks.
+        command = shlex.split(argv[-1])
+        assert command[:6] == prefix
+        assert command[6] == '/home/robot/station/ev3_agent.py'
+        assert json.loads(command[7])['nonce'] == 'n' * 32
+        return original_popen([sys.executable, '-u', '-c', child], **kwargs)
+    monkeypatch.setattr(transport, '_remote', remote)
+    monkeypatch.setattr('workshop.station.ev3_pybricks.subprocess.Popen', launch)
+    try:
+        assert transport.connect(time.monotonic() + 1, 'n' * 32) == identity(c)
+        assert transport.receive(time.monotonic() + 1) == {'ready': True}
+        transport.send({'id': 42, 'nonce': 'n' * 32}, time.monotonic() + 1)
+        assert transport.receive(time.monotonic() + 1) == {'id': 42, 'ok': True, 'result': 123}
+    finally:
+        transport.close()
