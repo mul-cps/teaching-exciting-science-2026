@@ -296,6 +296,28 @@ def test_compiled_texture_uses_depth_visualization_payload(monkeypatch):
     np.testing.assert_array_equal(model.tex_data, depth_view.reshape(-1))
 
 
+def test_startup_depth_view_keeps_fresh_surface_when_rgb_cache_is_reusable(tmp_path):
+    import numpy as np
+    import trimesh
+    from workshop.digital_twin.viewer import _startup_surface_mesh
+
+    cached_vertices = np.array([[10., 0., 0.], [11., 0., 0.], [10., 1., 0.]])
+    np.savez(tmp_path / 'measured-surface.npz', vertices=cached_vertices,
+             faces=np.array([[0, 1, 2]]), colors=np.full((3, 3), 5, np.uint8))
+    fresh_depth_surface = trimesh.Trimesh(vertices=[[0.,0,0],[1.,0,0],[0,1.,0]],
+                                          faces=[[0,1,2]], process=False)
+    depth_frame = {'visualization_mode': 'DEPTH_VIEW', 'mesh': fresh_depth_surface}
+    world_from_scene = np.eye(4)
+
+    selected = _startup_surface_mesh(depth_frame, True, tmp_path, world_from_scene)
+    assert selected is fresh_depth_surface
+    # A lit startup keeps the timestamp/hash-matched RGB surface cache behavior.
+    rgb_frame = {'visualization_mode': 'RGB', 'mesh': fresh_depth_surface}
+    cached = _startup_surface_mesh(rgb_frame, True, tmp_path, world_from_scene)
+    assert cached is not fresh_depth_surface
+    np.testing.assert_array_equal(cached.vertices, cached_vertices)
+
+
 def test_compiled_surface_update_is_in_place_and_validates_before_mutating(monkeypatch):
     from types import SimpleNamespace
     import numpy as np

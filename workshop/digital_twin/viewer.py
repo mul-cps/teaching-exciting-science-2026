@@ -209,6 +209,20 @@ def _view_frame(surface_vertices, anchors=()):
     return center, center + direction * distance, distance
 
 
+def _startup_surface_mesh(initial_frame, cache_reusable, output, world_from_scene):
+    """Prefer the current display texture over cached RGB when startup is in DEPTH_VIEW."""
+    use_cached_rgb_surface = cache_reusable and not (
+        initial_frame is not None and initial_frame.get('visualization_mode') == 'DEPTH_VIEW')
+    if use_cached_rgb_surface:
+        surface_data = np.load(Path(output) / 'measured-surface.npz', allow_pickle=False)
+        vertices = transform_points(surface_data['vertices'], world_from_scene)
+        observed_surface = trimesh.Trimesh(vertices=vertices, faces=surface_data['faces'], process=False)
+        observed_surface.visual.vertex_colors = np.column_stack((surface_data['colors'],
+            np.full(len(surface_data['colors']), 255, dtype=np.uint8)))
+        return observed_surface
+    return initial_frame['mesh'] if initial_frame is not None else None
+
+
 def _file_signature(path):
     try:
         stat = Path(path).stat()
@@ -315,15 +329,11 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
             q = np.zeros(4); mujoco.mju_mat2Quat(q, data.geom_xmat[index])
             handle.position = data.geom_xpos[index].copy(); handle.wxyz = q
     update_model()
-    observed_mesh = None
-    if initial_frame is not None:
-        observed_mesh = server.scene.add_mesh_trimesh('/measured/front_surfaces/0', initial_frame['mesh'])
+    initial_surface_mesh = _startup_surface_mesh(initial_frame, cache_status['reusable'],
+                                                  output, world_from_scene)
+    observed_mesh = (server.scene.add_mesh_trimesh('/measured/front_surfaces/0', initial_surface_mesh)
+                     if initial_surface_mesh is not None else None)
     if cache_status['reusable']:
-        surface_data = np.load(output / 'measured-surface.npz')
-        vertices = transform_points(surface_data['vertices'], world_from_scene)
-        observed_surface = trimesh.Trimesh(vertices=vertices, faces=surface_data['faces'], process=False)
-        observed_surface.visual.vertex_colors = np.column_stack((surface_data['colors'], np.full(len(surface_data['colors']),255)))
-        observed_mesh = server.scene.add_mesh_trimesh('/measured/front_surfaces', observed_surface)
         cloud_data = np.load(output / 'pointcloud.npz')
         cloud_data = {key: cloud_data[key] for key in cloud_data.files}
         for key in ('points', 'focused_points'):
