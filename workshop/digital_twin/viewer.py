@@ -20,6 +20,45 @@ from .evidence_bridge import (apply_world_registration, camera_sample_status,
                               transform_points)
 
 LIVE_SURFACE_REFRESH_INTERVAL_S = .2
+DEPTH_VIEW_NEAR_M = .3
+DEPTH_VIEW_FAR_M = .9
+
+
+def _depth_visualization_texture(depth_m, valid, near_m=DEPTH_VIEW_NEAR_M,
+                                 far_m=DEPTH_VIEW_FAR_M):
+    """Map valid metric depth to display-only color; invalid pixels stay black."""
+    if not (0 < near_m < far_m):
+        raise ValueError('depth display range must be positive and ordered')
+    depth_m = np.asarray(depth_m, dtype=np.float32)
+    valid = np.asarray(valid, dtype=bool) & np.isfinite(depth_m)
+    safe_depth = np.where(valid, depth_m, near_m)
+    normalized = np.clip((safe_depth - near_m) / (far_m - near_m), 0., 1.)
+    index = np.rint(normalized * 255).astype(np.uint8)
+    stops = np.array([[20, 18, 75], [10, 105, 190], [35, 205, 150],
+                      [245, 220, 55], [190, 25, 35]], dtype=np.float32)
+    position = index.astype(np.float32) * (len(stops) - 1) / 255.
+    left = np.floor(position).astype(np.int16)
+    right = np.minimum(left + 1, len(stops) - 1)
+    fraction = (position - left)[..., None]
+    color = np.rint(stops[left] * (1. - fraction) + stops[right] * fraction).astype(np.uint8)
+    color[~valid] = 0
+    return color
+
+
+def _display_rgbd_texture(rgb, depth_m, valid, rows, row_cutoff):
+    """Use RGB when the observed table is lit; otherwise return a depth-only visualization."""
+    roi = valid & (rows > row_cutoff)
+    if not roi.any():
+        roi = valid
+    if not roi.any():
+        return np.zeros_like(rgb), 'DEPTH_VIEW', 0.
+    luminance = (0.2126 * rgb[..., 0].astype(np.float32)
+                 + 0.7152 * rgb[..., 1].astype(np.float32)
+                 + 0.0722 * rgb[..., 2].astype(np.float32))
+    mean_luminance = float(luminance[roi].mean())
+    if mean_luminance < 15.:
+        return _depth_visualization_texture(depth_m, valid), 'DEPTH_VIEW', mean_luminance
+    return rgb, 'RGB', mean_luminance
 
 
 
@@ -48,6 +87,7 @@ def _rgbd_frame(image_path, depth_path, report, world_from_scene, max_surface_fa
     if depth.shape != rgb.shape[:2]:
         raise ValueError('refreshed RGB and depth dimensions differ')
     points, valid = unproject(depth, report['camera']['intrinsics'], report['camera']['depth_scale_m'])
+    depth_m = depth.astype(np.float32) * float(report['camera']['depth_scale_m'])
     scene_world_from_camera = np.asarray(report.get('scene_world_from_camera', report['world_from_camera']))
     scene_points = points @ scene_world_from_camera[:3, :3].T + scene_world_from_camera[:3, 3]
     world = transform_points(scene_points, world_from_scene)
@@ -61,8 +101,10 @@ def _rgbd_frame(image_path, depth_path, report, world_from_scene, max_surface_fa
     arm_mask = white_arm_mask(rgb, scene_points, valid)
     silhouette = binary_dilation(binary_fill_holes(binary_closing(arm_mask, iterations=3)), iterations=5)
     row_cutoff = min(150, max(0, rgb.shape[0] - 2))
+    display_texture, visualization_mode, mean_luminance = _display_rgbd_texture(
+        rgb, depth_m, valid, rows, row_cutoff)
     surface_valid = valid & ~silhouette & (rows > row_cutoff) & (scene_points[..., 2] < .45)
-    vertices_scene, faces, vertex_colors = surface_mesh(scene_points, rgb, surface_valid)
+    vertices_scene, faces, vertex_colors = surface_mesh(scene_points, display_texture, surface_valid)
     if len(faces) == 0:
         raise ValueError('refreshed RGB-D frame has no valid textured surface triangles')
     if max_surface_faces is not None and len(faces) > max_surface_faces:
@@ -76,7 +118,9 @@ def _rgbd_frame(image_path, depth_path, report, world_from_scene, max_surface_fa
     return ({'points': world[sampled].astype(np.float32), 'colors': rgb[sampled],
              'focused_points': world[focused].astype(np.float32), 'focused_colors': rgb[focused]},
             {'mesh': measured_surface, 'vertices_scene': vertices_scene, 'faces': faces,
-             'colors': vertex_colors, 'used_vertices': used_vertices, 'rgb': rgb})
+             'colors': vertex_colors, 'used_vertices': used_vertices, 'rgb': rgb,
+             'display_texture': display_texture, 'visualization_mode': visualization_mode,
+             'mean_luminance': mean_luminance})
 
 
 def _update_compiled_surface(model, geom_id, surface):
@@ -115,7 +159,8 @@ def _update_compiled_surface(model, geom_id, surface):
     if (width != int(model.tex_width[tex_id]) or height != int(model.tex_height[tex_id])
             or channels not in (3, 4)):
         raise ValueError('live photograph dimensions do not match the compiled texture')
-    texture = surface['rgb'] if channels == 3 else np.dstack((surface['rgb'], np.full((height, width), 255, np.uint8)))
+    display_texture = surface.get('display_texture', surface['rgb'])
+    texture = display_texture if channels == 3 else np.dstack((display_texture, np.full((height, width), 255, np.uint8)))
     texture_start = int(model.tex_adr[tex_id])
     texture_size = width * height * channels
     texture_bytes = np.asarray(texture, dtype=np.uint8).reshape(-1)
@@ -210,7 +255,9 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
     surface_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, 'measured_front_surfaces')
     face_capacity = int(model.mesh_facenum[model.geom_dataid[surface_geom_id]]) if surface_geom_id >= 0 else None
     surface_state = {'available': False, 'freshness': 'unavailable', 'capture_wall': None,
-                     'capture_monotonic': None, 'error': None}
+                     'capture_monotonic': None, 'error': None,
+                     'visualization_mode': 'RGB', 'mean_luminance': None,
+                     'visualization_note': None}
     initial_frame = None
     try:
         _, initial_frame = _rgbd_frame(report['image'], report['depth'], report,
@@ -219,6 +266,10 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
             _update_compiled_surface(model, surface_geom_id, initial_frame)
         surface_state.update(available=True, freshness='snapshot', capture_wall=float(
             report.get('camera_sample_timestamp_wall', report['camera']['timestamp'])))
+        surface_state.update(visualization_mode=initial_frame['visualization_mode'],
+            mean_luminance=initial_frame['mean_luminance'],
+            visualization_note=('Depth view: low room light'
+                if initial_frame['visualization_mode'] == 'DEPTH_VIEW' else None))
     except Exception as error:
         surface_state['error'] = f'{type(error).__name__}: {error}'
     surface_vertices = (initial_frame['mesh'].vertices if initial_frame is not None else np.empty((0, 3)))
@@ -345,6 +396,8 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         server.gui.add_markdown(calibration_note)
         phase_status_handle = server.gui.add_text('Actual pose evidence', initial_value='', disabled=True)
         sample_status_handle = server.gui.add_text('Camera sample / point cloud', initial_value='', disabled=True)
+        view_mode_handle = server.gui.add_text('Surface texture mode',
+            initial_value=surface_state['visualization_note'] or 'RGB photograph', disabled=True)
         if 'user_visual_alignment' in report['arm']: server.gui.add_markdown(f"**User-aligned base yaw {report['arm']['orientation_estimate_deg']:.1f}°. Visual registration remains unqualified.**")
         icp=report['arm'].get('point_to_plane_registration')
         if icp:
@@ -371,7 +424,9 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         def show_model(event):
             for _, handle in handles: handle.visible = event.target.value
         model_toggle.on_update(show_model)
-        photo_handle = server.gui.add_image(rgb, label='Saved RealSense camera sample (photograph)')
+        display_rgb = initial_frame['display_texture'] if initial_frame is not None else rgb
+        photo_handle = server.gui.add_image(display_rgb,
+            label='Saved image display (RGB or display-only depth view)')
     sliders = {}
     with server.gui.add_folder('Virtual SO-ARM101 joints'):
         for joint, initial in degrees.items():
@@ -439,6 +494,8 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         delta_text = 'unknown' if delta is None else f'{delta:.2f} s from pose event'
         reuse_text = 'timestamp/hash matched' if cache_reusable else 'cache OLD / not reusable'
         surface_text = f'measured surface {surface_state["freshness"].upper()}'
+        if surface_state.get('visualization_note'):
+            surface_text += ' · ' + surface_state['visualization_note']
         pairing = current.get('pairing_status', 'unknown').upper()
         return f'{current.get("freshness", "invalid").upper()} / {pairing} · camera {age_text} · {delta_text} · {reuse_text} · {surface_text} · calibration UNQUALIFIED'
 
@@ -450,6 +507,9 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                    'measured_surface_error': surface_state['error'],
                    'measured_surface_capture_wall_time': surface_state['capture_wall'],
                    'measured_surface_capture_monotonic': surface_state['capture_monotonic'],
+                   'surface_visualization_mode': surface_state['visualization_mode'],
+                   'surface_visualization_mean_luminance': surface_state['mean_luminance'],
+                   'surface_visualization_note': surface_state['visualization_note'],
                    'displayed_pose_source': 'virtual preview override' if virtual_override[0] else 'last saved actual raw event',
                    'camera_image': str(current_pair['image']), 'camera_depth': str(current_pair['depth']),
                    'camera_keyframe': report.get('camera_keyframe'),
@@ -508,7 +568,7 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                         after = (_file_signature(image_path), _file_signature(depth_path))
                         if before != after or before != signature:
                             continue
-                        refreshed_rgb = new_surface['rgb']
+                        refreshed_rgb = new_surface['display_texture']
                         surface_generation = int(surface_state.get('generation', 0)) + 1
                         next_mesh = server.scene.add_mesh_trimesh(
                             f'/measured/front_surfaces/{surface_generation}', new_surface['mesh'])
@@ -544,7 +604,13 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                                 surface_state.update(available=True, freshness='fresh-live',
                                     capture_wall=float(pair.get('timestamp_wall') or time.time()),
                                     capture_monotonic=pair.get('timestamp_monotonic'), error=None,
-                                    generation=surface_generation)
+                                    generation=surface_generation,
+                                    visualization_mode=new_surface['visualization_mode'],
+                                    mean_luminance=new_surface['mean_luminance'],
+                                    visualization_note=('Depth view: low room light'
+                                        if new_surface['visualization_mode'] == 'DEPTH_VIEW' else None))
+                                view_mode_handle.value = (surface_state['visualization_note']
+                                    or 'RGB photograph')
                                 cache_state['valid'] = False
                         except Exception:
                             next_mesh.remove()
