@@ -36,8 +36,9 @@ def serve(output, port=8096, host='127.0.0.1'):
     degrees = dict(report['arm'].get('model_joint_degrees', report['arm']['nominal_joint_degrees']))
     set_pose(model, data, degrees)
     report['kinematics'], report['visual_fit_kinematics'] = export_pose_pair(model, data, report['arm'])
-    from .comparison import compare_camera
-    report['camera_comparison'] = compare_camera(model, data, report, output)
+    from .comparison import compare_registration
+    report['registration_camera_comparison'] = compare_registration(model,data,report,output)
+    report['camera_comparison'] = report['registration_camera_comparison']['after']
     (output / 'scene-evidence.json').write_text(json.dumps(report, indent=2) + '\n')
     initial_render = render(model, data, output / 'mujoco-render.png')
     server = viser.ViserServer(host=host, port=port, label='CPS Station · RGB-D Digital Twin')
@@ -124,7 +125,15 @@ def serve(output, port=8096, host='127.0.0.1'):
                                 f"{report['point_count']:,} measured points · table residual p95 {report['table_fit']['residual_p95_m'] * 1000:.1f} mm.\n\n"
                                 'Model joint positions come from the saved encoder capture.')
         if 'user_visual_alignment' in report['arm']: server.gui.add_markdown(f"**User-aligned base yaw {report['arm']['orientation_estimate_deg']:.1f}°. Visual registration remains unqualified.**")
-        server.gui.add_markdown(f"CAD fit median {report['arm']['registration']['surface_residual_median_m']*1000:.1f} mm / p95 {report['arm']['registration']['surface_residual_p95_m']*1000:.1f} mm. Single pose; no holdout qualification.")
+        icp=report['arm'].get('point_to_plane_registration')
+        if icp:
+            server.gui.add_markdown(f"**Point-to-plane ICP:** median {icp['before_median_m']*1000:.1f} → {icp['after_median_m']*1000:.1f} mm. "
+                                    f"{icp['fraction_within_10mm']*100:.1f}% within10mm; all-point p95 {icp['after_p95_m']*1000:.1f}mm. "
+                                    f"Yaw {icp['yaw_deg']:.1f}° bounded around user prior {icp['yaw_prior_deg']:.1f}±{icp['yaw_radius_deg']:.0f}°.")
+            server.gui.add_image(np.asarray(Image.open(output/'registration-before-after.png')),label='Measured-camera overlay before / after ICP')
+        else:
+            server.gui.add_markdown(f"CAD fit median {report['arm']['registration']['surface_residual_median_m']*1000:.1f} mm / p95 {report['arm']['registration']['surface_residual_p95_m']*1000:.1f} mm. Single pose; no holdout qualification.")
+
         surface_toggle = server.gui.add_checkbox('Measured textured front surfaces', True)
         surface_toggle.on_update(lambda event: setattr(observed_mesh, 'visible', event.target.value))
         points_toggle = server.gui.add_checkbox('Measured RGB-D points', False)

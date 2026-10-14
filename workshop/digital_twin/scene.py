@@ -131,7 +131,16 @@ def make_model(arm_position, sorter_position, camera_position, camera_rotation, 
     return ET.tostring(root, encoding='unicode')
 
 
-def prepare(snapshot, calibration_path, output, latest=True, home_path=None, image_override=None, depth_override=None, pose_series=True, convention="new", base_yaw=None):
+def add_measured_camera(world, intrinsics, width, height, position, rotation):
+    # MuJoCo's sensor-plane offset has the opposite sign to image principal
+    # displacement; camera +Y points up while optical image +Y points down.
+    return ET.SubElement(world,'camera',name='measured_camera',pos=nums(position),quat=nums(rotation),
+                         resolution=f'{width} {height}',sensorsize=f'{width} {height}',
+                         focalpixel=f"{intrinsics['fx']} {intrinsics['fy']}",
+                         principalpixel=f"{width/2-intrinsics['ppx']} {height/2-intrinsics['ppy']}")
+
+
+def prepare(snapshot, calibration_path, output, latest=True, home_path=None, image_override=None, depth_override=None, pose_series=True, convention="new", base_yaw=None, register_icp=False):
     snapshot, output = Path(snapshot), Path(output)
     output.mkdir(parents=True, exist_ok=True)
     metadata = json.loads((snapshot / 'capture.json').read_text())
@@ -209,9 +218,19 @@ def prepare(snapshot, calibration_path, output, latest=True, home_path=None, ima
             registration['user_landmark_position_m'] = (np.array(user_landmark['world_position_m'])-user_rotation@local_center).tolist()
     arm_position = np.array(registration['position_m'])
     if user_landmark is not None: arm_position=np.array(registration['user_landmark_position_m'])
+    icp_report = None
+    if register_icp:
+        if base_yaw is None: raise ValueError('point-to-plane registration requires explicit user base yaw prior')
+        from .icp import oriented_cad_surface, follower_cloud_mask, point_to_plane_icp
+        set_pose(initial_model,initial_data,joint_degrees)
+        cad,normals=oriented_cad_surface(initial_model,initial_data)
+        observed_mask=follower_cloud_mask(rgb,points,valid,world_points)
+        np.savez_compressed(output/'registration-points.npz',cad=cad,normals=normals,observed=world_points[observed_mask])
+        icp_report=point_to_plane_icp(cad,normals,world_points[observed_mask],arm_position,float(base_yaw))
+        arm_position=np.array(icp_report['position_m'])
     model_xml = make_model(arm_position, sorter_position, camera_position, camera_rotation, convention=convention)
     model_root = ET.fromstring(model_xml)
-    display_yaw = registration['yaw_deg'] if base_yaw is None else float(base_yaw)%360
+    display_yaw = icp_report['yaw_deg'] if icp_report else registration['yaw_deg'] if base_yaw is None else float(base_yaw)%360
     model_root.find("worldbody/body[@name='arm_base']").set('quat', nums(quat([0, 0, np.deg2rad(display_yaw)])))
     from .surface import write_surface, colored_pieces
     from scipy.ndimage import binary_closing, binary_fill_holes, binary_dilation
@@ -226,7 +245,7 @@ def prepare(snapshot, calibration_path, output, latest=True, home_path=None, ima
     optical_rotation = basis.T @ np.diag([1, -1, -1])
     qcamera = Rotation.from_matrix(optical_rotation).as_quat()[[3, 0, 1, 2]]
     intr = metadata['intrinsics']
-    ET.SubElement(model_root.find('worldbody'), 'camera', name='measured_camera', pos=nums(camera_position), quat=nums(qcamera), resolution=f'{rgb.shape[1]} {rgb.shape[0]}', sensorsize=f'{rgb.shape[1]} {rgb.shape[0]}', focalpixel=f"{intr['fx']} {intr['fy']}", principalpixel=f"{intr['ppx']-rgb.shape[1]/2} {intr['ppy']-rgb.shape[0]/2}")
+    add_measured_camera(model_root.find('worldbody'),intr,rgb.shape[1],rgb.shape[0],camera_position,qcamera)
     model_xml = ET.tostring(model_root, encoding='unicode')
     (output / 'scene.xml').write_text(model_xml)
     source = json.loads((ASSETS / 'sources.json').read_text())
@@ -237,7 +256,7 @@ def prepare(snapshot, calibration_path, output, latest=True, home_path=None, ima
               'world_from_camera': world_from_camera.tolist(), 'frame_convention': 'world z=table normal toward camera; x=projected optical right; optical x right/y down/z forward',
               'global_ik_qualified': False, 'arm': {'serial': follower.get('usb_serial', follower.get('serial')), 'raw_position': follower['raw_position'],
                       'nominal_joint_degrees': nominal_joint_degrees, 'model_joint_degrees': joint_degrees, 'old_calibration_range_comparisons': violations,
-                      'position_estimate_m': arm_position.tolist(), 'rear_motor_observation':user_landmark, 'orientation_estimate_deg': display_yaw,
+                      'position_estimate_m': arm_position.tolist(), 'rear_motor_observation':user_landmark, 'point_to_plane_registration':icp_report, 'orientation_estimate_deg': display_yaw,
                       'registration': registration},
               'ev3': {'ports': {'feeder': 'A medium', 'sorter': 'D large'}, 'position_estimate_m': sorter_position.tolist(),
                       'geometry': 'estimated primitives; 0.32 m rail span and encoder-to-distance mapping unmeasured'},

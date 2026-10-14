@@ -63,6 +63,7 @@ def export_fk(model, data):
             'gripper_position_jacobian_arm_base': (rotation.T @ jac_position).tolist(),
             'gripper_rotation_jacobian_arm_base': (rotation.T @ jac_rotation).tolist(),
             'jacobian_column_joint_names': [mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, int(j)) for j in model.dof_jntid],
+            'pinch_geometry': export_pinch_geometry(model,data),
             'registration_status': 'arm-base-local FK only; camera-to-arm transform remains unmeasured'}
 
 
@@ -85,3 +86,41 @@ def gripper_motor_offset(model, data):
            and 'sts3215' in (mujoco.mj_id2name(model,mujoco.mjtObj.mjOBJ_MATERIAL,int(model.geom_matid[index])) or '')]
     if not geoms:raise ValueError('native gripper motor visual missing')
     return data.site_xmat[site].reshape(3,3).T@(data.geom_xpos[geoms[0]]-data.site_xpos[site])
+
+
+def export_pinch_geometry(model, data):
+    """CAD distal inner faces and pinch midpoint; official site lies on fixed finger.
+
+    Vertex-based visual geometry estimate only, not force/contact qualification.
+    Returned world positions do not imply measured camera registration.
+    """
+    gripper=mujoco.mj_name2id(model,mujoco.mjtObj.mjOBJ_BODY,'gripper')
+    origin=data.xpos[gripper];rotation=data.xmat[gripper].reshape(3,3)
+    site=mujoco.mj_name2id(model,mujoco.mjtObj.mjOBJ_SITE,'gripper_frame_site')
+    site_rotation=data.site_xmat[site].reshape(3,3)
+    contacts={}
+    for index in range(model.ngeom):
+        if model.geom_group[index]!=2 or model.geom_type[index]!=mujoco.mjtGeom.mjGEOM_MESH:continue
+        material=mujoco.mj_id2name(model,mujoco.mjtObj.mjOBJ_MATERIAL,int(model.geom_matid[index])) or ''
+        kind='fixed' if 'wrist_roll_follower' in material else 'moving' if 'moving_jaw' in material else None
+        if kind is None:continue
+        mesh=model.geom_dataid[index];start,count=model.mesh_vertadr[mesh],model.mesh_vertnum[mesh]
+        vertices=model.mesh_vert[start:start+count]@data.geom_xmat[index].reshape(3,3).T+data.geom_xpos[index]
+        local=(vertices-origin)@rotation
+        distal=local[local[:,2]<local[:,2].min()+.005]
+        inner=distal[:,0].max() if kind=='fixed' else distal[:,0].min()
+        face=distal[np.abs(distal[:,0]-inner)<.0015]
+        contact=np.median(face,axis=0)
+        world=rotation@contact+origin
+        contacts[kind]={'world_position_m':world.tolist(),'gripper_body_position_m':contact.tolist(),
+                        'gripper_site_position_m':(site_rotation.T@(world-data.site_xpos[site])).tolist(),
+                        'selected_vertices':len(face)}
+    if set(contacts)!={'fixed','moving'}:raise ValueError('official finger visual meshes missing')
+    fixed=np.array(contacts['fixed']['world_position_m']);moving=np.array(contacts['moving']['world_position_m'])
+    center=(fixed+moving)/2
+    return {'contacts':contacts,'pinch_center_world_m':center.tolist(),
+            'pinch_center_gripper_site_m':(site_rotation.T@(center-data.site_xpos[site])).tolist(),
+            'inner_face_gap_m':float(np.linalg.norm(moving-fixed)),
+            'official_site_world_m':data.site_xpos[site].tolist(),
+            'method':'distal5mm along native gripper-body minusZ; innerX face within1.5mm; median CAD vertices',
+            'status':'visual CAD pinch estimate; official site near fixed face, not opening-dependent midpoint; globalIK unqualified'}

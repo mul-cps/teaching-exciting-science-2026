@@ -178,3 +178,81 @@ def test_virtual_pose_update_never_reparses_assets(monkeypatch):
     def unexpected(*args,**kwargs):raise AssertionError('asset IO on virtual pose update')
     monkeypatch.setattr(ET,'parse',unexpected)
     set_pose(model,data,dict(shoulder_pan=0,shoulder_lift=0,elbow_flex=0,wrist_flex=0,wrist_roll=0,gripper=50))
+
+
+def test_cad_pinch_center_tracks_jaw_opening_while_official_site_is_fixed():
+    mujoco=pytest.importorskip('mujoco')
+    from workshop.digital_twin.kinematics import export_pinch_geometry,set_pose
+    model=mujoco.MjModel.from_xml_string(make_model([0,0,0],[-.2,0,0],[0,-.5,.3],[1,0,0,0]))
+    data=mujoco.MjData(model)
+    pose=dict(shoulder_pan=0,shoulder_lift=-88,elbow_flex=90,wrist_flex=73,wrist_roll=2,gripper=3)
+    set_pose(model,data,pose);closed=export_pinch_geometry(model,data)
+    pose['gripper']=30;set_pose(model,data,pose);opened=export_pinch_geometry(model,data)
+    np.testing.assert_allclose(closed['official_site_world_m'],opened['official_site_world_m'],atol=1e-10)
+    assert opened['inner_face_gap_m']>closed['inner_face_gap_m']+.01
+    assert np.linalg.norm(np.array(opened['pinch_center_world_m'])-closed['pinch_center_world_m'])>.005
+    assert 'unqualified' in closed['status']
+
+
+def test_measured_camera_low_level_frustum_preserves_optical_principal_point():
+    mujoco=pytest.importorskip('mujoco')
+    from workshop.digital_twin.scene import add_measured_camera
+    root=ET.Element('mujoco');world=ET.SubElement(root,'worldbody')
+    intrinsic=dict(fx=605.,fy=604.,ppx=327.,ppy=247.)
+    add_measured_camera(world,intrinsic,640,480,[0,0,0],[0,1,0,0])
+    model=mujoco.MjModel.from_xml_string(ET.tostring(root,encoding='unicode'));data=mujoco.MjData(model);mujoco.mj_forward(model,data)
+    scene=mujoco.MjvScene(model,100);camera=mujoco.MjvCamera();camera.type=mujoco.mjtCamera.mjCAMERA_FIXED;camera.fixedcamid=0
+    mujoco.mjv_updateScene(model,data,mujoco.MjvOption(),None,camera,mujoco.mjtCatBit.mjCAT_ALL,scene)
+    gl=scene.camera[0]
+    px=640*(gl.frustum_width-gl.frustum_center)/(2*gl.frustum_width)
+    py=480*gl.frustum_top/(gl.frustum_top-gl.frustum_bottom)
+    np.testing.assert_allclose([px,py],[327,247],atol=1e-3)
+
+
+def test_point_to_plane_icp_refines_known_pose_with_hard_yaw_branch():
+    from scipy.spatial.transform import Rotation
+    from workshop.digital_twin.icp import point_to_plane_icp
+    rng=np.random.default_rng(23);uv=rng.uniform(-.08,.08,(500,2))
+    points=np.vstack((np.c_[uv,np.zeros(500)],np.c_[np.zeros(500),uv],np.column_stack((uv[:,0],np.zeros(500),uv[:,1]))))
+    normals=np.repeat([[0,0,1],[1,0,0],[0,1,0]],500,axis=0)
+    actual=np.array([.12,.14,.03]);observed=points@Rotation.from_euler('z',18,degrees=True).as_matrix().T+actual
+    result=point_to_plane_icp(points,normals,observed,[.11,.13,.02],18,iterations=20)
+    assert result['after_median_m']<result['before_median_m']*.2
+    np.testing.assert_allclose(result['position_m'],actual,atol=.002)
+    assert abs(result['yaw_deg']-18)<2
+    assert abs(result['yaw_deg']-result['yaw_prior_deg'])<=30
+
+
+def test_fixed_base_cad_sampling_is_independent_of_joint_pose():
+    mujoco=pytest.importorskip('mujoco')
+    from workshop.digital_twin.icp import oriented_cad_surface
+    from workshop.digital_twin.kinematics import set_pose
+    model=mujoco.MjModel.from_xml_string(make_model([0,0,0],[-.2,0,0],[0,-.5,.3],[1,0,0,0]))
+    data=mujoco.MjData(model)
+    set_pose(model,data,dict(shoulder_pan=0,shoulder_lift=-88,elbow_flex=90,wrist_flex=73,wrist_roll=2,gripper=3))
+    first=oriented_cad_surface(model,data,count=300,body_name='arm_base')
+    set_pose(model,data,dict(shoulder_pan=12,shoulder_lift=-65,elbow_flex=80,wrist_flex=60,wrist_roll=90,gripper=25))
+    second=oriented_cad_surface(model,data,count=300,body_name='arm_base')
+    for before,after in zip(first,second):np.testing.assert_allclose(before,after,atol=1e-10)
+    with pytest.raises(ValueError,match='unknown CAD sampling body'):
+        oriented_cad_surface(model,data,body_name='missing')
+
+
+def test_fixed_base_transform_has_holdout_and_preserves_hard_orientation_prior():
+    from scipy.spatial.transform import Rotation
+    from workshop.digital_twin.icp import fit_fixed_base
+    rng=np.random.default_rng(24);uv=rng.uniform(-.08,.08,(400,2))
+    cad=np.vstack((np.c_[uv,np.zeros(400)],np.c_[np.zeros(400),uv],np.c_[uv[:,0],np.zeros(400),uv[:,1]]))
+    normals=np.repeat([[0,0,1],[1,0,0],[0,1,0]],400,axis=0)
+    actual=np.eye(4);actual[:3,:3]=Rotation.from_euler('z',18,degrees=True).as_matrix();actual[:3,3]=[.12,.14,.03]
+    camera=np.eye(4);camera[:3,3]=[.02,.03,.04]
+    observed=cad@actual[:3,:3].T+actual[:3,3]
+    result=fit_fixed_base(cad,normals,observed,camera,[.11,.13,.02],18,iterations=20)
+    np.testing.assert_allclose(result['camera_from_arm_base'],np.linalg.inv(camera)@actual,atol=.004)
+    assert result['holdout']['samples']==600
+    assert result['holdout']['median_m']<.002
+    assert abs(result['fit']['yaw_deg']-18)<=30
+    assert not result['global_ik_qualified']
+    camera[0,0]=2
+    with pytest.raises(ValueError,match='proper rigid transform'):
+        fit_fixed_base(cad,normals,observed,camera,[.11,.13,.02],18)
