@@ -630,6 +630,26 @@ class LiveAPI:
             return
         displacement = job['_direction'] * (angle - job['_start'])
         if displacement < -3 or job['_direction'] * step < -3:
+            job['_encoder_diagnostic'] = {
+                'fault_reason': 'wrong_direction',
+                'step_deg': step,
+                'elapsed_ms': elapsed,
+                'previous_sample_ms': job['_last_sample_ms'],
+                'sample_ms': sample_ms,
+                'event_ms': now,
+                'job_started_ms': job['started_ms'],
+                'job_elapsed_ms': now - job['started_ms'],
+                'angle_deg': angle,
+                'previous_angle_deg': job['_last'],
+                'start_angle_deg': job['_start'],
+                'target_angle_deg': job['target'],
+                'expected_direction': job['_direction'],
+                'signed_displacement_deg': displacement,
+                'native_control': job['native_control'],
+                'speed_sample': job.get('speed_sample'),
+                'sample_age_ms': now - sample_ms,
+                'history': history,
+            }
             raise ValueError('Motor moved in wrong direction')
         if displacement > job['_budget']:
             raise ValueError('Encoder travel budget exceeded')
