@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 import ast
 from pathlib import Path
+import cv2
 import numpy as np
 import pytest
-from tools.propose_rgbd_grasp import (propose_geometry, transform_and_solve, load_episode, se3)
+from tools.propose_rgbd_grasp import (color_masks, propose_geometry, transform_and_solve, load_episode, se3)
 
 
 def scene():
@@ -32,6 +33,29 @@ def test_local_plane_masks_wrist_and_other_colors():
         assert np.allclose(candidate['center'][2], .496)
         assert not candidate['executable']
         assert candidate['contour_pixels'][:, 0].min() == 40
+
+
+def test_hsv_masks_keep_yellow_front_shadows_out_of_red():
+    rgb = np.array([[[255, 150, 30], [255, 212, 37], [252, 26, 8],
+                     [255, 255, 255], [128, 128, 128]]], dtype=np.uint8)
+    masks = color_masks(rgb)
+    assert masks['yellow'][0, 0] and not masks['red'][0, 0]
+    assert masks['yellow'][0, 1] and not masks['red'][0, 1]
+    assert masks['red'][0, 2]
+    assert not any(mask[0, 3] for mask in masks.values())
+    assert not any(mask[0, 4] for mask in masks.values())
+
+
+def test_saturated_hue_masks_are_mutually_exclusive_with_gap_left_unknown():
+    hsv = np.zeros((180, 1, 3), dtype=np.uint8)
+    hsv[:, 0, 0] = np.arange(180, dtype=np.uint8)
+    hsv[:, 0, 1:] = [200, 200]
+    rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    masks = color_masks(rgb)
+    membership = np.stack(list(masks.values()), axis=0)
+    assert np.all(membership.sum(axis=0) <= 1)
+    # The orange transition band between red and yellow has no guessed label.
+    assert not membership[:, 11:15, 0].any()
 
 
 @dataclass
