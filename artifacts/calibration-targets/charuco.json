@@ -1,0 +1,39 @@
+{
+  "kind": "charuco",
+  "dictionary": "DICT_4X4_50",
+  "squares": [
+    5,
+    7
+  ],
+  "square_length_m": 0.02,
+  "marker_length_m": 0.014,
+  "ids": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+  ],
+  "schema": "calibration-target-v1",
+  "units": "metres",
+  "quiet_margin_m": 0.01,
+  "print_size_m": [
+    0.12,
+    0.16
+  ],
+  "svg_file": "charuco.svg",
+  "svg_sha256": "0fc57b26eb63ef0077abb4f8b829d3ac0cddbfdedbba9d49f00c0448377fa642",
+  "print_instruction": "Print at 100% scale; measure dimensions before use"
+}

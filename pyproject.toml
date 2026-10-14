@@ -22,6 +22,7 @@ station = [
 ]
 
 digital-twin = ["mujoco==3.14.0", "viser==1.1.0", "numpy==2.4.6", "scipy==1.17.1", "Pillow==12.2.0", "trimesh==4.12.2"]
+ik = ["placo==0.9.15", "cmeel-urdfdom==4.0.1", "cmeel-tinyxml2==10.0.0"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -37,4 +38,4 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.package-data]
 "workshop.station" = ["resources/*.json", "resources/ev3_agent.py"]
 
-"workshop.digital_twin" = ["assets/*.xml", "assets/*.urdf", "assets/*.json", "assets/SO-ARM100-LICENSE", "assets/cad/*.stl"]
+"workshop.digital_twin" = ["assets/*.xml", "assets/*.urdf", "assets/*.json", "assets/SO-ARM100-LICENSE", "assets/GGCNN-LICENSE", "assets/cad/*.stl"]

@@ -1,0 +1,18 @@
+{
+  "kind": "apriltag",
+  "dictionary": "DICT_APRILTAG_36h11",
+  "ids": [
+    1
+  ],
+  "marker_length_m": 0.04,
+  "schema": "calibration-target-v1",
+  "units": "metres",
+  "quiet_margin_m": 0.01,
+  "print_size_m": [
+    0.06,
+    0.06
+  ],
+  "svg_file": "apriltag-1.svg",
+  "svg_sha256": "106d04fde981d9bfc7ee52fa76e6246dc9d073ec34b76c48c5cd72065ba68abd",
+  "print_instruction": "Print at 100% scale; measure dimensions before use"
+}
