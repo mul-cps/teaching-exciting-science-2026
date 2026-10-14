@@ -69,3 +69,27 @@ not relax arm limits or commission that home.
 Local videos, logs and evidence JSON remain under
 `~/.local/share/exciting-science/station/evidence/2026-10-14` and are not included
 in the public repository.
+
+## Bounded gate calibration follow-up — 2026-10-14
+
+The [feeder calibration evidence](ev3-feeder-calibration-2026-10-14.json)
+records motor A limited-power stall endpoints of −212 and +6 degrees, a
+218 degree span. The repeated raw positive measurement was +9 → +6 degrees
+(difference −3 degrees); the negative repeat was −212 → −212 degrees. Relaxed
+endpoints were −207 and +2 degrees, spanning 209 degrees. Actuation was capped
+at 50%. This is a confirmed limited-power stall measurement, not proof of a
+hard stop or a measurement of true force. Both motors were idle after the
+measurement. A start beep and two success beeps indicated calibration completion.
+
+These encoder values belong only to the uninterrupted measurement session.
+They are not persistent absolute positions: a later session must home again
+and restore the reference before using them. The normalized relaxed negative
+endpoint is 0 degrees and the relaxed positive endpoint is 209 degrees.
+
+The user observed the negative **EJECT** movement pushing a piece out. EJECT
+means pushing the staged piece out; **LOAD/READY** means retracting the pusher
+to allow the next piece into the feed position. The positive LOAD/READY movement
+is the opposite phase, but its functional endpoint test remains pending. This
+observation does not establish that all nine pieces were dispensed or sorted,
+and does not commission the station or either full workflow. Raw logs and video
+remain local.

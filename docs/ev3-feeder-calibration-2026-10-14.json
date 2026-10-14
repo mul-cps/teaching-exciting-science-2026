@@ -1,0 +1,64 @@
+{
+  "A_max": 6,
+  "A_min": -212,
+  "actuation_limit_percent": 50,
+  "both_motors_idle_after_measurement": true,
+  "classification": "confirmed_limited_power_stall",
+  "closed_angle": null,
+  "encoder_reference": "start of this uninterrupted measurement session",
+  "final_A_angle": -207,
+  "functional_load_ready_test_pending": true,
+  "functional_positions": {
+    "eject": {
+      "normalized_angle": 0,
+      "session_relaxed_angle": -207,
+      "verified_by": "operator observed brick pushed out at negative endpoint"
+    },
+    "load_ready": {
+      "normalized_angle": 209,
+      "session_relaxed_angle": 2,
+      "verified_by": "operator described opposite movement loading next brick; functional endpoint test pending"
+    }
+  },
+  "hard_stop_proven": false,
+  "motor_port": "A",
+  "ms": 19766,
+  "negative_proof": {
+    "candidate": -212,
+    "difference": 0,
+    "relaxed_candidate": -207,
+    "relaxed_repeat": -207,
+    "repeat": -212,
+    "repeat_verified": true,
+    "tolerance": 4
+  },
+  "normalized_motor_degrees": {
+    "loaded_max": 213,
+    "loaded_min": -5,
+    "relaxed_max": 209,
+    "relaxed_min": 0
+  },
+  "normalized_reference": "relaxed negative endpoint after bounded stall homing",
+  "open_angle": null,
+  "open_closed_labels_pending": false,
+  "phase": "gate_limits_result",
+  "positive_proof": {
+    "candidate": 9,
+    "difference": -3,
+    "relaxed_candidate": 0,
+    "relaxed_repeat": 2,
+    "repeat": 6,
+    "repeat_verified": true,
+    "tolerance": 4
+  },
+  "relaxed_max": 2,
+  "relaxed_min": -207,
+  "scope": "physicalcommissioning_only",
+  "span": 218,
+  "station_commissioned": false,
+  "terminology": {
+    "eject": "Push staged brick out",
+    "load_ready": "Retract pusher to allow next brick into feed position"
+  },
+  "usb_serial": "0016538184D5"
+}
