@@ -65,7 +65,10 @@ class LiveAPI:
         self.last_id = 0
         self.cache, self.cache_order = {}, []
         self.job, self.last_job, self.last_error = None, None, None
-        self.angles = {name: motor.angle() for name, motor in motors.items()}
+        self.angles, self.angle_sample_ms = {}, {}
+        for name, motor in motors.items():
+            self.angles[name] = motor.angle()
+            self.angle_sample_ms[name] = clock()
         self.last_angles = clock()
         self.last_motion_tick = clock() - 20
         self.display_text = ''
@@ -88,7 +91,9 @@ class LiveAPI:
         self.last_heartbeat = self.clock()
 
     def refresh_angles(self):
-        self.angles = {name: motor.angle() for name, motor in self.motors.items()}
+        for name, motor in self.motors.items():
+            self.angles[name] = motor.angle()
+            self.angle_sample_ms[name] = self.clock()
         self.last_angles = self.clock()
 
     def brakes(self):
@@ -361,7 +366,9 @@ class LiveAPI:
         job.update(phase=phase, target=target, _stage='moving', _start=start, _last=start,
                    _direction=1 if target > start else -1, _budget=abs(target - start) + 6,
                    _deadline=self.clock() + 6000)
-        job['_last_sample_ms'] = self.clock()
+        # Pair the jump-guard baseline with the encoder sample in ``angles``.
+        # Do not timestamp it after unrelated setup work or a blocking command.
+        job['_last_sample_ms'] = self.angle_sample_ms[job['motor']]
         motor.run_target(job['_speed'], target, then=self.Stop.BRAKE, wait=False)
 
     def begin_settle(self):
@@ -454,7 +461,11 @@ class LiveAPI:
                 raise ValueError('Motor did not settle within 1000 ms')
             return
         step = angle - job['_last']
-        elapsed = max(1, now - job['_last_sample_ms'])
+        # ``now`` is event-processing time. Sensor and peripheral calls can
+        # block after ``angles`` was sampled, so only compare encoder samples
+        # using the timestamp captured by refresh_angles().
+        sample_ms = self.angle_sample_ms[job['motor']]
+        elapsed = max(1, sample_ms - job['_last_sample_ms'])
         jump_bound = 20 if job['operation'] == 'shake' else min(
             job['_budget'], max(20, job['_speed'] * elapsed / 1000.0 + 6))
         if abs(step) > jump_bound:
@@ -475,7 +486,7 @@ class LiveAPI:
             if sign:
                 job['_velocity_sign'] = sign
             job['_last'] = angle
-            job['_last_sample_ms'] = now
+            job['_last_sample_ms'] = sample_ms
             if now >= job['_end']:
                 self.begin_settle()
                 return
@@ -496,7 +507,7 @@ class LiveAPI:
         if displacement > job['_budget']:
             raise ValueError('Encoder travel budget exceeded')
         job['_last'] = angle
-        job['_last_sample_ms'] = now
+        job['_last_sample_ms'] = sample_ms
         if now >= job['_deadline']:
             raise ValueError('Native target deadline expired')
         if home and self.sensor_touch:

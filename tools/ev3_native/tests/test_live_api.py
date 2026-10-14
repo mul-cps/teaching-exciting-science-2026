@@ -273,6 +273,45 @@ class Tests(unittest.TestCase):
         self.assertIsNotNone(self.api.job)
         self.assertEqual(self.api.job['_last_sample_ms'], 200)
 
+    def test_blocking_touch_read_does_not_shorten_encoder_sample_interval(self):
+        self.motors['sorter'].value = 100
+        self.request('home_touch')
+        motor = self.motors['sorter']
+        self.clock.ms = 20
+        original_pressed = self.touch.pressed
+        blocked = [False]
+        def delayed_pressed():
+            if not blocked[0]:
+                blocked[0] = True
+                self.clock.ms += 470
+                motor.value = 62  # 38 degrees at the configured 120 dps.
+            return original_pressed()
+        self.touch.pressed = delayed_pressed
+        self.api.tick()  # angle is sampled before the blocking touch read
+        self.clock.ms += 20
+        self.api.tick()  # the next angle sample spans the full 490 ms
+        self.assertIsNotNone(self.api.job)
+        self.assertEqual(self.api.job['_last_sample_ms'], self.clock.ms)
+        self.assertEqual(self.api.job['_last'], 62)
+
+    def test_wake_home_uses_fresh_angle_baseline_across_blocking_native_start(self):
+        motor = self.motors['sorter']
+        motor.value = 100
+        self.request('power_save')
+        self.clock.ms += 120000
+        original_run_target = motor.run_target
+        def delayed_run_target(speed, target, then, wait):
+            original_run_target(speed, target, then, wait)
+            self.clock.ms += 470
+            motor.value = 62  # 38 degrees during native command startup.
+        motor.run_target = delayed_run_target
+        self.assertTrue(self.request('home_touch')['ok'])
+        self.assertEqual(self.api.job['_start'], 100)
+        self.api.last_heartbeat = self.clock.ms
+        self.api.tick()
+        self.assertIsNotNone(self.api.job)
+        self.assertEqual(self.api.job['_last'], 62)
+
     def test_delayed_samples_retain_jump_budget_and_direction_guards(self):
         for target, angle, delay in ((209, 150, 200), (50, 60, 200), (209, -4, 200)):
             self.setUp(); self.confirm('feeder')
