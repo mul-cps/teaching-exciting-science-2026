@@ -24,6 +24,25 @@ def test_motion_feedback_has_only_position_goal_and_torque_reads():
     assert registers == {"Present_Position", "Goal_Position", "Torque_Enable"}
 
 
+def test_feedback_accepts_only_a_bounded_cumulative_miss_budget_and_resynchronizes():
+    from workshop.station import arm_session
+    assert arm_session.MAX_FEEDBACK_GAP_S == pytest.approx(0.25)
+    assert arm_session.MAX_MISSED_FEEDBACK_TICKS_PER_LEG == 4
+    source = textwrap.dedent(inspect.getsource(ArmSession._run_leg))
+    assert source.count("_check_feedback_freshness(") == 2
+    assert source.count("position_monotonic + PERIOD_S") == 2
+    assert "now - scheduled > PERIOD_S" not in source
+
+
+def test_live_state_snapshot_uses_atomic_replace_without_per_sample_fsync():
+    from workshop.station import arm_session
+    source = textwrap.dedent(inspect.getsource(arm_session._atomic_snapshot_json))
+    assert "temporary.replace(path)" in source
+    assert "os.fsync(" not in source
+    publish = textwrap.dedent(inspect.getsource(ArmSession.publish_state))
+    assert "_atomic_snapshot_json(self.state_file, state)" in publish
+
+
 def test_fake_benchmark_preserves_warm_profile_and_uses_bounded_idle_reads():
     from tools.benchmark_arm_session import benchmark
     result = benchmark(samples=25, plans=4)
