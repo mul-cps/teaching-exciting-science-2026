@@ -25,6 +25,17 @@ MAX_RECORDS = 100
 HOME_DIRECTION_SIGN = -1
 
 
+def native_runtime(implementation):
+    """Accept Pybricks 2's tuple and named-attribute implementation forms."""
+    name = getattr(implementation, 'name', None)
+    version = getattr(implementation, 'version', None)
+    if name is None:
+        name = implementation[0]
+    if version is None:
+        version = implementation[1]
+    return name == 'pybricks-micropython' and version[0] == 2
+
+
 class MotorControlProbe:
     def __init__(self, Motor, Port, Direction, Stop, TouchSensor, clock, wait,
                  emit=None):
@@ -183,8 +194,7 @@ class MotorControlProbe:
 
 
 def main():
-    impl = sys.implementation
-    if getattr(impl, 'name', None) != 'pybricks-micropython' or impl.version[0] != 2:
+    if not native_runtime(sys.implementation):
         raise RuntimeError('Requires pybricks-micropython major 2')
     from pybricks.ev3devices import Motor, TouchSensor
     from pybricks.parameters import Direction, Port, Stop
