@@ -11,7 +11,9 @@ bundled brick agent. Current Pybricks hub/browser tooling is not this backend.
 
 Software simulation, protocol fakes and installer verification do not establish
 physical acceptance. Neither firmware/workflow combination has completed a
-physical station cycle. On the current host the EV3 is absent. The existing arm
+physical station cycle. On 2026-10-14, the attached EV3 passed bounded component
+and PC API tests; see the [hardware test report](ev3-hardware-test-2026-10-14.md).
+Actual cube exit and complete sorting remain unverified. The existing arm
 home contains a raw value of **949**, below its calibrated minimum **1063**;
 physical preflight must reject it. Do not relax those limits or rewrite EEPROM
 to admit that home. Commission a valid measured home first.
