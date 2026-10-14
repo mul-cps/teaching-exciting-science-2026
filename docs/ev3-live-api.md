@@ -62,7 +62,7 @@ motion. There is no eval or remote code execution operation.
 | `beep` | `{count:1}` | Schedules 1–3 nonblocking beeps |
 | `confirm_reference` | `{name:"feeder",reference:"eject",angle:0}` | Establishes zero from the user's physical EJECT assertion while idle |
 | `confirm_reference` | `{name:"sorter",reference:"home",angle:0}` | Establishes zero while idle, requiring S1 pressed |
-| `home_touch` | `{}` | Async sorter switch home: speed 120, acceleration 400, actuation 30%, max 550° travel, 10 s deadline |
+| `home_touch` | `{}` | Async sorter switch home: command speed 50°/s, native limits 120°/s and 400°/s², actuation 30%, max 550° travel, 10 s deadline |
 | `motor_target` | `{name:"sorter",target:132,speed:600,acceleration:1200,actuation:50}` | Async finite native target; confirmed reference required |
 | `eject` | `{cycles:1}` | Async 1–5 pairs of feeder LOAD/READY 209° → EJECT 0°, profile 600/2400/50 |
 | `shake` | `{frequency_hz:12.5,speed_dps:600,acceleration:30000,duration_ms:1000}` | Async alternating finite sorter targets within ±20° of current center, clipped to 0–550° |
@@ -146,6 +146,11 @@ drift, stalls, target error, and quiet settling. Quiet settling requires 200 ms
 with range ≤1°, total recoil ≤6°, and a 1000 ms cap. Both motors are braked
 independently before saved RAM control limits are restored. Software deadlines
 and heartbeat expiry are not native wall-time motor expiries.
+
+Wrong-direction terminal diagnostics include the bounded encoder history and a
+fault-time snapshot of motor speed, native `done()` and `stalled()` flags, with
+timestamps around each read. These additional native reads occur only after a
+wrong-direction sample, before braking and limit restoration.
 
 A job schedules one start beep and two beeps only after successful motor
 completion. Speaker tones use negative-duration nonblocking playback and timed

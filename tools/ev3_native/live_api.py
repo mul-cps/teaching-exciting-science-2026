@@ -368,7 +368,7 @@ class LiveAPI:
             arguments(args, ())
             pressed = self.touch.pressed()
             self.start_job(request_id, operation, 'sorter', [(self.angles['sorter'] - 550, 'approach')],
-                           120, 400, 30, dispatch=not pressed)
+                           50, 400, 30, dispatch=not pressed, limit_speed=120)
             self.job['_deadline'] = self.clock() + 10000
             self.job['_budget'] = 550
             if pressed:
@@ -395,11 +395,13 @@ class LiveAPI:
             raise ValueError('Unknown operation')
         return {'accepted': True, 'job': self.public_job(self.job)}
 
-    def start_job(self, request_id, operation, name, targets, speed, acceleration, actuation, dispatch=True):
+    def start_job(self, request_id, operation, name, targets, speed, acceleration, actuation,
+                  dispatch=True, limit_speed=None):
         now = self.clock()
         motor = self.motors[name]
         motor.brake()
-        motor.control.limits(speed=speed, acceleration=acceleration, actuation=actuation)
+        motor.control.limits(speed=speed if limit_speed is None else limit_speed,
+                             acceleration=acceleration, actuation=actuation)
         self.motor_control[name] = self.control_parameters(motor)
         self.refresh_angles()
         self.speed_samples[name] = self.speed_sample(motor)
@@ -468,6 +470,25 @@ class LiveAPI:
         if state == 'complete':
             self.schedule_beeps(2)
         return errors
+
+    def native_fault_status(self, motor):
+        """Read controller status only for a terminal motion fault."""
+        sample = {'started_ms': self.clock()}
+        for key, method in (('speed_dps', getattr(motor, 'speed', None)),
+                            ('done', getattr(motor.control, 'done', None)),
+                            ('stalled', getattr(motor.control, 'stalled', None))):
+            started = self.clock()
+            try:
+                value = method() if method is not None else None
+            except Exception as error:
+                value = None
+                sample[key + '_error'] = str(error)
+            sampled = self.clock()
+            sample[key] = value
+            sample[key + '_started_ms'] = started
+            sample[key + '_sampled_ms'] = sampled
+        sample['sampled_ms'] = self.clock()
+        return sample
 
     def schedule_beeps(self, count):
         self.beep_left = count
@@ -646,7 +667,7 @@ class LiveAPI:
                 'expected_direction': job['_direction'],
                 'signed_displacement_deg': displacement,
                 'native_control': job['native_control'],
-                'speed_sample': job.get('speed_sample'),
+                'native_status': self.native_fault_status(motor),
                 'sample_age_ms': now - sample_ms,
                 'history': history,
             }
