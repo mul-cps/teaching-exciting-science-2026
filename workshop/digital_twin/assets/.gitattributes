@@ -1,0 +1,2 @@
+# Preserve the exact pinned upstream bytes and SHA256, including its one trailing space.
+so101_new_calib.urdf whitespace=-blank-at-eol
