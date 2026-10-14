@@ -18,6 +18,70 @@ STATION_TWIN_PYTHON=.venv-twin/bin/python tools/launch_digital_twin.sh \
   --output /path/to/twin-output --port 8096
 ```
 
+The viewer can compose saved calibration and controller evidence without
+opening the camera or arm:
+
+```bash
+STATION_TWIN_PYTHON=.venv-twin/bin/python tools/launch_digital_twin.sh \
+  --snapshot /path/to/realsense-station \
+  --calibration /path/to/hs_rig01_follower.json \
+  --camera-arm-calibration /path/to/branch-consistency-report.json \
+  --camera-target-calibration /path/to/charuco-table-7x5/camera-from-board.json \
+  --phase-file /tmp/cps-pick-place-phase.json \
+  --rgbd-keyframes /path/to/realsense-station/tag-calibration-held/keyframes \
+  --output /path/to/twin-output --port 8096
+```
+
+For the resident arm state and rolling camera capture, use the saved live
+evidence directory explicitly:
+
+```bash
+STATION_TWIN_PYTHON=.venv-twin/bin/python tools/launch_digital_twin.sh \
+  --snapshot /home/bjoern/.local/share/exciting-science/station/evidence/2026-10-14/realsense-station \
+  --calibration /home/bjoern/git/soarm101-highschool-demos/.calibration/hs_rig01_follower.json \
+  --phase-file /home/bjoern/.local/share/exciting-science/station/evidence/2026-10-14/arm-resident-state.json \
+  --rgbd-live-folder /home/bjoern/.local/share/exciting-science/station/evidence/2026-10-14/realsense-station/resident-pick-live-v2 \
+  --output /home/bjoern/.local/state/exciting-science/digital-twin --port 8096
+```
+
+`--rgbd-live-folder` reads `latest.png`, `latest-depth.npy` and `latest.json`
+(with a bounded `timestamps.jsonl` fallback). It requires a qualified camera
+and arm sample pair within 160 ms, and all source files must be no older than
+0.5 seconds at startup. The viewer then polls the same saved files at 5 Hz and
+labels stale resident state or changed raw values as unpaired. A changed,
+synchronized RGB-D pair regenerates the measured surface with the complete
+scene registration; the compiled MuJoCo mesh and photograph texture are updated
+in place, with the previous visible surface retained unless the replacement
+builds successfully. The refreshed frame bounds the rendered camera around both
+the tabletop and robot. `live-status.json` reports the measured surface as
+`snapshot`, `fresh-live`, or `stale-live` separately from the point-cloud cache,
+so an old cache is never reported as the current surface. `--phase-file`
+accepts both legacy phase records (`pose_raw`) and resident-state records
+(`raw`, `timestamp_utc`, `monotonic`). The displayed raw encoder values use the
+supplied calibration file. This is a read-only file bridge and does not access
+the camera, arm or serial port.
+
+The board-up frame is derived with `camera_from_world = camera_from_target @
+diag(1,-1,-1,1)`, then `world_from_base = world_from_camera @
+inverse(base_from_camera)`. The complete transform re-expresses the existing
+RGB-D table scene before placing the native URDF base. Both input transforms are
+kept **provisional and unqualified**; held-out branch closure, board pose and
+camera-to-arm placement do not establish physical calibration. The viewer polls
+the saved phase or resident-state file and selected RGB/depth source at 5 Hz.
+`--rgbd-keyframes` selects and watches a manifest-paired folder; when omitted,
+the viewer uses `tag-calibration-held/keyframes` under `--snapshot` if present.
+Startup selects once from the full manifest. The 5 Hz watcher reads only its
+last 8 KiB (up to 128 rows), tolerates an incomplete trailing append, and
+accepts only a synchronized pair no older than 0.5 seconds; it never scans the
+historical frame directory when the rolling manifest is invalid or stale. The
+manifest's capture monotonic time and pose-event delta determine whether the
+image/pose were synchronized and how old the recorded frame is. A phase sample
+older than 0.5 seconds is shown as stale while retaining its last raw values.
+RGB-D point-cloud caches are reused only when their source hashes and capture
+timestamp match; otherwise the cloud is rebuilt from the saved depth pair.
+`live-status.json` records pose age, camera age, synchronization delta and
+calibration status. It does not read controller, camera or serial devices.
+
 Open http://127.0.0.1:8096. The default surface mesh is built from measured
 RGB-D triangles and photograph texture; holes and unobserved backs remain
 missing. Layer toggles expose the cropped cloud, room context and small hidden
@@ -26,10 +90,10 @@ panels are distinct. `--render-only` writes PNGs without starting a server.
 Headless EGL is selected before importing MuJoCo; `MUJOCO_GL=osmesa` is another
 supported backend where available. The launcher installs nothing.
 
-The snapshot directory requires `capture.json`, `color.png`,
-`aligned-depth.npy` and `arm-readonly.json`. A complete `home-recheck` set is
-preferred when present; the last paired `initial-align-retry/frames` image and
-depth takes precedence. `--home` selects an explicit immutable encoder capture;
+The base snapshot directory requires `capture.json`, `color.png`,
+`aligned-depth.npy` and `arm-readonly.json`. When a synchronized keyframe folder
+is selected, its `manifest.jsonl` pairs RGB, depth and encoder/phase timestamps;
+unsynchronized records are ignored. `--home` selects an explicit immutable encoder capture;
 `--original-snapshot` retains the original image/depth. Latest captures reuse
 `capture.json` intrinsics, assuming the same camera profile. An image and home
 file are not automatically synchronous. After a layout change, supply paired
@@ -83,12 +147,23 @@ are diagnostics: seed sensitivity is not a confidence interval, and same-capture
 withheld pixels are not independent pose validation. Moving-link depth residuals
 must be evaluated on distinct synchronized poses with the transform held fixed.
 
-`kinematics.export_pinch_geometry` separately exports fixed/moving CAD inner-face
-contacts and their opening-dependent midpoint relative to the native gripper
-site. The official site is near the fixed face, not the midpoint. The current
-calibrated-percent mapping to native gripper angular limits remains a visual
-estimate; raw encoder angle and actual jaw opening require independent comparison.
-Neither this candidate transform nor the CAD pinch estimate enables hardware IK.
+`kinematics.export_pinch_geometry` selects fixed and moving jaw vertex patches
+once from the compiled native CAD meshes at canonical gripper joint `q=0`.
+Every later frame transforms those same physical mesh vertices through the
+current geom and body transforms; the patch is not reselected as the jaw rotates.
+The export includes world, jaw-body and native-site coordinates, mesh vertex
+indices, CAD triangle normals, the opening-dependent midpoint and gap, and a
+geometric contact-eligibility result from face orientation and the direction
+between patches. It also reports the current native joint angle and derives the
+current normalized opening from that model joint's limits. A pivoting jaw can
+make the gap grow nonlinearly and turn its face away from the fixed jaw across
+the sweep, so gap alone does not imply contact. This is
+`OBSERVED_CAD_ESTIMATE`; eligibility is geometric only and physical calibration
+remains `UNQUALIFIED`. The official site is near the fixed
+face, not the midpoint. The calibrated-percent mapping to native gripper angular
+limits remains a visual estimate; raw encoder angle and actual jaw opening
+require independent comparison. Neither this candidate transform nor the CAD
+pinch estimate enables hardware IK.
 
 The next independent camera/base check should observe a fixed mounting-board
 target or several known mount edges with different surface normals. Use held-out
