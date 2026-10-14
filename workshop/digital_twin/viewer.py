@@ -416,7 +416,12 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                                     f"Yaw {icp['yaw_deg']:.1f}° bounded around user prior {icp['yaw_prior_deg']:.1f}±{icp['yaw_radius_deg']:.0f}°.")
             server.gui.add_image(np.asarray(Image.open(output/'registration-before-after.png')),label='Measured-camera overlay before / after ICP')
         else:
-            server.gui.add_markdown(f"CAD fit median {report['arm']['registration']['surface_residual_median_m']*1000:.1f} mm / p95 {report['arm']['registration']['surface_residual_p95_m']*1000:.1f} mm. Single pose; no holdout qualification.")
+            registration_fit = report['arm']['registration']
+            if registration_fit.get('surface_residual_median_m') is None:
+                server.gui.add_markdown('RGB-dependent CAD surface fit was skipped because a full-SE(3) camera/arm registration was supplied. '
+                                        'That registration remains **PROVISIONAL / UNQUALIFIED**; no RGB surface-fit residual is available.')
+            else:
+                server.gui.add_markdown(f"CAD fit median {registration_fit['surface_residual_median_m']*1000:.1f} mm / p95 {registration_fit['surface_residual_p95_m']*1000:.1f} mm. Single pose; no holdout qualification.")
 
         surface_toggle = server.gui.add_checkbox('Measured textured front surfaces', observed_mesh is not None,
                                                  disabled=observed_mesh is None)

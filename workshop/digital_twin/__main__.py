@@ -88,11 +88,17 @@ def main(argv=None):
             args.image, args.depth = selected_pair['image'], selected_pair['depth']
             camera_watch_path = args.snapshot
     watch_latest_saved_camera = watch_latest_saved_camera and selected_pair is not None
-    report = prepare(args.snapshot, args.calibration, args.output, latest=not args.original_snapshot, home_path=args.home, image_override=args.image, depth_override=args.depth, pose_series=not args.no_pose_series, convention=args.model_convention, base_yaw=args.base_yaw, register_icp=args.register_icp)
     from .evidence_bridge import (camera_sample_status, load_camera_arm_registration,
                                   pointcloud_cache_status, read_phase_evidence,
                                   raw_pose_to_joint_degrees, scene_from_camera_world_delta,
                                   write_pointcloud_provenance)
+    registration = load_camera_arm_registration(args.camera_arm_calibration,
+                                                args.camera_target_calibration)
+    report = prepare(args.snapshot, args.calibration, args.output, latest=not args.original_snapshot,
+        home_path=args.home, image_override=args.image, depth_override=args.depth,
+        pose_series=not args.no_pose_series, convention=args.model_convention,
+        base_yaw=args.base_yaw, register_icp=args.register_icp,
+        external_camera_arm_registration=registration)
     report['camera_sample_timestamp_wall'] = (selected_pair['timestamp_wall'] if selected_pair else
         min(Path(report['image']).stat().st_mtime, Path(report['depth']).stat().st_mtime))
     report['camera_sample_timestamp_monotonic'] = selected_pair.get('timestamp_monotonic') if selected_pair else None
@@ -110,8 +116,6 @@ def main(argv=None):
         'recorded': True} if selected_pair and selected_pair.get('pose_synchronized') else None)
     write_pointcloud_provenance(report, args.output)
     scene_world_from_camera = report['world_from_camera']
-    registration = load_camera_arm_registration(args.camera_arm_calibration,
-                                                args.camera_target_calibration)
     world_from_scene = scene_from_camera_world_delta(scene_world_from_camera,
                                                       registration['world_from_camera'])
     report['scene_world_from_camera'] = scene_world_from_camera
