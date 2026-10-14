@@ -757,19 +757,20 @@ def test_chunk_reader_coalesced_frames_partial_then_eof_brakes(agent):
     assert agent.feeder.stops and agent.sorter.stops
 
 
-def test_chunk_reader_rechecks_expiry_at_most_every_32_characters(agent):
+def test_chunk_reader_rechecks_expiry_between_coalesced_frames(agent):
     import io, select
-    consumed, time_ms = [], [0]
+    time_ms = [0]
     agent.clock = lambda: time_ms[0]
-    original = agent.character
-    def character(value):
-        consumed.append(value); time_ms[0] += 20
-        return original(value)
-    agent.character = character
+    first = json.dumps({'id': 1, 'nonce': 'n' * 32, 'operation': 'heartbeat', 'args': {}}) + '\n'
+    second = json.dumps({'id': 2, 'nonce': 'n' * 32, 'operation': 'heartbeat', 'args': {}}) + '\n'
+    class Output(io.StringIO):
+        def flush(self): time_ms[0] = 501
+    output = Output()
     poller = SimpleNamespace(poll=lambda timeout: [(0, select.POLLIN)])
     with pytest.raises(RuntimeError, match='expired'):
-        run(agent, poller, None, io.StringIO(), reader=lambda: 'x' * 256)
-    assert len(consumed) == 32
+        run(agent, poller, None, output, reader=lambda: first + second)
+    assert agent.last_id == 1
+    assert len(output.getvalue().splitlines()) == 1
     assert agent.feeder.stops and agent.sorter.stops
 
 
@@ -785,3 +786,48 @@ def test_chunk_reader_keeps_frame_size_and_duplicate_identity_guards(agent):
     assert len(agent.feeder.calls) == 1
     assert len(output.getvalue().splitlines()) == 2
     assert agent.feeder.stops and agent.sorter.stops
+
+
+def test_batch_fragment_keeps_original_partial_frame_deadline(agent):
+    time_ms = [0]
+    agent.clock = lambda: time_ms[0]
+    agent.character('{')
+    original_start = agent.frame_started
+    time_ms[0] = 400
+    assert list(agent.characters('"id":')) == []
+    assert agent.pending == '{"id":' and agent.frame_started == original_start
+    time_ms[0] = 501
+    with pytest.raises(RuntimeError, match='expired'):
+        list(agent.characters('1}\n'))
+    assert agent.last_id == 0 and agent.feeder.stops and agent.sorter.stops
+
+
+@pytest.mark.parametrize('chunk,error', [('', EOFError), ('\n', ValueError), ('x' * 257, ValueError)])
+def test_batch_empty_malformed_or_oversized_chunk_brakes(agent, chunk, error):
+    with pytest.raises(error): list(agent.characters(chunk))
+    assert agent.feeder.stops and agent.sorter.stops
+
+
+def test_batch_parses_only_newline_boundaries_and_keeps_reply_order(agent):
+    seen = []
+    original = agent.character
+    def character(value): seen.append(value); return original(value)
+    agent.character = character
+    first = json.dumps({'id': 1, 'nonce': 'n' * 32, 'operation': 'heartbeat', 'args': {}}) + '\n'
+    second = json.dumps({'id': 2, 'nonce': 'n' * 32, 'operation': 'heartbeat', 'args': {}}) + '\n'
+    assert list(agent.characters(first[:20])) == []
+    replies = list(agent.characters(first[20:] + second))
+    assert [reply['id'] for reply in replies] == [1, 2]
+    assert seen == ['\n', '\n']
+    assert agent.pending == '' and agent.frame_started is None
+
+
+def test_batch_duplicate_stale_and_changed_ids_never_replay_feed(agent):
+    packet = json.dumps(request(ident=2)) + '\n'
+    first = list(agent.characters(packet))[0]
+    assert list(agent.characters(packet)) == [first]
+    stale = json.dumps(request(ident=1)) + '\n'
+    assert list(agent.characters(stale))[0]['ok'] is False
+    changed = json.dumps(request(ident=2, speed=31, name='feeder', ms=100)) + '\n'
+    assert list(agent.characters(changed))[0]['ok'] is False
+    assert len(agent.feeder.calls) == 1

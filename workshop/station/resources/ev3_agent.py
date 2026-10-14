@@ -17,7 +17,6 @@ PROTOCOL = 'ev3-station'
 VERSION = 1
 MAX_LINE = 4096
 MAX_CHUNK = 256
-EXPIRY_INTERVAL = 32
 
 
 def flush_output(stream):
@@ -141,6 +140,37 @@ class Agent:
             raise ValueError('oversized JSON frame')
         return None
 
+    def characters(self, chunk):
+        """Consume a bounded ASCII chunk without copying pending per character.
+
+        Native input already validates ASCII and caps chunks at 256 bytes. Each
+        fragment append is a bounded copy; recheck lease/framing before append
+        and before newline dispatch, including after yielding each response.
+        """
+        if chunk == '':
+            self.character('')
+        if not isinstance(chunk, str) or len(chunk) > MAX_CHUNK:
+            self.faulted = True
+            self.stop()
+            raise ValueError('oversized or invalid input chunk')
+        fragments = chunk.split('\n')
+        for index, fragment in enumerate(fragments):
+            self.expire()
+            if fragment:
+                if self.frame_started is None:
+                    self.frame_started = self.clock()
+                if len(self.pending) + len(fragment) > MAX_LINE:
+                    self.faulted = True
+                    self.stop()
+                    raise ValueError('oversized JSON frame')
+                self.pending += fragment
+            if index < len(fragments) - 1:
+                self.expire()
+                yield self.character('\n')
+            else:
+                self.expire()
+
+
     def dispatch(self, request):
         ident = request.get('id') if isinstance(request, dict) else None
         try:
@@ -215,8 +245,6 @@ class Agent:
 
 
 def run(agent, poller, stdin, stdout, reader=None):
-    if reader is None:
-        reader = lambda: stdin.read(1)  # Desktop/injected API compatibility.
     try:
         while True:
             agent.expire()
@@ -225,18 +253,16 @@ def run(agent, poller, stdin, stdout, reader=None):
                 if event & (select.POLLHUP | select.POLLERR):
                     raise EOFError('agent pipe closed')
                 if event & select.POLLIN:
-                    chunk = reader()
-                    if chunk == '':
-                        agent.character('')  # EOF immediately brakes and raises.
-                    if len(chunk) > MAX_CHUNK:
-                        raise ValueError('oversized input chunk')
-                    for index, character in enumerate(chunk):
-                        if index % EXPIRY_INTERVAL == 0:
-                            agent.expire()
-                        reply = agent.character(character)
-                        if reply is not None:
-                            stdout.write(json.dumps(reply) + '\n')
-                            flush_output(stdout)
+                    if reader is None:
+                        # Preserve the desktop/injected single-character API.
+                        agent.expire()
+                        reply = agent.character(stdin.read(1))
+                        replies = () if reply is None else (reply,)
+                    else:
+                        replies = agent.characters(reader())
+                    for reply in replies:
+                        stdout.write(json.dumps(reply) + '\n')
+                        flush_output(stdout)
     finally:
         agent.stop()
 
