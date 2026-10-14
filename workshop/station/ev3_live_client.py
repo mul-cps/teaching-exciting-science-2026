@@ -237,12 +237,12 @@ class EV3LiveClient:
                 return status
             time.sleep(min(.05, max(0, deadline - time.monotonic())))
 
-    def close(self):
-        """Best-effort stop, socket close, and heartbeat join; safe to repeat."""
+    def close(self, stop=True):
+        """Close the session, optionally braking the station first."""
         self._closing = True
         self._heartbeat_stop.set()
         with self._lock:
-            if self._socket is not None and self._failure is None:
+            if stop and self._socket is not None and self._failure is None:
                 try: self._request('stop', {}, self.timeout, closing=True)
                 except (EV3LiveError, OSError): pass
             self._drop_socket()
@@ -265,6 +265,10 @@ def main(argv=None):
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('status')
     commands.add_parser('stop')
+    sleep = commands.add_parser('sleep', help='enter EV3 power-save mode')
+    sleep.add_argument('--idle-timeout-ms', type=int,
+                       help='configure the automatic idle timeout (default: 60000)')
+    commands.add_parser('wake', help='wake the EV3 live API')
     display = commands.add_parser('display')
     display.add_argument('--text', required=True)
     beep = commands.add_parser('beep')
@@ -275,6 +279,12 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         operation, request_args = args.command, {}
+        if args.command == 'sleep':
+            operation = 'power_save'
+            if args.idle_timeout_ms is not None:
+                request_args = {'idle_timeout_ms': args.idle_timeout_ms}
+        elif args.command == 'wake':
+            operation = 'wake'
         if args.command == 'display': request_args = {'text': args.text}
         elif args.command == 'beep': request_args = {'count': args.count}
         elif args.command == 'command':
@@ -282,11 +292,23 @@ def main(argv=None):
             if not isinstance(request, dict) or set(request) != {'operation', 'args'}:
                 raise ValueError('command JSON must contain exactly operation and args')
             operation, request_args = request['operation'], request['args']
-        with EV3LiveClient(args.host, args.port, args.timeout) as client:
+        client = EV3LiveClient(args.host, args.port, args.timeout)
+        try:
+            client.connect()
+            if operation == 'power_save':
+                status = client.call('status')
+                if status.get('busy') is True:
+                    print('Waiting for the active EV3 job before entering power save.', file=sys.stderr)
+                    client.wait_idle(timeout=70)
             result = client.call(operation, request_args)
             if args.command == 'command' and args.wait:
                 result = client.wait_idle()
             print(json.dumps(result, sort_keys=True, allow_nan=False))
+        finally:
+            # Read-only operations and power-save must not be followed by a
+            # close-time stop. Use the resolved API operation so generic
+            # `command --json` requests get the same behavior.
+            client.close(stop=operation not in ('status', 'heartbeat', 'power_save'))
         return 0
     except (EV3LiveError, ValueError, TimeoutError) as error:
         print(str(error), file=sys.stderr)

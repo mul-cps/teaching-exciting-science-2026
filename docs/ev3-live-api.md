@@ -56,6 +56,8 @@ motion. There is no eval or remote code execution operation.
 | `heartbeat` | `{}` | `{alive:true,session:...}`; refreshes the active-job lease |
 | `status` | `{}` | Cached status, described below |
 | `stop` | `{}` | `{stopped:true,status:...}` after both brake attempts; brake failure returns a fault |
+| `power_save` | `{"idle_timeout_ms":60000}` | Brakes both motors and enters power-save mode immediately; optional automatic-idle timeout is 1000–3600000 ms |
+| `wake` | `{}` | Returns to awake mode without changing references or motor positions |
 | `display` | `{text:"..."}` | Schedules printable ASCII text, max 80 characters |
 | `beep` | `{count:1}` | Schedules 1–3 nonblocking beeps |
 | `confirm_reference` | `{name:"feeder",reference:"eject",angle:0}` | Establishes zero from the user's physical EJECT assertion while idle |
@@ -96,10 +98,11 @@ Motion admission replies immediately:
 The actual job includes timing, motor, target, and operation-specific fields.
 There are no unsolicited completion frames; poll `status` to observe progress.
 While busy, heartbeat/status/stop/display/beep remain available and further
-motor/reference operations are rejected. Status contains:
+motor/reference operations are rejected. Status contains `power_mode` (`awake`
+or `power_save`) and `power_save_idle_ms` in addition to:
 
 ```json
-{"session":"ev3-...","connected":true,"busy":false,"job":null,"last_job":null,"angles":{"sorter":0,"feeder":0},"references":{"sorter":null,"feeder":null},"touch":false,"color":"unknown","last_error":null,"sampled_ms":0}
+{"session":"ev3-...","connected":true,"busy":false,"job":null,"last_job":null,"angles":{"sorter":0,"feeder":0},"references":{"sorter":null,"feeder":null},"touch":false,"color":"unknown","last_error":null,"sampled_ms":0,"power_mode":"awake","power_save_idle_ms":60000}
 ```
 
 Terminal `last_job.state` is `complete`, `aborted`, or `fault`. A failed job
@@ -107,14 +110,33 @@ has `fault:{code,message}`. Cleanup failure is recorded separately as
 `cleanup_fault`. A newly admitted motor job clears the prior `last_error`.
 An explicit stop is an aborted job, not successful completion.
 
-The socket event loop polls at most 20 ms. Status/heartbeat request bursts use
-cached telemetry rather than reading drivers for each request. Encoder samples
-refresh at most 50 Hz during jobs and 2 Hz while idle; S1 is sampled once per
-active sorter guard tick. Display color/touch refresh at most 2 Hz. The screen
-shows connection/job state, requested text, angles, color, touch, and errors.
-Identical screen content is not redrawn. Redraws are capped at 2 Hz, and shake
-suppresses automatic mid-burst redraws while still accepting explicit changed
-text at the same cap.
+The event loop normally polls at most 20 ms. After 60 seconds without a
+foreground command it enters power-save mode automatically. Heartbeat and status
+requests do not reset this timer, so the persistent host connection can remain
+available without keeping the motor station awake. A `power_save` request enters
+the mode immediately and may change the timeout for this daemon session.
+
+Entering power-save mode brakes both motors, keeps encoder references intact,
+turns off the EV3 status light, stops any scheduled tone, and draws `POWER SAVE`
+and `TCP API ready` once on the reflective LCD. The light-off operation is
+documented for the [Pybricks 2.0 EV3Brick API](https://docs.pybricks.com/en/v2.0/hubs.html#pybricks.hubs.EV3Brick.light.off).
+The daemon does not assume the reflective LCD has a controllable backlight.
+While asleep it skips encoder, touch, and color sampling and changes the socket
+poll timeout to 250 ms. That caps idle loop ticks at 4 Hz rather than 50 Hz
+(92% fewer loop wakeups); it is a software scheduling estimate, not a measured
+reduction in watts. `poll()` returns as soon as TCP data arrives, so the first
+foreground command is handled on the next network event. Any command except
+heartbeat or status wakes the API before processing; motor commands, display,
+beep, reference, and stop are covered. `wake` is also available explicitly.
+Power-save requests are rejected while a motor job is active. Active jobs retain
+the 1000 ms heartbeat watchdog and existing 50 Hz encoder guard sampling.
+
+While awake, status/heartbeat bursts use cached telemetry rather than reading
+drivers for every request. Encoder samples refresh at most 50 Hz during jobs
+and 2 Hz while idle; S1 is sampled once per active sorter guard tick. Display
+color/touch refresh at most 2 Hz. Identical screen content is not redrawn.
+Redraws are capped at 2 Hz, and shake suppresses automatic mid-burst redraws
+while still accepting explicit changed text at the same cap.
 
 A running job requires heartbeat gaps less than 1000 ms. Expiry, EOF, client
 disconnection, protocol error, or service exit brakes both initialized motors
@@ -145,5 +167,16 @@ These checks do not establish native socket compatibility or physical motion
 qualification on the brick. Start with status/display/stop deployment checks.
 
 On this lab PC port 8766 is already used, so the SSH forward uses PC port 18766. Pass `--port 18766` to the client, or `EV3LiveClient(port=18766)` in Python. Native Unix MicroPython socket binding uses the sockaddr returned by `getaddrinfo`; the EV3 listener stays on localhost 8766.
+
+Use `python3 workshop/station/ev3_live_client.py --port 18766 sleep` to enter
+power-save mode immediately, or `sleep --idle-timeout-ms 120000` to set a
+two-minute automatic timeout for the running daemon. `wake` or any other
+foreground operation wakes it. The sleep command closes its client without
+sending the normal stop request, which would otherwise wake the station again.
+The CLI `status` monitor also closes without sending `stop`, so checking a
+sleeping station leaves its power mode and idle timer unchanged. Generic
+`command --json` calls for `status`, `heartbeat`, and `power_save` use the same
+close behavior. `sampled_ms` continues to report the last actual encoder read
+while asleep; entering power save does not rewrite cached sample timestamps.
 
 Live read-only validation: 50 persistent status requests through USB/SSH measured median 36.87 ms and p95 62.64 ms. This is host round-trip latency, not the motor control rate; native motion profiles run on the brick. Display and two beeps were verified. Native motion jobs are not yet physically verified through this new API.
