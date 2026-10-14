@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 
 MODULE = Path(__file__).resolve().parents[1] / 'motor_control_probe.py'
@@ -77,6 +78,16 @@ class Env:
 
 
 class Tests(unittest.TestCase):
+    def test_native_runtime_guard_accepts_pybricks_tuple_and_named_forms(self):
+        self.assertTrue(probe_module.native_runtime(
+            ('pybricks-micropython', (2, 0, 0))))
+        self.assertTrue(probe_module.native_runtime(SimpleNamespace(
+            name='pybricks-micropython', version=(2, 0, 0))))
+        self.assertFalse(probe_module.native_runtime(
+            ('pybricks-micropython', (3, 0, 0))))
+        self.assertFalse(probe_module.native_runtime(
+            ('micropython', (2, 0, 0))))
+
     def test_touch_ends_bounded_probe_and_restores_limits(self):
         env = Env()
         result = env.run()
