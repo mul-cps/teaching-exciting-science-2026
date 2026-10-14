@@ -16,6 +16,8 @@ import os
 PROTOCOL = 'ev3-station'
 VERSION = 1
 MAX_LINE = 4096
+MAX_CHUNK = 256
+EXPIRY_INTERVAL = 32
 
 
 def flush_output(stream):
@@ -35,6 +37,38 @@ def flush_output(stream):
             native = False
         if not native or not error.args or error.args[0] != 22:
             raise
+
+
+class NativeChunkReader:
+    """Read only bytes already available on the native Linux stdin pipe.
+
+    FIONREAD counts bytes, so readinto avoids text read's UTF-8 character count.
+    Pool both buffers and never wait for an unknown-sized remainder of a frame.
+    """
+    def __init__(self, stdin, ioctl=None):
+        if ioctl is None:
+            import ufcntl
+            ioctl = ufcntl.ioctl
+        self.stdin = stdin
+        self.ioctl = ioctl
+        self.count = bytearray(4)
+        self.data = bytearray(MAX_CHUNK)
+
+    def __call__(self):
+        self.ioctl(self.stdin.fileno(), 0x541b, self.count)  # Linux FIONREAD
+        available = self.count[0] | self.count[1] << 8 | self.count[2] << 16 | self.count[3] << 24
+        if available == 0:
+            return ''  # Readable EOF/spurious readiness: fail closed, never block.
+        requested = min(available, MAX_CHUNK)
+        length = self.stdin.readinto(self.data, requested)
+        if length is None or length == 0:
+            return ''
+        if not 0 < length <= requested:
+            raise ValueError('invalid native input byte count')
+        for index in range(length):
+            if self.data[index] >= 128:
+                raise ValueError('station JSON transport requires ASCII bytes')
+        return bytes(self.data[:length]).decode()
 
 
 def port_inventory():
@@ -180,7 +214,9 @@ class Agent:
         return reply
 
 
-def run(agent, poller, stdin, stdout):
+def run(agent, poller, stdin, stdout, reader=None):
+    if reader is None:
+        reader = lambda: stdin.read(1)  # Desktop/injected API compatibility.
     try:
         while True:
             agent.expire()
@@ -189,10 +225,18 @@ def run(agent, poller, stdin, stdout):
                 if event & (select.POLLHUP | select.POLLERR):
                     raise EOFError('agent pipe closed')
                 if event & select.POLLIN:
-                    reply = agent.character(stdin.read(1))
-                    if reply is not None:
-                        stdout.write(json.dumps(reply) + '\n')
-                        flush_output(stdout)
+                    chunk = reader()
+                    if chunk == '':
+                        agent.character('')  # EOF immediately brakes and raises.
+                    if len(chunk) > MAX_CHUNK:
+                        raise ValueError('oversized input chunk')
+                    for index, character in enumerate(chunk):
+                        if index % EXPIRY_INTERVAL == 0:
+                            agent.expire()
+                        reply = agent.character(character)
+                        if reply is not None:
+                            stdout.write(json.dumps(reply) + '\n')
+                            flush_output(stdout)
     finally:
         agent.stop()
 
@@ -232,6 +276,7 @@ def main():
                   {Color.BLUE: 2, Color.GREEN: 3, Color.YELLOW: 4, Color.RED: 5}, Stop.BRAKE, nonce, watch.time)
     try:
         agent.stop()
+        reader = NativeChunkReader(sys.stdin)
         poller = select.poll()
         poller.register(sys.stdin, select.POLLIN)
         ready = {'protocol': PROTOCOL, 'version': VERSION, 'nonce': nonce, 'ready': True,
@@ -239,7 +284,7 @@ def main():
         ready.update(runtime)
         sys.stdout.write(json.dumps(ready) + '\n')
         flush_output(sys.stdout)
-        run(agent, poller, sys.stdin, sys.stdout)
+        run(agent, poller, sys.stdin, sys.stdout, reader=reader)
     finally:
         agent.stop()
 

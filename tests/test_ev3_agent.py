@@ -688,6 +688,7 @@ def test_native_main_ready_then_rpc_with_unbuffered_pipe_flush(monkeypatch, flus
             if self.flushes >= fail_after: raise OSError(flush_errno)
     output = UnbufferedOutput()
     input_stream = io.StringIO(json.dumps({'id': 1, 'nonce': 'n' * 32, 'operation': 'heartbeat', 'args': {}}) + '\n')
+    monkeypatch.setattr(ev3_agent, 'NativeChunkReader', lambda stream: lambda: stream.read(256))
     poller = SimpleNamespace(register=lambda *a: None, poll=lambda timeout: [(0, select.POLLIN)])
     monkeypatch.setattr(ev3_agent.select, 'poll', lambda: poller)
     c = config()
@@ -705,3 +706,82 @@ def test_native_main_ready_then_rpc_with_unbuffered_pipe_flush(monkeypatch, flus
         assert records[1]['id'] == 1 and records[1]['ok'] is True
         assert output.flushes == 2
     assert len(motors) == 2 and all(motor.stops >= 2 for motor in motors)
+
+
+def test_native_chunk_reader_caps_available_bytes_reuses_buffers_and_eof():
+    from workshop.station.resources.ev3_agent import NativeChunkReader
+    source = bytearray(b'a' * 300)
+    ioctl_buffers, read_buffers, sizes = [], [], []
+    class Input:
+        def fileno(self): return 9
+        def readinto(self, buffer, count):
+            read_buffers.append(id(buffer)); sizes.append(count)
+            buffer[:count] = source[:count]; del source[:count]
+            return count
+    def ioctl(fd, request, buffer):
+        assert fd == 9 and request == 0x541b
+        ioctl_buffers.append(id(buffer))
+        buffer[:] = len(source).to_bytes(4, 'little')
+    reader = NativeChunkReader(Input(), ioctl=ioctl)
+    assert reader() == 'a' * 256
+    assert reader() == 'a' * 44
+    assert reader() == ''  # Zero availability: no potentially blocking read.
+    assert sizes == [256, 44]
+    assert len(set(ioctl_buffers)) == len(set(read_buffers)) == 1
+
+
+def test_native_chunk_reader_rejects_non_ascii_and_actual_eof():
+    from workshop.station.resources.ev3_agent import NativeChunkReader
+    class Input:
+        def fileno(self): return 0
+        def readinto(self, buffer, count): buffer[0] = 128; return 1
+    def ioctl(fd, command, count): count[:] = b'\x01\0\0\0'
+    with pytest.raises(ValueError, match='ASCII'):
+        NativeChunkReader(Input(), ioctl=ioctl)()
+    class EOFInput(Input):
+        def readinto(self, buffer, count): return 0
+    assert NativeChunkReader(EOFInput(), ioctl=ioctl)() == ''
+
+
+def test_chunk_reader_coalesced_frames_partial_then_eof_brakes(agent):
+    import io, select
+    first = json.dumps({'id': 1, 'nonce': 'n' * 32, 'operation': 'heartbeat', 'args': {}}) + '\n'
+    second = json.dumps({'id': 2, 'nonce': 'n' * 32, 'operation': 'heartbeat', 'args': {}}) + '\n'
+    chunks = iter([first + second + '{"id":', ''])
+    output = io.StringIO()
+    poller = SimpleNamespace(poll=lambda timeout: [(0, select.POLLIN)])
+    with pytest.raises(EOFError):
+        run(agent, poller, None, output, reader=lambda: next(chunks))
+    assert [json.loads(line)['id'] for line in output.getvalue().splitlines()] == [1, 2]
+    assert agent.pending == '{"id":'
+    assert agent.feeder.stops and agent.sorter.stops
+
+
+def test_chunk_reader_rechecks_expiry_at_most_every_32_characters(agent):
+    import io, select
+    consumed, time_ms = [], [0]
+    agent.clock = lambda: time_ms[0]
+    original = agent.character
+    def character(value):
+        consumed.append(value); time_ms[0] += 20
+        return original(value)
+    agent.character = character
+    poller = SimpleNamespace(poll=lambda timeout: [(0, select.POLLIN)])
+    with pytest.raises(RuntimeError, match='expired'):
+        run(agent, poller, None, io.StringIO(), reader=lambda: 'x' * 256)
+    assert len(consumed) == 32
+    assert agent.feeder.stops and agent.sorter.stops
+
+
+def test_chunk_reader_keeps_frame_size_and_duplicate_identity_guards(agent):
+    import io, select
+    request_one = json.dumps(request()) + '\n'
+    duplicate = request_one + request_one
+    chunks = iter([*(duplicate[i:i + 256] for i in range(0, len(duplicate), 256)), *(['x' * 256] * 17)])
+    poller = SimpleNamespace(poll=lambda timeout: [(0, select.POLLIN)])
+    output = io.StringIO()
+    with pytest.raises(ValueError, match='oversized'):
+        run(agent, poller, None, output, reader=lambda: next(chunks))
+    assert len(agent.feeder.calls) == 1
+    assert len(output.getvalue().splitlines()) == 2
+    assert agent.feeder.stops and agent.sorter.stops
