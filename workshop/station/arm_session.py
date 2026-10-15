@@ -40,6 +40,9 @@ ROS_GOAL_TOLERANCE_RAD = math.radians(2.0)
 MAX_MISSED_FEEDBACK_TICKS_PER_LEG = 4
 MAX_FEEDBACK_GAP_S = PERIOD_S * (MAX_MISSED_FEEDBACK_TICKS_PER_LEG + 1)
 FEEDBACK_GAP_EPSILON_S = 0.001
+CALIBRATION_ENDPOINT_WINDOW_S = 0.30
+CALIBRATION_ENDPOINT_MIN_SAMPLES = 5
+CALIBRATION_ENDPOINT_MAX_SPAN_COUNTS = 4
 SYNC_READ_MAX_ATTEMPTS = 3
 SYNC_READ_DEADLINE_S = 0.020
 BODY_STEP = 180
@@ -980,9 +983,12 @@ class ArmSession:
                            max_velocity=ROS_MAX_VELOCITY_RAD_S,
                            max_acceleration=ROS_MAX_ACCELERATION_RAD_S2,
                            max_jerk=ROS_MAX_JERK_RAD_S3,
-                           expected_path_sha256=None, period=PERIOD_S):
+                           expected_path_sha256=None, period=PERIOD_S,
+                           calibration_endpoint=False):
         """Execute one prevalidated C2 ROS trajectory without waypoint dwells."""
         self._require_initialized()
+        if type(calibration_endpoint) is not bool:
+            raise ArmPlanPreflightError("calibration_endpoint must be a boolean")
         if not isinstance(goal_id, str) or not goal_id.strip() or len(goal_id) > 128:
             raise ArmPlanPreflightError("goal_id must be a nonempty string up to 128 characters")
         if (max_velocity > ROS_MAX_VELOCITY_RAD_S or
@@ -1086,6 +1092,7 @@ class ArmSession:
             terminal = raw_samples[-1]
             settled = 0
             settle_deadline = self.clock() + 3.0
+            settle_samples = []
             while settled < 3 and self.clock() < settle_deadline:
                 self._poll_busy_input()
                 self.bus.sync_write("Goal_Position", terminal, normalize=False, num_retry=0)
@@ -1103,6 +1110,8 @@ class ArmSession:
                 torque = self._read("Torque_Enable")
                 if any(torque[joint] != 1 for joint in JOINTS):
                     raise RuntimeError("trajectory torque state changed during settle")
+                settle_samples.append({"monotonic": read_ended,
+                                       "raw": dict(actual), "torque": dict(torque)})
                 state = self.publish_state(event="trajectory_settle", raw=actual,
                                            torque=torque, phase="settling", label=goal_id,
                                            trajectory_goal_id=goal_id,
@@ -1115,8 +1124,56 @@ class ArmSession:
                                          "state_timestamp_utc": state["timestamp_utc"]})
                 if settled < 3:
                     self.sleep(period)
-            if settled < 3:
+            calibration_endpoint_held = False
+            endpoint_error = {joint: abs(self._arm_radians(actual)[joint] -
+                                         prepared.samples[-1].positions[ARM_JOINTS.index(joint)])
+                              for joint in ARM_JOINTS}
+            if settled < 3 and calibration_endpoint:
+                window_start = settle_samples[-1]["monotonic"] - CALIBRATION_ENDPOINT_WINDOW_S
+                stable_window = [sample for sample in settle_samples
+                                 if sample["monotonic"] >= window_start]
+                spans = {joint: max(sample["raw"][joint] for sample in stable_window) -
+                         min(sample["raw"][joint] for sample in stable_window)
+                         for joint in JOINTS} if stable_window else {}
+                calibration_endpoint_held = (
+                    len(stable_window) >= CALIBRATION_ENDPOINT_MIN_SAMPLES and
+                    all(value == 1 for sample in stable_window
+                        for value in sample["torque"].values()) and
+                    all(span <= CALIBRATION_ENDPOINT_MAX_SPAN_COUNTS
+                        for span in spans.values()) and
+                    max(endpoint_error.values()) <= ROS_MAX_TRACK_ERROR_RAD)
+            if settled < 3 and not calibration_endpoint_held:
                 raise TimeoutError("trajectory final goal tolerance was not reached")
+            if calibration_endpoint_held:
+                # Preserve the planned terminal goal and enabled torque. The
+                # caller may use this measured stable pose for calibration,
+                # but it must not be represented as reaching the planned goal.
+                state = self.publish_state(event="trajectory_calibration_endpoint_held",
+                                           raw=actual, torque=torque,
+                                           phase="calibration_endpoint_held", label=goal_id,
+                                           trajectory_goal_id=goal_id,
+                                           trajectory_time=prepared.duration +
+                                               self.clock() - (started + prepared.duration),
+                                           trajectory_desired=dict(zip(ARM_JOINTS,
+                                               prepared.samples[-1].positions)))
+                record = {"event": "trajectory_calibration_endpoint_held",
+                          "goal_id": goal_id, "target_reached": False,
+                          "goal_error_rad": endpoint_error,
+                          "target_raw": terminal, "measured_raw": actual,
+                          "stable_window_samples": len(stable_window),
+                          "stable_window_s": (stable_window[-1]["monotonic"] -
+                                              stable_window[0]["monotonic"]),
+                          "stable_span_raw": spans, "feedback_samples": feedback_samples}
+                self._record(record)
+                self._sag_recovery_available = False
+                self.last_command = self.clock()
+                return {"state": state, "trajectory": {
+                    "goal_id": goal_id, "duration_s": prepared.duration,
+                    "sample_count": len(prepared.samples),
+                    "feedback_count": len(feedback_samples),
+                    "input_derivatives_ignored": prepared.ignored_derivatives,
+                    "status": "calibration_measured_endpoint_held",
+                    "target_reached": False, "goal_error_rad": endpoint_error}}
             state = self.publish_state(event="trajectory_complete", raw=actual,
                                        torque=torque, phase="complete", label=goal_id)
             self._record({"event": "trajectory_feedback_complete", "goal_id": goal_id,
@@ -1283,11 +1340,23 @@ class ArmSession:
                 raise ValueError("move_plan requires exactly command and legs")
             return {"ok": True, "state": self.move_plan(command["legs"])}
         if name == "execute_trajectory":
-            if set(command) != {"command", "goal_id", "joint_names", "points", "path_sha256"}:
+            required = {"command", "goal_id", "joint_names", "points", "path_sha256"}
+            allowed = required | {"calibration_endpoint"}
+            if set(command) not in (required, allowed):
                 raise ValueError("execute_trajectory requires goal_id, joint_names, points, and collision-checked path_sha256")
-            return {"ok": True, **self.execute_trajectory(command["goal_id"],
+            calibration_endpoint = command.get("calibration_endpoint", False)
+            if type(calibration_endpoint) is not bool:
+                raise ValueError("calibration_endpoint must be a boolean")
+            result = self.execute_trajectory(command["goal_id"],
                     command["joint_names"], command["points"],
-                    expected_path_sha256=command["path_sha256"])}
+                    expected_path_sha256=command["path_sha256"],
+                    calibration_endpoint=calibration_endpoint)
+            response = {"ok": True, **result}
+            if result.get("trajectory", {}).get("status") == "calibration_measured_endpoint_held":
+                response.update(status=result["trajectory"]["status"],
+                                target_reached=False,
+                                goal_error_rad=result["trajectory"]["goal_error_rad"])
+            return response
         if name == "cancel_hold":
             if set(command) != {"command"}:
                 raise ValueError("cancel_hold accepts no extra fields")

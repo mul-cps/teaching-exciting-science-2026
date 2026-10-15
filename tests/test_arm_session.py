@@ -1,5 +1,6 @@
 import hashlib
 import json
+import math
 import select
 from datetime import datetime, timedelta, timezone
 import os
@@ -911,6 +912,96 @@ def test_ros_trajectory_streams_without_waypoint_dwells_and_keeps_gripper(tmp_pa
     assert set(arm.bus.sync_read("Torque_Enable").values()) == {1}
     assert arm.bus.sync_read("Present_Position")["shoulder_pan"] == result["state"]["raw"]["shoulder_pan"]
     session.shutdown(reason="test_cleanup")
+    session.close_log()
+
+
+def _stalled_elbow_trajectory(session, arm, *, goal_id, calibration_endpoint):
+    names = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
+    start = session._arm_radians(arm.bus.sync_read("Present_Position"))
+    final = [start[name] for name in names]
+    final[names.index("elbow_flex")] += 0.06
+    points = [{"time": 0.0, "positions": [start[name] for name in names]},
+              {"time": 2.0, "positions": final}]
+    digest = _collision_path_digest(session, arm, names, points)
+    command = {"command": "execute_trajectory", "goal_id": goal_id,
+               "joint_names": names, "points": points, "path_sha256": digest}
+    if calibration_endpoint is not None:
+        command["calibration_endpoint"] = calibration_endpoint
+    terminal = session._trajectory_raw(final, arm.bus.data["Present_Position"]["gripper"])
+    return command, terminal
+
+
+def test_calibration_trajectory_returns_stable_measured_endpoint_without_reaching_target(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    start = dict(arm.bus.data["Present_Position"])
+    arm.bus.stalled_joints.add("elbow_flex")
+    command, terminal = _stalled_elbow_trajectory(
+        session, arm, goal_id="calibration-held", calibration_endpoint=True)
+    result = session.handle(command)
+    assert result["ok"] is True
+    assert result["status"] == "calibration_measured_endpoint_held"
+    assert result["target_reached"] is False
+    assert result["goal_error_rad"]["elbow_flex"] > math.radians(2)
+    assert result["state"]["raw"] == start
+    assert arm.bus.data["Goal_Position"] == terminal
+    assert arm.bus.sync_read("Torque_Enable") == dict.fromkeys(JOINTS, 1)
+    records = [json.loads(line) for line in Path(session.log_path).read_text().splitlines()]
+    event = next(row for row in records
+                 if row.get("event") == "trajectory_calibration_endpoint_held" and
+                 "target_reached" in row)
+    assert event["target_reached"] is False
+    assert event["measured_raw"] == start
+    assert event["stable_window_samples"] >= 5
+    assert max(event["stable_span_raw"].values()) <= 4
+    session.shutdown(reason="test_cleanup")
+    session.close_log()
+
+
+def test_calibration_trajectory_rejects_unstable_measured_endpoint(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    arm.bus.stalled_joints.update(("elbow_flex", "shoulder_pan"))
+    command, terminal = _stalled_elbow_trajectory(
+        session, arm, goal_id="calibration-unstable", calibration_endpoint=True)
+    alternate = False
+
+    def wobble_near_terminal():
+        nonlocal alternate
+        if arm.bus.data["Goal_Position"]["elbow_flex"] == terminal["elbow_flex"]:
+            alternate = not alternate
+            arm.bus.data["Present_Position"]["shoulder_pan"] = 1997 if alternate else 2003
+
+    arm.bus.on_present_read = wobble_near_terminal
+    with pytest.raises(TimeoutError, match="final goal tolerance"):
+        session.handle(command)
+    assert arm.bus.data["Goal_Position"] == terminal
+    assert arm.bus.sync_read("Torque_Enable") == dict.fromkeys(JOINTS, 0)
+    session.close_log()
+
+
+def test_calibration_endpoint_opt_in_does_not_change_default_tolerance_failure(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    arm.bus.stalled_joints.add("elbow_flex")
+    command, _terminal = _stalled_elbow_trajectory(
+        session, arm, goal_id="calibration-default-strict", calibration_endpoint=None)
+    with pytest.raises(TimeoutError, match="final goal tolerance"):
+        session.handle(command)
+    assert arm.bus.sync_read("Torque_Enable") == dict.fromkeys(JOINTS, 0)
+    session.close_log()
+
+
+def test_calibration_endpoint_ipc_flag_requires_exact_boolean(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    command = {"command": "execute_trajectory", "goal_id": "bad-calibration-flag",
+               "joint_names": [], "points": [], "path_sha256": "0" * 64,
+               "calibration_endpoint": 1}
+    with pytest.raises(ValueError, match="must be a boolean"):
+        session.handle(command)
+    assert arm.bus.writes == []
+    assert arm.bus.goal_history == []
     session.close_log()
 
 
