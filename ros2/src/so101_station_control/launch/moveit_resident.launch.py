@@ -1,5 +1,8 @@
 """Real planning stack plus the ArmSession action bridge; no ros2_control mock."""
 import os
+import yaml
+
+from so101_station_control.model_offsets import apply_gripper_mount_roll
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -33,6 +36,13 @@ def generate_launch_description():
         )
         .to_moveit_configs()
     )
+    offset_path = os.path.join(get_package_share_directory("so101_station_control"),
+                               "config", "model_offsets.yaml")
+    with open(offset_path, encoding="utf-8") as stream:
+        model_offsets = yaml.safe_load(stream)
+    moveit_config.robot_description["robot_description"] = apply_gripper_mount_roll(
+        moveit_config.robot_description["robot_description"],
+        model_offsets["gripper_mount_roll_deg"])
     # Fedora Mesa needs the host DRM ABI for this GPU; keep the override
     # local to RViz so the arm backend and other ROS nodes remain isolated.
     drm_libraries = ["/usr/lib64/libdrm.so.2", "/usr/lib64/libdrm_amdgpu.so.1"]
