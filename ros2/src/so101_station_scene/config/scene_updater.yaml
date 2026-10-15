@@ -1,0 +1,26 @@
+so101_scene_updater:
+  ros__parameters:
+    detections_topic: /so101/objects
+    status_topic: /so101_scene/status
+    world_frame: base_link
+    board_frame: charuco_board
+    apply_service: /follower/apply_planning_scene
+    max_detection_age_s: 0.5
+    track_ttl_s: 0.75
+    max_objects: 24
+    min_object_extent_m: 0.004
+    max_object_extent_m: 0.30
+    object_padding_m: 0.006
+    frames_qualified: false
+    board_collision_enabled: true
+    # Current board coordinates: x=[0,0.175], y=[-0.125,0], top z=0.
+    board_size_m: [0.175, 0.125, 0.004]
+    board_center_m: [0.0875, -0.0625, -0.002]
+    # Enable only after measuring the tabletop ROI in charuco_board. Its
+    # collision volume is split around the live base_link footprint.
+    table_collision_enabled: false
+    table_size_xy_m: [0.60, 0.50]
+    table_center_xy_m: [0.0875, -0.0625]
+    table_surface_z_m: -0.004
+    table_thickness_m: 0.012
+    base_keepout_size_xy_m: [0.22, 0.22]
