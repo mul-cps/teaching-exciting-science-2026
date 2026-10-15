@@ -9,8 +9,19 @@ import numpy as np
 MAX_CLOUD_POINTS = 640 * 480
 
 
-def cloud_xyz_chunks(message, *, chunk_rows=16):
-    """Yield small XYZ arrays from PointCloud2 without copying its full payload."""
+def tracking_status_is_fresh(state, observation_stamp, now, cloud_stamp, max_age):
+    """Require recent tracking and a nearby observation for this cloud stamp."""
+    if state != "tracking" or observation_stamp is None:
+        return False
+    observation_stamp = float(observation_stamp)
+    now, cloud_stamp, max_age = float(now), float(cloud_stamp), float(max_age)
+    return (math.isfinite(observation_stamp) and observation_stamp > 0
+            and 0 <= now - observation_stamp <= max_age
+            and abs(cloud_stamp - observation_stamp) <= max_age)
+
+
+def cloud_xyz_chunks(message, *, max_chunk_points=8192):
+    """Yield XYZ blocks bounded by point count, including unordered clouds."""
     height, width = int(message.height), int(message.width)
     step, row_step = int(message.point_step), int(message.row_step)
     if height <= 0 or width <= 0 or height * width > MAX_CLOUD_POINTS:
@@ -37,19 +48,26 @@ def cloud_xyz_chunks(message, *, chunk_rows=16):
         xyz_fields.append((int(field.offset), dtype))
 
     view = memoryview(message.data)
-    rows_per_chunk = max(1, int(chunk_rows))
-    for start in range(0, height, rows_per_chunk):
-        stop = min(height, start + rows_per_chunk)
-        count = (stop - start) * width
-        coords = []
-        for offset, dtype in xyz_fields:
-            values = np.ndarray(
-                (stop - start, width), dtype=dtype, buffer=view,
-                offset=start * row_step + offset,
-                strides=(row_step, step),
-            )
-            coords.append(values.reshape(count))
-        yield np.column_stack(coords).astype(np.float32, copy=False)
+    chunk_limit = int(max_chunk_points)
+    if chunk_limit <= 0:
+        raise ValueError("max_chunk_points must be positive")
+    for begin in range(0, height * width, chunk_limit):
+        end = min(height * width, begin + chunk_limit)
+        block = np.empty((end - begin, 3), dtype=np.float32)
+        linear = begin
+        out_start = 0
+        while linear < end:
+            row, col = divmod(linear, width)
+            count = min(end - linear, width - col)
+            byte_offset = row * row_step + col * step
+            for axis, (offset, dtype) in enumerate(xyz_fields):
+                values = np.ndarray(
+                    (count,), dtype=dtype, buffer=view,
+                    offset=byte_offset + offset, strides=(step,))
+                block[out_start:out_start + count, axis] = values
+            linear += count
+            out_start += count
+        yield block
 
 
 class SurfaceVoxelMap:
@@ -96,7 +114,9 @@ class SurfaceVoxelMap:
         self.last_accepted_points += len(inside)
         if len(inside):
             indices = np.floor(inside / self.resolution).astype(np.int32)
-            for key in set(map(tuple, indices.tolist())):
+            unique_indices = np.unique(indices, axis=0)
+            for index in unique_indices:
+                key = tuple(map(int, index))
                 self.cells.pop(key, None)
                 self.cells[key] = float(now)
         self.clear_expired(now)
