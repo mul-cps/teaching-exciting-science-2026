@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from so101_station_map.node import main
+
+main()
