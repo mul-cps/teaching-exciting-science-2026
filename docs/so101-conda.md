@@ -65,3 +65,13 @@ command. The wrapper passes it through without overriding it:
 ```bash
 ROS_DOMAIN_ID=73 ./ros2/conda/so101-conda.sh plan-smoke
 ```
+
+### Local station discovery
+
+The Conda wrapper defaults `ROS_AUTOMATIC_DISCOVERY_RANGE` to `LOCALHOST`.
+This prevents unrelated LAN robots publishing common names such as `base_link`
+from replacing the station's `charuco_board -> base_link` TF parent in RViz.
+An explicit `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` remains available when a
+multi-host ROS deployment is intended; use unique frame names in that case.
+Changing discovery settings requires restarting affected ROS processes,
+including RViz, to discard conflicting transforms already cached in TF.

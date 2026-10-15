@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 
 import yaml
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +50,8 @@ def test_environment_declares_isolated_pinned_ros_jazzy_control_stack():
     assert packages["scipy"] == "scipy=1.16.2"
 
 
-def test_conda_run_clears_inherited_ros_python_and_loader_environment(tmp_path: Path):
+@pytest.mark.parametrize("discovery,expected", [("", "LOCALHOST"), ("SUBNET", "SUBNET")])
+def test_conda_run_clears_inherited_ros_python_and_loader_environment(tmp_path: Path, discovery, expected):
     fake_conda = tmp_path / "conda"
     capture = tmp_path / "capture"
     fake_conda.write_text(
@@ -71,6 +73,7 @@ def test_conda_run_clears_inherited_ros_python_and_loader_environment(tmp_path: 
         "PYTHONPATH": "/opt/ros/iron/lib/python3/site-packages",
         "PYTHONHOME": "/opt/ros/iron",
         "ROS_DISTRO": "iron",
+        "ROS_AUTOMATIC_DISCOVERY_RANGE": discovery,
         "LD_LIBRARY_PATH": "/opt/ros/iron/lib",
         "DISPLAY": ":77",
         "XAUTHORITY": "/tmp/test.xauth",
@@ -97,6 +100,7 @@ def test_conda_run_clears_inherited_ros_python_and_loader_environment(tmp_path: 
         "LD_LIBRARY_PATH",
     ):
         assert name not in clean_environment
+    assert clean_environment["ROS_AUTOMATIC_DISCOVERY_RANGE"] == expected
     assert clean_environment["DISPLAY"] == ":77"
     assert clean_environment["XAUTHORITY"] == "/tmp/test.xauth"
 
