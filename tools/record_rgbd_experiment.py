@@ -18,6 +18,8 @@ import time
 RAW_JOINT_NAMES = ("shoulder_pan", "shoulder_lift", "elbow_flex",
                    "wrist_flex", "wrist_roll", "gripper")
 MAX_ARM_PAIRING_DELTA_S = 0.160
+DEFAULT_COLOR_PROFILE = (640, 480, 15)
+DEFAULT_DEPTH_PROFILE = (640, 480, 15)
 
 
 def _finite_number(value):
@@ -121,12 +123,89 @@ def snapshot_metadata(index, color_path, depth_path, timing, arm_pair):
     }
 
 
-def main():
+def positive_int(value):
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be a positive integer") from error
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
+def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--serial", default="243322071783")
     parser.add_argument("--seconds", type=float, default=600)
     parser.add_argument("--phase-file", type=Path)
+    for name, default in (("color", DEFAULT_COLOR_PROFILE),
+                          ("depth", DEFAULT_DEPTH_PROFILE)):
+        parser.add_argument(f"--{name}-width", type=positive_int, default=default[0])
+        parser.add_argument(f"--{name}-height", type=positive_int, default=default[1])
+        parser.add_argument(f"--{name}-fps", type=positive_int, default=default[2])
+    return parser
+
+
+def configure_streams(config, rs, args):
+    config.enable_stream(rs.stream.depth, args.depth_width, args.depth_height,
+                         rs.format.z16, args.depth_fps)
+    config.enable_stream(rs.stream.color, args.color_width, args.color_height,
+                         rs.format.bgr8, args.color_fps)
+
+
+def camera_stream_metadata(profile, rs, device, requested):
+    """Report selected SDK modes and fail if the SDK did not honor requests."""
+    stream_profiles = []
+    selected = {}
+    for stream in profile.get_streams():
+        video = stream.as_video_stream_profile()
+        kind = stream.stream_type()
+        details = {
+            "stream": str(kind), "format": str(stream.format()),
+            "fps": stream.fps(), "width": video.width(),
+            "height": video.height(), "index": stream.stream_index(),
+        }
+        stream_profiles.append(details)
+        if kind == rs.stream.depth:
+            selected["depth"] = stream
+        elif kind == rs.stream.color:
+            selected["color"] = stream
+
+    for name, fmt in (("depth", rs.format.z16), ("color", rs.format.bgr8)):
+        if name not in selected:
+            raise RuntimeError(f"SDK did not select a {name} video profile")
+        stream = selected[name]
+        video = stream.as_video_stream_profile()
+        wanted = requested[name]
+        actual = (video.width(), video.height(), stream.fps())
+        if actual != wanted or stream.format() != fmt:
+            raise RuntimeError(
+                f"Requested {name} profile {wanted} format {fmt}, but SDK selected "
+                f"{actual} format {stream.format()}"
+            )
+
+    color = selected["color"].as_video_stream_profile()
+    intrinsics = color.get_intrinsics()
+    return {
+        "profiles": stream_profiles,
+        "requested_profiles": {
+            name: {"width": values[0], "height": values[1], "fps": values[2]}
+            for name, values in requested.items()
+        },
+        "aligned_depth_dimensions": {"width": color.width(), "height": color.height()},
+        "depth_scale_m": device.first_depth_sensor().get_depth_scale(),
+        "intrinsics": {
+            "width": intrinsics.width, "height": intrinsics.height,
+            "fx": intrinsics.fx, "fy": intrinsics.fy,
+            "ppx": intrinsics.ppx, "ppy": intrinsics.ppy,
+            "model": str(intrinsics.model), "coeffs": list(intrinsics.coeffs),
+        },
+    }
+
+
+def main():
+    parser = build_parser()
     args = parser.parse_args()
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
@@ -146,8 +225,7 @@ def main():
     pipe = rs.pipeline()
     config = rs.config()
     config.enable_device(args.serial)
-    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 15)
-    config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 15)
+    configure_streams(config, rs, args)
     started = False
     writer = None
     index = 0
@@ -174,29 +252,18 @@ def main():
         profile = pipe.start(config)
         started = True
         device = profile.get_device()
-        color_profile = profile.get_stream(rs.stream.color).as_video_stream_profile()
-        intrinsics = color_profile.get_intrinsics()
-        stream_profiles = []
-        for stream in profile.get_streams():
-            video = stream.as_video_stream_profile()
-            stream_profiles.append({
-                "stream": str(stream.stream_type()), "format": str(stream.format()),
-                "fps": stream.fps(), "width": video.width(), "height": video.height(),
-                "index": stream.stream_index(),
-            })
+        camera_metadata = camera_stream_metadata(profile, rs, device, {
+            "color": (args.color_width, args.color_height, args.color_fps),
+            "depth": (args.depth_width, args.depth_height, args.depth_fps),
+        })
         identity = {}
         for name in ("name", "serial_number", "firmware_version", "product_line"):
             field = getattr(rs.camera_info, name)
             if device.supports(field):
                 identity[name] = device.get_info(field)
         metadata = {
-            "device": identity, "profiles": stream_profiles,
-            "depth_scale_m": device.first_depth_sensor().get_depth_scale(),
+            "device": identity, **camera_metadata,
             "aligned_to": "color", "depth_encoding": "uint16 raw samples",
-            "intrinsics": {"width": intrinsics.width, "height": intrinsics.height,
-                           "fx": intrinsics.fx, "fy": intrinsics.fy,
-                           "ppx": intrinsics.ppx, "ppy": intrinsics.ppy,
-                           "model": str(intrinsics.model), "coeffs": list(intrinsics.coeffs)},
             "overview": {"file": "overview.avi", "width": 320, "height": 240,
                          "fps": 10, "codec": "MJPG"},
             "snapshot_hz": 5, "started_utc": datetime.now(timezone.utc).isoformat(),
