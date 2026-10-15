@@ -1,5 +1,6 @@
 """ROS action preflight integration with a fake owner and fake MoveIt scene."""
 import json
+import os
 import time
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from rclpy.action import ActionClient
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
+from rclpy.qos import (QoSDurabilityPolicy, QoSHistoryPolicy,
+                       QoSReliabilityPolicy)
 from std_srvs.srv import Trigger
 from trajectory_msgs.msg import JointTrajectoryPoint
 
@@ -20,6 +23,7 @@ from so101_station_control.trajectory_server import (ARM_JOINTS, TrajectoryBridg
                                                       calibration_ready_raw_legs,
                                                       _arm_session_command,
                                                       _owner_state_is_ready)
+from so101_station_control.leader_teleop import LeaderTeleopPublisher
 
 
 class _FakeProcess:
@@ -87,6 +91,44 @@ def test_owner_startup_accepts_fresh_first_sample_with_matching_identity():
                                      calibration_sha256="a" * 64, owner_started=12.0)
     assert not _owner_state_is_ready({**state, "torque": {"joint": 1}}, arm_id="station-arm",
                                      calibration_sha256="a" * 64, owner_started=12.0)
+
+
+def test_teleop_control_qos_is_latest_only_best_effort_and_status_is_latched(monkeypatch):
+    if not rclpy.ok():
+        rclpy.init(args=["so101-offline-teleop-qos-test"])
+    root = Path(__file__).resolve().parents[4]
+    runtime_state = Path("/dev/shm") / f"so101-teleop-qos-{os.getpid()}.json"
+
+    def start_fake_owner(node):
+        node._state_file = runtime_state
+        node._process = _FakeProcess()
+        node._owner_started = time.monotonic()
+
+    monkeypatch.setattr(TrajectoryBridge, "_start_owner", start_fake_owner)
+    monkeypatch.setattr(LeaderTeleopPublisher, "_start_reader", lambda _node: None)
+    bridge = TrajectoryBridge(parameter_overrides=[
+        Parameter("enable_hardware", Parameter.Type.BOOL, False),
+        Parameter("station_root", Parameter.Type.STRING, str(root)),
+        Parameter("state_file", Parameter.Type.STRING, str(runtime_state)),
+    ])
+    leader = LeaderTeleopPublisher()
+    try:
+        for qos in (leader._pose_pub.qos_profile,
+                    bridge._teleop_pose_subscription.qos_profile):
+            assert qos.history == QoSHistoryPolicy.KEEP_LAST
+            assert qos.depth == 1
+            assert qos.reliability == QoSReliabilityPolicy.BEST_EFFORT
+        status_qos = bridge._teleop_status_pub.qos_profile
+        assert status_qos.history == QoSHistoryPolicy.KEEP_LAST
+        assert status_qos.depth == 1
+        assert status_qos.reliability == QoSReliabilityPolicy.RELIABLE
+        assert status_qos.durability == QoSDurabilityPolicy.TRANSIENT_LOCAL
+    finally:
+        leader.destroy_node()
+        bridge._process = None
+        bridge.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 def test_late_teleop_step_error_after_watchdog_keeps_bridge_disabled(monkeypatch, tmp_path):

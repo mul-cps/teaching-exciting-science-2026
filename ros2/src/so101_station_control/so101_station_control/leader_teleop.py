@@ -12,6 +12,7 @@ import time
 import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 
@@ -32,7 +33,10 @@ class LeaderTeleopPublisher(Node):
         self.declare_parameter("pose_stale_s", 0.15)
         self.declare_parameter("pose_topic", "/leader/teleop_pose")
         self.declare_parameter("joint_states_topic", "/leader/joint_states")
-        self._pose_pub = self.create_publisher(String, str(self.get_parameter("pose_topic").value), 10)
+        pose_qos = QoSProfile(depth=1, history=QoSHistoryPolicy.KEEP_LAST,
+                              reliability=QoSReliabilityPolicy.BEST_EFFORT)
+        self._pose_pub = self.create_publisher(
+            String, str(self.get_parameter("pose_topic").value), pose_qos)
         self._joint_pub = self.create_publisher(
             JointState, str(self.get_parameter("joint_states_topic").value), 10)
         self._latest = queue.Queue(maxsize=1)

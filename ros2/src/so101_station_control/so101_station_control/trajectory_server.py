@@ -21,6 +21,8 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import (QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile,
+                       QoSReliabilityPolicy)
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
@@ -178,6 +180,7 @@ class TrajectoryBridge(Node):
         self.declare_parameter("max_jerk_rad_s3", 2.0)
         self.declare_parameter("calibration_endpoint_mode", False)
         self.declare_parameter("teleop_pose_topic", "/leader/teleop_pose")
+        self.declare_parameter("teleop_status_topic", "/follower/teleop_status")
         self.declare_parameter("teleop_enable_service", "/follower/teleop_enable")
         self.declare_parameter("teleop_pose_stale_s", 0.15)
         self.declare_parameter("teleop_owner_timeout_s", 2.0)
@@ -203,10 +206,13 @@ class TrajectoryBridge(Node):
         self._teleop_inflight_sequence = None
         self._teleop_inflight = False
         self._teleop_stop_sent = False
+        self._teleop_stop_reason = None
         self._teleop_step_done = threading.Event()
         self._teleop_step_done.set()
         self._teleop_latest = None
         self._teleop_latest_lock = threading.Lock()
+        self._teleop_last_receive_age_ms = None
+        self._teleop_sequence_gap_total = 0
         self._closed = False
         self._process = None
         self._owner_started = 0.0
@@ -231,10 +237,18 @@ class TrajectoryBridge(Node):
             callback_group=self._action_group)
         self._joint_state_pub = self.create_publisher(JointState, "/follower/joint_states", 10)
         self.create_timer(0.05, self._publish_joint_state)
+        status_qos = QoSProfile(depth=1, history=QoSHistoryPolicy.KEEP_LAST,
+                                reliability=QoSReliabilityPolicy.RELIABLE,
+                                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
+        self._teleop_status_pub = self.create_publisher(
+            String, str(self.get_parameter("teleop_status_topic").value), status_qos)
+        self._publish_teleop_status("disabled", "bridge_startup")
         self._teleop_service_group = MutuallyExclusiveCallbackGroup()
         self._teleop_pose_subscription = self.create_subscription(
             String, str(self.get_parameter("teleop_pose_topic").value),
-            self._leader_pose_received, 1)
+            self._leader_pose_received,
+            QoSProfile(depth=1, history=QoSHistoryPolicy.KEEP_LAST,
+                       reliability=QoSReliabilityPolicy.BEST_EFFORT))
         self._teleop_service = self.create_service(
             SetBool, str(self.get_parameter("teleop_enable_service").value),
             self._set_teleop_enabled, callback_group=self._teleop_service_group)
@@ -245,6 +259,7 @@ class TrajectoryBridge(Node):
             Trigger, str(self.get_parameter("calibration_ready_service").value),
             self._calibration_ready, callback_group=self._teleop_service_group)
         self.create_timer(1.0 / 125.0, self._teleop_tick)
+        self.create_timer(1.0, self._publish_teleop_monitor)
         if not self._external_state_only:
             self._trajectory_helper = self._load_trajectory_helper()
             self._state_validity = self.create_client(
@@ -410,8 +425,11 @@ class TrajectoryBridge(Node):
                 self._teleop_inflight = False
                 self._teleop_inflight_sequence = None
                 self._teleop_stop_sent = False
+                self._teleop_stop_reason = None
             self._teleop_step_done.set()
             self.get_logger().warning("Leader stream expired; ArmSession watchdog held measured pose")
+            self._publish_teleop_status("disabled", "arm_session_watchdog_hold",
+                                        session_id=session_id)
             with self._teleop_condition:
                 self._teleop_acknowledgements["teleop_watchdog"] = response
                 self._teleop_acknowledgements["teleop_stop"] = {
@@ -430,6 +448,9 @@ class TrajectoryBridge(Node):
                 if not response.get("ok") and self._teleop_state == "active":
                     self._teleop_state = "stopping"
                     self._active_goal = "teleop_stopping"
+                    self._teleop_stop_reason = "owner_rejected_step"
+                    self._publish_teleop_status("stopping", self._teleop_stop_reason,
+                                                error=response.get("error", "unknown"))
             self._teleop_step_done.set()
             if not response.get("ok"):
                 self.get_logger().error(
@@ -451,6 +472,7 @@ class TrajectoryBridge(Node):
         return True
 
     def _clear_teleop(self):
+        reason = self._teleop_stop_reason or "teleoperation_disabled"
         with self._active_lock:
             if self._active_goal in {"teleop", "teleop_starting", "teleop_stopping"}:
                 self._active_goal = None
@@ -461,6 +483,34 @@ class TrajectoryBridge(Node):
             self._teleop_inflight = False
             self._teleop_inflight_sequence = None
             self._teleop_stop_sent = False
+            self._teleop_stop_reason = None
+        self._publish_teleop_status("disabled", reason)
+
+    def _publish_teleop_status(self, state, reason, **details):
+        status = {"schema": 1, "stamp_s": time.monotonic(),
+                  "state": str(state), "reason": str(reason)}
+        status.update(details)
+        message = String()
+        message.data = json.dumps(status, separators=(",", ":"))
+        self._teleop_status_pub.publish(message)
+
+    def _publish_teleop_monitor(self):
+        with self._active_lock:
+            if self._teleop_state != "active":
+                return
+            session_id = self._teleop_session
+        with self._teleop_latest_lock:
+            latest = dict(self._teleop_latest) if self._teleop_latest else None
+            receive_age_ms = self._teleop_last_receive_age_ms
+            sequence_gap_total = self._teleop_sequence_gap_total
+        source_age_ms = (max(0.0, time.monotonic() - latest["stamp_s"]) * 1000.0
+                         if latest is not None else None)
+        self._publish_teleop_status(
+            "active", "stream_monitor", session_id=session_id,
+            source_sequence=latest["sequence"] if latest is not None else None,
+            source_age_ms=round(source_age_ms, 1) if source_age_ms is not None else None,
+            last_receive_age_ms=receive_age_ms,
+            source_sequence_gap_total=sequence_gap_total)
 
     def _wait_teleop_ack(self, key):
         deadline = time.monotonic() + float(self.get_parameter("teleop_owner_timeout_s").value)
@@ -477,6 +527,7 @@ class TrajectoryBridge(Node):
     def _leader_pose_received(self, message):
         try:
             packet = json.loads(message.data)
+            receive_age_ms = round((time.monotonic() - float(packet["stamp_s"])) * 1000.0, 1)
             pose = validate_pose_packet(
                 packet, time.monotonic(), float(self.get_parameter("teleop_pose_stale_s").value))
         except (ValueError, TypeError, KeyError, json.JSONDecodeError) as error:
@@ -490,6 +541,10 @@ class TrajectoryBridge(Node):
             if not inactive:
                 return
         with self._teleop_latest_lock:
+            if current is not None:
+                self._teleop_sequence_gap_total += max(
+                    0, int(packet["sequence"]) - int(current["sequence"]) - 1)
+            self._teleop_last_receive_age_ms = receive_age_ms
             self._teleop_latest = {"stamp_s": float(packet["stamp_s"]),
                                    "sequence": int(packet["sequence"]), "pose": pose}
 
@@ -590,7 +645,11 @@ class TrajectoryBridge(Node):
                     self._teleop_inflight = False
                     self._teleop_state = "active"
                     self._teleop_stop_sent = False
+                    self._teleop_stop_reason = None
                     self._active_goal = "teleop"
+                self._publish_teleop_status("active", "owner_acknowledged",
+                                            session_id=session_id,
+                                            source_sequence=start_reference["sequence"])
                 response.success = True
                 response.message = "teleoperation enabled; ArmSession owner acknowledged"
                 return response
@@ -633,6 +692,7 @@ class TrajectoryBridge(Node):
             self._active_goal = "teleop_stopping"
             if should_send_stop:
                 self._teleop_stop_sent = True
+                self._teleop_stop_reason = "operator_disabled"
         if should_send_stop:
             with self._teleop_condition:
                 self._teleop_acknowledgements.pop("teleop_stop", None)
@@ -832,6 +892,16 @@ class TrajectoryBridge(Node):
                 self._active_goal = "teleop_stopping"
                 self._teleop_stop_sent = True
                 self._teleop_inflight = True
+                self._teleop_stop_reason = "leader_pose_stale"
+            stale_limit = float(self.get_parameter("teleop_pose_stale_s").value)
+            self.get_logger().error(
+                f"Teleoperation stopping: leader pose stale ({age * 1000:.1f} ms > "
+                f"{stale_limit * 1000:.1f} ms), source sequence {latest['sequence']}")
+            self._publish_teleop_status("stopping", "leader_pose_stale",
+                                        age_ms=round(age * 1000, 1),
+                                        stale_limit_ms=round(stale_limit * 1000, 1),
+                                        source_sequence=latest["sequence"],
+                                        session_id=session_id)
             try:
                 self._send({"command": "teleop_stop", "session_id": session_id})
             except (BrokenPipeError, OSError, RuntimeError) as error:
@@ -861,6 +931,7 @@ class TrajectoryBridge(Node):
                 self._teleop_inflight_sequence = None
                 self._teleop_state = "stopping"
                 self._active_goal = "teleop_stopping"
+                self._teleop_stop_reason = "owner_command_transport_error"
             self._teleop_step_done.set()
             self.get_logger().error(f"Could not send teleop step: {error}")
 

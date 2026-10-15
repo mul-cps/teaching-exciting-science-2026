@@ -27,7 +27,17 @@ acknowledges. Consequently the first mapped command equals the follower's
 measured starting pose, and subsequent commands apply only the leader's change
 from its captured reference. If the stream becomes stale, the resident owner
 holds the measured position and the bridge disables the session; inspect the
-diagnostic and issue a new explicit enable request to rearm. To stop motion,
+status stream and issue a new explicit enable request to rearm:
+
+```bash
+ros2 topic echo /follower/teleop_status std_msgs/msg/String
+```
+
+The latched JSON status reports active/stopping/disabled state, stop reason,
+leader source age, age at the last bridge receipt, and cumulative source
+sequence gaps. A stale stop logs the measured age and unchanged 150 ms limit.
+The control pose topic uses best-effort, depth-one QoS at both ends so delayed
+history is discarded while source timestamps still enforce freshness. To stop motion,
 disable first and then stop the ROS launch with Ctrl-C:
 
 ```bash
