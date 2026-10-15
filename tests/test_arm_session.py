@@ -1098,7 +1098,7 @@ def test_cancel_hold_rewrites_measured_pose_without_disabling_torque(tmp_path):
     session.close_log()
 
 
-def test_resident_teleop_maps_and_rate_limits_steps_and_rejects_stale_or_finite_motion(tmp_path):
+def test_resident_teleop_tracks_direct_targets_and_rejects_stale_or_finite_motion(tmp_path):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
     initial = dict(arm.bus.data["Present_Position"])
@@ -1115,8 +1115,8 @@ def test_resident_teleop_maps_and_rate_limits_steps_and_rejects_stale_or_finite_
     assert result["ok"]
     assert (result["command"], result["session_id"], result["sequence"]) == (
         "teleop_step", "bridge-1", 1)
-    assert arm.bus.data["Goal_Position"]["shoulder_pan"] < initial["shoulder_pan"] + 70
-    assert arm.bus.data["Goal_Position"]["gripper"] < arm.calibration["gripper"]["range_max"]
+    assert arm.bus.data["Goal_Position"]["shoulder_pan"] == int(round(initial["shoulder_pan"] + 30 * 4095 / 360))
+    assert arm.bus.data["Goal_Position"]["gripper"] == session.admitted_max["gripper"]
     with pytest.raises(ValueError, match="increase strictly"):
         session.handle({"command": "teleop_step", "session_id": "bridge-1",
                         "sequence": 1, "pose": pose})
@@ -1338,4 +1338,18 @@ def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):
     assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
     assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)
     assert arm.bus.eeprom_writes == []
+    session.close_log()
+
+
+def test_teleop_removes_servo_velocity_cap_and_home_restores_native_profile(tmp_path):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    session.handle({"command": "teleop_start", "session_id": "uncapped"})
+    assert arm.bus.data["Goal_Velocity"] == dict.fromkeys(JOINTS, 0)
+    assert arm.bus.data["Acceleration"] == dict.fromkeys(JOINTS, 8)
+    assert arm.bus.data["Torque_Limit"] == PROFILE["Torque_Limit"]
+    session.handle({"command": "teleop_stop", "session_id": "uncapped"})
+    session.home()
+    assert arm.bus.data["Goal_Velocity"] == PROFILE["Goal_Velocity"]
+    session.shutdown(reason="test_cleanup")
     session.close_log()

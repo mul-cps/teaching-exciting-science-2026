@@ -155,3 +155,14 @@ are supplied. Its metadata records `target_reached: false` and status
 `calibration_measured_endpoint_held`, not
 `executed_successfully`. Without `--calibration`, the same action result is a
 failure. The mode does not change trajectory tolerances or motion profiles.
+
+## Direct teleop response
+
+Teleop sends each fresh mapped position directly, clamped to the admitted joint
+position bounds. It has no software velocity slew cap. The teleop-only native
+profile sets `Goal_Velocity=0` (position-mode hardware maximum), keeps
+`Acceleration=8`, and retains the existing torque limits. The initial goal still
+holds the measured home position before torque is enabled. Home, MoveIt, and
+other planned moves reinstall their original bounded native profile; teleop
+does not change their velocity, acceleration, or jerk checks. Shutdown restores
+the saved RAM registers.

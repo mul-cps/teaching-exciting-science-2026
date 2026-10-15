@@ -26,7 +26,6 @@ from .locking import station_lock, station_lock_path
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
                              ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S,
                              path_digest, prepare_trajectory)
-TELEOP_RATE = dict(zip(JOINTS, (60, 60, 60, 60, 90, 100)))
 
 PERIOD_S = 0.05
 ROS_MAX_TRACK_ERROR_RAD = math.radians(10.0)
@@ -514,7 +513,7 @@ class ArmSession:
                 raise ValueError("leg exceeds raw step budget: " + label + "/" + joint)
         return recovery
 
-    def _ensure_profile(self):
+    def _ensure_profile(self, *, teleop=False):
         self._poll_busy_input()
         self._calibration_guard()
         self._shutdown_complete = False
@@ -530,13 +529,19 @@ class ArmSession:
             self._poll_busy_input()
             actual[register] = self._read(register)
             self._poll_busy_input()
-        for register, wanted in PROFILE.items():
+        profile = dict(PROFILE)
+        if teleop:
+            # Position mode: zero selects the servo's maximum velocity.
+            # Retain acceleration smoothing and the existing torque limits.
+            profile["Goal_Velocity"] = dict.fromkeys(JOINTS, 0)
+        for register, wanted in profile.items():
             if actual[register] != wanted:
                 self._write_each(register, wanted)
                 self._poll_busy_input()
                 if self._read(register) != wanted:
                     raise RuntimeError("native RAM profile readback mismatch: " + register)
-        self.profile = "native-8-160-220-torque-700-250"
+        self.profile = ("teleop-8-uncapped-velocity-torque-700-250" if teleop else
+                        "native-8-160-220-torque-700-250")
 
     def _enable_current_goal(self, target, started, label):
         # Install goals before enabling torque; verify broadcast write/readback.
@@ -924,7 +929,7 @@ class ArmSession:
         # the first commanded step starts from the admitted boundary so every
         # subsequent Goal_Position remains inside the unchanged limits.
         target = actual
-        self._ensure_profile()
+        self._ensure_profile(teleop=True)
         torque = self._enable_current_goal(target, self.clock(), "teleop_start")
         torque_monotonic, torque_utc = self.clock(), self.wall_clock()
         self._teleop = {"session_id": command["session_id"], "sequence": -1,
@@ -960,20 +965,16 @@ class ArmSession:
         if not 0 <= pose["gripper"] <= 100:
             raise ArmPlanPreflightError("teleop gripper must be between 0 and 100 percent")
         now = self.clock()
-        dt = max(0.0, now - active["last"])
         target = {}
         for joint in JOINTS:
             entry = self.arm.calibration[joint]
             if joint == "gripper":
                 requested = entry["range_min"] + pose[joint] * (entry["range_max"] - entry["range_min"]) / 100
-                rate = TELEOP_RATE[joint] * (entry["range_max"] - entry["range_min"]) / 100
             else:
                 requested = (entry["range_min"] + entry["range_max"]) / 2 + pose[joint] * 4095 / 360
-                rate = TELEOP_RATE[joint] * 4095 / 360
             low, high = self.admitted_min[joint], self.admitted_max[joint]
             bounded = max(low, min(high, requested))
-            previous = active["previous"][joint]
-            target[joint] = int(round(max(previous - rate * dt, min(previous + rate * dt, bounded))))
+            target[joint] = int(round(bounded))
         target = self._validate_target(target, "teleop_step")
         self.bus.sync_write("Goal_Position", target, normalize=False, num_retry=0)
         actual = self._read("Present_Position")
