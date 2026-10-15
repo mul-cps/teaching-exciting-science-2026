@@ -19,7 +19,7 @@ Usage: ros2/scripts/so101.sh fetch|build|rviz|servo|plan-smoke|inspect|real
   fetch       Fetch exact upstream + recursive Feetech source into ignored cache
   build       Resolve dependencies and build the pinned ROS 2 Jazzy workspace
   rviz        Launch mock ros2_control + MoveIt + RViz (no USB/hardware)
-  plan-smoke  Plan a 5-DOF position-only goal; never executes trajectories
+  plan-smoke  Plan a near-current PickIK joint goal; save without execution
   inspect     Show controllers, topics, and actions from a running mock stack
   real        Refuse unsafe upstream driver startup and explain the gate
 
