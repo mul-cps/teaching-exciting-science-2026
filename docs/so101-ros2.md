@@ -28,7 +28,7 @@ MoveIt planning limits arm motion to ±90° on each revolute joint, with provisi
 
 ## Hardware gate
 
-Do not use the upstream real-hardware launch yet. Inspection of the pinned driver shows its `configure_joints_()` disables torque, unlocks EPROM, writes configured PID/range/homing values, locks EPROM, and enables torque during hardware configuration. If no YAML is passed, it still takes values from URDF parameters and writes the configured fields. Thus pointing `joint_config_file` at Rig01 data would write EEPROM, while omitting it is not a read-only mode. `ros2/scripts/so101.sh real` fails closed with this explanation. A safe real launch requires a driver-level mode that reads current servo state without EEPROM writes and avoids torque/motion side effects, plus an explicit station hardware gate. No physical access or hardware startup is part of this integration.
+The pinned driver patch adds a default `read_only:=true` mode, suppresses torque/EEPROM writes and command interfaces in that mode, and reads measured positions using an explicitly separate `state_mapping_file`. The mapping file is never passed as `joint_config_file`. The patch and state conversion tests pass, and the driver builds in the Jazzy container. However, the Rig01 software-zero map is still unqualified as a physical URDF mapping, the gripper's angular state conversion remains unverified, and no physical state-only startup has been reviewed here. `ros2/scripts/so101.sh real` therefore remains fail-closed. No physical access or hardware startup is part of this integration.
 
 ## Scope and limitations
 

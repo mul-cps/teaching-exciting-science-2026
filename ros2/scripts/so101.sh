@@ -24,7 +24,8 @@ Usage: ros2/scripts/so101.sh fetch|build|rviz|servo|plan-smoke|inspect|real
   real        Refuse unsafe upstream driver startup and explain the gate
 
 The default and all supported launch paths use mock hardware. There is no
-real-hardware launch entry point until upstream EEPROM writes are guarded.
+real-hardware launch entry point until the read-only driver mode and station
+mapping are reviewed against the physical station.
 EOF
 }
 
@@ -103,7 +104,7 @@ case "$ACTION" in
     run_ros bash -lc 'set -e; ros2 control list_controllers -c /follower/controller_manager; ros2 topic list; ros2 action list'
     ;;
   real)
-    fail "real startup blocked: pinned Feetech driver unconditionally disables torque, unlocks EPROM, writes configured EEPROM values, re-locks EPROM, and enables torque in configure_joints_ (feetech_ros2_driver/src/feetech_ros2_driver.cpp). A driver-level read-only/no-write mode and station hardware review are required first."
+    fail "real startup blocked: fetch/build applies a tested Feetech read-only patch by default, but the unqualified Rig01 mapping and physical station have not been reviewed for state-only startup. The patched driver's read_only mode is not a motion authorization."
     ;;
   *) usage >&2; fail "unknown action '$ACTION'" ;;
 esac

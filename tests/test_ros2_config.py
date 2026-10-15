@@ -57,11 +57,12 @@ def test_wrapper_exposes_mock_rviz_and_plan_only_by_default():
     assert "--hardware" not in wrapper
 
 
-def test_real_hardware_is_blocked_until_upstream_eeprom_writes_are_gated():
+def test_real_hardware_stays_blocked_after_patch_until_station_map_review():
     wrapper = (ROOT / "ros2/scripts/so101.sh").read_text()
     assert '  real)' in wrapper
     assert "real startup blocked" in wrapper
-    assert "unconditionally disables torque" in wrapper
+    assert "unqualified Rig01 mapping" in wrapper
+    assert "read_only mode is not a motion authorization" in wrapper
 
 
 def test_moveit_limits_use_station_bound_and_jerk_smoothing_after_totg():
