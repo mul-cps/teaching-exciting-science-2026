@@ -43,7 +43,7 @@ def timestamps_paired(color_stamp, depth_stamp, max_delta_s=0.04):
 
 
 def stamp_is_fresh(now_seconds, stamp_seconds_value, max_age_s=0.5):
-    return abs(float(now_seconds) - float(stamp_seconds_value)) <= float(max_age_s)
+    return 0 <= float(now_seconds) - float(stamp_seconds_value) <= float(max_age_s)
 
 
 def camera_intrinsics(info, image_shape):
@@ -188,7 +188,7 @@ class TagObservations(Node):
         color_stamp = stamp_seconds(color_msg.header.stamp)
         if not stamp_is_fresh(now, color_stamp):
             return
-        if time.monotonic() - self.last_processing < self.min_processing_period:
+        if prepared_gray is None and time.monotonic() - self.last_processing < self.min_processing_period:
             return
         self.last_processing = time.monotonic()
         delta = stamp_seconds(depth_msg.header.stamp) - stamp_seconds(color_msg.header.stamp)

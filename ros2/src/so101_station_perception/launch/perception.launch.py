@@ -81,7 +81,7 @@ def _launch_nodes(context):
     )]
     if live_world:
         actions.append(Node(
-            package="so101_station_perception", executable="charuco_world",
+            package="so101_station_perception", executable=("marker_pipeline" if LaunchConfiguration("publish_tag_observations").perform(context).lower() == "true" else "charuco_world"),
             name="so101_charuco_world", output="screen", parameters=[{
                 "initial_base_from_camera_file": arm_path,
                 "initial_camera_from_board_file": target_path,
@@ -101,7 +101,7 @@ def _launch_nodes(context):
                 "camera_link_frame": "camera_link",
             }],
         ))
-    if LaunchConfiguration("publish_tag_observations").perform(context).lower() == "true":
+    if not live_world and LaunchConfiguration("publish_tag_observations").perform(context).lower() == "true":
         actions.append(Node(
             package="so101_station_perception", executable="tag_observations",
             name="so101_tag_observations", output="screen",

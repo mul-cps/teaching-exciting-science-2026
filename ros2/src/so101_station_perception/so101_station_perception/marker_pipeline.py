@@ -6,7 +6,7 @@ import time
 import cv2
 import message_filters
 import rclpy
-from rclpy.executors import SingleThreadedExecutor
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.parameter import Parameter
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CameraInfo, Image
@@ -39,6 +39,7 @@ class MarkerPipeline(CharucoWorld):
 
     def __init__(self):
         super().__init__(subscribe_images=False)
+        self.declare_parameter("publish_timing", False)
         self.declare_parameter("depth_topic", "/camera/aligned_depth_to_color/image_raw")
         value = lambda key: self.get_parameter(key).value
         tag_overrides = [Parameter(name="color_topic", value=value("color_topic")),
@@ -93,13 +94,15 @@ class MarkerPipeline(CharucoWorld):
                 lambda image, aligned_depth, gray: self._process_tags_with_info(
                     image, aligned_depth, info, gray),
             )
-            metrics["capture_to_callback_ms"] = (
+            metrics["capture_to_callback_ms"] = (now - stamp) * 1000.0
+            metrics["capture_to_completion_ms"] = (
                 self.get_clock().now().nanoseconds * 1e-6 - stamp * 1000.0)
             metrics["frame_id"] = color.header.frame_id
-            metrics["timing_scope"] = "image_header_stamp_to_callback_completion"
+            metrics["timing_scope"] = "original_capture_stamp; input_age_at_entry; per_stage_monotonic_duration"
             message = String()
             message.data = json.dumps(metrics, sort_keys=True, allow_nan=False)
-            self.timing_pub.publish(message)
+            if self.get_parameter("publish_timing").value:
+                self.timing_pub.publish(message)
         except (ValueError, TypeError, IndexError, cv2.error) as error:
             self.get_logger().warning(f"Shared marker frame unavailable: {error}")
             self._status("invalid", stamp=stamp, reason=str(error))
@@ -113,7 +116,7 @@ class MarkerPipeline(CharucoWorld):
 def main(args=None):
     rclpy.init(args=args)
     pipeline = MarkerPipeline()
-    executor = SingleThreadedExecutor()
+    executor = MultiThreadedExecutor(num_threads=2)
     executor.add_node(pipeline)
     executor.add_node(pipeline.tags)
     try:

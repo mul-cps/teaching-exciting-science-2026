@@ -11,6 +11,7 @@ import rclpy
 from cv_bridge import CvBridge
 from geometry_msgs.msg import TransformStamped
 from rclpy.node import Node
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
@@ -155,6 +156,7 @@ class CharucoWorld(Node):
         self.last_valid_stamp = None
         self.cached_optical_from_link = None
         self.filtered_pose = None
+        self.pose_estimate = None
         self.hold_s = float(self.get_parameter("transform_hold_s").value)
         if not math.isfinite(self.hold_s) or not 0 < self.hold_s <= 1.0:
             raise ValueError("transform_hold_s must be finite and in (0, 1] seconds")
@@ -174,7 +176,9 @@ class CharucoWorld(Node):
                 [image, info], queue_size=6, slop=float(self.get_parameter("max_pair_delta_s").value))
             self.sync.registerCallback(self._pair)
         self.timer = self.create_timer(0.2, self._stale_status)
-        self.tf_timer = self.create_timer(1.0 / 30.0, self._publish_pose_estimate)
+        self.tf_callback_group = MutuallyExclusiveCallbackGroup()
+        self.tf_timer = self.create_timer(1.0 / 30.0, self._publish_pose_estimate,
+                                          callback_group=self.tf_callback_group)
         self._publish_provisional_base_seed()
 
     def _status(self, state, stamp=None, **extra):
@@ -195,7 +199,7 @@ class CharucoWorld(Node):
         if abs(stamp - stamp_seconds(info_msg.header.stamp)) > float(self.get_parameter("max_pair_delta_s").value):
             self._status("invalid", stamp=stamp, reason="image and CameraInfo timestamps differ")
             return
-        if self.last_stamp == stamp or time.monotonic() - self.last_process_mono < self.period:
+        if self.last_stamp == stamp or (prepared_gray is None and time.monotonic() - self.last_process_mono < self.period):
             return
         self.last_stamp, self.last_process_mono = stamp, time.monotonic()
         try:
@@ -213,7 +217,7 @@ class CharucoWorld(Node):
             self.filtered_pose = stabilize_pose(self.filtered_pose, board_from_link,
                                                 observation_gap_s=gap, max_gap_s=self.hold_s)
             self.last_valid_stamp = stamp
-            self._publish_pose_estimate()
+            self.pose_estimate = (self.filtered_pose, stamp)
             self._status("tracking", stamp=stamp, charuco_corners=count, reprojection_rms_px=rms,
                          transform_model="bounded_zero_order_hold", transform_hold_s=self.hold_s,
                          parent=self.board_frame, child=self.camera_link_frame)
@@ -224,11 +228,14 @@ class CharucoWorld(Node):
         # TF describes a bounded held pose estimate at publication time. The
         # original observation time remains explicit in the status topic.
         now = self.get_clock().now()
-        if (self.filtered_pose is None or self.last_valid_stamp is None
-                or not 0 <= now.nanoseconds * 1e-9 - self.last_valid_stamp <= self.hold_s):
+        snapshot = self.pose_estimate
+        if snapshot is None:
+            return
+        pose, observation_stamp = snapshot
+        if not 0 <= now.nanoseconds * 1e-9 - observation_stamp <= self.hold_s:
             return
         self.broadcaster.sendTransform(transform_message(
-            self.board_frame, self.camera_link_frame, self.filtered_pose, now.to_msg()))
+            self.board_frame, self.camera_link_frame, pose, now.to_msg()))
 
     def _stale_status(self):
         if self.last_valid_stamp is None:

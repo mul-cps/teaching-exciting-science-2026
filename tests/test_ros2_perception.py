@@ -243,6 +243,8 @@ def test_full_image_detector_sees_id_zero_near_physical_elbow_tag_location():
 def test_tag_processing_rejects_stale_camera_stamps():
     assert stamp_is_fresh(100.0, 99.6)
     assert not stamp_is_fresh(100.0, 99.49)
+    assert not stamp_is_fresh(100.0, 100.1)
+    assert not stamp_is_fresh(100.0, float("nan"))
 
 
 def test_camera_subscriptions_use_sensor_data_qos():

@@ -68,3 +68,24 @@ Python serialization 0.425 ms, deserialization 0.247 ms, grayscale conversion
 0.160 ms. Capture-to-callback median was 84.4 ms. The latter includes timestamp
 mapping, camera/driver, scheduling and transport; the Python serializer benchmark
 does not isolate actual DDS-only latency.
+
+
+With live board tracking and tag observations enabled, the station starts only
+`marker_pipeline`, replacing the two standalone image consumers. One shallow
+BEST_EFFORT RGB/depth/CameraInfo synchronization produces one grayscale image
+shared by the board ArUco/ChArUco detector and AprilTag detector. Their different
+marker dictionaries still require distinct detection steps. Fixed camera TF is
+cached; dynamic camera TF uses the bounded pose cache described above. Native
+camera images, depth and arm state each retain their existing single publisher.
+The pipeline does not broadcast every printed board square as an extra frame.
+
+Per-frame timing is opt-in (`publish_timing:=true`) on
+`/so101_perception/marker_pipeline/timing`. `capture_to_callback_ms` measures
+input age at callback entry; `capture_to_completion_ms` additionally includes
+processing. Stage durations use a monotonic clock. Disable timing after profiling
+with `ros2 param set /so101_charuco_world publish_timing false`.
+
+The TF timer has its own callback group and shares a two-thread executor with
+the detector, so detection does not intentionally block publication. It reads an
+atomic pose/original-stamp cache snapshot; only the timer publishes camera TF.
+Future or stale input timestamps are rejected rather than relabeled as current.

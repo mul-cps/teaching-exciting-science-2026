@@ -113,12 +113,14 @@ def test_held_transform_stops_when_observation_is_stale():
     published = []
     now = SimpleNamespace(nanoseconds=2_000_000_000, to_msg=lambda: SimpleNamespace(sec=2, nanosec=0))
     node = SimpleNamespace(filtered_pose=np.eye(4), last_valid_stamp=.5, hold_s=1.,
+                           pose_estimate=(np.eye(4), .5),
                            get_clock=lambda: SimpleNamespace(now=lambda: now),
                            broadcaster=SimpleNamespace(sendTransform=published.append),
                            board_frame="charuco_board", camera_link_frame="camera_link")
     CharucoWorld._publish_pose_estimate(node)
     assert published == []
     node.last_valid_stamp = 1.5
+    node.pose_estimate = (np.eye(4), 1.5)
     CharucoWorld._publish_pose_estimate(node)
     assert len(published) == 1
 

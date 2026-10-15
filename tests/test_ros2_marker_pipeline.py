@@ -43,3 +43,24 @@ def test_shared_frame_dispatch_decodes_once_and_preserves_stamp_and_gray_identit
     assert calls[1] == ("tags", color, depth, gray)
     assert metrics["capture_stamp"] == pytest.approx(123.000000456)
     assert metrics["decode_ms"] >= 0 and metrics["board_ms"] >= 0 and metrics["tags_ms"] >= 0
+
+
+def test_combined_frame_does_not_hit_child_standalone_rate_gate():
+    import time
+    from types import SimpleNamespace
+    from so101_station_perception.tag_observations import TagObservations
+
+    stamp = SimpleNamespace(sec=100, nanosec=0)
+    message = SimpleNamespace(header=SimpleNamespace(stamp=stamp, frame_id="optical"))
+    cleared = []
+    node = SimpleNamespace(
+        get_clock=lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=100_000_000_000)),
+        last_processing=time.monotonic(), min_processing_period=10.,
+        max_pair_delta=.04, camera_info=None,
+        _empty=lambda *args: cleared.append(args))
+    # A standalone callback is throttled. A frame already scheduled by the
+    # combined pipeline must reach validation despite that child timer.
+    TagObservations._images(node, message, message)
+    assert cleared == []
+    TagObservations._images(node, message, message, prepared_gray=np.zeros((2, 2), dtype=np.uint8))
+    assert len(cleared) == 1
