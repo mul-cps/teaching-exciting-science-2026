@@ -4,7 +4,7 @@ import pytest
 
 from workshop.digital_twin.registration_diagnostics import (
     arm_roi_cloud, detect_charuco_depth, diagnostic_pair_is_fresh,
-    diagnostic_source_is_fresh, evaluate_charuco_depth,
+    diagnostic_source_age_s, diagnostic_source_is_fresh, evaluate_charuco_depth,
 )
 
 
@@ -38,7 +38,9 @@ def test_stale_or_unpaired_rgbd_hides_registration_diagnostics():
     assert not diagnostic_pair_is_fresh(None, {'freshness': 'fresh', 'pairing_status': 'paired'})
     source = {'timestamp_wall': 100.0}
     assert diagnostic_source_is_fresh(source, 100.4)
-    assert not diagnostic_source_is_fresh(source, 100.6)
+    assert diagnostic_source_is_fresh(source, 101.24)
+    assert not diagnostic_source_is_fresh(source, 101.26)
+    assert diagnostic_source_age_s(source, 100.8) == pytest.approx(.8)
     assert not diagnostic_source_is_fresh({}, 100.0)
 
 
