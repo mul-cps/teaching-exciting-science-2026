@@ -222,6 +222,85 @@ def test_plan_is_fully_validated_before_profile_or_torque_writes(tmp_path):
     session.close_log()
 
 
+def _serve_invalid_plan_then_read_stop_exit(session, arm, clock, read_only,
+                                            writes_before=None, goals_before=None):
+    previous_command = session.last_command
+    clock.value += 0.25
+    invalid = {"command": "move_plan", "legs": [
+        {"label": "wrist-out-of-range", "target_raw": target(wrist_flex=3024)}]}
+    commands = [invalid, {"command": "read_state"},
+                {"command": "stop"}, {"command": "exit"}]
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, b"".join(json.dumps(value).encode() + b"\n"
+                                           for value in commands))
+    results = []
+    rejected_snapshot = {}
+
+    def emit(value):
+        results.append(value)
+        if value.get("command") == "move_plan":
+            rejected_snapshot.update(
+                writes=list(arm.bus.writes), goals=len(arm.bus.goal_history),
+                torque=arm.bus.sync_read("Torque_Enable"), profile=session.profile,
+                last_command=session.last_command)
+
+    try:
+        assert session.serve(fd=read_fd, emit=emit) == 0
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+    rejection = next(row for row in results if row.get("command") == "move_plan")
+    state_reply = next(row for row in results if row.get("ok") and row.get("state", {}).get("event") == "read_state")
+    assert rejection["ok"] is False
+    assert rejection["error_type"] == "ArmPlanPreflightError"
+    assert rejected_snapshot["last_command"] == previous_command
+    if read_only:
+        assert rejected_snapshot["writes"] == []
+        assert rejected_snapshot["goals"] == 0
+        assert set(rejected_snapshot["torque"].values()) == {0}
+        assert rejected_snapshot["profile"] == "unmodified"
+        assert state_reply["state"]["profile"] == "unmodified"
+        assert set(state_reply["state"]["torque"].values()) == {0}
+    else:
+        assert rejected_snapshot["writes"] == writes_before
+        assert rejected_snapshot["goals"] == goals_before
+        assert set(rejected_snapshot["torque"].values()) == {1}
+        assert rejected_snapshot["profile"] == "native-8-160-220-torque-700-250"
+        assert set(state_reply["state"]["torque"].values()) == {1}
+        assert state_reply["state"]["profile"] == "native-8-160-220-torque-700-250"
+        stop_reply = next(row for row in results if row.get("ok") and row.get("stopped"))
+        assert set(stop_reply["state"]["torque"].values()) == {0}
+        assert session.profile == "unmodified"
+    session.close_log()
+    return results
+
+
+def test_served_preflight_rejection_keeps_held_pose_until_stop(tmp_path):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    session.move_plan([{"label": "hold", "target_raw": target(shoulder_pan=2050)}])
+    writes_before = list(arm.bus.writes)
+    goals_before = len(arm.bus.goal_history)
+    results = _serve_invalid_plan_then_read_stop_exit(
+        session, arm, clock, read_only=False, writes_before=writes_before,
+        goals_before=goals_before)
+    assert len(arm.bus.goal_history) == goals_before
+    assert any(row.get("ok") and row.get("state", {}).get("event") == "read_state"
+               for row in results)
+
+
+def test_served_preflight_rejection_keeps_startup_session_read_only(tmp_path):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    results = _serve_invalid_plan_then_read_stop_exit(session, arm, clock, read_only=True)
+    assert arm.bus.goal_history == []
+    assert all(register == "Torque_Enable" and value == 0
+               for register, _joint, value in arm.bus.writes)
+    assert any(row.get("ok") and row.get("state", {}).get("event") == "read_state"
+               for row in results)
+
+
 def test_goal_readback_fault_disables_and_restores_only_saved_ram(tmp_path):
     session, arm, _ = make_session(tmp_path)
     session.initialize()
