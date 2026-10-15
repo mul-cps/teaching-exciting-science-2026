@@ -20,6 +20,8 @@ from .evidence_bridge import (apply_world_registration, camera_sample_status,
                               transform_points)
 
 LIVE_SURFACE_REFRESH_INTERVAL_S = .2
+DEPTH_VIEW_NEAR_M = .3
+DEPTH_VIEW_FAR_M = .9
 
 
 def _reflect_actual_pose(lock, sliders, degrees, next_degrees, update_pose,
@@ -35,8 +37,29 @@ def _reflect_actual_pose(lock, sliders, degrees, next_degrees, update_pose,
             update_pose()
         finally:
             reflecting_actual[0] = False
-DEPTH_VIEW_NEAR_M = .3
-DEPTH_VIEW_FAR_M = .9
+
+
+def _set_fiducial_axes(result, world_from_camera, expected_axes, observed_axes):
+    """Update comparison frames without displaying an uncertain tag rotation."""
+    from scipy.spatial.transform import Rotation
+
+    def place(handle, camera_from_tag):
+        if camera_from_tag is None:
+            handle.visible = False
+            return
+        world_from_tag = world_from_camera @ camera_from_tag
+        handle.position = world_from_tag[:3, 3]
+        handle.wxyz = Rotation.from_matrix(world_from_tag[:3, :3]).as_quat()[[3, 0, 1, 2]]
+        handle.visible = True
+
+    place(expected_axes, result.get('expected_camera_from_tag'))
+    if result.get('orientation_status') not in ('resolved_pnp', 'depth_disambiguated'):
+        observed_axes.visible = False
+        return
+    observed = result.get('depth_anchored_camera_from_tag')
+    if observed is None:
+        observed = result.get('observed_camera_from_tag')
+    place(observed_axes, observed)
 
 
 def _depth_visualization_texture(depth_m, valid, near_m=DEPTH_VIEW_NEAR_M,
@@ -639,15 +662,8 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
             fiducial_state['last_center'] = result['center_px']
             fiducial_state['last_observed_pose'] = result['observed_camera_from_tag']
             world_from_camera = np.asarray(report['world_from_camera'], dtype=float)
-            from scipy.spatial.transform import Rotation
-            for handle, camera_from_tag in (
-                    (fiducial_expected_axes, result['expected_camera_from_tag']),
-                    (fiducial_observed_axes, result.get('depth_anchored_camera_from_tag')
-                        or result['observed_camera_from_tag'])):
-                world_from_tag = world_from_camera @ camera_from_tag
-                handle.position = world_from_tag[:3, 3]
-                handle.wxyz = Rotation.from_matrix(world_from_tag[:3, :3]).as_quat()[[3, 0, 1, 2]]
-                handle.visible = True
+            _set_fiducial_axes(result, world_from_camera,
+                               fiducial_expected_axes, fiducial_observed_axes)
         except (KeyError, TypeError, ValueError, np.linalg.LinAlgError) as error:
             hide_fiducial(f'FIDUCIAL UNAVAILABLE · {type(error).__name__}')
 
