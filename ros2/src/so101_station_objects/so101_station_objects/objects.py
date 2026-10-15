@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import sys
 import time
+from copy import deepcopy
 
 import cv2
 import numpy as np
@@ -484,6 +485,24 @@ def transform_from_msg(message):
     return matrix
 
 
+def elevated_pose_copy(pose, offset_m):
+    """Return a vertically offset pose without mutating its source message."""
+    result = deepcopy(pose)
+    result.position.z += float(offset_m)
+    return result
+
+
+def pregrasp_position(contact_position, approach_direction, offset_m=0.06):
+    """Offset a geometric contact point opposite its approach direction."""
+    contact = np.asarray(contact_position, dtype=float).reshape(3)
+    approach = np.asarray(approach_direction, dtype=float).reshape(3)
+    norm = float(np.linalg.norm(approach))
+    if (not np.isfinite(contact).all() or not np.isfinite(approach).all()
+            or not np.isfinite(offset_m) or offset_m <= 0 or norm < 1e-9):
+        raise ValueError("contact, approach, and pregrasp offset must be finite and valid")
+    return contact - approach / norm * float(offset_m)
+
+
 class ColoredObjectsNode:
     """ROS adapter; imports ROS only at instantiation for offline helper tests."""
     def __new__(cls, *args, **kwargs):
@@ -555,6 +574,7 @@ class ColoredObjectsNode:
                 self.detections_pub = self.create_publisher(Detection3DArray, "/so101/objects", 10)
                 self.markers_pub = self.create_publisher(MarkerArray, "/so101/object_markers", 10)
                 self.grasps_pub = self.create_publisher(PoseArray, "/so101/grasp_candidates", 10)
+                self.contacts_pub = self.create_publisher(PoseArray, "/so101/grasp_contacts", 10)
                 self.status_pub = self.create_publisher(String, "/so101/grasp_status", 10)
                 self.registration_sub = self.create_subscription(
                     String, self.get_parameter("registration_status_topic").value,
@@ -593,6 +613,9 @@ class ColoredObjectsNode:
                 poses = PoseArray()
                 poses.header = array.header
                 self.grasps_pub.publish(poses)
+                contacts = PoseArray()
+                contacts.header = array.header
+                self.contacts_pub.publish(contacts)
                 if clear_markers:
                     markers = MarkerArray()
                     clear = Marker()
@@ -722,6 +745,8 @@ class ColoredObjectsNode:
                 markers.markers.append(clear)
                 grasps = PoseArray()
                 grasps.header = detections.header
+                contacts = PoseArray()
+                contacts.header = detections.header
                 grasp_records = []
                 for index, obj in enumerate(report["objects"]):
                     rotation = obj["orientation_matrix"]
@@ -756,18 +781,27 @@ class ColoredObjectsNode:
                     label = Marker()
                     label.header = detections.header
                     label.ns, label.id, label.type, label.action = "colored_object_labels", index * 2 + 1, Marker.TEXT_VIEW_FACING, Marker.ADD
-                    label.pose = det.bbox.center
-                    label.pose.position.z += float(dimensions[2]) / 2 + .015
+                    label.pose = elevated_pose_copy(det.bbox.center,
+                                                    float(dimensions[2]) / 2 + .015)
                     label.scale.z = .015
                     label.color.r = label.color.g = label.color.b = label.color.a = 1.0
-                    label.text = f"{obj['color']} {det.id}"
+                    # RViz text can split on spaces; keep the visible label as
+                    # the stable identifier so it stays next to the object.
+                    label.text = det.id
                     label.lifetime.sec = int(MARKER_HOLD_SECONDS)
                     markers.markers.append(label)
                     for grasp_index, grasp in enumerate(obj["grasps"]):
                         rotation_grasp = grasp_pose_rotation(grasp["closing_axis"], grasp["approach_direction"])
                         q_grasp = matrix_quaternion(rotation_grasp)
+                        contact = Pose()
+                        contact.position.x, contact.position.y, contact.position.z = map(
+                            float, grasp["position"])
+                        contact.orientation.x, contact.orientation.y = map(float, q_grasp[:2])
+                        contact.orientation.z, contact.orientation.w = map(float, q_grasp[2:])
+                        contacts.poses.append(contact)
                         pregrasp = Pose()
-                        preposition = grasp["position"] - grasp["approach_direction"] * .06
+                        preposition = pregrasp_position(grasp["position"],
+                                                        grasp["approach_direction"], .06)
                         pregrasp.position.x, pregrasp.position.y, pregrasp.position.z = map(float, preposition)
                         pregrasp.orientation.x, pregrasp.orientation.y = map(float, q_grasp[:2])
                         pregrasp.orientation.z, pregrasp.orientation.w = map(float, q_grasp[2:])
@@ -786,6 +820,7 @@ class ColoredObjectsNode:
                 self.detections_pub.publish(detections)
                 self.markers_pub.publish(markers)
                 self.grasps_pub.publish(grasps)
+                self.contacts_pub.publish(contacts)
                 self.last_marker_update_mono = time.monotonic()
                 self.last_marker_update_stamp = detections.header.stamp
                 self.marker_clear_sent = not bool(report["objects"])

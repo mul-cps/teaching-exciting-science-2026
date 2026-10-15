@@ -35,11 +35,20 @@ narrow color fragments. Red, green, blue, and yellow regions produce spatially
 associated detections; gray and black regions are ignored.
 
 `/so101/objects` is `vision_msgs/Detection3DArray` in `charuco_board`.
-`/so101/object_markers` shows the observed boxes and labels. `/so101/grasp_candidates`
-is `geometry_msgs/PoseArray`, with one top-down pregrasp per proposal, 60 mm
-above its estimated contact pose. `/so101/grasp_status` is JSON in
-`std_msgs/String`, including IDs, dimensions and their uncertainty, measured
-support-plane diagnostics, jaw opening, and contact/pregrasp coordinates.
+Each detection box is centered halfway up its observed height, so its bottom
+face lies on the measured support plane. `/so101/object_markers` displays that
+box plus a short single-token track label above its top; the label pose is a
+copy and does not change the detection or box center.
+
+`/so101/grasp_contacts` is a `geometry_msgs/PoseArray` at the estimated
+mid-height contact pose. `/so101/grasp_candidates` retains its existing
+contract as the top-down pregrasp pose, 60 mm above the matching contact pose.
+This offset is deliberate and can make pregrasp axes appear above a brick; use
+the contact topic to inspect where the fingers would meet the object. Both
+topics share the Detection3DArray timestamp and frame. `/so101/grasp_status`
+is JSON in `std_msgs/String`, including IDs, dimensions and their uncertainty,
+measured support-plane diagnostics, jaw opening, and contact/pregrasp
+coordinates.
 
 These are image-derived geometric proposals only. Dimensions describe visible
 RGB-D extents, not CAD dimensions or necessarily the whole object. Grasp
