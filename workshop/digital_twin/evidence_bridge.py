@@ -254,10 +254,22 @@ def select_live_rgbd_pair(folder, now_wall=None, now_monotonic=None,
                 or abs(image_mtime - depth_mtime) > max_age_s
                 or abs(min(image_mtime, depth_mtime) - timestamp_wall) > max_age_s):
             return None
+        paths = timestamp_record.get('paths') or {}
+        def immutable_path(value):
+            if not isinstance(value, str) or not value:
+                return None
+            relative = Path(value)
+            if relative.is_absolute() or '..' in relative.parts:
+                return None
+            return folder / relative
+        immutable_image = immutable_path(paths.get('snapshot_color', timestamp_record.get('color')))
+        immutable_depth = immutable_path(paths.get('snapshot_depth', timestamp_record.get('depth')))
+        frame_index = timestamp_record.get('index')
         return {'image': image, 'depth': depth, 'timestamp_wall': timestamp_wall,
                 'timestamp_monotonic': timestamp_monotonic,
                 'timestamp_source': 'camera latest.json' if latest_record.is_file() else 'camera timestamps.jsonl',
-                'camera_frame_index': timestamp_record.get('index'),
+                'camera_frame_index': frame_index, 'frame_index': frame_index,
+                'immutable_image': immutable_image, 'immutable_depth': immutable_depth,
                 'pose_raw': pose_raw,
                 'pose_monotonic': pose_monotonic,
                 'pose_sample_delta_seconds': pose_delta,

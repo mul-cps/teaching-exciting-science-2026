@@ -711,6 +711,11 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
             diagnostics_state.update(status='FRESH · RGB PnP / depth diagnostic · UNQUALIFIED', residuals=diag,
                 source_pair={'image': str(detected_pair.get('image', current_pair['image'])),
                     'depth': str(detected_pair.get('depth', current_pair['depth'])),
+                    'immutable_image': (str(detected_pair['immutable_image'])
+                        if detected_pair.get('immutable_image') is not None else None),
+                    'immutable_depth': (str(detected_pair['immutable_depth'])
+                        if detected_pair.get('immutable_depth') is not None else None),
+                    'frame_index': detected_pair.get('frame_index', detected_pair.get('camera_frame_index')),
                     'timestamp_wall': detected_pair.get('timestamp_wall'),
                     'pose_sample_delta_seconds': detected_pair_status.get('pose_sample_delta_seconds'),
                     'pairing_status': detected_pair_status.get('pairing_status')})
