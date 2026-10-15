@@ -8,7 +8,7 @@ so101_scene_updater:
     max_detection_age_s: 0.5
     track_ttl_s: 0.75
     max_objects: 24
-    min_object_extent_m: 0.004
+    min_object_extent_m: 0.002
     max_object_extent_m: 0.30
     object_padding_m: 0.006
     frames_qualified: false
