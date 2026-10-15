@@ -6,6 +6,9 @@ import time
 
 import numpy as np
 import rclpy
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from geometry_msgs.msg import Point
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
@@ -15,7 +18,8 @@ from std_msgs.msg import String
 from visualization_msgs.msg import Marker
 from tf2_ros import Buffer, TransformException, TransformListener
 
-from .surface_map import SurfaceVoxelMap, cloud_xyz_chunks
+from .surface_map import (SurfaceVoxelMap, cloud_xyz_chunks,
+                          tracking_status_is_fresh)
 
 
 def transform_matrix(transform):
@@ -43,11 +47,14 @@ class SurfaceVoxelMapNode(Node):
             "input_topic": "/camera/depth/color/points",
             "map_topic": "/so101_map/occupied_surface",
             "status_topic": "/so101_map/status",
+            "tracking_status_topic": "/so101_perception/charuco_world/status",
+            "require_fresh_tracking": True,
             "target_frame": "charuco_board",
             "max_range_m": 1.2,
             "resolution_m": 0.01,
             "ttl_s": 0.8,
             "max_voxels": 60000,
+            "max_points_per_cloud": 120000,
             "publish_hz": 2.0,
             "max_cloud_age_s": 0.5,
             "workspace_x_min": -0.6,
@@ -63,13 +70,20 @@ class SurfaceVoxelMapNode(Node):
         self.target_frame = str(p("target_frame"))
         self.max_range = float(p("max_range_m"))
         self.max_age = float(p("max_cloud_age_s"))
-        self.publish_period = 1.0 / float(p("publish_hz"))
+        publish_hz = float(p("publish_hz"))
+        if not math.isfinite(publish_hz) or publish_hz <= 0 or publish_hz > 2.0:
+            raise ValueError("publish_hz must be positive and at most 2")
+        self.publish_period = 1.0 / publish_hz
+        self.max_points_per_cloud = int(p("max_points_per_cloud"))
+        self.require_fresh_tracking = bool(p("require_fresh_tracking"))
+        self.tracking_state = "unknown"
+        self.tracking_stamp = None
         if not math.isfinite(self.max_range) or self.max_range <= 0:
             raise ValueError("max_range_m must be positive and finite")
         if not math.isfinite(self.max_age) or self.max_age <= 0:
             raise ValueError("max_cloud_age_s must be positive and finite")
-        if not math.isfinite(self.publish_period) or self.publish_period < 0.5:
-            raise ValueError("publish_hz must be in (0, 2]")
+        if self.max_points_per_cloud <= 0:
+            raise ValueError("max_points_per_cloud must be positive")
         bounds = tuple((p(f"workspace_{axis}_min"), p(f"workspace_{axis}_max"))
                        for axis in "xyz")
         self.map = SurfaceVoxelMap(p("resolution_m"), p("ttl_s"), p("max_voxels"), bounds)
@@ -77,17 +91,40 @@ class SurfaceVoxelMapNode(Node):
         self.listener = TransformListener(self.buffer, self)
         self.marker_pub = self.create_publisher(Marker, str(p("map_topic")), 1)
         self.status_pub = self.create_publisher(String, str(p("status_topic")), 10)
+        self.tracking_callback_group = ReentrantCallbackGroup()
+        self.tracking_subscription = self.create_subscription(
+            String, str(p("tracking_status_topic")), self._tracking_status, 10,
+            callback_group=self.tracking_callback_group)
         self.subscription = self.create_subscription(
             PointCloud2, str(p("input_topic")), self._cloud, qos_profile_sensor_data)
         self.last_cloud_mono = 0.0
         self.last_output_stamp = None
         self.timer = self.create_timer(self.publish_period, self._publish)
 
+    def _tracking_status(self, message):
+        try:
+            status = json.loads(message.data)
+            stamp = float(status["stamp"])
+            valid = (status.get("state") == "tracking"
+                     and status.get("observation_valid") is True
+                     and math.isfinite(stamp) and stamp > 0)
+            self.tracking_state = "tracking" if valid else str(status.get("state", "invalid"))
+            self.tracking_stamp = stamp if valid else None
+        except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+            self.tracking_state = "invalid"
+            self.tracking_stamp = None
+
+    def _tracking_is_fresh(self, now, cloud_stamp):
+        if not self.require_fresh_tracking:
+            return True
+        return tracking_status_is_fresh(
+            self.tracking_state, self.tracking_stamp, now, cloud_stamp, self.max_age)
+
     def _cloud(self, message):
         now_ros = self.get_clock().now().nanoseconds * 1e-9
         stamp = message.header.stamp.sec + message.header.stamp.nanosec * 1e-9
         age = now_ros - stamp
-        if (not message.header.frame_id or stamp <= 0 or age < -0.05
+        if (not message.header.frame_id or stamp <= 0 or age < 0
                 or age > self.max_age):
             self._status("rejected_stale_or_invalid_stamp", stamp=stamp, age_s=age)
             return
@@ -95,15 +132,33 @@ class SurfaceVoxelMapNode(Node):
         if mono - self.last_cloud_mono < self.publish_period:
             return
         self.last_cloud_mono = mono
+        if not self._tracking_is_fresh(now_ros, stamp):
+            self._status("waiting_for_fresh_board_tracking", stamp=stamp,
+                         tracking_state=self.tracking_state,
+                         tracking_stamp=self.tracking_stamp)
+            return
         try:
             transform = self.buffer.lookup_transform(
-                self.target_frame, message.header.frame_id, Time.from_msg(message.header.stamp))
+                self.target_frame, message.header.frame_id, Time.from_msg(message.header.stamp),
+                timeout=Duration(seconds=0.15))
+            now_ros = self.get_clock().now().nanoseconds * 1e-9
+            if not self._tracking_is_fresh(now_ros, stamp):
+                self._status("waiting_for_fresh_board_tracking", stamp=stamp,
+                             tracking_state=self.tracking_state,
+                             tracking_stamp=self.tracking_stamp)
+                return
             rotation, translation = transform_matrix(transform)
             self.map.last_input_points = 0
             self.map.last_accepted_points = 0
             total_points = 0
+            sampled_points = 0
+            point_stride = max(1, math.ceil(message.height * message.width /
+                                             self.max_points_per_cloud))
             for camera_points in cloud_xyz_chunks(message):
+                sample_offset = (-total_points) % point_stride
                 total_points += len(camera_points)
+                camera_points = camera_points[sample_offset::point_stride]
+                sampled_points += len(camera_points)
                 finite = np.isfinite(camera_points).all(axis=1)
                 in_range = np.einsum("ij,ij->i", camera_points, camera_points) <= self.max_range ** 2
                 candidates = camera_points[finite & in_range]
@@ -113,7 +168,8 @@ class SurfaceVoxelMapNode(Node):
             self.map.last_input_points = total_points
             self.map.last_status = "tracking"
             self.last_output_stamp = message.header.stamp
-            self._status("tracking", stamp=stamp, age_s=age)
+            self._status("tracking", stamp=stamp, age_s=age,
+                         sampled_points=sampled_points)
         except (TransformException, ValueError, TypeError, OverflowError) as error:
             self.map.last_status = "rejected_cloud"
             self._status("rejected_cloud", stamp=stamp, reason=str(error))
@@ -125,6 +181,7 @@ class SurfaceVoxelMapNode(Node):
             "target_frame": self.target_frame,
             "occupied_surface_voxels": len(self.map.cells),
             "input_points": self.map.last_input_points,
+            "sampled_points": details.pop("sampled_points", None),
             "cropped_points": self.map.last_accepted_points,
             "max_voxels": self.map.max_voxels,
             "ttl_s": self.map.ttl_s,
@@ -155,8 +212,11 @@ class SurfaceVoxelMapNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = SurfaceVoxelMapNode()
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     finally:
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()

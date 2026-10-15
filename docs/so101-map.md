@@ -15,12 +15,34 @@ surfaces can briefly appear in the map.
 
 The node limits range to 1.2 m, crops transformed points to the configurable
 workspace (default X/Y -0.6..0.6 m and Z -0.05..0.8 m in the board frame), and
-keeps at most 60,000 cells. It reads the PointCloud2 payload in 16-row chunks;
-the one-row compact RealSense layout is accepted even if `row_step` retains its
-old organized-cloud value. Input stamps must be positive, no more than 0.5 s
-old, and no more than 50 ms in the future. Mapping and RViz publication are
-capped at 2 Hz. `/so101_map/status` reports input/cropped point counts, current
-voxel count, bounds state, and rejected input reasons.
+keeps at most 60,000 cells. It reads the PointCloud2 payload in blocks of no
+more than 8,192 points and samples at most 120,000 points per cloud by default.
+The regular point stride bounds transforms and voxel updates while preserving
+95.9% of occupied 1 cm cells in an offline synthetic XYZ cloud derived from the
+supplied 640x480 registration depth frame (compared with using every valid
+depth sample).
+Configure the cap with
+`max_points_per_cloud`. Duplicate voxel indices are reduced per block before
+the sparse cache update. The one-row compact RealSense layout is accepted even
+if `row_step` retains its old organized-cloud value. Input stamps must be
+positive, no more than 0.5 s old, and not in the future. Mapping and RViz
+publication are capped at 2 Hz. TF lookup waits at most 0.15 s for the exact
+cloud timestamp while a second executor thread services TF updates. By
+default, integration also requires a fresh `tracking` observation from
+`/so101_perception/charuco_world/status`, no older than 0.5 s and within 0.5 s
+of the cloud stamp. A retained last-known camera transform alone does not
+qualify for map integration; the TTL clears geometry while board tracking is
+stale. Set `require_fresh_tracking:=false` only when the selected fixed frame
+is independently known to remain valid.
+`/so101_map/status` reports input/sampled/cropped point counts, current voxel
+count, bounds state, and rejected input reasons.
+
+An offline profile derived synthetic XYZ from the supplied RGB-D registration
+bundle's 640x480 depth frame. Decoding, stride sampling, range/workspace crop,
+transform, and sparse voxel insertion processed 307,200 input points in
+62 ms, sampled 102,400 points, and retained 3,475 voxels; peak process RSS was
+about 43 MiB. The timing excludes ROS dispatch, TF waiting, and Marker message
+serialization.
 
 Build with the repository's ROS container workflow:
 

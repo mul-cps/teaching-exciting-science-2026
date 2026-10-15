@@ -8,7 +8,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ros2/src/so101_station_map"))
 
-from so101_station_map.surface_map import SurfaceVoxelMap, cloud_xyz_chunks
+from so101_station_map.surface_map import (SurfaceVoxelMap, cloud_xyz_chunks,
+                                            tracking_status_is_fresh)
 
 
 def cloud(points, *, height, width, row_padding=0, stale_height1_row=False):
@@ -38,9 +39,40 @@ def test_chunk_decoder_handles_row_padding_and_compact_unordered_cloud():
                           [[1, 2, 3], [4, 5, 6]])
 
     padded = cloud([(1, 2, 3), (4, 5, 6)], height=2, width=1, row_padding=8)
-    chunks = list(cloud_xyz_chunks(padded, chunk_rows=1))
+    chunks = list(cloud_xyz_chunks(padded, max_chunk_points=1))
     assert len(chunks) == 2
     assert np.array_equal(np.concatenate(chunks), [[1, 2, 3], [4, 5, 6]])
+
+
+def test_large_unordered_cloud_is_decoded_in_point_bounded_blocks():
+    count = 640 * 480
+    values = np.zeros((count, 3), dtype="<f4")
+    values[:, 0] = np.linspace(-0.5, 0.5, count, dtype=np.float32)
+    values[:, 2] = 0.7
+    msg = SimpleNamespace(
+        height=1, width=count, point_step=12, row_step=640 * 12,
+        data=values.tobytes(),
+        fields=[SimpleNamespace(name=name, offset=offset, datatype=7, count=1)
+                for name, offset in zip(("x", "y", "z"), (0, 4, 8))],
+        is_bigendian=False)
+    block_count = 0
+    decoded = 0
+    largest = 0
+    for block in cloud_xyz_chunks(msg):
+        block_count += 1
+        decoded += len(block)
+        largest = max(largest, len(block))
+    assert decoded == count
+    assert largest <= 8192
+    assert block_count == 38
+
+
+def test_mapping_requires_recent_tracking_for_the_cloud_timestamp():
+    assert tracking_status_is_fresh("tracking", 10.0, 10.2, 10.1, 0.5)
+    assert not tracking_status_is_fresh("stale", 10.0, 10.2, 10.1, 0.5)
+    assert not tracking_status_is_fresh("tracking", 10.0, 10.6, 10.1, 0.5)
+    assert not tracking_status_is_fresh("tracking", 10.0, 10.2, 10.6, 0.5)
+    assert not tracking_status_is_fresh("tracking", 10.3, 10.2, 10.3, 0.5)
 
 
 def test_chunk_decoder_rejects_malformed_layout_and_oversized_cloud():
@@ -71,7 +103,7 @@ def test_surface_voxels_crop_cap_and_expire_without_free_space_inference():
     assert voxel_map.last_input_points == len(points)
     assert voxel_map.last_accepted_points == 4
     assert len(voxel_map.cells) == 2
-    assert np.allclose(voxel_map.centers(), [[-0.055, 0.005, 0.105],
+    assert np.allclose(voxel_map.centers(), [[0.005, 0.005, 0.105],
                                              [0.055, 0.005, 0.105]])
     assert voxel_map.clear_expired(1.49) == 0
     assert voxel_map.clear_expired(1.51) == 2
