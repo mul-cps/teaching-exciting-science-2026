@@ -13,8 +13,10 @@ The launch starts the follower bus owner only once, through `trajectory_server`,
 and the leader publisher only reads the calibrated leader. The combined launch
 defaults `enable_hardware` to `false`; pass `true` explicitly to start the
 follower hardware owner. It does not enable teleoperation on startup. Wait for
-the follower owner and leader reader readiness messages, then explicitly arm
-teleoperation:
+the follower owner and leader reader readiness messages, make sure the
+measured follower pose is within the saved `measured-home.json` pose and its
+station-configured tolerance (currently 2 degrees/percent), then explicitly
+arm teleoperation:
 
 ```bash
 ros2 service call /follower/teleop_enable std_srvs/srv/SetBool "{data: true}"
@@ -31,6 +33,12 @@ disable first and then stop the ROS launch with Ctrl-C:
 ```bash
 ros2 service call /follower/teleop_enable std_srvs/srv/SetBool "{data: false}"
 ```
+
+Teleoperation enable checks the fresh owner identity, calibration hash, and all
+six measured pose values against the saved home. If the follower is outside
+tolerance, the service refuses to start and instructs the operator to call
+`/follower/home` or align the arm manually before trying again. Home remains a
+separate explicit request; enabling teleoperation never initiates a home move.
 
 For a publisher-only start, use `leader_teleop.launch.py`; it never opens or
 starts the follower owner. The same four leader arguments and station Python

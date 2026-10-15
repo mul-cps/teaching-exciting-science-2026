@@ -891,12 +891,44 @@ class ArmSession:
             raise ArmPlanPreflightError("arm session already has active motion")
         self._require_initialized()
         actual = self._read("Present_Position")
-        target = self._validate_target(actual, "teleop_start")
+        actual = self._six_ints(actual, "teleop_start")
+        actual_pose = {}
+        limiter_start = {}
+        tolerance = float(self.arm.settings["tolerance"])
+        for joint in JOINTS:
+            value = actual[joint]
+            calibration = self.arm.calibration[joint]
+            if (not 0 <= value <= 4095 or
+                    not self.firmware_min[joint] <= value <= self.firmware_max[joint] or
+                    not calibration["range_min"] <= value <= calibration["range_max"]):
+                raise ArmPlanPreflightError(
+                    "teleop_start measured pose is outside firmware or calibration limits: " + joint)
+            if joint == "gripper":
+                actual_pose[joint] = ((value - calibration["range_min"]) * 100 /
+                                      (calibration["range_max"] - calibration["range_min"]))
+            else:
+                actual_pose[joint] = ((value - (calibration["range_min"] +
+                                                   calibration["range_max"]) / 2) * 360 / 4095)
+            limiter_start[joint] = max(self.admitted_min[joint],
+                                       min(self.admitted_max[joint], value))
+        outside_home = {joint: abs(actual_pose[joint] - self.home_pose[joint])
+                        for joint in JOINTS
+                        if abs(actual_pose[joint] - self.home_pose[joint]) > tolerance}
+        if outside_home:
+            joints = ", ".join(sorted(outside_home))
+            raise ArmPlanPreflightError(
+                f"teleop_start requires measured follower at saved home within {tolerance:g} "
+                f"degrees/percent; outside on {joints}")
+        # Install the exact measured pose as a hold target. A small configured
+        # limit overshoot at saved home is permitted only for this initial hold;
+        # the first commanded step starts from the admitted boundary so every
+        # subsequent Goal_Position remains inside the unchanged limits.
+        target = actual
         self._ensure_profile()
         torque = self._enable_current_goal(target, self.clock(), "teleop_start")
         torque_monotonic, torque_utc = self.clock(), self.wall_clock()
         self._teleop = {"session_id": command["session_id"], "sequence": -1,
-                        "start": dict(actual), "previous": dict(actual),
+                        "start": dict(actual), "previous": limiter_start,
                         "last": self.clock(), "last_valid": self.clock(),
                         "last_verify": self.clock(), "torque": torque,
                         "torque_monotonic": torque_monotonic,

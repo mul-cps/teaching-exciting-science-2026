@@ -56,6 +56,53 @@ def _owner_state_is_ready(state, *, arm_id, calibration_sha256, owner_started):
             all(value == 0 for value in torque.values()))
 
 
+def _load_measured_home(config_data, station_root, arm_id, calibration_sha256):
+    """Load the station's identity-bound measured home and shared pose tolerance."""
+    try:
+        arm = config_data["arm"]
+        home_path = Path(arm["home_file"])
+        if not home_path.is_absolute():
+            home_path = Path(station_root) / home_path
+        data = json.loads(home_path.read_text())
+        pose = data["position"]
+        tolerance = float(arm["tolerance"])
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        raise ValueError("station config must provide a readable measured home and arm tolerance") from error
+    if (data.get("schema") != 1 or data.get("kind") != "measured-home" or
+            data.get("units") != "body degrees; gripper percent" or
+            data.get("arm_id") != arm_id or
+            data.get("calibration_sha256") != calibration_sha256):
+        raise ValueError("measured-home identity, schema, or units do not match station arm config")
+    if (not isinstance(pose, dict) or set(pose) != set(TELEOP_JOINTS) or
+            any(type(pose[joint]) not in (int, float) or not math.isfinite(pose[joint])
+                for joint in TELEOP_JOINTS) or
+            not 0 <= pose["gripper"] <= 100 or not math.isfinite(tolerance) or tolerance <= 0):
+        raise ValueError("measured home requires finite six-joint values and a positive finite tolerance")
+    return {joint: float(pose[joint]) for joint in TELEOP_JOINTS}, tolerance
+
+
+def _measured_home_error(state, *, arm_id, calibration_sha256, home_pose, tolerance):
+    """Return why a fresh owner snapshot is not at saved home, or None."""
+    if not isinstance(state, dict):
+        return "resident ArmSession state is unavailable"
+    if state.get("arm_id") != arm_id or state.get("calibration_sha256") != calibration_sha256:
+        return "resident ArmSession identity does not match the configured follower and calibration"
+    pose = state.get("pose")
+    if (not isinstance(pose, dict) or set(pose) != set(TELEOP_JOINTS) or
+            any(type(pose[joint]) not in (int, float) or not math.isfinite(pose[joint])
+                for joint in TELEOP_JOINTS)):
+        return "resident ArmSession state has no valid measured six-joint pose"
+    outside = {joint: abs(float(pose[joint]) - float(home_pose[joint]))
+               for joint in TELEOP_JOINTS
+               if abs(float(pose[joint]) - float(home_pose[joint])) > tolerance}
+    if outside:
+        joints = ", ".join(f"{joint} ({error:.2f} > {tolerance:g})"
+                            for joint, error in outside.items())
+        return (f"measured follower pose is outside saved-home tolerance: {joints}; "
+                "call /follower/home or align the arm manually before enabling teleoperation")
+    return None
+
+
 def calibration_ready_raw_legs(start_raw, target_raw):
     """Create bounded linear raw-count sublegs for the observation-pose move."""
     joints = set(TELEOP_JOINTS)
@@ -159,6 +206,10 @@ class TrajectoryBridge(Node):
         self._process = None
         self._owner_started = 0.0
         self._owner_faulted = False
+        self._expected_arm_id = None
+        self._expected_calibration_sha256 = None
+        self._saved_home_pose = None
+        self._saved_home_tolerance = None
         self._state_file = self._resolve_state_file()
         self._external_state_only = bool(self.get_parameter("external_state_only").value)
         self._trajectory_helper = None
@@ -269,6 +320,10 @@ class TrajectoryBridge(Node):
         if (not expected_arm_id or len(expected_calibration_sha256) != 64 or
                 any(character not in "0123456789abcdef" for character in expected_calibration_sha256)):
             raise RuntimeError("station_config has invalid arm identity or calibration SHA256")
+        self._saved_home_pose, self._saved_home_tolerance = _load_measured_home(
+            config_data, station_root, expected_arm_id, expected_calibration_sha256)
+        self._expected_arm_id = expected_arm_id
+        self._expected_calibration_sha256 = expected_calibration_sha256
         logs = str(self.get_parameter("log_dir").value)
         if not logs:
             runtime = os.environ.get("XDG_RUNTIME_DIR") or "/dev/shm"
@@ -463,6 +518,20 @@ class TrajectoryBridge(Node):
                 response.success = False
                 response.message = "follower state is not fresh"
                 return response
+            if self._saved_home_pose is None or self._expected_arm_id is None:
+                self._clear_teleop()
+                response.success = False
+                response.message = "saved-home readiness check is unavailable; teleoperation remains disabled"
+                return response
+            home_error = _measured_home_error(
+                follower_state, arm_id=self._expected_arm_id,
+                calibration_sha256=self._expected_calibration_sha256,
+                home_pose=self._saved_home_pose, tolerance=self._saved_home_tolerance)
+            if home_error:
+                self._clear_teleop()
+                response.success = False
+                response.message = home_error
+                return response
             torque = follower_state.get("torque")
             if not isinstance(torque, dict) or set(torque) != set(TELEOP_JOINTS):
                 torque_values = []
@@ -495,6 +564,12 @@ class TrajectoryBridge(Node):
                 if any(type(baseline[joint]) not in (int, float) or not math.isfinite(baseline[joint])
                        for joint in TELEOP_JOINTS):
                     raise RuntimeError("owner start acknowledgement contained an invalid follower pose")
+                home_error = _measured_home_error(
+                    state, arm_id=self._expected_arm_id,
+                    calibration_sha256=self._expected_calibration_sha256,
+                    home_pose=self._saved_home_pose, tolerance=self._saved_home_tolerance)
+                if home_error:
+                    raise RuntimeError(home_error)
                 with self._teleop_latest_lock:
                     start_reference = dict(self._teleop_latest) if self._teleop_latest else None
                 if (start_reference is None or time.monotonic() - start_reference["stamp_s"] >
