@@ -1028,6 +1028,43 @@ def test_resident_teleop_watchdog_holds_measured_pose_and_invalidates_session(tm
     session.close_log()
 
 
+def test_resident_teleop_stale_buffered_step_holds_and_cannot_refresh_session(tmp_path):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    session.handle({"command": "teleop_start", "session_id": "bridge-3"})
+    actual = dict(arm.bus.data["Present_Position"])
+    actual["shoulder_lift"] += 7
+    arm.bus.data["Present_Position"] = actual
+    clock.sleep(0.301)
+    pose = dict.fromkeys(JOINTS, 0.0)
+    pose["gripper"] = 50.0
+    with pytest.raises(ValueError, match="watchdog expired"):
+        session.handle({"command": "teleop_step", "session_id": "bridge-3",
+                        "sequence": 1, "pose": pose})
+    assert session._teleop is None
+    assert arm.bus.data["Goal_Position"] == actual
+    assert not any(register == "Goal_Position" and value != actual
+                   for register, _joint, value in arm.bus.writes)
+    session.shutdown(reason="test_cleanup")
+    session.close_log()
+
+
+def test_resident_teleop_rejects_gripper_outside_percent_range_without_goal_write(tmp_path):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    session.handle({"command": "teleop_start", "session_id": "bridge-4"})
+    before = len(arm.bus.goal_history)
+    pose = dict.fromkeys(JOINTS, 0.0)
+    pose["gripper"] = 101.0
+    with pytest.raises(ValueError, match="between 0 and 100"):
+        session.handle({"command": "teleop_step", "session_id": "bridge-4",
+                        "sequence": 1, "pose": pose})
+    assert len(arm.bus.goal_history) == before
+    assert session._teleop["sequence"] == -1
+    session.shutdown(reason="test_cleanup")
+    session.close_log()
+
+
 def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):
     session, arm, _ = make_session(tmp_path)
     session.initialize()

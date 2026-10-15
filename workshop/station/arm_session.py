@@ -900,6 +900,9 @@ class ArmSession:
         active = self._teleop
         if active is None or command["session_id"] != active["session_id"]:
             raise ArmPlanPreflightError("teleop session is not active")
+        if self.clock() - active["last_valid"] > 0.30:
+            self._expire_teleop_if_stale()
+            raise ArmPlanPreflightError("teleop watchdog expired; measured pose held")
         sequence = command["sequence"]
         pose = command["pose"]
         if type(sequence) is not int or sequence <= active["sequence"]:
@@ -908,6 +911,8 @@ class ArmSession:
             raise ArmPlanPreflightError("teleop pose requires exactly six named joints")
         if any(type(pose[j]) not in (int, float) or not math.isfinite(pose[j]) for j in JOINTS):
             raise ArmPlanPreflightError("teleop pose values must be finite numbers")
+        if not 0 <= pose["gripper"] <= 100:
+            raise ArmPlanPreflightError("teleop gripper must be between 0 and 100 percent")
         now = self.clock()
         dt = max(0.0, now - active["last"])
         target = {}
