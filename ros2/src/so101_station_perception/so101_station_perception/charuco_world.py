@@ -21,6 +21,11 @@ from .calibration import matrix_quaternion, rigid_matrix
 from .tag_observations import stamp_is_fresh, stamp_seconds
 
 
+def world_from_opencv_board():
+    """Right-handed table world: keep board X, reverse Y, point Z outward/up."""
+    return np.diag([1.0, -1.0, -1.0, 1.0])
+
+
 def board_definition():
     aruco = cv2.aruco
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
@@ -130,6 +135,7 @@ class CharucoWorld(Node):
         self.period = 1.0 / min(5.0, max(0.1, float(self.get_parameter("max_processing_hz").value)))
         self.last_process_mono = 0.0
         self.last_stamp = None
+        self.last_valid_stamp = None
         self.bridge = CvBridge()
         self.board, self.detector = board_definition()
         self.broadcaster = TransformBroadcaster(self)
@@ -147,7 +153,7 @@ class CharucoWorld(Node):
         self._publish_provisional_base_seed()
 
     def _status(self, state, stamp=None, **extra):
-        payload = {"state": state, "qualified": state == "tracking", "stamp": stamp, **extra}
+        payload = {"state": state, "observation_valid": state == "tracking", "base_calibration_qualified": False, "stamp": stamp, **extra}
         msg = String()
         msg.data = json.dumps(payload, sort_keys=True)
         self.status_pub.publish(msg)
@@ -176,22 +182,23 @@ class CharucoWorld(Node):
             optical_from_link_msg = self.buffer.lookup_transform(
                 self.optical_frame, self.camera_link_frame, Time())
             optical_from_link = transform_matrix(optical_from_link_msg)
-            board_from_link = np.linalg.inv(optical_from_board) @ optical_from_link
+            board_from_link = world_from_opencv_board() @ np.linalg.inv(optical_from_board) @ optical_from_link
             tf = transform_message(self.board_frame, self.camera_link_frame, board_from_link,
                                    image_msg.header.stamp)
             self.broadcaster.sendTransform(tf)
+            self.last_valid_stamp = stamp
             self._status("tracking", stamp=stamp, charuco_corners=count, reprojection_rms_px=rms,
                          parent=self.board_frame, child=self.camera_link_frame)
         except (ValueError, cv2.error, TransformException, np.linalg.LinAlgError) as exc:
             self._status("occluded", stamp=stamp, reason=str(exc))
 
     def _stale_status(self):
-        if self.last_stamp is None:
+        if self.last_valid_stamp is None:
             self._status("occluded", reason="no board observation yet")
             return
         now = self.get_clock().now().nanoseconds * 1e-9
-        if not stamp_is_fresh(now, self.last_stamp, self.max_age):
-            self._status("stale", stamp=self.last_stamp, reason="no fresh board observation")
+        if not stamp_is_fresh(now, self.last_valid_stamp, self.max_age):
+            self._status("stale", stamp=self.last_valid_stamp, reason="no fresh board observation")
 
     def _publish_provisional_base_seed(self):
         base_path = str(self.get_parameter("initial_base_from_camera_file").value)
@@ -207,8 +214,11 @@ class CharucoWorld(Node):
         with open(board_path, encoding="utf-8") as f:
             board_data = json.load(f)
         base_from_camera = rigid_matrix(base_data["base_from_camera"], "base_from_camera")
-        camera_from_board = rigid_matrix(board_data["camera_from_board"], "camera_from_board")
-        board_from_base = np.linalg.inv(base_from_camera @ camera_from_board)
+        board_matrix = board_data.get("camera_from_board")
+        if board_matrix is None and board_data.get("transform_direction") == "camera_from_target":
+            board_matrix = board_data["camera_from_target"]
+        camera_from_board = rigid_matrix(board_matrix, "camera_from_board")
+        board_from_base = world_from_opencv_board() @ np.linalg.inv(base_from_camera @ camera_from_board)
         from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
         static = StaticTransformBroadcaster(self)
         self._base_seed_broadcaster = static

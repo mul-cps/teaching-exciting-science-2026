@@ -77,3 +77,17 @@ def test_camera_motion_composition_keeps_board_world_fixed():
         recovered = np.linalg.inv(optical_from_board) @ optical_from_link
         assert np.allclose(recovered, board_from_optical @ optical_from_link)
 
+
+
+def test_world_convention_is_right_handed_z_up_and_preserves_registration():
+    from so101_station_perception.charuco_world import world_from_opencv_board
+    correction = world_from_opencv_board()
+    assert np.linalg.det(correction[:3, :3]) == pytest.approx(1.0)
+    # Camera above the printed face has negative raw-board Z.
+    assert (correction @ np.array([.2, .1, -.6, 1]))[2] == pytest.approx(.6)
+    raw_from_camera = np.eye(4)
+    raw_from_camera[:3, 3] = [.2, .1, -.6]
+    raw_from_base = np.eye(4)
+    raw_from_base[:3, 3] = [.3, .2, 0]
+    assert np.allclose(np.linalg.inv(correction @ raw_from_base) @ (correction @ raw_from_camera),
+                       np.linalg.inv(raw_from_base) @ raw_from_camera)

@@ -53,7 +53,7 @@ Visualization Manager:
       Class: rviz_default_plugins/PointCloud2
       Color Transformer: RGB8
       Enabled: true
-      Name: Native RGB-D surface (qualified camera TF)
+      Name: Native RGB-D surface
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 2
@@ -113,7 +113,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 38; 42; 48
-    Fixed Frame: base_link
+    Fixed Frame: charuco_board
     Frame Rate: 30
   Name: station_live
   Tools:
