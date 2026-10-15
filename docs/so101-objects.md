@@ -55,3 +55,22 @@ RGB-D extents, not CAD dimensions or necessarily the whole object. Grasp
 finger clearance, IK, collision checking, and execution are not validated;
 the package does not publish a MoveIt planning-scene update or command the arm.
 Track IDs are temporary spatial associations and are not semantic identities.
+
+### Surface anchoring and RViz display
+
+Object geometry is fitted relative to a measured, upward-facing RGB-D support
+plane. For unit normal `n`, plane offset `d`, box height `h`, and box center `c`,
+the box is constrained by `n·c + d = h/2`: its lower face lies on the fitted
+surface. This is a geometric constraint, not proof that the depth plane or
+camera calibration has zero physical error.
+
+`/so101/grasp_contacts` displays contact poses on the measured objects. The
+existing `/so101/grasp_candidates` remains the **pregrasp** stream, 60 mm away
+from contact along the reverse approach direction; MoveIt consumes that stream.
+RViz shows contact axes by default and hides the approach axes and text labels.
+The namespace switches can enable labels when needed. Compact labels contain
+no spaces because small RViz text markers have an upstream
+[space-width scaling issue](https://github.com/ros2/rviz/issues/1336).
+
+Label markers hold independent pose messages. Moving a label for readability
+must never change the Detection3D, object cube, or collision-box pose.

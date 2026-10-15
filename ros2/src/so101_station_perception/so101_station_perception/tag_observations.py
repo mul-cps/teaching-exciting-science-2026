@@ -241,7 +241,7 @@ class TagObservations(Node):
                 text.pose.orientation.w = 1.0
                 text.scale.z = 0.018
                 text.color.r = text.color.g = text.color.b = text.color.a = 1.0
-                text.text = "ID0 unassociated"
+                text.text = "tag0-unassociated"
                 text.lifetime = Duration(seconds=float(self.get_parameter("display_hold_s").value)).to_msg()
                 output.markers.append(text)
             self.publisher.publish(output)
