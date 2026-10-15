@@ -33,6 +33,10 @@ from workshop.digital_twin.grasp_geometry import fit_support_plane, footprint_gr
 
 COLOR_NAMES = ("red", "green", "blue", "yellow")
 MAX_SUPPORT_POINTS = 2000
+DEFAULT_TABLE_ROI = (-0.03, 0.21, -0.03, 0.16, -0.05, 0.06)
+DEFAULT_MAX_OBJECT_HEIGHT_M = 0.025
+MAX_OBJECT_EXTENT_M = 0.065
+MIN_OBJECT_EXTENT_M = 0.010
 
 
 def camera_points(pixels, depth_m, intrinsics, distortion=None):
@@ -118,13 +122,70 @@ def _plane_world_to_camera(plane, board_from_camera):
     return {"normal": normal_camera, "d": d_camera}
 
 
+def _split_elongated_contours(contours):
+    """Split touching same-color footprints only when their silhouette has a clear neck."""
+    result = []
+    for contour in contours:
+        x, y, width, height = cv2.boundingRect(contour)
+        if min(width, height) == 0 or max(width, height) < 1.9 * min(width, height):
+            result.append(contour)
+            continue
+        local = np.zeros((height, width), dtype=np.uint8)
+        shifted = contour.copy()
+        shifted[:, 0, 0] -= x
+        shifted[:, 0, 1] -= y
+        cv2.drawContours(local, [shifted], -1, 1, thickness=cv2.FILLED)
+        horizontal = width >= height
+        view = local if horizontal else local.T
+        projection = view.sum(axis=0).astype(float)
+        if len(projection) < 10:
+            result.append(contour)
+            continue
+        smooth = np.convolve(projection, np.ones(3) / 3, mode="same")
+        lo, hi = int(.22 * len(smooth)), int(.78 * len(smooth))
+        if hi <= lo:
+            result.append(contour)
+            continue
+        valley = lo + int(np.argmin(smooth[lo:hi]))
+        left_peak = float(np.max(smooth[:valley]))
+        right_peak = float(np.max(smooth[valley + 1:]))
+        if (min(left_peak, right_peak) <= 0
+                or smooth[valley] > .72 * min(left_peak, right_peak)):
+            result.append(contour)
+            continue
+        pieces = []
+        for first, last in ((0, valley), (valley + 1, view.shape[1])):
+            piece = np.zeros_like(view)
+            piece[:, first:last] = view[:, first:last]
+            if not horizontal:
+                piece = piece.T
+            found, _ = cv2.findContours(piece, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for item in found:
+                if cv2.contourArea(item) < .18 * cv2.contourArea(contour):
+                    continue
+                item = item.copy()
+                item[:, 0, 0] += x
+                item[:, 0, 1] += y
+                pieces.append(item)
+        if len(pieces) == 2:
+            result.extend(pieces)
+        else:
+            result.append(contour)
+    return result
+
+
 def _component_geometry(contour, pixel_points, depth_values, intrinsics, distortion,
-                        board_from_camera, plane_world, color, max_opening_m):
+                        board_from_camera, plane_world, color, max_opening_m,
+                        world_roi, max_object_height_m):
     camera = camera_points(pixel_points, depth_values, intrinsics, distortion)
     board = transform_points(camera, board_from_camera)
     normal = np.asarray(plane_world["normal"])
     above = board @ normal + plane_world["d"]
-    valid = np.isfinite(above) & (above >= 0.002) & (above <= 0.25)
+    bounds = world_roi
+    valid = (np.isfinite(above) & (above >= 0.002)
+             & (above <= max_object_height_m)
+             & (board[:, 0] >= bounds[0]) & (board[:, 0] <= bounds[1])
+             & (board[:, 1] >= bounds[2]) & (board[:, 1] <= bounds[3]))
     if int(valid.sum()) < 8:
         return None
     board = board[valid]
@@ -198,8 +259,10 @@ def _component_geometry(contour, pixel_points, depth_values, intrinsics, distort
 
 
 def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
-                 board_from_camera, world_roi=(-0.35, 0.35, -0.35, 0.35, -0.05, 0.35),
-                 max_opening_m=0.055, min_component_pixels=30):
+                 board_from_camera, world_roi=DEFAULT_TABLE_ROI,
+                 max_opening_m=0.055, min_component_pixels=30,
+                 max_object_height_m=DEFAULT_MAX_OBJECT_HEIGHT_M,
+                 support_plane=None):
     """Produce measured tabletop objects and geometric-only grasp candidates."""
     rgb = np.asarray(rgb)
     depth = np.asarray(depth)
@@ -211,12 +274,25 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
         raise ValueError("expected matching uint8 RGB, uint16/float32 aligned depth and finite transform")
     if not np.isfinite(depth_scale_m) or depth_scale_m <= 0:
         raise ValueError("depth scale must be positive and finite")
+    if (len(world_roi) != 6 or not np.isfinite(world_roi).all()
+            or any(world_roi[i] >= world_roi[i + 1] for i in (0, 2, 4))
+            or not np.isfinite(max_object_height_m) or max_object_height_m <= 0):
+        raise ValueError("world ROI and maximum object height must be finite and ordered")
     depth_m = depth.astype(np.float32) * float(depth_scale_m)
     valid_depth = np.isfinite(depth_m) & (depth_m >= 0.10) & (depth_m <= 2.0)
     if int(valid_depth.sum()) < 100:
         raise ValueError("insufficient valid depth in camera frame")
-    plane = _fit_world_support(depth_m, valid_depth, rgb, intrinsics, distortion,
-                              transform, world_roi)
+    if support_plane is None:
+        plane = _fit_world_support(depth_m, valid_depth, rgb, intrinsics, distortion,
+                                   transform, world_roi)
+    else:
+        normal = np.asarray(support_plane.get("normal"), dtype=float).reshape(3)
+        offset = float(support_plane.get("d"))
+        if (not np.isfinite(normal).all() or not np.isfinite(offset)
+                or not np.isclose(np.linalg.norm(normal), 1.0, atol=1e-3)
+                or normal[2] < 0.85):
+            raise ValueError("cached support plane must be finite, normalized, and upward-facing")
+        plane = dict(support_plane, normal=normal, d=offset)
     masks = color_masks(rgb)
     objects = []
     for color in COLOR_NAMES:
@@ -226,22 +302,53 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
             area = int(stats[label, cv2.CC_STAT_AREA])
             if area < min_component_pixels:
                 continue
-            component = (labels == label).astype(np.uint8)
-            contours, _ = cv2.findContours(component, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if not contours:
-                continue
-            contour = max(contours, key=cv2.contourArea).reshape(-1, 2)
             yy, xx = np.nonzero(labels == label)
             samples = depth_m[yy, xx]
             valid = valid_depth[yy, xx]
             if int(valid.sum()) < 8:
                 continue
-            item = _component_geometry(contour, np.column_stack((xx[valid], yy[valid])),
-                                       samples[valid], intrinsics, distortion, transform,
-                                       plane, color, max_opening_m)
-            if item is not None:
-                item["pixel_area"] = area
-                objects.append(item)
+            pixels = np.column_stack((xx[valid], yy[valid]))
+            camera = camera_points(pixels, samples[valid], intrinsics, distortion)
+            board = transform_points(camera, transform)
+            above = board @ plane["normal"] + plane["d"]
+            inside = ((board[:, 0] >= world_roi[0]) & (board[:, 0] <= world_roi[1])
+                      & (board[:, 1] >= world_roi[2]) & (board[:, 1] <= world_roi[3])
+                      & (above >= 0.002) & (above <= max_object_height_m))
+            if int(inside.sum()) < 8:
+                continue
+            # Restrict the silhouette to depth-supported pixels in the bounded
+            # tabletop volume. This removes colored walls/arm parts before they
+            # can bias the PCA footprint or produce grasp proposals.
+            component = np.zeros(depth.shape, dtype=np.uint8)
+            component[pixels[inside, 1], pixels[inside, 0]] = 1
+            component = cv2.morphologyEx(component, cv2.MORPH_CLOSE,
+                                         np.ones((3, 3), dtype=np.uint8))
+            contours, _ = cv2.findContours(component, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                continue
+            # Split two same-color bricks joined by a narrow seam when the
+            # one-dimensional silhouette has a clear internal valley.
+            contours = _split_elongated_contours(contours)
+            for contour in contours:
+                contour_mask = np.zeros(depth.shape, dtype=np.uint8)
+                cv2.drawContours(contour_mask, [contour], -1, 1, thickness=cv2.FILLED)
+                selected = inside & (contour_mask[pixels[:, 1], pixels[:, 0]] != 0)
+                if int(selected.sum()) < 8:
+                    continue
+                item = _component_geometry(contour.reshape(-1, 2), pixels[selected],
+                                           samples[valid][selected], intrinsics, distortion,
+                                           transform, plane, color, max_opening_m,
+                                           world_roi, max_object_height_m)
+                if item is not None:
+                    footprint = item["dimensions_m"][:2]
+                    if (float(np.max(footprint)) > MAX_OBJECT_EXTENT_M
+                            or float(np.min(footprint)) < MIN_OBJECT_EXTENT_M):
+                        continue
+                    # This component may have been split from a touching
+                    # same-color region; report only its own depth-supported
+                    # pixels rather than the unsplit color-mask area.
+                    item["pixel_area"] = int(selected.sum())
+                    objects.append(item)
     return {"support_plane": plane, "objects": objects,
             "qualified": False, "frame_id": "charuco_board"}
 
@@ -375,30 +482,41 @@ class ColoredObjectsNode:
                     "depth_topic": "/camera/aligned_depth_to_color/image_raw",
                     "camera_info_topic": "/camera/color/camera_info",
                     "board_frame": "charuco_board",
+                    "registration_status_topic": "/so101_perception/charuco_world/status",
+                    "require_registration_tracking": True,
                     "depth_scale_m": 0.001,
-                    "world_roi_x_min": -0.35, "world_roi_x_max": 0.35,
-                    "world_roi_y_min": -0.35, "world_roi_y_max": 0.35,
-                    "world_roi_z_min": -0.05, "world_roi_z_max": 0.35,
+                    "world_roi_x_min": DEFAULT_TABLE_ROI[0], "world_roi_x_max": DEFAULT_TABLE_ROI[1],
+                    "world_roi_y_min": DEFAULT_TABLE_ROI[2], "world_roi_y_max": DEFAULT_TABLE_ROI[3],
+                    "world_roi_z_min": DEFAULT_TABLE_ROI[4], "world_roi_z_max": DEFAULT_TABLE_ROI[5],
+                    "max_object_height_m": DEFAULT_MAX_OBJECT_HEIGHT_M,
                     "max_gripper_opening_m": 0.055,
                     "max_processing_hz": 5.0,
                 }
                 for key, value in defaults.items():
                     self.declare_parameter(key, value)
                 self.board_frame = str(self.get_parameter("board_frame").value)
+                self.require_registration_tracking = bool(
+                    self.get_parameter("require_registration_tracking").value)
+                self.registration_last_tracking_stamp = None
                 self.depth_scale = float(self.get_parameter("depth_scale_m").value)
                 self.roi = tuple(float(self.get_parameter(name).value) for name in (
                     "world_roi_x_min", "world_roi_x_max", "world_roi_y_min",
                     "world_roi_y_max", "world_roi_z_min", "world_roi_z_max"))
                 self.max_opening = float(self.get_parameter("max_gripper_opening_m").value)
+                self.max_object_height = float(self.get_parameter("max_object_height_m").value)
                 requested_hz = float(self.get_parameter("max_processing_hz").value)
-                if not np.isfinite([self.depth_scale, self.max_opening, requested_hz, *self.roi]).all():
+                if not np.isfinite([self.depth_scale, self.max_opening,
+                                    self.max_object_height, requested_hz, *self.roi]).all():
                     raise ValueError("object node parameters must be finite")
-                if self.depth_scale <= 0 or self.max_opening <= 0 or requested_hz <= 0:
-                    raise ValueError("depth scale, opening, and processing frequency must be positive")
+                if (self.depth_scale <= 0 or self.max_opening <= 0
+                        or self.max_object_height <= 0 or requested_hz <= 0):
+                    raise ValueError("depth scale, opening, object height, and processing frequency must be positive")
                 if any(self.roi[i] >= self.roi[i+1] for i in (0, 2, 4)):
                     raise ValueError("world ROI minima must be below maxima")
                 self.period = 1.0 / min(5.0, requested_hz)
                 self.last_process = 0.0
+                self.last_warning = 0.0
+                self.last_support_plane = None
                 self.bridge = CvBridge()
                 self.tracker = StableObjectTracker()
                 self.tf_buffer = Buffer()
@@ -407,6 +525,9 @@ class ColoredObjectsNode:
                 self.markers_pub = self.create_publisher(MarkerArray, "/so101/object_markers", 10)
                 self.grasps_pub = self.create_publisher(PoseArray, "/so101/grasp_candidates", 10)
                 self.status_pub = self.create_publisher(String, "/so101/grasp_status", 10)
+                self.registration_sub = self.create_subscription(
+                    String, self.get_parameter("registration_status_topic").value,
+                    self._registration_status, 10)
                 color = message_filters.Subscriber(
                     self, Image, self.get_parameter("color_topic").value,
                     qos_profile=qos_profile_sensor_data)
@@ -419,6 +540,20 @@ class ColoredObjectsNode:
                 self.sync = message_filters.ApproximateTimeSynchronizer(
                     [color, depth, info], queue_size=6, slop=0.04)
                 self.sync.registerCallback(self._process)
+
+            def _registration_status(self, message):
+                try:
+                    payload = json.loads(message.data)
+                    stamp = payload.get("stamp")
+                    if (payload.get("state") == "tracking"
+                            and payload.get("observation_valid") is True
+                            and stamp is not None and math.isfinite(float(stamp))):
+                        stamp = float(stamp)
+                        if (self.registration_last_tracking_stamp is None
+                                or stamp >= self.registration_last_tracking_stamp):
+                            self.registration_last_tracking_stamp = stamp
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    return
 
             def _publish_empty(self, stamp):
                 array = Detection3DArray()
@@ -434,14 +569,35 @@ class ColoredObjectsNode:
                 markers.markers.append(clear)
                 self.markers_pub.publish(markers)
 
+            def _publish_unavailable(self, stamp, state, reason, **extra):
+                from so101_station_perception.tag_observations import stamp_seconds
+                self._publish_empty(stamp)
+                message = String()
+                message.data = json.dumps({
+                    "schema": 1, "state": state, "frame_id": self.board_frame,
+                    "stamp": stamp_seconds(stamp), "qualified": False,
+                    "reason": reason, **extra,
+                }, sort_keys=True, allow_nan=False)
+                self.status_pub.publish(message)
+
             def _process(self, color_msg, depth_msg, info_msg):
                 from so101_station_perception.tag_observations import (
                     camera_intrinsics, depth_scale_for_encoding, stamp_is_fresh, stamp_seconds)
                 now = self.get_clock().now().nanoseconds * 1e-9
                 stamp = stamp_seconds(color_msg.header.stamp)
                 if not stamp_is_fresh(now, stamp, 0.5):
-                    self._publish_empty(color_msg.header.stamp)
+                    self._publish_unavailable(color_msg.header.stamp, "stale", "RGB-D image timestamp is stale")
                     return
+                if self.require_registration_tracking:
+                    tracking_stamp = self.registration_last_tracking_stamp
+                    age = None if tracking_stamp is None else now - tracking_stamp
+                    if age is None or age < 0 or age > 0.5:
+                        self._publish_unavailable(
+                            color_msg.header.stamp, "registration_unavailable",
+                            "ChArUco world localization has no recent valid image observation",
+                            registration_observation_age_s=age,
+                            registration_status_topic=self.get_parameter("registration_status_topic").value)
+                        return
                 if time.monotonic() - self.last_process < self.period:
                     return
                 self.last_process = time.monotonic()
@@ -449,7 +605,8 @@ class ColoredObjectsNode:
                         or color_msg.header.frame_id != info_msg.header.frame_id
                         or abs(stamp - stamp_seconds(depth_msg.header.stamp)) > 0.04
                         or abs(stamp - stamp_seconds(info_msg.header.stamp)) > 0.04):
-                    self._publish_empty(color_msg.header.stamp)
+                    self._publish_unavailable(color_msg.header.stamp, "invalid_pair",
+                                              "RGB-D and CameraInfo frame IDs or timestamps differ")
                     return
                 try:
                     rgb = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding="rgb8")
@@ -458,10 +615,48 @@ class ColoredObjectsNode:
                     scale = depth_scale_for_encoding(depth_msg.encoding, depth, self.depth_scale)
                     tf = self.tf_buffer.lookup_transform(
                         self.board_frame, color_msg.header.frame_id,
-                        Time.from_msg(color_msg.header.stamp), timeout=Duration(seconds=0.08))
+                        Time.from_msg(color_msg.header.stamp), timeout=Duration(seconds=0.35))
                     board_from_camera = transform_from_msg(tf)
-                    report = analyze_rgbd(rgb, depth, intrinsics, info_msg.d, scale,
-                                          board_from_camera, self.roi, self.max_opening)
+                    try:
+                        report = analyze_rgbd(rgb, depth, intrinsics, info_msg.d, scale,
+                                              board_from_camera, self.roi, self.max_opening,
+                                              max_object_height_m=self.max_object_height)
+                        plane = report["support_plane"]
+                        self.last_support_plane = {
+                            "normal": np.asarray(plane["normal"], dtype=float).copy(),
+                            "d": float(plane["d"]),
+                            "plane_source": plane["plane_source"],
+                            "support_points": int(plane["support_points"]),
+                            "support_inliers": int(plane["support_inliers"]),
+                            "stamp": stamp,
+                        }
+                    except ValueError as error:
+                        cache = self.last_support_plane
+                        cache_age = None if cache is None else stamp - cache["stamp"]
+                        if (cache is None or cache_age is None or cache_age < 0
+                                or cache_age > 2.0 or "support plane" not in str(error)):
+                            raise
+                        report = analyze_rgbd(rgb, depth, intrinsics, info_msg.d, scale,
+                                              board_from_camera, self.roi, self.max_opening,
+                                              max_object_height_m=self.max_object_height,
+                                              support_plane={key: value for key, value in cache.items()
+                                                             if key != "stamp"})
+                        report["support_plane"]["plane_source"] = "cached_measured_support_plane"
+                        report["support_plane"]["support_plane_age_s"] = float(cache_age)
+                    if not stamp_is_fresh(self.get_clock().now().nanoseconds * 1e-9, stamp, 0.5):
+                        self._publish_unavailable(color_msg.header.stamp, "stale",
+                                                  "RGB-D pair expired while waiting for timestamped TF")
+                        return
+                    if self.require_registration_tracking:
+                        tracking_stamp = self.registration_last_tracking_stamp
+                        age = (self.get_clock().now().nanoseconds * 1e-9 - tracking_stamp
+                               if tracking_stamp is not None else None)
+                        if age is None or age < 0 or age > 0.5:
+                            self._publish_unavailable(color_msg.header.stamp,
+                                                      "registration_unavailable",
+                                                      "ChArUco localization expired while waiting for timestamped TF",
+                                                      registration_observation_age_s=age)
+                            return
                     objects = self.tracker.update(report["objects"], stamp)
                     report["objects"] = objects
                     report["stamp"] = stamp
@@ -471,8 +666,10 @@ class ColoredObjectsNode:
                         if key != "inlier_mask" and key != "residuals_m"}
                     self._publish_report(report, color_msg.header.stamp)
                 except (ValueError, TypeError, cv2.error, TransformException) as error:
-                    self.get_logger().warning(f"Colored object observation unavailable: {error}")
-                    self._publish_empty(color_msg.header.stamp)
+                    if time.monotonic() - self.last_warning >= 2.0:
+                        self.get_logger().warning(f"Colored object observation unavailable: {error}")
+                        self.last_warning = time.monotonic()
+                    self._publish_unavailable(color_msg.header.stamp, "unavailable", str(error))
 
             def _publish_report(self, report, stamp):
                 detections = Detection3DArray()
@@ -571,11 +768,16 @@ class ColoredObjectsNode:
 
 def main(args=None):
     import rclpy
+    from rclpy.executors import MultiThreadedExecutor
 
     rclpy.init(args=args)
     node = ColoredObjectsNode()
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     finally:
+        executor.remove_node(node)
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()

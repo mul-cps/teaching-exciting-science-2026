@@ -50,6 +50,18 @@ def test_black_and_gray_regions_do_not_create_color_detections():
     assert [obj["color"] for obj in report["objects"]] == ["red"]
 
 
+def test_subcentimeter_color_fragment_is_not_reported_as_object():
+    rgb, depth, intrinsics, distortion, camera_to_board = tabletop_scene()
+    # At this camera/depth scale this 6 px patch is below the 10 mm footprint
+    # threshold, while the existing 30 px object remains a valid brick-sized
+    # footprint.
+    rgb[220:226, 350:356] = [255, 0, 0]
+    depth[220:226, 350:356] = 780
+    report = analyze_rgbd(rgb, depth, intrinsics, distortion, .001, camera_to_board)
+    assert [obj["color"] for obj in report["objects"]] == ["red"]
+    assert np.min(report["objects"][0]["dimensions_m"][:2]) >= .010
+
+
 def test_camera_motion_transform_backprojection_preserves_world_position():
     intrinsics = {"fx": 600.0, "fy": 600.0, "ppx": 320.0, "ppy": 240.0}
     world_point = np.array([[0.08, -0.04, 0.12]])
