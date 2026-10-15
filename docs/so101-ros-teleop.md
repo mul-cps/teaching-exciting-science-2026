@@ -53,6 +53,14 @@ commands continue through the one resident `ArmSession`, which enforces a
 300 ms command watchdog. A lost leader stream therefore expires at the bridge
 and resident owner rather than leaving a stale command queued for later use.
 
+The bridge also exposes `/follower/home` as `std_srvs/Trigger`. It invokes the
+existing measured-home routine through the same resident owner and succeeds
+only after an owner acknowledgement with `home_complete`. The bridge requires
+a fresh owner state and reserves exclusive control while homing, so active
+trajectory and teleoperation operations are rejected. The call times out after
+at most 90 seconds; it does not add a motion profile or a MoveIt collision
+bypass to trajectory execution.
+
 ## Explicit measured-endpoint calibration mode
 
 For a calibration capture that needs the stable measured endpoint even when

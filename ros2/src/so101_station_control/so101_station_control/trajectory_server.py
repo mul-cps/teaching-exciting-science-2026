@@ -23,7 +23,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
-from std_srvs.srv import SetBool
+from std_srvs.srv import SetBool, Trigger
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 from .leader_reader import JOINTS as TELEOP_JOINTS, matched_pose, validate_pose_packet
@@ -101,6 +101,8 @@ class TrajectoryBridge(Node):
         self.declare_parameter("teleop_enable_service", "/follower/teleop_enable")
         self.declare_parameter("teleop_pose_stale_s", 0.15)
         self.declare_parameter("teleop_owner_timeout_s", 2.0)
+        self.declare_parameter("home_service", "/follower/home")
+        self.declare_parameter("home_timeout_s", 90.0)
         self._active_lock = threading.Lock()
         self._active_goal = None
         self._cancel_before_start = False
@@ -149,6 +151,9 @@ class TrajectoryBridge(Node):
         self._teleop_service = self.create_service(
             SetBool, str(self.get_parameter("teleop_enable_service").value),
             self._set_teleop_enabled, callback_group=self._teleop_service_group)
+        self._home_service = self.create_service(
+            Trigger, str(self.get_parameter("home_service").value),
+            self._home, callback_group=self._teleop_service_group)
         self.create_timer(1.0 / 125.0, self._teleop_tick)
         if not self._external_state_only:
             self._trajectory_helper = self._load_trajectory_helper()
@@ -533,6 +538,73 @@ class TrajectoryBridge(Node):
         except (BrokenPipeError, OSError, RuntimeError, TimeoutError) as error:
             response.success = False
             response.message = str(error)
+        return response
+
+    def _home(self, _request, response):
+        """Run the existing measured-home operation through the resident owner."""
+        process = self._process
+        state = self._read_state()
+        if (self._external_state_only or process is None or process.poll() is not None or
+                self._owner_faulted):
+            response.success = False
+            response.message = "resident ArmSession owner is unavailable or faulted"
+            return response
+        if state is None:
+            response.success = False
+            response.message = "resident ArmSession state is not fresh"
+            return response
+        with self._active_lock:
+            if self._active_goal is not None:
+                response.success = False
+                response.message = "a trajectory, teleoperation session, or owner operation is active"
+                return response
+            self._active_goal = "home"
+
+        timeout_s = float(self.get_parameter("home_timeout_s").value)
+        if not math.isfinite(timeout_s) or not 0 < timeout_s <= 90.0:
+            response.success = False
+            response.message = "home_timeout_s must be in (0, 90] seconds"
+            with self._active_lock:
+                if self._active_goal == "home":
+                    self._active_goal = None
+            return response
+        deadline = time.monotonic() + timeout_s
+        try:
+            # With the exclusive service reservation, no other bridge command can
+            # be in flight. Discard any stale unsolicited reply before sending home.
+            while True:
+                try:
+                    self._response_queue.get_nowait()
+                except queue.Empty:
+                    break
+            self._send({"command": "home"})
+            while True:
+                if process.poll() is not None:
+                    raise RuntimeError("ArmSession owner stopped before home completed")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("ArmSession home did not complete within timeout")
+                try:
+                    result = self._response_queue.get(timeout=min(0.05, remaining))
+                    break
+                except queue.Empty:
+                    continue
+            if not isinstance(result, dict):
+                raise RuntimeError("ArmSession returned a malformed home acknowledgement")
+            home_state = result.get("state")
+            if not result.get("ok"):
+                raise RuntimeError(result.get("error", result.get("error_type", "ArmSession rejected home")))
+            if not isinstance(home_state, dict) or home_state.get("event") != "home_complete":
+                raise RuntimeError("ArmSession home acknowledgement did not confirm home_complete")
+            response.success = True
+            response.message = "measured home completed"
+        except (BrokenPipeError, OSError, RuntimeError, TimeoutError) as error:
+            response.success = False
+            response.message = str(error)
+        finally:
+            with self._active_lock:
+                if self._active_goal == "home":
+                    self._active_goal = None
         return response
 
     def _teleop_tick(self):

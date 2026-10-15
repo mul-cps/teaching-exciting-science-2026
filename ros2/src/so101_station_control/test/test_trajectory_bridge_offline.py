@@ -13,6 +13,7 @@ from rclpy.action import ActionClient
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
+from std_srvs.srv import Trigger
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 from so101_station_control.trajectory_server import (ARM_JOINTS, TrajectoryBridge,
@@ -26,6 +27,11 @@ class _FakeProcess:
 
     def wait(self, timeout=None):
         return 0
+
+
+class _ExitedProcess(_FakeProcess):
+    def poll(self):
+        return 1
 
 
 def _spin_until(executor, future, timeout=8.0):
@@ -305,6 +311,75 @@ def test_calibration_endpoint_is_aborted_and_recorded_without_faulting_owner(mon
         assert artifact["result"]["goal_error_rad"]["elbow_flex"] == pytest.approx(0.0399)
         assert bridge._owner_faulted is False
         assert bridge._process.poll() is None
+    finally:
+        executor.remove_node(client_node)
+        executor.remove_node(bridge)
+        client_node.destroy_node()
+        bridge.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+def test_home_service_uses_owner_and_denies_busy_or_unavailable(monkeypatch, tmp_path):
+    if not rclpy.ok():
+        rclpy.init(args=["so101-offline-home-service-test"])
+    root = Path(__file__).resolve().parents[4]
+    runtime_state = tmp_path / "owner-state.json"
+    state = {"schema": 1, "event": "sample", "monotonic": time.monotonic(),
+             "raw": {joint: 2048 for joint in (*ARM_JOINTS, "gripper")},
+             "pose": {**dict.fromkeys(ARM_JOINTS, 0.0), "gripper": 50.0},
+             "torque": dict.fromkeys((*ARM_JOINTS, "gripper"), 0)}
+    commands = []
+
+    def start_fake_owner(node):
+        runtime_state.write_text(json.dumps(state))
+        node._state_file = runtime_state
+        node._process = _FakeProcess()
+        node._owner_started = time.monotonic()
+
+    def send_to_fake_owner(node, command):
+        commands.append(command)
+        if command == {"command": "home"}:
+            node._response_queue.put({"ok": True, "state": {"event": "home_complete"}})
+
+    monkeypatch.setattr(TrajectoryBridge, "_start_owner", start_fake_owner)
+    monkeypatch.setattr(TrajectoryBridge, "_send", send_to_fake_owner)
+    bridge = TrajectoryBridge(parameter_overrides=[
+        Parameter("enable_hardware", Parameter.Type.BOOL, False),
+        Parameter("station_root", Parameter.Type.STRING, str(root)),
+        Parameter("state_file", Parameter.Type.STRING, str(runtime_state)),
+    ])
+    client_node = Node("so101_offline_home_service_client")
+    client = client_node.create_client(Trigger, "/follower/home")
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(bridge)
+    executor.add_node(client_node)
+    try:
+        assert client.wait_for_service(timeout_sec=3.0)
+        future = client.call_async(Trigger.Request())
+        result = _spin_until(executor, future)
+        assert result.success
+        assert result.message == "measured home completed"
+        assert commands == [{"command": "home"}]
+        assert bridge._active_goal is None
+
+        with bridge._active_lock:
+            bridge._active_goal = "teleop"
+        busy = Trigger.Response()
+        bridge._home(Trigger.Request(), busy)
+        assert not busy.success
+        assert "active" in busy.message
+        assert commands == [{"command": "home"}]
+        with bridge._active_lock:
+            bridge._active_goal = None
+
+        bridge._process = _ExitedProcess()
+        unavailable = Trigger.Response()
+        bridge._home(Trigger.Request(), unavailable)
+        assert not unavailable.success
+        assert "unavailable" in unavailable.message
+        assert commands == [{"command": "home"}]
+        assert bridge._active_goal is None
     finally:
         executor.remove_node(client_node)
         executor.remove_node(bridge)
