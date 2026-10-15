@@ -28,21 +28,25 @@ ready.
 ```
 
 `stamp_s` is the host monotonic acquisition time and `sequence` increases for
-each leader sample. Body values use calibrated physical degrees; gripper uses
-calibrated opening percent. The follower bridge must reject malformed or older
-than 150 ms samples, capture fresh matched references when teleoperation is
-enabled, and send the mapped follower pose through its existing ArmSession
-owner. The mapping is `follower_start + leader - leader_start`, using the
-per-joint calibrated convention above. ArmSession provides the bounded rates
-and calibrated follower limits. The bridge owns the `SetBool` enable service;
-enable must fail while a trajectory action is active and must report the owner
-start acknowledgement before returning success. Disable stops the session and
-holds the measured pose. Do not publish a synthetic enable request at startup.
+each leader sample. This timestamp is a same-host contract; remote ROS hosts
+with independent monotonic clocks are unsupported. Body values use calibrated
+physical degrees; gripper uses calibrated opening percent. The follower bridge
+rejects malformed or older than 150 ms samples, captures fresh matched
+references when teleoperation is enabled, and sends mapped follower poses
+through its existing ArmSession owner. The mapping is
+`follower_start + leader - leader_start`, using the per-joint calibrated
+convention above. ArmSession applies the calibrated follower bounds and rate
+limits. The bridge provides `std_srvs/SetBool` at `/follower/teleop_enable`;
+enable fails while a trajectory action is active and reports the owner start
+acknowledgement before returning success. Disable stops the session and holds
+the measured pose. Do not publish a synthetic enable request at startup.
 
 `/leader/joint_states` publishes the five body joints in radians. Its `gripper`
 joint is a visual-only jaw estimate mapped from normalized percent into the
 canonical `[-10, 100]` degree display range; it is not a measured angle and is
 never commanded. The JSON pose topic is the teleoperation input contract.
+Online teleoperation is joint-space control and does not run MoveIt collision
+checks; keep the physical workspace clear and supervise the arm.
 
 The leader ROS node does not own or open the follower serial port. Follower
 commands continue through the one resident `ArmSession`, which enforces a

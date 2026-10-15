@@ -1,9 +1,14 @@
 """Offline contract checks for the calibrated leader reader and ROS representation."""
 import math
+import sys
+from pathlib import Path
 
 import pytest
 
-from so101_station_control.leader_reader import JOINTS, joint_state_positions, normalized_position
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ros2/src/so101_station_control"))
+from so101_station_control.leader_reader import (
+    JOINTS, joint_state_positions, matched_pose, normalized_position, validate_pose_packet,
+)
 
 
 def test_leader_calibration_mapping_matches_capture_units():
@@ -35,3 +40,19 @@ def test_gripper_visual_proxy_rejects_out_of_range_values(gripper):
 def test_normalized_position_rejects_invalid_calibration():
     with pytest.raises(ValueError):
         normalized_position(1, {"range_min": 1, "range_max": 1}, False)
+
+
+def test_pose_contract_and_matched_pose_mapping():
+    pose = dict.fromkeys(JOINTS, 0.0)
+    pose["gripper"] = 45.0
+    packet = {"schema": 1, "stamp_s": 10.0, "sequence": 2,
+              "units": {"body": "degrees", "gripper": "percent"}, "pose": pose}
+    validated = validate_pose_packet(packet, 10.05)
+    leader_start = dict.fromkeys(JOINTS, 0.0)
+    follower_start = dict.fromkeys(JOINTS, 10.0)
+    follower_start["gripper"] = 50.0
+    mapped = matched_pose(validated, leader_start, follower_start)
+    assert mapped["shoulder_pan"] == pytest.approx(10.0)
+    assert mapped["gripper"] == pytest.approx(95.0)
+    with pytest.raises(ValueError, match="freshness"):
+        validate_pose_packet(packet, 10.16)

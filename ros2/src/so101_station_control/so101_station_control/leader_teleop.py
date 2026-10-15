@@ -8,6 +8,7 @@ import queue
 import subprocess
 import threading
 import time
+import time
 
 import rclpy
 from rclpy.duration import Duration
@@ -15,7 +16,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 
-from .leader_reader import JOINTS, joint_state_positions
+from .leader_reader import JOINTS, joint_state_positions, validate_pose_packet
 
 LEADER_PORT = "/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AB9068765-if00"
 DEFAULT_CALIBRATION_DIR = "/home/bjoern/git/soarm101-highschool-demos/.calibration"
@@ -66,10 +67,9 @@ class LeaderTeleopPublisher(Node):
             for line in process.stdout:
                 try:
                     packet = json.loads(line)
-                    if packet.get("schema") != 1 or packet.get("units") != {
-                            "body": "degrees", "gripper": "percent"}:
-                        raise ValueError("unsupported leader pose schema")
-                    pose = packet.get("pose")
+                    pose = validate_pose_packet(
+                        packet, time.monotonic(), float(self.get_parameter("pose_stale_s").value))
+                    packet["pose"] = pose
                     state_positions = joint_state_positions(pose)
                     packet["joint_positions_rad"] = state_positions
                     while True:

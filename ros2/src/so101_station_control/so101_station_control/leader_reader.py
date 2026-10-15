@@ -35,6 +35,48 @@ def joint_state_positions(pose):
     return [math.radians(value) for value in values] + [math.radians(-10.0 + 1.1 * grip)]
 
 
+def validate_pose_packet(packet, now, max_age=0.15):
+    """Validate the local JSON pose contract and return its calibrated pose."""
+    if not isinstance(packet, dict) or packet.get("schema") != 1:
+        raise ValueError("unsupported leader pose schema")
+    if packet.get("units") != {"body": "degrees", "gripper": "percent"}:
+        raise ValueError("unsupported leader pose units")
+    sequence = packet.get("sequence")
+    stamp = packet.get("stamp_s")
+    if type(sequence) is not int or sequence < 0:
+        raise ValueError("leader sequence must be a nonnegative integer")
+    if type(stamp) not in (int, float) or not math.isfinite(stamp):
+        raise ValueError("leader stamp must be a finite monotonic time")
+    age = float(now) - float(stamp)
+    if not math.isfinite(float(now)) or age < -0.02 or age > float(max_age):
+        raise ValueError("leader pose is outside the freshness window")
+    pose = packet.get("pose")
+    if not isinstance(pose, dict) or set(pose) != set(JOINTS):
+        raise ValueError("leader pose must contain exactly six station joints")
+    for joint in BODY_JOINTS:
+        value = pose[joint]
+        if type(value) not in (int, float) or not math.isfinite(value) or abs(value) > 180.0:
+            raise ValueError(f"leader {joint} must be finite and within +/-180 degrees")
+    grip = pose["gripper"]
+    if type(grip) not in (int, float) or not math.isfinite(grip) or not 0.0 <= grip <= 100.0:
+        raise ValueError("leader gripper must be finite and within 0..100 percent")
+    return {joint: float(pose[joint]) for joint in JOINTS}
+
+
+def matched_pose(leader, leader_start, follower_start):
+    """Apply the capture contract's temporary matched-pose offset, joint for joint."""
+    if any(not isinstance(item, dict) or set(item) != set(JOINTS)
+           for item in (leader, leader_start, follower_start)):
+        raise ValueError("matched-pose mapping requires all six station joints")
+    result = {}
+    for joint in JOINTS:
+        values = (leader[joint], leader_start[joint], follower_start[joint])
+        if any(type(value) not in (int, float) or not math.isfinite(value) for value in values):
+            raise ValueError("matched-pose inputs must be finite numbers")
+        result[joint] = float(follower_start[joint]) + float(leader[joint]) - float(leader_start[joint])
+    return result
+
+
 def read_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", required=True)

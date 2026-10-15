@@ -18,11 +18,15 @@ from builtin_interfaces.msg import Duration
 from control_msgs.action import FollowJointTrajectory
 from moveit_msgs.srv import GetStateValidity
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+from std_msgs.msg import String
+from std_srvs.srv import SetBool
 from trajectory_msgs.msg import JointTrajectoryPoint
+
+from .leader_reader import JOINTS as TELEOP_JOINTS, matched_pose, validate_pose_packet
 
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 
@@ -92,12 +96,31 @@ class TrajectoryBridge(Node):
         self.declare_parameter("state_freshness_s", 0.25)
         self.declare_parameter("collision_check_timeout_s", 30.0)
         self.declare_parameter("max_jerk_rad_s3", 2.0)
+        self.declare_parameter("teleop_pose_topic", "/leader/teleop_pose")
+        self.declare_parameter("teleop_enable_service", "/follower/teleop_enable")
+        self.declare_parameter("teleop_pose_stale_s", 0.15)
+        self.declare_parameter("teleop_owner_timeout_s", 2.0)
         self._active_lock = threading.Lock()
         self._active_goal = None
         self._cancel_before_start = False
         self._write_lock = threading.Lock()
         self._action_group = ReentrantCallbackGroup()
         self._response_queue = queue.Queue()
+        self._teleop_condition = threading.Condition()
+        self._teleop_acknowledgements = {}
+        self._teleop_state = "disabled"
+        self._teleop_session = None
+        self._teleop_origin = None
+        self._teleop_follower_start = None
+        self._teleop_last_source_sequence = -1
+        self._teleop_owner_sequence = -1
+        self._teleop_inflight_sequence = None
+        self._teleop_inflight = False
+        self._teleop_stop_sent = False
+        self._teleop_step_done = threading.Event()
+        self._teleop_step_done.set()
+        self._teleop_latest = None
+        self._teleop_latest_lock = threading.Lock()
         self._closed = False
         self._process = None
         self._owner_started = 0.0
@@ -118,6 +141,14 @@ class TrajectoryBridge(Node):
             callback_group=self._action_group)
         self._joint_state_pub = self.create_publisher(JointState, "/follower/joint_states", 10)
         self.create_timer(0.05, self._publish_joint_state)
+        self._teleop_service_group = MutuallyExclusiveCallbackGroup()
+        self._teleop_pose_subscription = self.create_subscription(
+            String, str(self.get_parameter("teleop_pose_topic").value),
+            self._leader_pose_received, 1)
+        self._teleop_service = self.create_service(
+            SetBool, str(self.get_parameter("teleop_enable_service").value),
+            self._set_teleop_enabled, callback_group=self._teleop_service_group)
+        self.create_timer(1.0 / 125.0, self._teleop_tick)
         if not self._external_state_only:
             self._trajectory_helper = self._load_trajectory_helper()
             self._state_validity = self.create_client(
@@ -243,9 +274,323 @@ class TrajectoryBridge(Node):
     def _read_responses(self):
         for line in self._process.stdout:
             try:
-                self._response_queue.put(json.loads(line))
+                response = json.loads(line)
+                if not self._route_teleop_response(response):
+                    self._response_queue.put(response)
             except json.JSONDecodeError:
                 self.get_logger().error("ArmSession emitted invalid JSON on stdout")
+
+    def _route_teleop_response(self, response):
+        command = response.get("command")
+        state = response.get("state")
+        event = state.get("event") if isinstance(state, dict) else None
+        if command == "teleop_watchdog":
+            with self._active_lock:
+                if self._active_goal in {"teleop", "teleop_starting", "teleop_stopping"}:
+                    self._active_goal = None
+                self._teleop_state = "disabled"
+                self._teleop_session = None
+                self._teleop_origin = None
+                self._teleop_follower_start = None
+                self._teleop_inflight = False
+                self._teleop_inflight_sequence = None
+                self._teleop_stop_sent = False
+            self._teleop_step_done.set()
+            self.get_logger().warning("Leader stream expired; ArmSession watchdog held measured pose")
+            with self._teleop_condition:
+                self._teleop_acknowledgements["teleop_watchdog"] = response
+                if self._teleop_state == "disabled":
+                    self._teleop_acknowledgements["teleop_stop"] = {
+                        "ok": True, "state": state,
+                        "message": "ArmSession watchdog held measured pose"}
+                self._teleop_condition.notify_all()
+            return True
+        with self._active_lock:
+            teleop_context = self._teleop_state in {"starting", "active", "stopping"}
+            expected_step = (type(response.get("sequence")) is int and
+                             response.get("sequence") == self._teleop_inflight_sequence)
+        if command not in {"teleop_start", "teleop_step", "teleop_stop"}:
+            if event == "teleop_started" and self._teleop_state == "starting":
+                command = "teleop_start"
+            elif event == "teleop_step" and expected_step:
+                command = "teleop_step"
+            elif event == "trajectory_cancel_hold" and self._teleop_state == "stopping" and self._teleop_session:
+                command = "teleop_stop"
+            elif type(response.get("sequence")) is int and expected_step and teleop_context:
+                command = "teleop_step"
+            else:
+                return False
+        if command == "teleop_step" and type(response.get("sequence")) is int and not expected_step:
+            return False
+        if type(response.get("sequence")) is int:
+            sequence = response["sequence"]
+            with self._active_lock:
+                if sequence == self._teleop_inflight_sequence:
+                    self._teleop_inflight = False
+                    self._teleop_inflight_sequence = None
+                    if not response.get("ok"):
+                        self._teleop_state = "stopping"
+                        self._active_goal = "teleop_stopping"
+            self._teleop_step_done.set()
+            if not response.get("ok"):
+                self.get_logger().error(f"ArmSession rejected teleop step {sequence}: {response.get('error', 'unknown error')}")
+            return True
+        elif command == "teleop_start" or event == "teleop_started":
+            key = "teleop_start"
+        elif command == "teleop_stop" or event == "trajectory_cancel_hold":
+            key = "teleop_stop"
+            if response.get("ok"):
+                self._clear_teleop()
+        else:
+            if command == "teleop_step":
+                with self._active_lock:
+                    self._teleop_inflight = False
+                    self._teleop_inflight_sequence = None
+                    self._teleop_state = "stopping"
+                    self._active_goal = "teleop_stopping"
+                self._teleop_step_done.set()
+                self.get_logger().error(f"ArmSession rejected teleop step: {response.get('error', 'unknown error')}")
+                return True
+            key = command
+        with self._teleop_condition:
+            self._teleop_acknowledgements[key] = response
+            self._teleop_condition.notify_all()
+        return True
+
+    def _clear_teleop(self):
+        with self._active_lock:
+            if self._active_goal in {"teleop", "teleop_starting", "teleop_stopping"}:
+                self._active_goal = None
+            self._teleop_state = "disabled"
+            self._teleop_session = None
+            self._teleop_origin = None
+            self._teleop_follower_start = None
+            self._teleop_inflight = False
+            self._teleop_inflight_sequence = None
+            self._teleop_stop_sent = False
+
+    def _wait_teleop_ack(self, key):
+        deadline = time.monotonic() + float(self.get_parameter("teleop_owner_timeout_s").value)
+        with self._teleop_condition:
+            while key not in self._teleop_acknowledgements:
+                if self._process is None or self._process.poll() is not None:
+                    raise RuntimeError("ArmSession stopped before acknowledging teleop command")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(f"ArmSession did not acknowledge {key} before timeout")
+                self._teleop_condition.wait(min(remaining, 0.05))
+            return self._teleop_acknowledgements.pop(key)
+
+    def _leader_pose_received(self, message):
+        try:
+            packet = json.loads(message.data)
+            pose = validate_pose_packet(
+                packet, time.monotonic(), float(self.get_parameter("teleop_pose_stale_s").value))
+        except (ValueError, TypeError, KeyError, json.JSONDecodeError) as error:
+            self.get_logger().warning(f"Ignoring invalid or stale leader pose: {error}")
+            return
+        with self._teleop_latest_lock:
+            current = self._teleop_latest
+        if current is not None and packet["sequence"] <= current["sequence"]:
+            with self._active_lock:
+                inactive = self._teleop_state == "disabled"
+            if not inactive:
+                return
+        with self._teleop_latest_lock:
+            self._teleop_latest = {"stamp_s": float(packet["stamp_s"]),
+                                   "sequence": int(packet["sequence"]), "pose": pose}
+
+    def _set_teleop_enabled(self, request, response):
+        if self._external_state_only or self._process is None:
+            response.success = False
+            response.message = "teleoperation requires the resident hardware owner"
+            return response
+        if request.data:
+            with self._active_lock:
+                if self._teleop_state == "active":
+                    response.success = True
+                    response.message = "teleoperation already enabled"
+                    return response
+                if self._active_goal is not None or self._owner_faulted:
+                    response.success = False
+                    response.message = "a trajectory or another owner operation is active"
+                    return response
+                self._teleop_state = "starting"
+                self._active_goal = "teleop_starting"
+            with self._teleop_latest_lock:
+                latest = dict(self._teleop_latest) if self._teleop_latest else None
+            if (latest is None or time.monotonic() - latest["stamp_s"] >
+                    float(self.get_parameter("teleop_pose_stale_s").value)):
+                self._clear_teleop()
+                response.success = False
+                response.message = "no fresh calibrated leader pose is available"
+                return response
+            follower_state = self._read_state()
+            if follower_state is None or not isinstance(follower_state.get("pose"), dict):
+                self._clear_teleop()
+                response.success = False
+                response.message = "follower state is not fresh"
+                return response
+            torque = follower_state.get("torque")
+            if not isinstance(torque, dict) or set(torque) != set(TELEOP_JOINTS):
+                torque_values = []
+            else:
+                torque_values = list(torque.values())
+            if not torque_values or any(value not in (0, 1) for value in torque_values) or \
+                    len(set(torque_values)) != 1:
+                self._clear_teleop()
+                response.success = False
+                response.message = "follower torque state must be fresh and consistently verified on or off"
+                return response
+            session_id = uuid.uuid4().hex
+            with self._teleop_condition:
+                self._teleop_acknowledgements.pop("teleop_start", None)
+            command_sent = False
+            acknowledged = False
+            try:
+                self._send({"command": "teleop_start", "session_id": session_id})
+                command_sent = True
+                acknowledgement = self._wait_teleop_ack("teleop_start")
+                acknowledged = True
+                if not acknowledgement.get("ok"):
+                    raise RuntimeError(acknowledgement.get("error", "owner rejected teleop start"))
+                state = acknowledgement.get("state")
+                baseline = state.get("pose") if isinstance(state, dict) else None
+                if not isinstance(baseline, dict) or set(baseline) != set(TELEOP_JOINTS):
+                    raise RuntimeError("owner start acknowledgement did not include a full follower pose")
+                if any(type(baseline[joint]) not in (int, float) or not math.isfinite(baseline[joint])
+                       for joint in TELEOP_JOINTS):
+                    raise RuntimeError("owner start acknowledgement contained an invalid follower pose")
+                with self._teleop_latest_lock:
+                    start_reference = dict(self._teleop_latest) if self._teleop_latest else None
+                if (start_reference is None or time.monotonic() - start_reference["stamp_s"] >
+                        float(self.get_parameter("teleop_pose_stale_s").value)):
+                    raise RuntimeError("leader pose became stale while waiting for owner start acknowledgement")
+                with self._active_lock:
+                    self._teleop_session = session_id
+                    self._teleop_origin = start_reference["pose"]
+                    self._teleop_follower_start = {joint: float(baseline[joint]) for joint in TELEOP_JOINTS}
+                    self._teleop_last_source_sequence = start_reference["sequence"]
+                    self._teleop_owner_sequence = -1
+                    self._teleop_inflight = False
+                    self._teleop_state = "active"
+                    self._teleop_stop_sent = False
+                    self._active_goal = "teleop"
+                response.success = True
+                response.message = "teleoperation enabled; ArmSession owner acknowledged"
+                return response
+            except (BrokenPipeError, OSError, RuntimeError, TimeoutError, ValueError) as error:
+                if command_sent and (not acknowledged or acknowledgement.get("ok")):
+                    # Start may have reached the resident even if its acknowledgement was
+                    # delayed. Queue a matching stop behind it and keep action admission shut.
+                    with self._active_lock:
+                        self._teleop_session = session_id
+                        self._teleop_state = "stopping"
+                        self._active_goal = "teleop_stopping"
+                        self._teleop_stop_sent = True
+                    with self._teleop_condition:
+                        self._teleop_acknowledgements.pop("teleop_stop", None)
+                    try:
+                        self._send({"command": "teleop_stop", "session_id": session_id})
+                        stop_ack = self._wait_teleop_ack("teleop_stop")
+                        if stop_ack.get("ok"):
+                            self._clear_teleop()
+                    except (BrokenPipeError, OSError, RuntimeError, TimeoutError):
+                        self._owner_faulted = True
+                else:
+                    self._clear_teleop()
+                response.success = False
+                response.message = str(error)
+                return response
+        with self._active_lock:
+            state = self._teleop_state
+            session_id = self._teleop_session
+            if state == "disabled":
+                response.success = True
+                response.message = "teleoperation already disabled"
+                return response
+            if state == "starting" or not session_id:
+                response.success = False
+                response.message = "teleoperation is still starting"
+                return response
+            should_send_stop = not self._teleop_stop_sent
+            self._teleop_state = "stopping"
+            self._active_goal = "teleop_stopping"
+            if should_send_stop:
+                self._teleop_stop_sent = True
+        if should_send_stop:
+            with self._teleop_condition:
+                self._teleop_acknowledgements.pop("teleop_stop", None)
+        try:
+            if should_send_stop and not self._teleop_step_done.wait(
+                    float(self.get_parameter("teleop_owner_timeout_s").value)):
+                response.success = False
+                response.message = "timed out waiting for the outstanding owner step; watchdog will hold"
+                return response
+            if should_send_stop:
+                self._send({"command": "teleop_stop", "session_id": session_id})
+            acknowledgement = self._wait_teleop_ack("teleop_stop")
+            if not acknowledgement.get("ok"):
+                raise RuntimeError(acknowledgement.get("error", "owner rejected teleop stop"))
+            self._clear_teleop()
+            response.success = True
+            response.message = "teleoperation stopped; measured pose held"
+        except (BrokenPipeError, OSError, RuntimeError, TimeoutError) as error:
+            response.success = False
+            response.message = str(error)
+        return response
+
+    def _teleop_tick(self):
+        with self._active_lock:
+            if self._teleop_state != "active" or self._teleop_inflight:
+                return
+            session_id = self._teleop_session
+            origin = self._teleop_origin
+            follower_start = self._teleop_follower_start
+        with self._teleop_latest_lock:
+            latest = dict(self._teleop_latest) if self._teleop_latest else None
+        if latest is None:
+            return
+        age = time.monotonic() - latest["stamp_s"]
+        if age > float(self.get_parameter("teleop_pose_stale_s").value):
+            with self._active_lock:
+                if self._teleop_state != "active":
+                    return
+                self._teleop_state = "stopping"
+                self._active_goal = "teleop_stopping"
+                self._teleop_stop_sent = True
+                self._teleop_inflight = True
+            try:
+                self._send({"command": "teleop_stop", "session_id": session_id})
+            except (BrokenPipeError, OSError, RuntimeError) as error:
+                self.get_logger().error(f"Could not stop stale teleoperation session: {error}")
+            return
+        if latest["sequence"] <= self._teleop_last_source_sequence:
+            return
+        mapped = matched_pose(latest["pose"], origin, follower_start)
+        # ArmSession clamps body targets to its exact calibrated raw bounds. Its gripper
+        # input is normalized percent, so clamp that station-unit target here.
+        mapped["gripper"] = max(0.0, min(100.0, mapped["gripper"]))
+        sequence = self._teleop_owner_sequence + 1
+        with self._active_lock:
+            if self._teleop_state != "active" or self._teleop_inflight:
+                return
+            self._teleop_inflight = True
+            self._teleop_inflight_sequence = sequence
+            self._teleop_owner_sequence = sequence
+            self._teleop_last_source_sequence = latest["sequence"]
+            self._teleop_step_done.clear()
+        try:
+            self._send({"command": "teleop_step", "session_id": session_id,
+                        "sequence": sequence, "pose": mapped})
+        except (BrokenPipeError, OSError, RuntimeError) as error:
+            with self._active_lock:
+                self._teleop_inflight = False
+                self._teleop_inflight_sequence = None
+                self._teleop_state = "stopping"
+                self._active_goal = "teleop_stopping"
+            self._teleop_step_done.set()
+            self.get_logger().error(f"Could not send teleop step: {error}")
 
     def _read_stderr(self):
         for line in self._process.stderr:
