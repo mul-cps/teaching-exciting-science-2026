@@ -23,12 +23,13 @@ import uuid
 from workshop.safe_home import load_home
 from .config import JOINTS, load_config
 from .locking import station_lock, station_lock_path
-from .ros_trajectory import ARM_JOINTS, prepare_trajectory
+from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
+                             ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S,
+                             path_digest, prepare_trajectory)
 
 PERIOD_S = 0.05
-ROS_MAX_VELOCITY_RAD_S = 0.125
-ROS_MAX_ACCELERATION_RAD_S2 = 0.2
 ROS_MAX_TRACK_ERROR_RAD = math.radians(10.0)
+ROS_GOAL_TOLERANCE_RAD = math.radians(2.0)
 # The native servo profile (Goal_Velocity 160 body / 220 gripper) executes
 # independently of this Python feedback loop. Tolerate at most four missing
 # 50 ms observations per leg (one 250 ms freshness window), then re-anchor the
@@ -408,10 +409,12 @@ class ArmSession:
         if feedback_timing is not None:
             feedback_timing["snapshot_replace_duration_s"] = max(
                 0.0, self.clock() - snapshot_started)
-        # The JSONL event trail carries the same timestamped actual samples as
-        # the atomically replaced latest-state file for downstream replay.
         log_started = self.clock()
-        self._record(state)
+        # The latest-state file carries live samples. Trajectory samples stay in
+        # memory until completion so JSONL flush latency cannot enter the tick.
+        if event not in {"read_state", "trajectory_preflight",
+                         "trajectory_feedback", "trajectory_settle"}:
+            self._record(state)
         if feedback_timing is not None:
             feedback_timing["sample_log_append_duration_s"] = max(
                 0.0, self.clock() - log_started)
@@ -829,22 +832,29 @@ class ArmSession:
     def execute_trajectory(self, goal_id, joint_names, points, *,
                            max_velocity=ROS_MAX_VELOCITY_RAD_S,
                            max_acceleration=ROS_MAX_ACCELERATION_RAD_S2,
-                           period=PERIOD_S, goal_tolerance_rad=math.radians(2.0)):
+                           max_jerk=ROS_MAX_JERK_RAD_S3,
+                           expected_path_sha256=None, period=PERIOD_S):
         """Execute one prevalidated C2 ROS trajectory without waypoint dwells."""
         self._require_initialized()
         if not isinstance(goal_id, str) or not goal_id.strip() or len(goal_id) > 128:
             raise ArmPlanPreflightError("goal_id must be a nonempty string up to 128 characters")
-        if max_velocity > ROS_MAX_VELOCITY_RAD_S or max_acceleration > ROS_MAX_ACCELERATION_RAD_S2:
+        if (max_velocity > ROS_MAX_VELOCITY_RAD_S or
+                max_acceleration > ROS_MAX_ACCELERATION_RAD_S2 or
+                max_jerk > ROS_MAX_JERK_RAD_S3):
             raise ArmPlanPreflightError("requested dynamics exceed the station software envelope")
-        if not math.isfinite(goal_tolerance_rad) or not 0 < goal_tolerance_rad <= math.radians(10):
-            raise ArmPlanPreflightError("goal tolerance must be in (0, 10] degrees")
+        if (not isinstance(expected_path_sha256, str) or len(expected_path_sha256) != 64 or
+                any(char not in "0123456789abcdef" for char in expected_path_sha256)):
+            raise ArmPlanPreflightError("trajectory requires a collision-checked effective-path SHA-256")
         try:
             start_raw = self._read("Present_Position")
             start_time = self.clock()
             prepared = prepare_trajectory(
                 joint_names, points, start_radians=self._arm_radians(start_raw),
                 max_velocity=max_velocity, max_acceleration=max_acceleration,
+                max_jerk=max_jerk,
                 period=period)
+            if path_digest(prepared, held_gripper_raw=start_raw["gripper"]) != expected_path_sha256:
+                raise ArmPlanPreflightError("measured start or effective spline differs from collision-checked path")
             gripper_raw = start_raw["gripper"]
             raw_samples = [self._validate_target(self._trajectory_raw(sample.positions, gripper_raw),
                                                   f"trajectory/{index}")
@@ -871,6 +881,8 @@ class ArmSession:
                     derivatives_ignored=prepared.ignored_derivatives,
                     max_velocity_rad_s=max_velocity,
                     max_acceleration_rad_s2=max_acceleration,
+                    max_jerk_rad_s3=max_jerk,
+                    collision_checked_path_sha256=expected_path_sha256,
                     sample_period_s=period)
         previous_feedback = start_time
         feedback_samples = []
@@ -940,7 +952,7 @@ class ArmSession:
                 errors = [abs(self._arm_radians(actual)[joint] -
                               prepared.samples[-1].positions[ARM_JOINTS.index(joint)])
                           for joint in ARM_JOINTS]
-                settled = settled + 1 if max(errors) <= goal_tolerance_rad else 0
+                settled = settled + 1 if max(errors) <= ROS_GOAL_TOLERANCE_RAD else 0
                 torque = self._read("Torque_Enable")
                 if any(torque[joint] != 1 for joint in JOINTS):
                     raise RuntimeError("trajectory torque state changed during settle")
@@ -969,7 +981,7 @@ class ArmSession:
                 "sample_count": len(prepared.samples),
                 "feedback_count": len(feedback_samples),
                 "input_derivatives_ignored": prepared.ignored_derivatives,
-                "final_tolerance_rad": goal_tolerance_rad}}
+                "final_tolerance_rad": ROS_GOAL_TOLERANCE_RAD}}
         except ArmSessionCancelled as error:
             if self._cancel_reason == "trajectory_cancel_hold":
                 try:
@@ -1119,10 +1131,11 @@ class ArmSession:
                 raise ValueError("move_plan requires exactly command and legs")
             return {"ok": True, "state": self.move_plan(command["legs"])}
         if name == "execute_trajectory":
-            if set(command) != {"command", "goal_id", "joint_names", "points"}:
-                raise ValueError("execute_trajectory requires goal_id, joint_names, and points")
+            if set(command) != {"command", "goal_id", "joint_names", "points", "path_sha256"}:
+                raise ValueError("execute_trajectory requires goal_id, joint_names, points, and collision-checked path_sha256")
             return {"ok": True, **self.execute_trajectory(command["goal_id"],
-                    command["joint_names"], command["points"])}
+                    command["joint_names"], command["points"],
+                    expected_path_sha256=command["path_sha256"])}
         if name == "cancel_hold":
             if set(command) != {"command"}:
                 raise ValueError("cancel_hold accepts no extra fields")
