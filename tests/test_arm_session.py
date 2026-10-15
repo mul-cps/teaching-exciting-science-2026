@@ -64,9 +64,21 @@ class FakeBus:
         self.on_present_read = None
         self.clock = None
         self.present_read_times = []
+        self.sync_read_calls = {}
+        self.sync_read_failures = {}
+        self.sync_read_failure_latency_s = 0.0
+        self.sync_read_success_latency_s = 0.0
 
     def ping(self, joint, **kwargs): return 777
     def sync_read(self, register, **kwargs):
+        self.sync_read_calls[register] = self.sync_read_calls.get(register, 0) + 1
+        if self.sync_read_failures.get(register, 0):
+            self.sync_read_failures[register] -= 1
+            if self.clock is not None:
+                self.clock.value += self.sync_read_failure_latency_s
+            raise ConnectionError("Incorrect status packet")
+        if self.clock is not None:
+            self.clock.value += self.sync_read_success_latency_s
         if register == "Present_Position":
             if self.present_read_delays:
                 self.clock.value += self.present_read_delays.pop(0)
@@ -182,6 +194,84 @@ def target(**overrides):
     result = dict.fromkeys(JOINTS, 2000)
     result.update(overrides)
     return result
+
+
+def test_sync_read_retries_transient_status_packet_with_diagnostics_and_no_writes(tmp_path):
+    session, arm, clock = make_session(tmp_path)
+    arm.bus.sync_read_failures["Torque_Enable"] = 1
+    arm.bus.sync_read_failure_latency_s = 0.003
+
+    state = session.initialize()
+
+    diagnostic = session._read_diagnostics["Torque_Enable"]
+    assert arm.bus.sync_read_calls["Torque_Enable"] == 2
+    assert diagnostic["attempts"] == 2
+    assert diagnostic["retries"] == 1
+    assert diagnostic["success"] is True
+    assert diagnostic["duration_s"] >= 0.003
+    assert state["torque"] == dict.fromkeys(JOINTS, 0)
+    assert state["bus_read_diagnostics"]["Torque_Enable"] == diagnostic
+    assert clock.monotonic() < 0.020
+    assert arm.bus.writes == []
+
+
+def test_sync_read_persistent_packet_failure_is_bounded_and_reported(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    arm.bus.sync_read_failures["Torque_Enable"] = 10
+
+    with pytest.raises(ConnectionError, match="after 3 attempts"):
+        session._read("Torque_Enable")
+
+    diagnostic = session._read_diagnostics["Torque_Enable"]
+    assert arm.bus.sync_read_calls["Torque_Enable"] == 3
+    assert diagnostic["attempts"] == 3
+    assert diagnostic["retries"] == 2
+    assert diagnostic["success"] is False
+    assert arm.bus.writes == []
+
+
+def test_sync_read_retry_stops_at_total_read_deadline(tmp_path):
+    session, arm, clock = make_session(tmp_path)
+    arm.bus.sync_read_failures["Torque_Enable"] = 10
+    arm.bus.sync_read_failure_latency_s = 0.021
+
+    with pytest.raises(ConnectionError, match="after 1 attempts"):
+        session._read("Torque_Enable")
+
+    assert arm.bus.sync_read_calls["Torque_Enable"] == 1
+    assert session._read_diagnostics["Torque_Enable"]["deadline_exceeded"] is True
+    assert clock.monotonic() >= 0.020
+    assert arm.bus.writes == []
+
+
+def test_sync_read_retry_success_past_deadline_is_rejected(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    arm.bus.sync_read_failures["Torque_Enable"] = 1
+    arm.bus.sync_read_failure_latency_s = 0.011
+    arm.bus.sync_read_success_latency_s = 0.011
+
+    with pytest.raises(TimeoutError, match="retry deadline"):
+        session._read("Torque_Enable")
+
+    diagnostic = session._read_diagnostics["Torque_Enable"]
+    assert diagnostic["attempts"] == 2
+    assert diagnostic["success"] is False
+    assert diagnostic["deadline_exceeded"] is True
+    assert arm.bus.writes == []
+
+
+def test_sync_write_failure_is_never_retried(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    calls = []
+
+    def fail_write(register, joint, value, **kwargs):
+        calls.append((register, joint, value))
+        raise ConnectionError("write acknowledgement lost")
+
+    arm.bus.write = fail_write
+    with pytest.raises(ConnectionError, match="acknowledgement lost"):
+        session._write_each("Goal_Position", target())
+    assert len(calls) == 1
 
 
 def test_connect_is_read_only_and_publishes_actual_state(tmp_path):
