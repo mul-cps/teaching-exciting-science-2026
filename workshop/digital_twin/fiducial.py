@@ -11,6 +11,10 @@ TRACK_MAX_SHIFT_PX = 40.
 TRACK_AMBIGUITY_MARGIN_PX = 8.
 DETECTION_INTERVAL_S = .2
 POSE_PAIR_LIMIT_S = .16
+IPPE_BRANCH_SEPARATION_DEG = 15.
+DEPTH_NORMAL_MARGIN_DEG = 10.
+DEPTH_NORMAL_MIN_MODULES = 10
+DEPTH_NORMAL_MAX_RMS_M = .001
 
 
 def detect_apriltag_25h9(rgb):
@@ -129,8 +133,73 @@ def project_tag_corners(camera_from_tag, intrinsics, marker_size_m=TAG_SIZE_M):
     return _project(object_points @ transform[:3, :3].T + transform[:3, 3], intrinsics)
 
 
+def select_ippe_pose_candidate(candidates, previous_camera_from_tag=None,
+                              depth_normal_camera=None, depth_valid_module_count=0,
+                              depth_plane_rms_m=None):
+    """Select an IPPE pose, marking separated branches uncertain without depth.
+
+    Depth normal selection is enabled only for a well-supported, low-residual
+    plane. A previous pose may help when candidates describe the same normal,
+    but cannot resolve a separated mirror branch.
+    """
+    candidates = list(candidates)
+    if not candidates:
+        return {'camera_from_tag': None, 'orientation_status': 'invalid',
+                'branch_separation_deg': None, 'rotation_deg': None}
+    candidates.sort(key=lambda item: item['reprojection_error_px'])
+    normals = [np.asarray(item['camera_from_tag'], dtype=float)[:3, 2]
+               for item in candidates]
+    separation = max((math.degrees(math.acos(float(np.clip(a @ b, -1., 1.))))
+                      for i, a in enumerate(normals) for b in normals[i + 1:]),
+                     default=0.)
+    separated = separation >= IPPE_BRANCH_SEPARATION_DEG
+    depth_qualified = (depth_normal_camera is not None
+        and type(depth_valid_module_count) is int
+        and depth_valid_module_count >= DEPTH_NORMAL_MIN_MODULES
+        and depth_plane_rms_m is not None and math.isfinite(float(depth_plane_rms_m))
+        and float(depth_plane_rms_m) < DEPTH_NORMAL_MAX_RMS_M)
+    if separated and depth_qualified:
+        normal = np.asarray(depth_normal_camera, dtype=float).reshape(3)
+        length = float(np.linalg.norm(normal))
+        if np.isfinite(normal).all() and length > 1e-9:
+            normal /= length
+            # SVD plane normals have arbitrary sign. The visible tag surface
+            # faces the camera, so orient the normal toward the camera origin.
+            representative_position = np.mean(
+                [np.asarray(item['camera_from_tag'])[:3, 3] for item in candidates], axis=0)
+            if float(normal @ representative_position) > 0.:
+                normal = -normal
+            errors = [math.degrees(math.acos(float(np.clip(item @ normal, -1., 1.))))
+                      for item in normals]
+            order = np.argsort(errors)
+            margin = (errors[order[1]] - errors[order[0]]) if len(order) > 1 else 180.
+            if margin >= DEPTH_NORMAL_MARGIN_DEG:
+                return {'camera_from_tag': candidates[int(order[0])]['camera_from_tag'],
+                        'orientation_status': 'depth_disambiguated',
+                        'branch_separation_deg': separation,
+                        'rotation_deg': None}
+    if separated:
+        return {'camera_from_tag': candidates[0]['camera_from_tag'],
+                'orientation_status': 'orientation_uncertain',
+                'branch_separation_deg': separation, 'rotation_deg': None}
+    if previous_camera_from_tag is not None:
+        previous = _rigid(previous_camera_from_tag, 'previous_camera_from_tag')
+        def continuity(item):
+            relative = previous[:3, :3].T @ item['camera_from_tag'][:3, :3]
+            angle = math.acos(float(np.clip((np.trace(relative) - 1) / 2, -1, 1)))
+            return angle, item['reprojection_error_px']
+        chosen = min(candidates, key=continuity)
+    else:
+        chosen = candidates[0]
+    return {'camera_from_tag': chosen['camera_from_tag'],
+            'orientation_status': 'resolved_pnp',
+            'branch_separation_deg': separation, 'rotation_deg': None}
+
+
 def estimate_camera_from_tag(corners, intrinsics, marker_size_m=TAG_SIZE_M,
-                             previous_camera_from_tag=None):
+                             previous_camera_from_tag=None, *, depth_normal_camera=None,
+                             depth_valid_module_count=0, depth_plane_rms_m=None,
+                             return_diagnostics=False):
     """Estimate a selected tag pose from its four detected corners, without image I/O."""
     import cv2
     half = float(marker_size_m) / 2
@@ -143,7 +212,9 @@ def estimate_camera_from_tag(corners, intrinsics, marker_size_m=TAG_SIZE_M,
     result = cv2.solvePnPGeneric(object_points, points, camera, distortion,
                                  flags=cv2.SOLVEPNP_IPPE_SQUARE)
     if not result[0]:
-        return None
+        diagnostic = {'camera_from_tag': None, 'orientation_status': 'invalid',
+                      'branch_separation_deg': None, 'rotation_deg': None}
+        return diagnostic if return_diagnostics else None
     errors = result[3]
     candidates = []
     for index, (rotation_vector, translation) in enumerate(zip(result[1], result[2])):
@@ -154,27 +225,25 @@ def estimate_camera_from_tag(corners, intrinsics, marker_size_m=TAG_SIZE_M,
         transform[:3, :3], transform[:3, 3] = rotation, translation[:, 0]
         reprojection_error = (float(np.asarray(errors).reshape(-1)[index])
                               if errors is not None else float(index))
-        candidates.append((transform, reprojection_error))
-    if not candidates:
-        return None
-    if previous_camera_from_tag is not None:
-        previous = _rigid(previous_camera_from_tag, 'previous_camera_from_tag')
-        def continuity(item):
-            transform, reprojection_error = item
-            relative = previous[:3, :3].T @ transform[:3, :3]
-            angle = math.acos(float(np.clip((np.trace(relative) - 1) / 2, -1, 1)))
-            return (angle, reprojection_error)
-        return min(candidates, key=continuity)[0]
-    return min(candidates, key=lambda item: item[1])[0]
+        candidates.append({'camera_from_tag': transform,
+                           'reprojection_error_px': reprojection_error})
+    diagnostic = select_ippe_pose_candidate(candidates,
+        previous_camera_from_tag=previous_camera_from_tag,
+        depth_normal_camera=depth_normal_camera,
+        depth_valid_module_count=depth_valid_module_count,
+        depth_plane_rms_m=depth_plane_rms_m)
+    return diagnostic if return_diagnostics else diagnostic['camera_from_tag']
 
 
-def draw_tag_comparison(rgb, observed_corners, expected_corners):
-    """Return display-only RGB copy with expected cyan and observed yellow outlines."""
+def draw_tag_comparison(rgb, observed_corners, expected_corners=None):
+    """Return display-only RGB copy with optional expected and observed outlines."""
     from PIL import Image, ImageDraw
     image = Image.fromarray(np.asarray(rgb, dtype=np.uint8).copy())
     draw = ImageDraw.Draw(image)
-    for corners, color in ((expected_corners, (20, 230, 255)),
-                           (observed_corners, (255, 215, 20))):
+    overlays = [(observed_corners, (255, 215, 20))]
+    if expected_corners is not None:
+        overlays.insert(0, (expected_corners, (20, 230, 255)))
+    for corners, color in overlays:
         points = [tuple(np.rint(point).astype(int)) for point in np.asarray(corners).reshape(4, 2)]
         draw.line(points + [points[0]], fill=color, width=2)
         for x, y in points:
@@ -203,15 +272,8 @@ def evaluate_tag_overlay(rgb, pair, expected_camera_from_tag, intrinsics,
         return {'status': selection['status'].upper() + ' ID0 · comparison hidden',
                 'visible': False, 'center_px': None, 'expected_camera_from_tag': None,
                 'observed_camera_from_tag': None, 'image': display.copy(), 'residual': None}
-    observed = estimate_camera_from_tag(selection['corners'], intrinsics,
-        previous_camera_from_tag=previous_camera_from_tag)
-    if observed is None:
-        return {'status': 'TAG POSE INVALID · comparison hidden', 'visible': False,
-                'center_px': None, 'expected_camera_from_tag': None,
-                'observed_camera_from_tag': None, 'image': display.copy(), 'residual': None}
-    expected = _rigid(expected_camera_from_tag, 'expected_camera_from_tag')
-    nominal_residual = tag_pose_residual(expected, observed, intrinsics)
-    residual = nominal_residual
+    depth_estimate = None
+    depth_pose = None
     depth_anchor = {'status': 'UNAVAILABLE', 'reason': 'paired depth not supplied'}
     if depth is not None and depth_scale_m is not None:
         try:
@@ -222,33 +284,58 @@ def evaluate_tag_overlay(rgb, pair, expected_camera_from_tag, intrinsics,
                                dtype=np.uint8)
             bits = np.zeros((7, 7), dtype=np.uint8)
             bits[1:6, 1:6] = inner
-            # Capture calibration declares inverse-Brown-Conrady but carries
-            # exactly zero coefficients, so this pinhole helper can use it
-            # without distorting or modifying the saved calibration record.
             depth_intrinsics = dict(intrinsics)
             coeffs = np.asarray(depth_intrinsics.get('coeffs', ()), dtype=float)
             if coeffs.size and np.all(np.abs(coeffs) <= 1e-12):
                 depth_intrinsics['model'] = 'none'
-            estimate = estimate_tag_pose(selection['corners'].reshape(4, 2), rgb, depth,
+            depth_estimate = estimate_tag_pose(selection['corners'].reshape(4, 2), rgb, depth,
                 depth_intrinsics, depth_scale_m, bits, white_rgb_min=100)
-            depth_pose = np.asarray(estimate['camera_from_tag'], dtype=float)
-            anchored = observed.copy()
-            anchored[:3, 3] = depth_pose[:3, 3]
-            residual = tag_pose_residual(expected, anchored, intrinsics)
+            depth_pose = np.asarray(depth_estimate['camera_from_tag'], dtype=float)
             depth_anchor = {'status': 'PROVISIONAL_DEPTH_TRANSLATION',
-                'qualified': False, 'translation_delta_z_m': float(depth_pose[2, 3] - observed[2, 3]),
-                'translation_delta_xyz_m': (depth_pose[:3, 3] - observed[:3, 3]).tolist(),
-                'black_edge_side_lengths_m': estimate['black_edge_side_lengths_m'],
-                'nominal_size_m': TAG_SIZE_M, 'plane': estimate['plane'],
-                'valid_module_count': estimate['valid_module_count'],
-                'module_count': estimate['module_count'],
-                'observed_camera_from_tag': anchored.tolist()}
+                'qualified': False,
+                'black_edge_side_lengths_m': depth_estimate['black_edge_side_lengths_m'],
+                'nominal_size_m': TAG_SIZE_M, 'plane': depth_estimate['plane'],
+                'valid_module_count': depth_estimate['valid_module_count'],
+                'module_count': depth_estimate['module_count']}
         except Exception as exc:
             depth_anchor = {'status': 'UNAVAILABLE · PnP ONLY UNQUALIFIED',
                             'reason': str(exc)}
+    pose_diagnostic = estimate_camera_from_tag(selection['corners'], intrinsics,
+        previous_camera_from_tag=previous_camera_from_tag,
+        depth_normal_camera=(depth_estimate['plane']['normal_camera']
+                             if depth_estimate is not None else None),
+        depth_valid_module_count=(depth_estimate['valid_module_count']
+                                  if depth_estimate is not None else 0),
+        depth_plane_rms_m=(depth_estimate['plane']['rms_m']
+                           if depth_estimate is not None else None),
+        return_diagnostics=True)
+    observed = pose_diagnostic['camera_from_tag']
+    if observed is None:
+        return {'status': 'TAG POSE INVALID · comparison hidden', 'visible': False,
+                'center_px': None, 'expected_camera_from_tag': None,
+                'observed_camera_from_tag': None, 'image': display.copy(), 'residual': None}
+    orientation_uncertain = pose_diagnostic['orientation_status'] == 'orientation_uncertain'
+    expected = _rigid(expected_camera_from_tag, 'expected_camera_from_tag')
+    nominal_residual = tag_pose_residual(expected, observed, intrinsics)
+    residual = nominal_residual
+    reported_pose = observed.copy()
+    if depth_pose is not None:
+        reported_pose[:3, 3] = depth_pose[:3, 3]
+        residual = tag_pose_residual(expected, reported_pose, intrinsics)
+        depth_anchor.update(
+            translation_delta_z_m=float(depth_pose[2, 3] - observed[2, 3]),
+            translation_delta_xyz_m=(depth_pose[:3, 3] - observed[:3, 3]).tolist(),
+            observed_camera_from_tag=reported_pose.tolist())
+    if orientation_uncertain:
+        residual['rotation_deg'] = None
+        nominal_residual['rotation_deg'] = None
     image = draw_tag_comparison(display, residual['observed_corners_px'],
-                                residual['expected_corners_px'])
-    if depth_anchor['status'] == 'PROVISIONAL_DEPTH_TRANSLATION':
+        None if orientation_uncertain else residual['expected_corners_px'])
+    if orientation_uncertain:
+        status = ('SOURCE UNQUALIFIED · ORIENTATION UNCERTAIN · observed center retained'
+                  + (' · depth-anchored position provisional' if depth_pose is not None
+                     else ' · depth position unavailable'))
+    elif depth_pose is not None:
         status = ('SOURCE UNQUALIFIED · depth anchored Δ %.1f mm / %.1f px / %.1f° '
                   '(nominal PnP Δ %.1f mm)' % (residual['translation_mm'], residual['pixel'],
                   residual['rotation_deg'], nominal_residual['translation_mm']))
@@ -259,13 +346,12 @@ def evaluate_tag_overlay(rgb, pair, expected_camera_from_tag, intrinsics,
     return {'status': status,
             'visible': True, 'center_px': selection['center_px'],
             'expected_camera_from_tag': expected,
-            'observed_camera_from_tag': (np.asarray(
-                depth_anchor['observed_camera_from_tag']) if depth_anchor['status'] ==
-                'PROVISIONAL_DEPTH_TRANSLATION' else observed), 'image': image,
+            'observed_camera_from_tag': reported_pose, 'image': image,
             'residual': residual, 'nominal_pnp_residual': nominal_residual,
             'depth_anchor': depth_anchor,
-            'depth_anchored_camera_from_tag': (depth_anchor.get('observed_camera_from_tag')
-                if depth_anchor['status'] == 'PROVISIONAL_DEPTH_TRANSLATION' else None)}
+            'orientation_status': pose_diagnostic['orientation_status'],
+            'branch_separation_deg': pose_diagnostic['branch_separation_deg'],
+            'depth_anchored_camera_from_tag': (reported_pose if depth_pose is not None else None)}
 
 
 def validate_fiducial_calibration(payload):
