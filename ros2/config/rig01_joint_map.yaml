@@ -1,0 +1,16 @@
+# Read-only logical identity export from hs_rig01_follower.json.
+# This is deliberately NOT a Feetech joint_config_file: that upstream option
+# writes supplied calibration values to servo EEPROM during hardware startup.
+source: /home/bjoern/git/soarm101-highschool-demos/.calibration/hs_rig01_follower.json
+calibration_sha256: bc688147848f386899f8f34eb09cdb285fcdb0fc8de576b78a50a8efaf7f424c
+read_only: true
+qualified: false
+zero_source: midpoint_of_calibration_range_min_and_range_max
+radians_per_raw_count: 0.0015343553863686413 # 2*pi/4095, Rig01 legacy software mapping
+joints:
+  shoulder_pan: {servo_id: 1, software_zero_raw: 2107.5}
+  shoulder_lift: {servo_id: 2, software_zero_raw: 2151.5}
+  elbow_flex: {servo_id: 3, software_zero_raw: 1951.5}
+  wrist_flex: {servo_id: 4, software_zero_raw: 1995.5}
+  wrist_roll: {servo_id: 5, software_zero_raw: 2047.5}
+  gripper: {servo_id: 6, raw_min: 1872, raw_max: 3366, mapping: normalized_fraction_only, mapping_qualified: false}

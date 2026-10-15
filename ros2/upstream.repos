@@ -1,0 +1,9 @@
+repositories:
+  so101-ros-physical-ai:
+    type: git
+    url: https://github.com/legalaspro/so101-ros-physical-ai.git
+    version: 58318c905a2c61289fa907de85cb8473322fbe68
+  so101-ros-physical-ai/feetech_ros2_driver:
+    type: git
+    url: https://github.com/legalaspro/feetech_ros2_driver.git
+    version: 4c0fdbfe16c84c686f8ace09526c52d98d0110ca
