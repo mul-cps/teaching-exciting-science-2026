@@ -125,11 +125,13 @@ def unassociated_tag_points(detections, depth, intrinsics, depth_scale_m):
 
 
 class TagObservations(Node):
-    def __init__(self):
+    def __init__(self, *, subscribe_images=True, use_global_arguments=True,
+                 parameter_overrides=None):
         cv2.setNumThreads(1)  # Small 640x480 callbacks do not need a host-wide thread pool.
         from so101_station_perception_tag_tracking.tag_tracking import TagTracker
 
-        super().__init__("so101_tag_observations")
+        super().__init__("so101_tag_observations", use_global_arguments=use_global_arguments,
+                         parameter_overrides=parameter_overrides)
         self.declare_parameter("color_topic", "/camera/color/image_raw")
         self.declare_parameter("depth_topic", "/camera/aligned_depth_to_color/image_raw")
         self.declare_parameter("camera_info_topic", "/camera/color/camera_info")
@@ -154,18 +156,20 @@ class TagObservations(Node):
         # apply an unverified tag size or assign physical arm-link identities.
         self.detector = TagTracker(detector_scale=2)
         self.publisher = self.create_publisher(MarkerArray, "/so101_perception/tag_observations", 10)
-        self.info_sub = self.create_subscription(
-            CameraInfo, self.get_parameter("camera_info_topic").value, self._camera_info,
-            qos_profile_sensor_data)
-        self.color_sub = message_filters.Subscriber(
-            self, Image, self.get_parameter("color_topic").value,
-            qos_profile=qos_profile_sensor_data)
-        self.depth_sub = message_filters.Subscriber(
-            self, Image, self.get_parameter("depth_topic").value,
-            qos_profile=qos_profile_sensor_data)
-        self.sync = message_filters.ApproximateTimeSynchronizer(
-            [self.color_sub, self.depth_sub], queue_size=5, slop=self.max_pair_delta)
-        self.sync.registerCallback(self._images)
+        self.info_sub = self.color_sub = self.depth_sub = self.sync = None
+        if subscribe_images:
+            self.info_sub = self.create_subscription(
+                CameraInfo, self.get_parameter("camera_info_topic").value, self._camera_info,
+                qos_profile_sensor_data)
+            self.color_sub = message_filters.Subscriber(
+                self, Image, self.get_parameter("color_topic").value,
+                qos_profile=qos_profile_sensor_data)
+            self.depth_sub = message_filters.Subscriber(
+                self, Image, self.get_parameter("depth_topic").value,
+                qos_profile=qos_profile_sensor_data)
+            self.sync = message_filters.ApproximateTimeSynchronizer(
+                [self.color_sub, self.depth_sub], queue_size=5, slop=self.max_pair_delta)
+            self.sync.registerCallback(self._images)
 
     def _camera_info(self, msg):
         self.camera_info = msg
@@ -179,7 +183,7 @@ class TagObservations(Node):
         output.markers.append(clear)
         self.publisher.publish(output)
 
-    def _images(self, color_msg, depth_msg):
+    def _images(self, color_msg, depth_msg, prepared_gray=None):
         now = self.get_clock().now().nanoseconds * 1e-9
         color_stamp = stamp_seconds(color_msg.header.stamp)
         if not stamp_is_fresh(now, color_stamp):
@@ -196,7 +200,8 @@ class TagObservations(Node):
             self._empty(color_msg.header.stamp, color_msg.header.frame_id)
             return
         try:
-            gray = marker_grayscale(self.bridge, color_msg)
+            gray = (marker_grayscale(self.bridge, color_msg)
+                    if prepared_gray is None else prepared_gray)
             depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
             if gray.shape != depth.shape or depth.ndim != 2:
                 raise ValueError("RGB and aligned depth dimensions differ")
