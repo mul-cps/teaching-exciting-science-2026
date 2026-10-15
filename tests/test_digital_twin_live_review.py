@@ -72,6 +72,52 @@ def test_actual_pose_refresh_suppresses_synchronous_slider_callback_without_rloc
     assert callbacks == [15.]
 
 
+def test_orientation_uncertain_overlay_keeps_expected_axes_but_hides_observed_axes():
+    from workshop.digital_twin.viewer import _set_fiducial_axes
+
+    class Axes:
+        visible = True
+        position = None
+        wxyz = None
+
+    expected_axes, observed_axes = Axes(), Axes()
+    expected = np.eye(4)
+    observed = np.eye(4)
+    observed[:3, :3] = np.diag([1., -1., -1.])
+    observed[:3, 3] = [.1, .2, .3]
+    result = {'orientation_status': 'orientation_uncertain',
+              'expected_camera_from_tag': expected,
+              'observed_camera_from_tag': observed,
+              'depth_anchored_camera_from_tag': observed}
+
+    _set_fiducial_axes(result, np.eye(4), expected_axes, observed_axes)
+
+    assert expected_axes.visible is True
+    assert observed_axes.visible is False
+    np.testing.assert_allclose(expected_axes.position, expected[:3, 3])
+
+
+def test_resolved_overlay_updates_both_fiducial_axes():
+    from workshop.digital_twin.viewer import _set_fiducial_axes
+
+    expected_axes = SimpleNamespace(visible=False, position=None, wxyz=None)
+    observed_axes = SimpleNamespace(visible=False, position=None, wxyz=None)
+    expected = np.eye(4)
+    expected[:3, 3] = [.1, 0., .5]
+    observed = np.eye(4)
+    observed[:3, 3] = [.2, 0., .5]
+    result = {'orientation_status': 'depth_disambiguated',
+              'expected_camera_from_tag': expected,
+              'observed_camera_from_tag': observed,
+              'depth_anchored_camera_from_tag': observed}
+
+    _set_fiducial_axes(result, np.eye(4), expected_axes, observed_axes)
+
+    assert expected_axes.visible is True
+    assert observed_axes.visible is True
+    np.testing.assert_allclose(observed_axes.position, observed[:3, 3])
+
+
 def test_surface_mutation_uses_the_same_lock_as_render_callbacks():
     from workshop.digital_twin import viewer
     tree = ast.parse(inspect.getsource(viewer.serve))
