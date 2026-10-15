@@ -137,6 +137,7 @@ class ArmSession:
         self._completed_leg_records = []
         self._read_diagnostics = {}
         self._teleop = None
+        self._teleop_skip_next_sample = False
 
     @staticmethod
     def _six_ints(values, label):
@@ -550,9 +551,11 @@ class ArmSession:
                 self._check_leg_deadline(started, label)
                 self.bus.write("Torque_Enable", joint, 1, normalize=False, num_retry=0)
                 self._check_leg_deadline(started, label)
-        if any(value != 1 for value in self._read("Torque_Enable").values()):
+        torque = self._read("Torque_Enable")
+        if any(value != 1 for value in torque.values()):
             raise RuntimeError("torque-enable readback failed")
         self._check_leg_deadline(started, label)
+        return torque
 
     def _guard_actual(self, actual, previous, start, active, recovery, started):
         now = self.clock()
@@ -887,12 +890,20 @@ class ArmSession:
         actual = self._read("Present_Position")
         target = self._validate_target(actual, "teleop_start")
         self._ensure_profile()
-        self._enable_current_goal(target, self.clock(), "teleop_start")
+        torque = self._enable_current_goal(target, self.clock(), "teleop_start")
+        torque_monotonic, torque_utc = self.clock(), self.wall_clock()
         self._teleop = {"session_id": command["session_id"], "sequence": -1,
                         "start": dict(actual), "previous": dict(actual),
-                        "last": self.clock(), "last_valid": self.clock()}
-        return self.publish_state(event="teleop_started", raw=actual,
-                                  torque=self._read("Torque_Enable"))
+                        "last": self.clock(), "last_valid": self.clock(),
+                        "last_verify": self.clock(), "torque": torque,
+                        "torque_monotonic": torque_monotonic,
+                        "torque_utc": torque_utc}
+        state = self.publish_state(event="teleop_started", raw=actual, torque=torque,
+                                   torque_monotonic=torque_monotonic,
+                                   torque_utc=torque_utc)
+        if self._input_fd is not None:
+            self._teleop_skip_next_sample = True
+        return state
 
     def _teleop_step(self, command):
         if set(command) != {"command", "session_id", "sequence", "pose"}:
@@ -930,12 +941,25 @@ class ArmSession:
             target[joint] = int(round(max(previous - rate * dt, min(previous + rate * dt, bounded))))
         target = self._validate_target(target, "teleop_step")
         self.bus.sync_write("Goal_Position", target, normalize=False, num_retry=0)
-        goals = self._read("Goal_Position")
-        if any(abs(goals[j] - target[j]) > 1 for j in JOINTS):
-            raise RuntimeError("teleop goal readback mismatch")
+        actual = self._read("Present_Position")
+        # Keep the 100 Hz command path to one feedback packet per update. Goal
+        # and torque readbacks remain mandatory, at 10 Hz, to catch dropped or
+        # clamped writes and torque loss without multiplying bus traffic.
+        if now - active["last_verify"] >= 0.10:
+            goals = self._read("Goal_Position")
+            if any(abs(goals[j] - target[j]) > 1 for j in JOINTS):
+                raise RuntimeError("teleop goal readback mismatch")
+            torque = self._read("Torque_Enable")
+            if any(value != 1 for value in torque.values()):
+                raise RuntimeError("teleop torque readback lost")
+            active.update(last_verify=now, torque=torque,
+                          torque_monotonic=self.clock(), torque_utc=self.wall_clock())
         active.update(sequence=sequence, previous=target, last=now, last_valid=now)
-        state = self.publish_state(event="teleop_step", raw=self._read("Present_Position"),
-                                   torque=self._read("Torque_Enable"))
+        state = self.publish_state(event="teleop_step", raw=actual, torque=active["torque"],
+                                   torque_monotonic=active["torque_monotonic"],
+                                   torque_utc=active["torque_utc"])
+        if self._input_fd is not None:
+            self._teleop_skip_next_sample = True
         return {"ok": True, "state": state, "sequence": sequence}
 
     def _teleop_stop(self, command):
@@ -1328,7 +1352,10 @@ class ArmSession:
                     return 0
                 self._idle_handled = True
             try:
-                self.publish_state(event="sample")
+                if self._teleop_skip_next_sample:
+                    self._teleop_skip_next_sample = False
+                else:
+                    self.publish_state(event="sample")
             except BaseException as error:
                 self._event("sample_error", error=str(error), error_type=type(error).__name__)
                 self.shutdown(reason="sample_error")

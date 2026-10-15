@@ -1011,6 +1011,28 @@ def test_resident_teleop_maps_and_rate_limits_steps_and_rejects_stale_or_finite_
     session.close_log()
 
 
+def test_resident_teleop_step_bus_read_budget_keeps_goal_and_torque_checks_periodic(tmp_path):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    session.handle({"command": "teleop_start", "session_id": "read-budget"})
+    before = dict(arm.bus.sync_read_calls)
+    pose = dict.fromkeys(JOINTS, 0.0)
+    pose["gripper"] = 50.0
+    for sequence in range(10):
+        clock.sleep(0.025)
+        session.handle({"command": "teleop_step", "session_id": "read-budget",
+                        "sequence": sequence, "pose": pose})
+    present_reads = arm.bus.sync_read_calls["Present_Position"] - before.get("Present_Position", 0)
+    goal_reads = arm.bus.sync_read_calls["Goal_Position"] - before.get("Goal_Position", 0)
+    torque_reads = arm.bus.sync_read_calls["Torque_Enable"] - before.get("Torque_Enable", 0)
+    assert present_reads == 10
+    assert 2 <= goal_reads <= 3
+    assert goal_reads == torque_reads
+    assert len(arm.bus.goal_history) >= 11  # start goal plus every update
+    session.shutdown(reason="test_cleanup")
+    session.close_log()
+
+
 def test_resident_teleop_watchdog_holds_measured_pose_and_invalidates_session(tmp_path):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
