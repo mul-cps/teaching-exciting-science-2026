@@ -12,6 +12,7 @@ dependencies:
   - ros-jazzy-ros2-control=4.49.0
   - ros-jazzy-ros2-controllers=4.43.0
   - ros-jazzy-realsense2-camera=4.58.4
+  - ros-jazzy-vision-msgs=4.1.1
   - ros-jazzy-tf2-tools
   - ros-jazzy-kdl-parser
   - ros-jazzy-joint-state-publisher-gui

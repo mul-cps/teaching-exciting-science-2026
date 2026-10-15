@@ -690,6 +690,8 @@ https://conda.anaconda.org/robostack-jazzy/linux-64/ros2-shape-msgs-5.3.8-np2py3
 https://conda.anaconda.org/robostack-jazzy/linux-64/ros2-tf2-0.36.23-np2py312h1bab3cf_25.conda
 https://conda.anaconda.org/robostack-jazzy/linux-64/ros2-tf2-msgs-0.36.23-np2py312h1bab3cf_25.conda
 https://conda.anaconda.org/robostack-jazzy/linux-64/ros2-trajectory-msgs-5.3.8-np2py312h1bab3cf_25.conda
+https://conda.anaconda.org/robostack-jazzy/linux-64/ros2-vision-msgs-4.1.1-np2py312h1bab3cf_25.conda
+https://conda.anaconda.org/robostack-jazzy/linux-64/ros-jazzy-vision-msgs-4.1.1-hb0f4dca_25.conda
 https://conda.anaconda.org/robostack-jazzy/linux-64/ros2-control-msgs-5.10.0-np2py312h1bab3cf_25.conda
 https://conda.anaconda.org/robostack-jazzy/linux-64/ros2-image-geometry-4.1.0-np2py312h2facfd7_25.conda
 https://conda.anaconda.org/robostack-jazzy/linux-64/ros2-map-msgs-2.4.1-np2py312h1bab3cf_25.conda
