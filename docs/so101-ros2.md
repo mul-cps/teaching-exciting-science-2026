@@ -46,9 +46,10 @@ The live world publisher replaces the static camera calibration publisher;
 never run both against `camera_link`.
 
 Board detection is capped at 5 Hz; a 30 Hz zero-order-held pose estimate fills
-TF between observations and expires after at most 1 second. The status topic
+TF between observations and retains the last calibration during occlusion.
+Observation validity expires after at most 1 second; TF availability does not. The status topic
 `/so101_perception/charuco_world/status` retains the original observation time
-and distinguishes tracking, held, and stale. Held TF is an estimate, not a new
+and distinguishes tracking, held, and stale. Retained TF is an estimate, not a new
 camera measurement. Small PnP noise is filtered; substantial camera motion and
 reacquisition after expiry reset the filter. The official fixed optical-to-link
 transform is cached. Native joint telemetry remains live when idle torque is off.
@@ -75,7 +76,7 @@ With live board tracking and tag observations enabled, the station starts only
 BEST_EFFORT RGB/depth/CameraInfo synchronization produces one grayscale image
 shared by the board ArUco/ChArUco detector and AprilTag detector. Their different
 marker dictionaries still require distinct detection steps. Fixed camera TF is
-cached; dynamic camera TF uses the bounded pose cache described above. Native
+cached; dynamic camera TF uses the last-calibration cache described above. Native
 camera images, depth and arm state each retain their existing single publisher.
 The pipeline does not broadcast every printed board square as an extra frame.
 
@@ -89,3 +90,10 @@ The TF timer has its own callback group and shares a two-thread executor with
 the detector, so detection does not intentionally block publication. It reads an
 atomic pose/original-stamp cache snapshot; only the timer publishes camera TF.
 Future or stale input timestamps are rejected rather than relabeled as current.
+
+Camera extrinsics remain available during marker occlusion, so RViz can transform
+new depth frames without losing the tree. If the camera moves while the board is
+hidden, this is only the last known placement until reacquisition. Consumers of
+camera-derived grasp/scene data must require a fresh tracking observation rather
+than infer localization quality from TF availability. TF is published only by the
+existing camera broadcaster; observation timestamps are never refreshed by its timer.

@@ -27,6 +27,7 @@ def generate_launch_description():
         'rviz': 'true',
         'use_camera': 'true',
         'track_charuco_world': 'true',
+        'base_registration_file': str(station / 'calibration/robot_base_registration.json') if (station / 'calibration/robot_base_registration.json').is_file() else '',
         'attach_candidate': 'true',
         'camera_arm_calibration': '',
         'camera_target_calibration': '',
@@ -45,6 +46,7 @@ def generate_launch_description():
                     {k: LaunchConfiguration(k) for k in robot_keys})
     perception = include('so101_station_perception', 'perception.launch.py', {
         'track_charuco_world': LaunchConfiguration('track_charuco_world'),
+        'base_registration_file': LaunchConfiguration('base_registration_file'),
         'camera_arm_calibration': LaunchConfiguration('camera_arm_calibration'),
         'attach_candidate': LaunchConfiguration('attach_candidate'),
         'camera_target_calibration': LaunchConfiguration('camera_target_calibration'),

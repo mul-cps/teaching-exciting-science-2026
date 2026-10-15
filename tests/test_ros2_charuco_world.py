@@ -108,7 +108,7 @@ def test_pose_stabilization_damps_jitter_but_tracks_camera_relocation():
     assert np.linalg.det(smooth[:3, :3]) == pytest.approx(1)
 
 
-def test_held_transform_stops_when_observation_is_stale():
+def test_transform_survives_occlusion_without_refreshing_observation_stamp():
     from so101_station_perception.charuco_world import CharucoWorld
     published = []
     now = SimpleNamespace(nanoseconds=2_000_000_000, to_msg=lambda: SimpleNamespace(sec=2, nanosec=0))
@@ -118,7 +118,10 @@ def test_held_transform_stops_when_observation_is_stale():
                            broadcaster=SimpleNamespace(sendTransform=published.append),
                            board_frame="charuco_board", camera_link_frame="camera_link")
     CharucoWorld._publish_pose_estimate(node)
-    assert published == []
+    assert len(published) == 1
+    assert node.pose_estimate[1] == .5
+    assert published[0].header.stamp.sec == 2
+    published.clear()
     node.last_valid_stamp = 1.5
     node.pose_estimate = (np.eye(4), 1.5)
     CharucoWorld._publish_pose_estimate(node)
@@ -131,3 +134,30 @@ def test_reacquisition_does_not_blend_with_expired_pose():
     measured = previous.copy()
     measured[0, 3] = .01
     assert np.allclose(stabilize_pose(previous, measured, observation_gap_s=1.1), measured)
+
+
+def test_future_pose_is_not_published_as_current_calibration():
+    from so101_station_perception.charuco_world import CharucoWorld
+    published = []
+    now = SimpleNamespace(nanoseconds=2_000_000_000)
+    node = SimpleNamespace(pose_estimate=(np.eye(4), 2.1),
+                           get_clock=lambda: SimpleNamespace(now=lambda: now),
+                           broadcaster=SimpleNamespace(sendTransform=published.append))
+    CharucoWorld._publish_pose_estimate(node)
+    assert published == []
+
+
+def test_base_registration_requires_explicit_matching_world_direction(tmp_path):
+    import json
+    from so101_station_perception.charuco_world import load_base_registration
+    path = tmp_path / 'registration.json'
+    data = {'schema': 'so101-board-base-registration-v1', 'parent_frame': 'charuco_board',
+            'child_frame': 'base_link', 'transform_direction': 'world_from_base',
+            'world_from_base': np.eye(4).tolist()}
+    data['world_from_base'][0][3] = .02
+    path.write_text(json.dumps(data))
+    assert load_base_registration(path)[0, 3] == pytest.approx(.02)
+    data['transform_direction'] = 'base_from_world'
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match='direction'):
+        load_base_registration(path)

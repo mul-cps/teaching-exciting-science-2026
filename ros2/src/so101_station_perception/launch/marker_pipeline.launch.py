@@ -14,6 +14,9 @@ def generate_launch_description():
         "max_pair_delta_s": "0.04",
         "max_age_s": "0.5",
         "max_processing_hz": "5.0",
+        "base_registration_file": "",
+        "initial_base_from_camera_file": "",
+        "initial_camera_from_board_file": "",
     }
     declarations = [DeclareLaunchArgument(key, default_value=value)
                     for key, value in names.items()]

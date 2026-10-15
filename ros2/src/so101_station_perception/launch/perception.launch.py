@@ -84,6 +84,7 @@ def _launch_nodes(context):
             package="so101_station_perception", executable=("marker_pipeline" if LaunchConfiguration("publish_tag_observations").perform(context).lower() == "true" else "charuco_world"),
             name="so101_charuco_world", output="screen", parameters=[{
                 "initial_base_from_camera_file": arm_path,
+                "base_registration_file": LaunchConfiguration("base_registration_file").perform(context),
                 "initial_camera_from_board_file": target_path,
                 "optical_frame": optical_frame,
             }]))
@@ -149,6 +150,7 @@ def _launch_nodes(context):
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument("base_registration_file", default_value=""),
         DeclareLaunchArgument("track_charuco_world", default_value="false"),
         DeclareLaunchArgument("serial_no", default_value="243322071783"),
         DeclareLaunchArgument("camera_target_calibration", default_value=""),
