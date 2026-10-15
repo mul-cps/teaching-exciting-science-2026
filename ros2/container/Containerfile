@@ -1,0 +1,40 @@
+# Official ROS image index digest: Jazzy on Ubuntu 24.04 (Noble).
+FROM docker.io/library/ros@sha256:066420e07f60aa18262f2479981def87ebcfcec42eefb0c0c57c4a46098348ca
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    ROS_DISTRO=jazzy \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+RUN apt-get update && apt-get install --no-install-recommends -y \
+      build-essential \
+      git \
+      python3-argcomplete \
+      python3-colcon-common-extensions \
+      python3-pip \
+      python3-rosdep \
+      python3-vcstool \
+      ros-jazzy-controller-manager \
+      ros-jazzy-joint-state-publisher-gui \
+      ros-jazzy-kdl-parser \
+      ros-jazzy-moveit-kinematics \
+      ros-jazzy-moveit-planners-ompl \
+      ros-jazzy-moveit-ros-visualization \
+      ros-jazzy-moveit-servo \
+      ros-jazzy-pick-ik \
+      ros-jazzy-robot-state-publisher \
+      ros-jazzy-ros2-control \
+      ros-jazzy-ros2-controllers \
+      ros-jazzy-ros2launch \
+      ros-jazzy-rviz2 \
+      ros-jazzy-tf-transformations \
+      ros-jazzy-urdf \
+      ros-jazzy-xacro \
+    && if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then rosdep init; fi \
+    && rosdep update \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN printf '\nsource /opt/ros/jazzy/setup.bash\nif [[ -f /ws/install/setup.bash ]]; then source /ws/install/setup.bash; fi\n' >> /etc/bash.bashrc
+
+WORKDIR /ws
