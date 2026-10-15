@@ -37,6 +37,9 @@ DEFAULT_TABLE_ROI = (-0.03, 0.21, -0.03, 0.16, -0.05, 0.06)
 DEFAULT_MAX_OBJECT_HEIGHT_M = 0.025
 MAX_OBJECT_EXTENT_M = 0.065
 MIN_OBJECT_EXTENT_M = 0.010
+MIN_OBJECT_SURFACE_CLEARANCE_M = 0.0005
+MIN_OBJECT_HEIGHT_M = 0.002
+MAX_OBJECT_ASPECT_RATIO = 2.5
 MARKER_HOLD_SECONDS = 1.0
 
 
@@ -194,7 +197,7 @@ def _component_geometry(contour, pixel_points, depth_values, intrinsics, distort
     normal = np.asarray(plane_world["normal"])
     above = board @ normal + plane_world["d"]
     bounds = world_roi
-    valid = (np.isfinite(above) & (above >= 0.002)
+    valid = (np.isfinite(above) & (above >= MIN_OBJECT_SURFACE_CLEARANCE_M)
              & (above <= max_object_height_m)
              & (board[:, 0] >= bounds[0]) & (board[:, 0] <= bounds[1])
              & (board[:, 1] >= bounds[2]) & (board[:, 1] <= bounds[3]))
@@ -203,7 +206,7 @@ def _component_geometry(contour, pixel_points, depth_values, intrinsics, distort
     board = board[valid]
     above = above[valid]
     height_m = float(np.percentile(above, 90))
-    if not 0.004 <= height_m <= 0.25:
+    if not MIN_OBJECT_HEIGHT_M <= height_m <= 0.25:
         return None
 
     reference = np.array([1.0, 0.0, 0.0])
@@ -331,7 +334,8 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
             above = board @ plane["normal"] + plane["d"]
             inside = ((board[:, 0] >= world_roi[0]) & (board[:, 0] <= world_roi[1])
                       & (board[:, 1] >= world_roi[2]) & (board[:, 1] <= world_roi[3])
-                      & (above >= 0.002) & (above <= max_object_height_m))
+                      & (above >= MIN_OBJECT_SURFACE_CLEARANCE_M)
+                      & (above <= max_object_height_m))
             if int(inside.sum()) < 8:
                 continue
             # Restrict the silhouette to depth-supported pixels in the bounded
@@ -364,7 +368,9 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                 if item is not None:
                     footprint = item["dimensions_m"][:2]
                     if (float(np.max(footprint)) > MAX_OBJECT_EXTENT_M
-                            or float(np.min(footprint)) < MIN_OBJECT_EXTENT_M):
+                            or float(np.min(footprint)) < MIN_OBJECT_EXTENT_M
+                            or float(np.max(footprint) / np.min(footprint))
+                            > MAX_OBJECT_ASPECT_RATIO):
                         continue
                     # This component may have been split from a touching
                     # same-color region; report only its own depth-supported
@@ -540,6 +546,7 @@ class ColoredObjectsNode:
                 self.last_warning = 0.0
                 self.last_support_plane = None
                 self.last_marker_update_mono = None
+                self.last_marker_update_stamp = None
                 self.marker_clear_sent = True
                 self.bridge = CvBridge()
                 self.tracker = StableObjectTracker()
@@ -599,8 +606,12 @@ class ColoredObjectsNode:
                 now_mono = time.monotonic()
                 clear_markers = cached_marker_should_clear(
                     self.last_marker_update_mono, now_mono, self.marker_clear_sent)
-                self._publish_empty(stamp, clear_markers=clear_markers)
                 if clear_markers:
+                    # Do not publish empty arrays on each unavailable image:
+                    # silence preserves the last observation stamp so
+                    # consumers can reject it by age. Clear once at expiry.
+                    clear_stamp = self.last_marker_update_stamp or stamp
+                    self._publish_empty(clear_stamp, clear_markers=True)
                     self.marker_clear_sent = True
                 message = String()
                 message.data = json.dumps({
@@ -776,6 +787,7 @@ class ColoredObjectsNode:
                 self.markers_pub.publish(markers)
                 self.grasps_pub.publish(grasps)
                 self.last_marker_update_mono = time.monotonic()
+                self.last_marker_update_stamp = detections.header.stamp
                 self.marker_clear_sent = not bool(report["objects"])
                 status = {
                     "schema": 1, "state": "tracking", "frame_id": self.board_frame,

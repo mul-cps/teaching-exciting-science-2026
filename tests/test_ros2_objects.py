@@ -64,6 +64,24 @@ def test_subcentimeter_color_fragment_is_not_reported_as_object():
     assert np.min(report["objects"][0]["dimensions_m"][:2]) >= .010
 
 
+def test_low_profile_brick_above_board_plane_is_retained():
+    rgb, depth, intrinsics, distortion, camera_to_board = tabletop_scene()
+    depth[220:250, 305:335] = 797  # 3 mm above the measured board plane
+    report = analyze_rgbd(rgb, depth, intrinsics, distortion, .001, camera_to_board)
+    assert len(report["objects"]) == 1
+    assert report["objects"][0]["dimensions_m"][2] == pytest.approx(.003, abs=.001)
+
+
+def test_long_narrow_color_fragment_is_not_reported_as_brick():
+    rgb, depth, intrinsics, distortion, camera_to_board = tabletop_scene()
+    rgb[220:250, 305:335] = 128
+    depth[220:250, 305:335] = 800
+    rgb[210:250, 305:317] = [255, 0, 0]
+    depth[210:250, 305:317] = 780
+    report = analyze_rgbd(rgb, depth, intrinsics, distortion, .001, camera_to_board)
+    assert report["objects"] == []
+
+
 def test_sparse_support_plane_failure_is_typed_and_cached_marker_expires_once():
     rgb, depth, intrinsics, distortion, camera_to_board = tabletop_scene()
     with pytest.raises(SupportPlaneUnavailable, match="fewer than 30"):

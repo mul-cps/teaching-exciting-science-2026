@@ -17,17 +17,21 @@ count as fresh localization. When registration is missing or stale, the node
 clears detections and grasp proposals and reports the reason in
 `/so101/grasp_status`. Set `require_registration_tracking:=false` only when
 using a separately validated static board-to-camera transform.
-When tracking drops briefly, fresh detections and grasp proposals are cleared
-immediately, while the last RViz marker set keeps its original image stamp and
-expires after 1 second. A single clear is sent after that display hold expires.
+When tracking drops briefly, the node stops publishing fresh detections and
+grasp proposals; the last messages keep their original image stamp so
+age-aware consumers can reject them. RViz markers retain that stamp and expire
+after 1 second. At expiry, the node sends one empty detection/grasp update and
+one marker clear. A valid observation with no objects clears immediately.
 
 It fits the observed table from at most 2,000 depth samples in a bounded
 board-frame ROI (`x=-30..210 mm`, `y=-30..160 mm`, `z=-50..60 mm`). The
 measured support plane is reused for at most 2 seconds if a frame lacks enough
 table samples; this cache is expressed in the fixed board frame. The board's
 z=0 plane is used only when the measured table agrees within 5 degrees and
-15 mm. Candidate footprints must be 10–65 mm across and lie within 25 mm of
-the support plane. Red, green, blue, and yellow regions produce spatially
+15 mm. Candidate footprints must be 10–65 mm across, no more than 2.5:1 in
+aspect, and between 2 and 25 mm above the support plane. The lower height
+allowance retains low-profile bricks while the aspect bound removes long,
+narrow color fragments. Red, green, blue, and yellow regions produce spatially
 associated detections; gray and black regions are ignored.
 
 `/so101/objects` is `vision_msgs/Detection3DArray` in `charuco_board`.
