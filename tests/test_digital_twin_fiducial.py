@@ -37,6 +37,62 @@ def test_tracking_uses_nearest_candidate_inside_shift_gate_and_rejects_ties():
         [(0, _quad(420, 252))], previous_center=previous)['status'] == 'missing'
 
 
+def test_model_guided_reacquisition_recovers_tag_after_large_out_of_roi_motion():
+    previous = np.array([340., 250.])
+    detections = [(0, _quad(395, 75)), (0, _quad(520, 300))]
+
+    selected = fiducial.track_tag_candidates(detections, previous_center=previous,
+        expected_center=[396., 76.])
+
+    assert selected['status'] == 'tracked'
+    assert selected['association'] == 'model_reacquisition'
+    np.testing.assert_allclose(selected['center_px'], [395., 75.])
+
+
+def test_model_guided_reacquisition_rejects_duplicate_and_far_candidates():
+    expected = [395., 75.]
+    duplicate = fiducial.track_tag_candidates(
+        [(0, _quad(390, 75)), (0, _quad(400, 75))], previous_center=[330., 250.],
+        expected_center=expected)
+    assert duplicate['status'] == 'ambiguous'
+    assert duplicate['center_px'] is None
+    far = fiducial.track_tag_candidates([(0, _quad(520, 300))],
+        previous_center=[330., 250.], expected_center=expected)
+    assert far['status'] == 'missing'
+
+
+def test_temporal_association_stays_preferred_when_inside_normal_gate():
+    selected = fiducial.track_tag_candidates([(0, _quad(382, 254))],
+        previous_center=[375., 252.], expected_center=[500., 300.])
+    assert selected['association'] == 'temporal'
+    np.testing.assert_allclose(selected['center_px'], [382., 254.])
+
+
+def test_overlay_marks_reacquisition_and_keeps_observed_pose_unchanged(monkeypatch):
+    expected = np.eye(4)
+    expected[:3, 3] = [.075, -.165, .6]  # projects to (395, 75) for this camera.
+    observed = np.eye(4)
+    observed[:3, 3] = [.08, -.165, .6]
+    monkeypatch.setattr(fiducial, 'detect_apriltag_25h9',
+                        lambda rgb: [(0, _quad(395, 75))])
+    monkeypatch.setattr(fiducial, 'estimate_camera_from_tag', lambda *args, **kwargs: {
+        'camera_from_tag': observed.copy(), 'orientation_status': 'resolved_pnp',
+        'branch_separation_deg': 1., 'rotation_deg': None})
+    pair = {'freshness': 'fresh', 'pose_raw': {'shoulder_pan': 1},
+            'pose_qualified_sync': True, 'pose_sample_delta_seconds': .01}
+
+    result = fiducial.evaluate_tag_overlay(np.zeros((480, 640, 3), dtype=np.uint8),
+        pair, expected, {'fx': 600., 'fy': 600., 'cx': 320., 'cy': 240.},
+        previous_center=[330., 250.])
+
+    assert result['visible'] and result['reacquired']
+    assert result['association'] == 'model_reacquisition'
+    assert 'MODEL-GUIDED REACQUISITION' in result['status']
+    assert result['status'].startswith('SOURCE UNQUALIFIED')
+    np.testing.assert_array_equal(result['observed_camera_from_tag'], observed)
+    assert result['residual']['translation_mm'] == pytest.approx(5.)
+
+
 def test_native_site_pose_is_bridged_into_urdf_gripper_link_before_mount_composition():
     from workshop.digital_twin.frame_conventions import NATIVE_SITE_TO_URDF_FRAME
 
