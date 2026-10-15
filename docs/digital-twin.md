@@ -82,6 +82,39 @@ timestamp match; otherwise the cloud is rebuilt from the saved depth pair.
 `live-status.json` records pose age, camera age, synchronization delta and
 calibration status. It does not read controller, camera or serial devices.
 
+The optional wrist-tag comparison uses only the saved paired frame and its
+qualified raw pose. Enable it with the held candidate fit:
+
+```bash
+STATION_TWIN_PYTHON=.venv-twin/bin/python tools/launch_digital_twin.sh \
+  --snapshot /home/bjoern/.local/share/exciting-science/station/evidence/2026-10-14/realsense-station \
+  --calibration /home/bjoern/git/soarm101-highschool-demos/.calibration/hs_rig01_follower.json \
+  --camera-arm-calibration /home/bjoern/.cache/cps-tag-calibration-held/branch-consistency-report.json \
+  --camera-target-calibration /home/bjoern/.local/share/exciting-science/station/evidence/2026-10-15/gripper-direction-retry/analysis-2026-10-15/camera-from-board-candidate.json \
+  --phase-file /home/bjoern/.local/share/exciting-science/station/evidence/2026-10-15/arm-resident-state.json \
+  --rgbd-live-folder /home/bjoern/.local/share/exciting-science/station/evidence/2026-10-15/arm-tag-registration-retry \
+  --fiducial-calibration /home/bjoern/.cache/cps-tag-calibration-held/depth-pnp-hybrid-analysis.json \
+  --output /home/bjoern/.local/state/exciting-science/digital-twin --port 8096
+```
+
+The detector uses AprilTag 25h9 ID 0 (19.4 mm), bootstraps only inside the
+saved wrist ROI x=330–440, y=200–290, and follows the nearest candidate within
+40 px. Ambiguous duplicates are rejected. Cyan expected and yellow observed
+axes/outlines report translation in mm, projected center error in px and
+rotation in degrees. A paired depth plane from known white tag modules can
+provisionally anchor translation while retaining the nominal 19.4 mm tag size
+and the chosen PnP orientation. `live-status.json` reports nominal PnP residual,
+depth-versus-PnP translation delta, plane RMS and valid-module count; if depth
+quality fails, the UI labels the comparison PnP-only and unqualified. The side
+length inferred from depth is reconciliation evidence, not proof that the
+printed tag size differs from its nominal value. Every comparison is labeled
+**SOURCE UNQUALIFIED**; the visual overlay does not fit calibration, alter model
+pose or authorize motion.
+The tag-pose prediction uses the held `base_from_camera` and `gripper_from_tag`
+fit in the supplied fiducial JSON. The current board-pose candidate is used
+only for the scene's camera/world placement; neither transform is upgraded by
+the live residual.
+
 Open http://127.0.0.1:8096. The default surface mesh is built from measured
 RGB-D triangles and photograph texture; holes and unobserved backs remain
 missing. Layer toggles expose the cropped cloud, room context and small hidden

@@ -119,6 +119,7 @@ def _rgbd_frame(image_path, depth_path, report, world_from_scene, max_surface_fa
              'focused_points': world[focused].astype(np.float32), 'focused_colors': rgb[focused]},
             {'mesh': measured_surface, 'vertices_scene': vertices_scene, 'faces': faces,
              'colors': vertex_colors, 'used_vertices': used_vertices, 'rgb': rgb,
+             'depth': depth,
              'display_texture': display_texture, 'visualization_mode': visualization_mode,
              'mean_luminance': mean_luminance})
 
@@ -232,7 +233,7 @@ def _file_signature(path):
 
 
 def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path=None,
-          watch_latest_saved_camera=None):
+          watch_latest_saved_camera=None, fiducial_calibration=None):
     output = Path(output)
     report = json.loads((output / 'scene-evidence.json').read_text())
     model = mujoco.MjModel.from_xml_path(str(output / 'scene.xml'))
@@ -360,6 +361,15 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                                     aspect=rgb.shape[1] / rgb.shape[0], scale=.035, position=camera_transform[:3, 3], wxyz=q,
                                     variant='wireframe', visible=False)
     server.scene.add_frame('/measured/table_frame', axes_length=.12, axes_radius=.002)
+    fiducial_expected_axes = fiducial_observed_axes = None
+    fiducial_status_handle = None
+    if fiducial_calibration is not None:
+        fiducial_expected_axes = server.scene.add_frame('/fiducial/expected-tag-axes',
+            axes_length=.035, axes_radius=.0015, origin_radius=.002, origin_color=(20, 230, 255),
+            visible=False)
+        fiducial_observed_axes = server.scene.add_frame('/fiducial/observed-tag-axes',
+            axes_length=.035, axes_radius=.0015, origin_radius=.002, origin_color=(255, 215, 20),
+            visible=False)
     # Viser's built-in label color is not configurable. Use unlit dark raster
     # labels with a contrasting background; orient them toward the active viewer.
     from PIL import ImageDraw, ImageFont
@@ -442,6 +452,10 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         display_rgb = initial_frame['display_texture'] if initial_frame is not None else rgb
         photo_handle = server.gui.add_image(display_rgb,
             label='Saved image display (RGB or display-only depth view)')
+        if fiducial_calibration is not None:
+            fiducial_status_handle = server.gui.add_text(
+                'Wrist AprilTag 25h9 ID 0 · SOURCE UNQUALIFIED',
+                initial_value='Waiting for a fresh paired actual pose', disabled=True)
     sliders = {}
     with server.gui.add_folder('Virtual SO-ARM101 joints'):
         for joint, initial in degrees.items():
@@ -489,6 +503,11 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         def camera_changed(event): face_labels(client.camera.position)
     current_pair = {'image': Path(report['image']), 'depth': Path(report['depth'])}
     source_signature = [(_file_signature(current_pair['image']), _file_signature(current_pair['depth']))]
+    fiducial_state = {'last_detection': None, 'last_center': None,
+                      'status': 'disabled' if fiducial_calibration is None else 'waiting',
+                      'residual': None, 'base_display': None,
+                      'nominal_pnp_residual': None, 'depth_anchor': None,
+                      'last_observed_pose': None}
     sample_timestamp = [float(report.get('camera_sample_timestamp_wall', report['camera']['timestamp']))]
     sample_monotonic = [report.get('camera_sample_timestamp_monotonic')]
     last_phase_event = [phase.get('event_monotonic')]
@@ -529,10 +548,103 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                    'camera_image': str(current_pair['image']), 'camera_depth': str(current_pair['depth']),
                    'camera_keyframe': report.get('camera_keyframe'),
                    'camera_sample_pose_raw': report.get('camera_sample_pose_raw'),
-                   'camera_timestamp_source': report.get('camera_sample_timestamp_source')}
+                   'camera_timestamp_source': report.get('camera_sample_timestamp_source'),
+                   'fiducial_overlay': {'status': fiducial_state['status'],
+                       'residual': fiducial_state['residual'],
+                       'nominal_pnp_residual': fiducial_state['nominal_pnp_residual'],
+                       'depth_anchor': fiducial_state['depth_anchor'],
+                       'tag_id': 0, 'dictionary': 'DICT_APRILTAG_25h9',
+                       'tag_size_m': .0194, 'calibration_status': 'SOURCE UNQUALIFIED'}
+                       if fiducial_calibration is not None else None}
         temporary = output / 'live-status.json.tmp'
         temporary.write_text(json.dumps(payload, indent=2) + '\n')
         os.replace(temporary, output / 'live-status.json')
+
+    def hide_fiducial(status):
+        if fiducial_calibration is None:
+            return
+        fiducial_state.update(last_center=None, status=status, residual=None,
+                              nominal_pnp_residual=None, depth_anchor=None,
+                              last_observed_pose=None)
+        fiducial_expected_axes.visible = False
+        fiducial_observed_axes.visible = False
+        if fiducial_state['base_display'] is not None:
+            photo_handle.image = fiducial_state['base_display']
+        fiducial_status_handle.value = status
+
+    def update_fiducial(pair, raw_rgb, display_image, initial=False, raw_depth=None):
+        """Use only the current paired raw pose and already-loaded saved RGB bytes."""
+        if fiducial_calibration is None:
+            return
+        from . import fiducial
+        if display_image is not None:
+            fiducial_state['base_display'] = np.asarray(display_image).copy()
+        if fiducial.paired_pose_raw(pair) is None:
+            hide_fiducial('STALE / UNPAIRED · marker hidden')
+            return
+        now = time.monotonic()
+        if not initial and not fiducial.detection_due(now, fiducial_state['last_detection']):
+            return
+        fiducial_state['last_detection'] = now
+        try:
+            raw_pose = fiducial.paired_pose_raw(pair)
+            actual_degrees = raw_pose_to_joint_degrees(raw_pose, calibration)
+            fiducial_data = update_fiducial.data
+            # The private data object prevents visual slider goals from becoming
+            # a prediction source. The arm-base-relative transform removes any
+            # board placement corrections from this kinematic comparison.
+            with lock:
+                set_pose(model, fiducial_data, actual_degrees)
+                base_from_native = fiducial.base_from_native_site(model, fiducial_data)
+            expected = fiducial.expected_tag_transform(base_from_native,
+                fiducial_calibration['gripper_from_tag'],
+                fiducial_calibration['base_from_camera'])
+            result = fiducial.evaluate_tag_overlay(raw_rgb, pair, expected, intrinsic,
+                previous_center=fiducial_state['last_center'],
+                previous_camera_from_tag=fiducial_state['last_observed_pose'],
+                display_image=display_image, depth=raw_depth,
+                depth_scale_m=report['camera']['depth_scale_m'])
+            fiducial_state.update(status=result['status'], residual=result['residual'],
+                nominal_pnp_residual=result.get('nominal_pnp_residual'),
+                depth_anchor=result.get('depth_anchor'))
+            fiducial_status_handle.value = result['status']
+            photo_handle.image = result['image']
+            if not result['visible']:
+                fiducial_state['last_center'] = None
+                fiducial_state['last_observed_pose'] = None
+                fiducial_expected_axes.visible = False
+                fiducial_observed_axes.visible = False
+                return
+            fiducial_state['last_center'] = result['center_px']
+            fiducial_state['last_observed_pose'] = result['observed_camera_from_tag']
+            world_from_camera = np.asarray(report['world_from_camera'], dtype=float)
+            from scipy.spatial.transform import Rotation
+            for handle, camera_from_tag in (
+                    (fiducial_expected_axes, result['expected_camera_from_tag']),
+                    (fiducial_observed_axes, result.get('depth_anchored_camera_from_tag')
+                        or result['observed_camera_from_tag'])):
+                world_from_tag = world_from_camera @ camera_from_tag
+                handle.position = world_from_tag[:3, 3]
+                handle.wxyz = Rotation.from_matrix(world_from_tag[:3, :3]).as_quat()[[3, 0, 1, 2]]
+                handle.visible = True
+        except (KeyError, TypeError, ValueError, np.linalg.LinAlgError) as error:
+            hide_fiducial(f'FIDUCIAL UNAVAILABLE · {type(error).__name__}')
+
+    if fiducial_calibration is not None:
+        update_fiducial.data = mujoco.MjData(model)
+        initial_pair = {'freshness': 'fresh',
+            'pose_raw': report.get('camera_sample_pose_raw'),
+            'pose_qualified_sync': report.get('camera_sample_pose_qualified_sync'),
+            'pose_sample_delta_seconds': report.get('camera_sample_pose_delta_seconds')}
+        keyframe = report.get('camera_keyframe') or {}
+        if keyframe.get('pose_synchronized'):
+            initial_pair.update(pose_raw=keyframe.get('pose_raw'), pose_synchronized=True,
+                                phase_event_delta_s=keyframe.get('phase_event_delta_s'))
+        from . import fiducial
+        if fiducial.paired_pose_raw(initial_pair) is None:
+            initial_pair['freshness'] = 'invalid'
+        update_fiducial(initial_pair, rgb, display_rgb, initial=True,
+                        raw_depth=initial_frame['depth'])
 
     initial_camera_status = camera_sample_status(report, phase,
         cache_reusable=cache_status['reusable'])
@@ -565,6 +677,8 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                         else {'image': current_pair['image'], 'depth': current_pair['depth'],
                               'timestamp_wall': sample_timestamp[0],
                               'timestamp_monotonic': sample_monotonic[0]})
+                if pair is None:
+                    hide_fiducial('STALE / UNPAIRED · marker hidden')
                 if pair is not None:
                     image_path, depth_path = Path(pair['image']), Path(pair['depth'])
                     signature = (_file_signature(image_path), _file_signature(depth_path))
@@ -639,6 +753,10 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                         report['camera_sample_pose_qualified_sync'] = pair.get('pose_qualified_sync')
                         report['camera_sample_timestamp_wall'] = sample_timestamp[0]
                         report['camera_sample_timestamp_monotonic'] = sample_monotonic[0]
+                        # The selected pair carries its own qualified raw pose;
+                        # current controller publications and GUI previews are ignored.
+                        update_fiducial(pair, new_surface['rgb'], refreshed_rgb,
+                                        raw_depth=new_surface['depth'])
                         last_surface_refresh[0] = now_mono
 
                 current_report = dict(report)
