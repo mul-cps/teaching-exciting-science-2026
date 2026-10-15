@@ -98,7 +98,7 @@ class ArmSession:
 
     def __init__(self, arm, state_file, logdir, *, clock=time.monotonic,
                  wall_clock=lambda: datetime.now(timezone.utc), sleep=time.sleep,
-                 idle_timeout=60.0, recover_sag=False):
+                 idle_timeout=60.0, recover_sag=False, persistent_idle=False):
         self.arm = arm
         self.bus = arm.bus
         self.state_file = Path(state_file)
@@ -107,6 +107,9 @@ class ArmSession:
         self.wall_clock = wall_clock
         self.sleep = sleep
         self.idle_timeout = float(idle_timeout)
+        self.persistent_idle = bool(persistent_idle)
+        self._idle_handled = False
+        self._shutdown_complete = False
         self.recover_sag = bool(recover_sag)
         self._sag_recovery_available = bool(recover_sag)
         self.saved_ram = None
@@ -466,6 +469,7 @@ class ArmSession:
     def _ensure_profile(self):
         self._poll_busy_input()
         self._calibration_guard()
+        self._shutdown_complete = False
         if self.saved_ram is None:
             self.saved_ram = {}
             for register in RAM_REGISTERS:
@@ -1079,6 +1083,8 @@ class ArmSession:
 
     def shutdown(self, *, reason="stop"):
         """Disable and verify each servo, then restore saved volatile RAM only."""
+        if self._shutdown_complete:
+            return True
         if self.bus is None or not getattr(self.bus, "is_connected", False):
             return True
         failures = []
@@ -1116,6 +1122,7 @@ class ArmSession:
         self._event("shutdown", reason=reason, failures=failures, torque=torque)
         if failures:
             raise RuntimeError("arm session cleanup incomplete: " + "; ".join(failures))
+        self._shutdown_complete = True
         return True
 
     def handle(self, command):
@@ -1174,17 +1181,21 @@ class ArmSession:
         self._emit = emit
         while True:
             now = self.clock()
-            if now - self.last_command >= self.idle_timeout:
+            if not self._idle_handled and now - self.last_command >= self.idle_timeout:
                 self._event("idle_timeout", idle_seconds=now - self.last_command)
                 self.shutdown(reason="idle_timeout")
-                return 0
+                if not self.persistent_idle:
+                    return 0
+                self._idle_handled = True
             try:
                 self.publish_state(event="sample")
             except BaseException as error:
                 self._event("sample_error", error=str(error), error_type=type(error).__name__)
                 self.shutdown(reason="sample_error")
                 raise
-            timeout = min(PERIOD_S, max(0.0, self.idle_timeout - (self.clock() - self.last_command)))
+            timeout = (PERIOD_S if self._idle_handled else
+                       min(PERIOD_S, max(0.0, self.idle_timeout -
+                                         (self.clock() - self.last_command))))
             ready, _, _ = wait([fd], [], [], timeout)
             if not ready:
                 continue
@@ -1207,6 +1218,7 @@ class ArmSession:
                 try:
                     command = json.loads(line)
                     name = command.get("command") if isinstance(command, dict) else None
+                    previous_idle_handled = self._idle_handled
                     if name in ("move_plan", "home", "execute_trajectory"):
                         self._motion_busy = True
                         self._cancel_requested = False
@@ -1221,6 +1233,7 @@ class ArmSession:
                         # Preserve the idle deadline because the command was
                         # not admitted and leave the resident pose/profile held.
                         self.last_command = previous_last_command
+                        self._idle_handled = previous_idle_handled
                         emit({"ok": False, "error": str(error),
                               "error_type": type(error).__name__, "command": name})
                         continue
@@ -1249,6 +1262,10 @@ class ArmSession:
                         self._motion_busy = False
                     emit(result)
                     self.last_command = self.clock()
+                    if name in ("move_plan", "home", "execute_trajectory"):
+                        self._idle_handled = False
+                    elif name == "stop" and self.persistent_idle:
+                        self._idle_handled = True
                     if isinstance(result, dict) and result.get("exit"):
                         return 0
                 except BaseException as error:
@@ -1290,6 +1307,8 @@ def main(argv=None):
     parser.add_argument("--state-file", type=Path, required=True, help="atomic latest arm state JSON")
     parser.add_argument("--logdir", type=Path, required=True, help="resident command/sample JSONL logs")
     parser.add_argument("--idle-timeout", type=float, default=60.0)
+    parser.add_argument("--persistent-idle", action="store_true",
+                        help="after the idle timeout, torque off once and keep publishing read-only state until exit")
     parser.add_argument("--recover-sag", action="store_true",
                         help="admit only <=16-count initial body sag moving inward")
     parser.add_argument("--lock", type=Path, default=station_lock_path())
@@ -1305,6 +1324,7 @@ def main(argv=None):
         return run_locked_session(config, args.state_file, args.logdir,
                                   lock_path=args.lock,
                                   idle_timeout=args.idle_timeout,
+                                  persistent_idle=args.persistent_idle,
                                   recover_sag=args.recover_sag)
     except KeyboardInterrupt:
         return 130
@@ -1315,7 +1335,7 @@ def main(argv=None):
 
 
 def run_locked_session(config, state_file, logdir, *, lock_path,
-                       idle_timeout=60.0, recover_sag=False, fd=0,
+                       idle_timeout=60.0, recover_sag=False, persistent_idle=False, fd=0,
                        emit=lambda value: print(json.dumps(value, allow_nan=False), flush=True),
                        lock_factory=station_lock, arm_factory=None,
                        session_factory=ArmSession):
@@ -1330,6 +1350,7 @@ def run_locked_session(config, state_file, logdir, *, lock_path,
             arm = arm_factory(config)
             session = session_factory(arm, state_file, logdir,
                                       idle_timeout=idle_timeout,
+                                      persistent_idle=persistent_idle,
                                       recover_sag=recover_sag)
             session.initialize()
             return session.serve(fd=fd, emit=emit)

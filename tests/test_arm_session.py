@@ -1,5 +1,6 @@
 import hashlib
 import json
+import select
 from datetime import datetime, timedelta, timezone
 import os
 from contextlib import contextmanager
@@ -166,13 +167,14 @@ class FakeArm:
         return dict(raw), pose
 
 
-def make_session(tmp_path, *, initial=None, recover_sag=False):
+def make_session(tmp_path, *, initial=None, recover_sag=False, persistent_idle=False):
     clock = FakeClock()
     arm = FakeArm(tmp_path, initial)
     arm.bus.clock = clock
     session = ArmSession(arm, tmp_path / "actual.json", tmp_path / "logs",
                          clock=clock.monotonic, wall_clock=clock.utc,
-                         sleep=clock.sleep, recover_sag=recover_sag)
+                         sleep=clock.sleep, recover_sag=recover_sag,
+                         persistent_idle=persistent_idle)
     return session, arm, clock
 
 
@@ -424,6 +426,73 @@ def test_idle_watchdog_keeps_twenty_hz_samples_then_disables_torque(tmp_path):
     assert wait_calls == 4
     assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
     assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)
+    session.close_log()
+
+
+def test_persistent_idle_torques_off_once_keeps_sampling_and_accepts_new_motion(tmp_path):
+    session, arm, clock = make_session(tmp_path, persistent_idle=True)
+    session.idle_timeout = 0.10
+    session.initialize()
+    read_fd, write_fd = os.pipe()
+    emitted = []
+    shutdown_reasons = []
+    original_shutdown = session.shutdown
+
+    def tracked_shutdown(*, reason="stop"):
+        shutdown_reasons.append(reason)
+        return original_shutdown(reason=reason)
+
+    session.shutdown = tracked_shutdown
+    initial_last_command = session.last_command
+    stage = 0
+    exit_sent = False
+
+    def fake_wait(readers, writers, errors, timeout):
+        nonlocal stage, exit_sent
+        clock.sleep(timeout)
+        idle_count = shutdown_reasons.count("idle_timeout")
+        if idle_count == 1 and stage < 3:
+            commands = [
+                {"command": "read_state"},
+                {"command": "move_plan", "legs": []},
+                {"command": "move_plan", "legs": [
+                    {"label": "resume-after-idle", "target_raw": target(shoulder_pan=2050)}]},
+            ]
+            if stage == 1:
+                # A rejected request must leave the idle deadline untouched.
+                fake_wait.invalid_deadline = session.last_command
+            if stage == 2:
+                assert session.last_command == fake_wait.invalid_deadline
+                assert session._idle_handled is True
+                assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
+                assert sum(register == "Torque_Enable" and value == 0
+                           for register, _joint, value in arm.bus.writes) == len(JOINTS)
+            os.write(write_fd, (json.dumps(commands[stage]) + "\n").encode())
+            stage += 1
+        elif idle_count >= 2 and not exit_sent:
+            exit_sent = True
+            os.write(write_fd, b'{"command":"exit"}\n')
+        return select.select(readers, writers, errors, 0)
+
+    try:
+        assert session.serve(fd=read_fd, emit=emitted.append, wait=fake_wait) == 0
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+    records = [json.loads(line) for line in session.log_path.read_text().splitlines()]
+    assert initial_last_command == 0.0
+    assert shutdown_reasons.count("idle_timeout") == 2
+    assert len(arm.bus.goal_history) == 1
+    assert any(value.get("command") == "move_plan" and
+               value.get("error_type") == "ArmPlanPreflightError" for value in emitted)
+    assert any(value.get("ok") and value.get("state", {}).get("completed_legs") ==
+               ["resume-after-idle"] for value in emitted)
+    assert all(value == 0 for value in arm.bus.sync_read("Torque_Enable").values())
+    assert sum(register == "Torque_Enable" and value == 0
+               for register, _joint, value in arm.bus.writes) == 2 * len(JOINTS)
+    first_idle = next(row["monotonic"] for row in records if row.get("event") == "idle_timeout")
+    assert any(row.get("event") == "sample" and row["monotonic"] > first_idle
+               for row in records)
     session.close_log()
 
 
