@@ -994,6 +994,8 @@ def test_resident_teleop_maps_and_rate_limits_steps_and_rejects_stale_or_finite_
     result = session.handle({"command": "teleop_step", "session_id": "bridge-1",
                              "sequence": 1, "pose": pose})
     assert result["ok"]
+    assert (result["command"], result["session_id"], result["sequence"]) == (
+        "teleop_step", "bridge-1", 1)
     assert arm.bus.data["Goal_Position"]["shoulder_pan"] < initial["shoulder_pan"] + 70
     assert arm.bus.data["Goal_Position"]["gripper"] < arm.calibration["gripper"]["range_max"]
     with pytest.raises(ValueError, match="increase strictly"):
@@ -1085,11 +1087,56 @@ def test_resident_teleop_start_and_stop_through_json_stdio(tmp_path):
         session.close_log()
     assert len(results) == 3
     assert results[0]["ok"] is True
+    assert (results[0]["command"], results[0]["session_id"]) == (
+        "teleop_start", "stdio-bridge")
     assert results[0]["state"]["event"] == "teleop_started"
     assert results[1]["ok"] is True
+    assert (results[1]["command"], results[1]["session_id"]) == (
+        "teleop_stop", "stdio-bridge")
     assert results[2]["exit"] is True
     assert session._teleop is None
     assert arm.bus.data["Torque_Enable"] == dict.fromkeys(JOINTS, 0)
+
+
+def test_teleop_watchdog_and_stale_stdio_error_echo_session_id(tmp_path):
+    session, _arm, clock = make_session(tmp_path)
+    session.initialize()
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, (json.dumps({"command": "teleop_start", "session_id": "watchdog-1"}) + "\n").encode())
+    calls = 0
+
+    def wait(readers, writers, errors, timeout):
+        nonlocal calls, write_fd
+        calls += 1
+        if calls == 2:
+            clock.sleep(0.301)
+            payload = [
+                {"command": "teleop_step", "session_id": "watchdog-1",
+                 "sequence": 1, "pose": dict.fromkeys(JOINTS, 0.0)},
+                {"command": "exit"},
+            ]
+            os.write(write_fd, b"".join((json.dumps(item) + "\n").encode()
+                                         for item in payload))
+            os.close(write_fd)
+            write_fd = -1
+            return [], [], []
+        return select.select(readers, writers, errors, timeout)
+
+    results = []
+    try:
+        assert session.serve(read_fd, emit=results.append, wait=wait) == 0
+    finally:
+        os.close(read_fd)
+        if write_fd >= 0:
+            os.close(write_fd)
+        session.close_log()
+    watchdog = next(result for result in results
+                    if result.get("command") == "teleop_watchdog")
+    stale = next(result for result in results
+                 if result.get("command") == "teleop_step")
+    assert watchdog["session_id"] == "watchdog-1"
+    assert stale["session_id"] == "watchdog-1"
+    assert stale["ok"] is False
 
 
 def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):

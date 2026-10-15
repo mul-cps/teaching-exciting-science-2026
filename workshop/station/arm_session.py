@@ -1269,11 +1269,14 @@ class ArmSession:
                 raise ValueError("cancel_hold accepts no extra fields")
             return {"ok": True, "state": self.cancel_hold()}
         if name == "teleop_start":
-            return {"ok": True, "state": self._teleop_start(command)}
+            return {"ok": True, "command": name, "session_id": command.get("session_id"),
+                    "state": self._teleop_start(command)}
         if name == "teleop_step":
-            return self._teleop_step(command)
+            return {**self._teleop_step(command), "command": name,
+                    "session_id": command.get("session_id")}
         if name == "teleop_stop":
-            return self._teleop_stop(command)
+            return {**self._teleop_stop(command), "command": name,
+                    "session_id": command.get("session_id")}
         if name == "home":
             if set(command) != {"command"}:
                 raise ValueError("home accepts no extra fields")
@@ -1309,10 +1312,12 @@ class ArmSession:
         while True:
             now = self.clock()
             if self._teleop is not None and now - self._teleop["last_valid"] > 0.30:
+                expired_session_id = self._teleop["session_id"]
                 try:
                     state = self._expire_teleop_if_stale()
                     emit({"ok": False, "error": "teleop watchdog expired; measured pose held",
-                          "command": "teleop_watchdog", "state": state})
+                          "command": "teleop_watchdog", "session_id": expired_session_id,
+                          "state": state})
                 except BaseException:
                     self.shutdown(reason="teleop_watchdog_hold_error")
                     raise
@@ -1369,8 +1374,13 @@ class ArmSession:
                         # not admitted and leave the resident pose/profile held.
                         self.last_command = previous_last_command
                         self._idle_handled = previous_idle_handled
-                        emit({"ok": False, "error": str(error),
-                              "error_type": type(error).__name__, "command": name})
+                        rejection = {"ok": False, "error": str(error),
+                                     "error_type": type(error).__name__, "command": name}
+                        if (name in ("teleop_start", "teleop_step", "teleop_stop") and
+                                isinstance(command, dict) and
+                                isinstance(command.get("session_id"), str)):
+                            rejection["session_id"] = command["session_id"]
+                        emit(rejection)
                         continue
                     except ArmSessionCancelled as error:
                         reason = self._cancel_reason or str(error)
