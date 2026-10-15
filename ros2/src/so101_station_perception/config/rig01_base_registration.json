@@ -1,0 +1,232 @@
+{
+  "schema": "so101-board-base-registration-v1",
+  "parent_frame": "charuco_board",
+  "child_frame": "base_link",
+  "transform_direction": "world_from_base",
+  "units": "metres",
+  "world_from_base": [
+    [
+      0.9988032101174594,
+      0.034299994095225605,
+      -0.03486628549366021,
+      0.026555228924239872
+    ],
+    [
+      -0.03701755931269031,
+      0.9960633908915124,
+      -0.08054453195738079,
+      0.2068955298137817
+    ],
+    [
+      0.03196635358606587,
+      0.081738801867715,
+      0.9961410143687695,
+      0.017862277337943117
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "qualified": false,
+  "status": "provisional_depth_registration_static_repeat_validated",
+  "model_urdf_sha256": "d8b4c027e7ee6e2ac52721345f4b0b65cb8ffc146ce57f02ed80932590fac6a8",
+  "gripper_mount_roll_deg": 90,
+  "capture_stamp": 1792058562.4813707,
+  "provenance": {
+    "fit_capture": "ros-gripper-registration",
+    "static_repeat_capture": "ros-gripper-registration-holdout",
+    "method": "visible-CAD z-buffer ROI plus bounded sampled-normal point-to-plane ICP; exact-triangle scoring",
+    "scope": "one robot pose; independent depth repeat, not different-pose calibration"
+  },
+  "surface_metrics": {
+    "before": {
+      "median_abs_point_to_plane_m": 0.003277818988026286,
+      "median_surface_residual_m": 0.0033550134083162077,
+      "observed_points": 2000,
+      "p95_abs_point_to_plane_m": 0.011949475581414752,
+      "p95_surface_residual_m": 0.012096099331766957,
+      "per_link": {
+        "base_link": {
+          "median_surface_residual_m": 0.002901628384026453,
+          "observed_points": 232,
+          "p95_surface_residual_m": 0.010754895119989933
+        },
+        "gripper_link": {
+          "median_surface_residual_m": 0.008966230650515826,
+          "observed_points": 351,
+          "p95_surface_residual_m": 0.015729132777541944
+        },
+        "lower_arm_link": {
+          "median_surface_residual_m": 0.007573200401208324,
+          "observed_points": 44,
+          "p95_surface_residual_m": 0.011346724869163159
+        },
+        "moving_jaw_so101_v1_link": {
+          "median_surface_residual_m": 0.005964278260522767,
+          "observed_points": 255,
+          "p95_surface_residual_m": 0.012287261702455258
+        },
+        "shoulder_link": {
+          "median_surface_residual_m": 0.0018951852018190183,
+          "observed_points": 648,
+          "p95_surface_residual_m": 0.008250379569522822
+        },
+        "upper_arm_link": {
+          "median_surface_residual_m": 0.0027014257102001083,
+          "observed_points": 334,
+          "p95_surface_residual_m": 0.00994378514685436
+        },
+        "wrist_link": {
+          "median_surface_residual_m": 0.0057896927551087446,
+          "observed_points": 136,
+          "p95_surface_residual_m": 0.008702400124453339
+        }
+      }
+    },
+    "after": {
+      "median_abs_point_to_plane_m": 0.0019238469862269546,
+      "median_surface_residual_m": 0.0020366129692680366,
+      "observed_points": 2000,
+      "p95_abs_point_to_plane_m": 0.008381941646731957,
+      "p95_surface_residual_m": 0.008414722453266356,
+      "per_link": {
+        "base_link": {
+          "median_surface_residual_m": 0.0016156827526325511,
+          "observed_points": 232,
+          "p95_surface_residual_m": 0.009083717856720807
+        },
+        "gripper_link": {
+          "median_surface_residual_m": 0.0022924752430643304,
+          "observed_points": 351,
+          "p95_surface_residual_m": 0.00814102211491539
+        },
+        "lower_arm_link": {
+          "median_surface_residual_m": 0.003930369290306062,
+          "observed_points": 44,
+          "p95_surface_residual_m": 0.008504370656175117
+        },
+        "moving_jaw_so101_v1_link": {
+          "median_surface_residual_m": 0.001885231245560366,
+          "observed_points": 255,
+          "p95_surface_residual_m": 0.006775095407629574
+        },
+        "shoulder_link": {
+          "median_surface_residual_m": 0.001773680113582349,
+          "observed_points": 648,
+          "p95_surface_residual_m": 0.008814687521846944
+        },
+        "upper_arm_link": {
+          "median_surface_residual_m": 0.0036881915833108757,
+          "observed_points": 334,
+          "p95_surface_residual_m": 0.009662484106765009
+        },
+        "wrist_link": {
+          "median_surface_residual_m": 0.001314577880117732,
+          "observed_points": 136,
+          "p95_surface_residual_m": 0.0036060235107324454
+        }
+      }
+    },
+    "holdout": {
+      "before": {
+        "median_abs_point_to_plane_m": 0.0039637642693317,
+        "median_surface_residual_m": 0.00406500999355907,
+        "observed_points": 2000,
+        "p95_abs_point_to_plane_m": 0.01265286925074079,
+        "p95_surface_residual_m": 0.012775513859120747,
+        "per_link": {
+          "base_link": {
+            "median_surface_residual_m": 0.0026324105426210375,
+            "observed_points": 239,
+            "p95_surface_residual_m": 0.016503706505733934
+          },
+          "gripper_link": {
+            "median_surface_residual_m": 0.008488716092053554,
+            "observed_points": 343,
+            "p95_surface_residual_m": 0.01420097474555813
+          },
+          "lower_arm_link": {
+            "median_surface_residual_m": 0.008295315884199118,
+            "observed_points": 60,
+            "p95_surface_residual_m": 0.013554777957178668
+          },
+          "moving_jaw_so101_v1_link": {
+            "median_surface_residual_m": 0.006591139500632988,
+            "observed_points": 261,
+            "p95_surface_residual_m": 0.012232434398738294
+          },
+          "shoulder_link": {
+            "median_surface_residual_m": 0.002032842713567993,
+            "observed_points": 661,
+            "p95_surface_residual_m": 0.008991733632526568
+          },
+          "upper_arm_link": {
+            "median_surface_residual_m": 0.0029753045477848615,
+            "observed_points": 286,
+            "p95_surface_residual_m": 0.012044382130041376
+          },
+          "wrist_link": {
+            "median_surface_residual_m": 0.004907063629594047,
+            "observed_points": 150,
+            "p95_surface_residual_m": 0.009233273576083367
+          }
+        }
+      },
+      "candidate_rotation_deg": 2.9322834482877327,
+      "candidate_translation_m": 0.007801490472338849,
+      "capture_bundle": "/home/bjoern/.local/share/exciting-science/station/evidence/2026-10-15/ros-gripper-registration-holdout",
+      "capture_stamp": 1792059050.3690176,
+      "fixed_observed_population": 2000,
+      "frozen_candidate": {
+        "median_abs_point_to_plane_m": 0.0019118357746773984,
+        "median_surface_residual_m": 0.00200931690933022,
+        "observed_points": 2000,
+        "p95_abs_point_to_plane_m": 0.00926662370391952,
+        "p95_surface_residual_m": 0.009290936644121785,
+        "per_link": {
+          "base_link": {
+            "median_surface_residual_m": 0.0018931880442825458,
+            "observed_points": 239,
+            "p95_surface_residual_m": 0.013433302848976113
+          },
+          "gripper_link": {
+            "median_surface_residual_m": 0.002201497458743143,
+            "observed_points": 343,
+            "p95_surface_residual_m": 0.007358138393553614
+          },
+          "lower_arm_link": {
+            "median_surface_residual_m": 0.005164119335801945,
+            "observed_points": 60,
+            "p95_surface_residual_m": 0.008545011770653223
+          },
+          "moving_jaw_so101_v1_link": {
+            "median_surface_residual_m": 0.0018903001910072646,
+            "observed_points": 261,
+            "p95_surface_residual_m": 0.006570334866725974
+          },
+          "shoulder_link": {
+            "median_surface_residual_m": 0.0016362474522416419,
+            "observed_points": 661,
+            "p95_surface_residual_m": 0.009396930165325225
+          },
+          "upper_arm_link": {
+            "median_surface_residual_m": 0.0034034128004705455,
+            "observed_points": 286,
+            "p95_surface_residual_m": 0.01034045009882472
+          },
+          "wrist_link": {
+            "median_surface_residual_m": 0.0011005932090360632,
+            "observed_points": 150,
+            "p95_surface_residual_m": 0.0034424215035369714
+          }
+        }
+      },
+      "interpretation": "Independent image/depth pose evaluation only; candidate was not refit.",
+      "status": "frozen_candidate_holdout_scored_no_refit",
+      "urdf_sha256": "d8b4c027e7ee6e2ac52721345f4b0b65cb8ffc146ce57f02ed80932590fac6a8"
+    }
+  }
+}

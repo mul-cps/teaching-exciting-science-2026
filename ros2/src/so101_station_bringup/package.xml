@@ -22,4 +22,7 @@
   <exec_depend>rosidl_runtime_py</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <export><build_type>ament_cmake</build_type></export>
+  <exec_depend>so101_station_objects</exec_depend>
+  <exec_depend>so101_station_scene</exec_depend>
+  <exec_depend>so101_station_map</exec_depend>
 </package>

@@ -8,6 +8,7 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import Node
 
 
 def generate_launch_description():
@@ -26,6 +27,9 @@ def generate_launch_description():
         'station_lock': '',
         'rviz': 'true',
         'use_camera': 'true',
+        'use_objects': 'true',
+        'use_map': 'true',
+        'use_planning_scene': 'true',
         'track_charuco_world': 'true',
         'base_registration_file': str(station / 'calibration/robot_base_registration.json') if (station / 'calibration/robot_base_registration.json').is_file() else '',
         'attach_candidate': 'true',
@@ -57,4 +61,11 @@ def generate_launch_description():
     return LaunchDescription([
         *(DeclareLaunchArgument(k, default_value=v) for k, v in defaults.items()),
         robot, perception,
+        include('so101_station_objects', 'objects.launch.py', {},
+                condition=IfCondition(LaunchConfiguration('use_objects'))),
+        include('so101_station_scene', 'station_scene.launch.py', {},
+                condition=IfCondition(LaunchConfiguration('use_planning_scene'))),
+        Node(package='so101_station_map', executable='surface_voxel_map',
+             name='so101_surface_voxel_map', output='screen',
+             condition=IfCondition(LaunchConfiguration('use_map'))),
     ])

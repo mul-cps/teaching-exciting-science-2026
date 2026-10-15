@@ -60,8 +60,9 @@ In RViz, add the raw `/camera/depth/color/points` PointCloud2 display and the
 `/so101_map/occupied_surface` Marker display. Their display checkboxes provide
 the switch between dense raw RGB-D and the compact map. Set the fixed frame to
 `charuco_board`; pass a different `target_frame` ROS parameter only when using
-another published fixed frame. The station live launch and RViz config can
-include this node/display when desired; the map package itself does not start
+another published fixed frame. The station live launch starts this node by default (`use_map:=false` disables
+it). In the supplied RViz config, disable **Native RGB-D surface** and enable
+**Sparse 1 cm surface map (toggle with native RGB-D)** to switch views; the map package itself does not start
 the camera, arm, or any other hardware.
 
 The visualization uses OctoMap-like sparse occupied cells without requiring

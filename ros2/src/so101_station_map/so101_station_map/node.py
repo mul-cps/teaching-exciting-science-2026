@@ -142,6 +142,10 @@ class SurfaceVoxelMapNode(Node):
                 self.target_frame, message.header.frame_id, Time.from_msg(message.header.stamp),
                 timeout=Duration(seconds=0.15))
             now_ros = self.get_clock().now().nanoseconds * 1e-9
+            age = now_ros - stamp
+            if not 0 <= age <= self.max_age:
+                self._status("rejected_stale_or_invalid_stamp", stamp=stamp, age_s=age)
+                return
             if not self._tracking_is_fresh(now_ros, stamp):
                 self._status("waiting_for_fresh_board_tracking", stamp=stamp,
                              tracking_state=self.tracking_state,
@@ -175,6 +179,7 @@ class SurfaceVoxelMapNode(Node):
             self._status("rejected_cloud", stamp=stamp, reason=str(error))
 
     def _status(self, state, **details):
+        self.map.last_status = state
         msg = String()
         msg.data = json.dumps({
             "state": state,

@@ -87,3 +87,32 @@ Sources: [LeRobot IK](https://github.com/huggingface/lerobot/blob/main/src/lerob
 [official SO101 assets](https://github.com/TheRobotStudio/SO-ARM100/tree/main/Simulation/SO101),
 [GG-CNN](https://github.com/dougsm/ggcnn),
 [OpenCV ChArUco](https://docs.opencv.org/4.x/df/d4a/tutorial_charuco_detection.html).
+
+## Current ROS registration record
+
+The saved `rig01_base_registration.json` in the perception configuration is a
+provisional board-to-base registration fitted against the corrected URDF and
+synchronized ROS depth/joint snapshots. The local active copy is
+`~/.local/share/exciting-science/station/calibration/robot_base_registration.json`;
+`station_live.launch.py` loads it when present. Its frame direction is
+`world_from_base`, with `charuco_board` as world. The separately saved +90°
+gripper mounting correction changes the model, not servo encoder calibration.
+
+The bounded surface fit reduced median/p95 CAD-to-depth residuals from
+3.36/12.10 mm to 2.04/8.41 mm. An independent capture at the same arm pose gave
+4.07/12.78 mm before and 2.01/9.29 mm after applying the frozen correction.
+This validates repeatability at that pose only; `qualified` remains false.
+Multi-pose observations are needed to separate base placement, joint offsets,
+marker mounting errors, and structural flex. A gripper-tag-only correction was
+worse against the depth surface and was not applied. Human-containing camera
+frames remain local; only the numeric calibration record is stored in Git.
+
+To reproduce the offline comparison with the optional `digital-twin` geometry
+dependencies installed:
+
+```sh
+python tools/fit_ros_robot_registration.py TRAIN_BUNDLE --holdout REPEAT_BUNDLE
+```
+
+Live colored-object processing and MoveIt pregrasp validation are documented in
+[so101-objects.md](so101-objects.md) and [so101-scene.md](so101-scene.md).

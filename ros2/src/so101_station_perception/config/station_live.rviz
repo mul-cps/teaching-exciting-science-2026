@@ -110,6 +110,39 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /so101_perception/tag_observations
       Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: false
+      Name: Sparse 1 cm surface map (toggle with native RGB-D)
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /so101_map/occupied_surface
+      Value: false
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Colored brick tracks
+      Topic:
+        Depth: 3
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /so101/object_markers
+      Value: true
+    - Class: rviz_default_plugins/PoseArray
+      Enabled: true
+      Name: Geometric grasp candidates (not execution)
+      Shape: Axes
+      Axes Length: 0.025
+      Axes Radius: 0.0015
+      Topic:
+        Depth: 3
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /so101/grasp_candidates
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 38; 42; 48
