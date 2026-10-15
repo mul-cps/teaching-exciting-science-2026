@@ -129,3 +129,36 @@ def test_scene_config_uses_current_z_up_board_and_unqualified_default():
     assert config["board_center_m"] == pytest.approx([0.0875, -0.0625, -0.002])
     assert config["frames_qualified"] is False
     assert config["table_collision_enabled"] is False
+
+
+def test_base_vertical_variant_preserves_transformed_position_and_reports_orientation_tradeoff():
+    pytest.importorskip("rclpy")
+    from so101_station_scene.grasp_validator import base_vertical_variant
+
+    angle = np.deg2rad(5.0)
+    transform = np.eye(4)
+    transform[:3, :3] = [[np.cos(angle), 0, np.sin(angle)],
+                         [0, 1, 0],
+                         [-np.sin(angle), 0, np.cos(angle)]]
+    transform[:3, 3] = [0.1, -0.2, 0.03]
+    position, orientation, approach_error, closing_error = base_vertical_variant(
+        transform, (0.2, 0.3, 0.04), (0, 0, 0, 1))
+    assert position == pytest.approx((0.2 * np.cos(angle) + 0.04 * np.sin(angle) + 0.1,
+                                      0.1,
+                                      -0.2 * np.sin(angle) + 0.04 * np.cos(angle) + 0.03))
+    rotation = __import__("so101_station_scene.scene_geometry", fromlist=["quaternion_matrix_xyzw"]).quaternion_matrix_xyzw(orientation)
+    assert rotation[:, 2] == pytest.approx((0, 0, -1))
+    assert approach_error == pytest.approx(175.0, abs=1e-5)
+    assert closing_error == pytest.approx(5.0, abs=1e-5)
+
+
+def test_validator_throttles_batches_not_candidates_within_batch():
+    pytest.importorskip("rclpy")
+    from so101_station_scene.grasp_validator import should_wait_for_batch
+
+    assert not should_wait_for_batch(active=True, pending=True, now=1.1,
+                                     last_batch_start=1.0, min_period=1.0)
+    assert should_wait_for_batch(active=False, pending=True, now=1.1,
+                                 last_batch_start=1.0, min_period=1.0)
+    assert not should_wait_for_batch(active=False, pending=True, now=2.0,
+                                     last_batch_start=1.0, min_period=1.0)
