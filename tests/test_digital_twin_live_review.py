@@ -3,11 +3,73 @@ import ast
 import inspect
 import json
 import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+
+
+def test_actual_pose_refresh_suppresses_synchronous_slider_callback_without_rlock():
+    from types import SimpleNamespace
+    from workshop.digital_twin.viewer import _reflect_actual_pose
+
+    lock = threading.Lock()
+    virtual_override = [False]
+    reflecting_actual = [False]
+    degrees = {'shoulder_pan': 0.}
+    callbacks = []
+
+    class Slider:
+        def __init__(self, value):
+            self._value = value
+            self.callback = None
+
+        @property
+        def value(self):
+            return self._value
+
+        @value.setter
+        def value(self, value):
+            self._value = value
+            if self.callback:
+                self.callback(SimpleNamespace(target=self))
+
+        def on_update(self, callback):
+            self.callback = callback
+
+    slider = Slider(0.)
+
+    def on_change(event):
+        if reflecting_actual[0]:
+            return
+        with lock:
+            virtual_override[0] = True
+            callbacks.append(event.target.value)
+
+    slider.on_update(on_change)
+    finished = threading.Event()
+
+    def refresh():
+        _reflect_actual_pose(lock, {'shoulder_pan': slider}, degrees,
+            {'shoulder_pan': 12.5}, lambda: None, reflecting_actual)
+        finished.set()
+
+    worker = threading.Thread(target=refresh, daemon=True)
+    worker.start()
+    assert finished.wait(.5), 'refresh deadlocked on synchronous slider callback'
+    worker.join(.1)
+    assert not worker.is_alive()
+    assert degrees['shoulder_pan'] == 12.5
+    assert slider.value == 12.5
+    assert virtual_override[0] is False
+    assert callbacks == []
+
+    # A real user change after the reflection still enters the normal callback.
+    slider.value = 15.
+    assert virtual_override[0] is True
+    assert callbacks == [15.]
 
 
 def test_surface_mutation_uses_the_same_lock_as_render_callbacks():
