@@ -7,7 +7,8 @@ CACHE="$ROS2_DIR/.cache/upstream"
 UPSTREAM_URL="https://github.com/legalaspro/so101-ros-physical-ai.git"
 UPSTREAM_REV="58318c905a2c61289fa907de85cb8473322fbe68"
 FEETECH_REV="4c0fdbfe16c84c686f8ace09526c52d98d0110ca"
-RUNTIME="$ROS2_DIR/scripts/runtime.sh"
+RUNTIME="${SO101_RUNTIME_SH:-$ROS2_DIR/scripts/runtime.sh}"
+DRI_DIR="${SO101_DRI_DIR:-/dev/dri}"
 ACTION="${1:-help}"
 [[ $# -eq 0 ]] || shift
 
@@ -83,6 +84,14 @@ run_ros() {
   "$RUNTIME" run -- bash -lc 'set -eo pipefail; source /opt/ros/jazzy/setup.bash; if [[ -f /ws/install/setup.bash ]]; then source /ws/install/setup.bash; fi; exec "$@"' so101-container "$@"
 }
 
+run_ros_gui() {
+  if [[ -d "$DRI_DIR" ]]; then
+    "$RUNTIME" run --gpu -- bash -lc 'set -eo pipefail; source /opt/ros/jazzy/setup.bash; if [[ -f /ws/install/setup.bash ]]; then source /ws/install/setup.bash; fi; exec "$@"' so101-container "$@"
+  else
+    run_ros "$@"
+  fi
+}
+
 case "$ACTION" in
   help|-h|--help) usage ;;
   fetch) fetch_upstream ;;
@@ -92,10 +101,10 @@ case "$ACTION" in
     "$RUNTIME" run -- bash -lc 'set -eo pipefail; source /opt/ros/jazzy/setup.bash; rosdep update; rosdep install --from-paths /ws/ros2/.cache/upstream /ws/ros2/src --ignore-src -r -y --rosdistro jazzy; cd /ws; CMAKE_BUILD_PARALLEL_LEVEL=2 colcon --log-base /ws/log build --parallel-workers 2 --base-paths /ws/ros2/.cache/upstream /ws/ros2/src --build-base /ws/build --install-base /ws/install --symlink-install'
     ;;
   rviz)
-    run_ros ros2 launch so101_station_bringup mock_moveit.launch.py
+    run_ros_gui ros2 launch so101_station_bringup mock_moveit.launch.py
     ;;
   servo)
-    run_ros ros2 launch so101_station_bringup servo_mock.launch.py
+    run_ros_gui ros2 launch so101_station_bringup servo_mock.launch.py
     ;;
   plan-smoke)
     run_ros ros2 launch so101_station_bringup plan_only_smoke.launch.py
