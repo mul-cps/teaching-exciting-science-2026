@@ -18,9 +18,19 @@ JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex",
 GRIPPER_FRAME = "gripper_frame_link"
 
 
-def timeout_message(last_rejection_reason):
+def timeout_message(last_rejection_reason, *, received_counts=None,
+                    rejection_counts=None, parameter_state=None):
     detail = last_rejection_reason or "no complete candidate frame arrived"
-    return f"timed out waiting for a valid settled ROS registration frame; last rejection: {detail}"
+    message = f"timed out waiting for a valid settled ROS registration frame; last rejection: {detail}"
+    if parameter_state:
+        message += f"; robot_description={parameter_state}"
+    if received_counts:
+        message += "; received=" + ", ".join(
+            f"{key}={received_counts[key]}" for key in sorted(received_counts))
+    if rejection_counts:
+        message += "; rejections=" + ", ".join(
+            f"{key}={rejection_counts[key]}" for key in sorted(rejection_counts))
+    return message
 
 
 def validate_frame_triplet(stamps, frame_ids, *, now, expected_frame,
@@ -179,12 +189,16 @@ class RegistrationCaptureNode:
                 self.started = time.monotonic()
                 self.done = False
                 self.failure = None
-                self.last_rejection_reason = "waiting for matching color/depth/CameraInfo frames"
+                self.last_rejection_reason = None
+                self.received_counts = {"color": 0, "depth": 0, "camera_info": 0,
+                                        "joint_states": 0, "tracking_status": 0}
+                self.rejection_counts = {}
+                self._counted_rejections = {}
                 self.pending_since = {}
                 self.robot_description = None
                 self.description_client = AsyncParameterClient(
                     self, "/follower/robot_state_publisher")
-                self.description_future = self.description_client.get_parameters(["robot_description"])
+                self.description_future = None
                 self.buffer = Buffer()
                 self.listener = TransformListener(self.buffer, self)
                 self.create_subscription(Image, color_topic, self._color, qos_profile_sensor_data)
@@ -195,23 +209,48 @@ class RegistrationCaptureNode:
                 self.timer = self.create_timer(0.02, self._capture_pending)
 
             def _color(self, message):
+                self.received_counts["color"] += 1
                 self.color.append(message)
 
             def _depth(self, message):
+                self.received_counts["depth"] += 1
                 self.depth.append(message)
 
             def _info(self, message):
+                self.received_counts["camera_info"] += 1
                 self.camera_info.append(message)
 
             def _joint(self, message):
+                self.received_counts["joint_states"] += 1
                 self.joints.append((_stamp_seconds(message.header.stamp),
                                     tuple(message.name), tuple(message.position)))
 
             def _tracking(self, message):
+                self.received_counts["tracking_status"] += 1
                 try:
                     self.tracking = json.loads(message.data)
                 except (TypeError, json.JSONDecodeError):
                     self.tracking = None
+
+            def _reject(self, reason, stamp=None, *, concrete=True):
+                if stamp is not None:
+                    reasons = self._counted_rejections.setdefault(stamp, set())
+                    if reason in reasons:
+                        return
+                    reasons.add(reason)
+                    if len(self._counted_rejections) > 128:
+                        self._counted_rejections.pop(next(iter(self._counted_rejections)))
+                self.rejection_counts[reason] = self.rejection_counts.get(reason, 0) + 1
+                if concrete or self.last_rejection_reason is None:
+                    self.last_rejection_reason = reason
+
+            def _parameter_state(self):
+                if self.robot_description is not None:
+                    return "received"
+                if self.description_future is None:
+                    return ("service ready, request not sent" if
+                            self.description_client.services_are_ready() else "service unavailable")
+                return "response pending" if not self.description_future.done() else "response failed"
 
             def _closest(self, queue, stamp):
                 return min(queue, key=lambda item: abs(_stamp_seconds(item.header.stamp) - stamp)) if queue else None
@@ -220,10 +259,18 @@ class RegistrationCaptureNode:
                 if self.done:
                     return
                 if time.monotonic() - self.started > self.timeout_s:
-                    self.failure = RuntimeError(timeout_message(self.last_rejection_reason))
+                    self.failure = RuntimeError(timeout_message(
+                        self.last_rejection_reason, received_counts=self.received_counts,
+                        rejection_counts=self.rejection_counts,
+                        parameter_state=self._parameter_state()))
                     self.done = True
                     return
                 if self.robot_description is None:
+                    if self.description_future is None:
+                        if self.description_client.services_are_ready():
+                            self.description_future = self.description_client.get_parameters(
+                                ["robot_description"])
+                        return
                     if not self.description_future.done():
                         return
                     try:
@@ -244,7 +291,11 @@ class RegistrationCaptureNode:
                         self.pending_since[stamp] = time.monotonic()
                         since = self.pending_since[stamp]
                     depth, info = self._closest(self.depth, stamp), self._closest(self.camera_info, stamp)
-                    if depth is None or info is None:
+                    if depth is None:
+                        self._reject("no matching aligned depth frame", stamp, concrete=False)
+                        continue
+                    if info is None:
+                        self._reject("no matching CameraInfo frame", stamp, concrete=False)
                         continue
                     if time.monotonic() - since > 0.25:
                         self.pending_since.pop(stamp, None)
@@ -270,11 +321,11 @@ class RegistrationCaptureNode:
                             "base_from_gripper_frame": self._lookup(self.base_frame, self.gripper_frame, frame_stamp),
                         }
                     except ValueError as error:
-                        self.last_rejection_reason = str(error)
+                        self._reject(str(error), stamp)
                         continue
                     except Exception as error:
-                        self.last_rejection_reason = (
-                            f"exact TF lookup at image stamp {frame_stamp:.9f} failed: {error}")
+                        self._reject(
+                            f"exact TF lookup at image stamp {frame_stamp:.9f} failed: {error}", stamp)
                         continue
                     self._write_capture(color, depth, info, frame_stamp,
                                         joint_positions, transforms, now)

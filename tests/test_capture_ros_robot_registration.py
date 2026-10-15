@@ -58,4 +58,12 @@ def test_default_gripper_frame_matches_station_urdf_convention():
 
 
 def test_timeout_message_reports_latest_rejected_input():
-    assert "exact TF lookup failed" in timeout_message("exact TF lookup failed")
+    message = timeout_message(
+        "exact TF lookup failed",
+        received_counts={"color": 4, "depth": 3},
+        rejection_counts={"no matching CameraInfo": 1},
+        parameter_state="response pending")
+    assert "exact TF lookup failed" in message
+    assert "color=4" in message and "depth=3" in message
+    assert "no matching CameraInfo=1" in message
+    assert "robot_description=response pending" in message
