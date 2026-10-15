@@ -25,7 +25,7 @@ Visualization Manager:
           Value: true
         gripper_frame_link:
           Value: true
-        so101_diag_charuco_target:
+        charuco_board:
           Value: true
       Show Arrows: false
       Show Axes: true

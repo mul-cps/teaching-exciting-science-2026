@@ -52,3 +52,19 @@ and distinguishes tracking, held, and stale. Held TF is an estimate, not a new
 camera measurement. Small PnP noise is filtered; substantial camera motion and
 reacquisition after expiry reset the filter. The official fixed optical-to-link
 transform is cached. Native joint telemetry remains live when idle torque is off.
+
+
+Marker acceleration choice: keep the OpenCV CPU path on the current AMD host.
+[Isaac ROS AprilTag](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_apriltag/index.html)
+requires NVIDIA hardware for CUDA, and its CUDA backend supports tag36h11,
+not our tag25h9 tags. Its throughput claims therefore do not apply to this rig.
+ROS C++ composition can avoid image copies using
+[intra-process transport](https://raw.githubusercontent.com/ros2/ros2_documentation/jazzy/source/Tutorials/Demos/Intra-Process-Communication.rst),
+but the simpler initial step is sharing the decoded frame inside one Python
+callback, without intermediate image topics.
+
+Local 2026-10-15 measurements at 640x480 RGB8: board detection median 27.24 ms,
+Python serialization 0.425 ms, deserialization 0.247 ms, grayscale conversion
+0.160 ms. Capture-to-callback median was 84.4 ms. The latter includes timestamp
+mapping, camera/driver, scheduling and transport; the Python serializer benchmark
+does not isolate actual DDS-only latency.
