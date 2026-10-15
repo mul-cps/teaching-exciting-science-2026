@@ -117,6 +117,7 @@ def unassociated_tag_points(detections, depth, intrinsics, depth_scale_m):
 
 class TagObservations(Node):
     def __init__(self):
+        cv2.setNumThreads(1)  # Small 640x480 callbacks do not need a host-wide thread pool.
         from so101_station_perception_tag_tracking.tag_tracking import TagTracker
 
         super().__init__("so101_tag_observations")

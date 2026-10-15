@@ -35,6 +35,10 @@ def transform_xyz_data(data, *, height, width, point_step, row_step, fields,
     count = int(height) * int(width)
     if count <= 0 or count > MAX_POINTS:
         raise ValueError("PointCloud2 dimensions exceed the fixed 640x480 bound")
+    # The pinned RealSense unordered cloud retains its allocation row_step
+    # after compacting valid points. A single tightly packed row is unambiguous.
+    if height == 1 and len(data) == width * point_step:
+        row_step = width * point_step
     if (point_step <= 0 or row_step < width * point_step
             or len(data) < height * row_step):
         raise ValueError("Malformed PointCloud2 layout")
@@ -110,6 +114,8 @@ class DiagnosticCloud(Node):
                 point_step=message.point_step, row_step=message.row_step,
                 fields=message.fields, is_bigendian=message.is_bigendian,
                 rotation=rotation, translation=translation)
+            if message.height == 1 and len(message.data) == message.width * message.point_step:
+                output.row_step = message.width * message.point_step
             self.publisher.publish(output)
             self.last_publish = now
         except (TransformException, ValueError, TypeError) as error:

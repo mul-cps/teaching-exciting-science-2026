@@ -12,6 +12,7 @@ from .calibration import load_calibration_frames, matrix_quaternion, rigid_matri
 
 
 def _transform_matrix(transform):
+    transform = getattr(transform, "transform", transform)
     t = transform.translation
     q = np.asarray([transform.rotation.x, transform.rotation.y,
                     transform.rotation.z, transform.rotation.w], dtype=float)
@@ -58,11 +59,12 @@ class CalibrationTfPublisher(Node):
         super().__init__("so101_calibration_tf")
         for name, default in (
             ("camera_target_calibration", ""), ("camera_arm_calibration", ""),
-            ("qualified_mode", False), ("base_frame", "base_link"),
+            ("qualified_mode", False), ("attach_candidate", False), ("base_frame", "base_link"),
             ("optical_frame", "camera_color_optical_frame"),
             ("camera_link_frame", "camera_link"),
         ):
             self.declare_parameter(name, default)
+        self.attach_candidate = self.get_parameter("attach_candidate").value
         self.base_frame = self.get_parameter("base_frame").value
         self.optical_frame = self.get_parameter("optical_frame").value
         self.camera_link_frame = self.get_parameter("camera_link_frame").value
@@ -79,9 +81,10 @@ class CalibrationTfPublisher(Node):
         self.pending_arm = []
         immediate = []
         for item in transforms:
-            if item.get("qualified") is True and item.get("kind") == "arm":
+            if item.get("kind") == "arm" and (item.get("qualified") is True or self.attach_candidate):
                 self.pending_arm.append(item)
-                continue
+                if item.get("qualified") is True:
+                    continue
             message = _message(item["parent"], item["child"], item["matrix"])
             message.header.stamp = self.get_clock().now().to_msg()
             immediate.append(message)
@@ -114,7 +117,7 @@ class CalibrationTfPublisher(Node):
                 message.header.stamp = self.get_clock().now().to_msg()
                 self.broadcaster.sendTransform(message)
                 self.get_logger().warning(
-                    f"Publishing qualified transform {self.base_frame} -> {self.camera_link_frame} "
+                    f"Publishing {'qualified' if item.get('qualified') else 'PROVISIONAL calibration estimate'} transform {self.base_frame} -> {self.camera_link_frame} "
                     f"composed from official RealSense TF and {item['source']}"
                 )
             except (TransformException, ValueError, np.linalg.LinAlgError) as error:

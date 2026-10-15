@@ -33,6 +33,12 @@ def generate_launch_description():
         )
         .to_moveit_configs()
     )
+    # Fedora Mesa needs the host DRM ABI for this GPU; keep the override
+    # local to RViz so the arm backend and other ROS nodes remain isolated.
+    drm_libraries = ["/usr/lib64/libdrm.so.2", "/usr/lib64/libdrm_amdgpu.so.1"]
+    rviz_environment = {}
+    if all(os.path.isfile(path) for path in drm_libraries):
+        rviz_environment["LD_PRELOAD"] = os.environ.get("SO101_RVIZ_LD_PRELOAD", ":".join(drm_libraries))
     parameters = moveit_config.to_dict()
     parameters["moveit_controller_manager"] = "moveit_simple_controller_manager/MoveItSimpleControllerManager"
     parameters["moveit_simple_controller_manager"] = {
@@ -88,6 +94,7 @@ def generate_launch_description():
              remappings=[("joint_states", "/follower/joint_states")], output="screen"),
         Node(package="rviz2", executable="rviz2", namespace="follower", name="rviz2",
              condition=IfCondition(LaunchConfiguration("rviz")),
+             additional_env=rviz_environment,
              arguments=["-d", LaunchConfiguration("rviz_config")],
              parameters=[moveit_config.robot_description,
                          moveit_config.robot_description_semantic,

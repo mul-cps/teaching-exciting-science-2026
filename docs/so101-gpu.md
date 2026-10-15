@@ -39,3 +39,5 @@ removes its temporary source and binary. It does not open RViz or a device.
 only be used as an explicit troubleshooting override. Keep the existing GUI
 session alive while checking a second runtime, and close only sessions you
 started yourself.
+
+On the Fedora lab host, native Conda Mesa initially selected llvmpipe because its older DRM libraries could not initialize gfx1151. The station RViz launch now preloads `/usr/lib64/libdrm.so.2` and `/usr/lib64/libdrm_amdgpu.so.1` into RViz when both are present. This is local to the GUI process. The GLX probe with that override reported AMD Radeon 8060S; the same probe without it reported llvmpipe. The running GUI CPU use fell from roughly 277% to 13–17% after relaunch (live workload, not a controlled benchmark). Set `SO101_RVIZ_LD_PRELOAD` to override the local GUI choice.

@@ -128,6 +128,7 @@ def arm_pair_record(state, frame_wall, frame_monotonic, now_monotonic):
 
 class EvidenceSink(Node):
     def __init__(self):
+        cv2.setNumThreads(1)  # Small 640x480 callbacks do not need a host-wide thread pool.
         super().__init__("so101_rgbd_evidence_sink")
         defaults = (
             ("output_folder", ""), ("resident_state_file", ""),

@@ -20,6 +20,7 @@ def _launch_nodes(context):
     if qualified_value not in ("true", "false"):
         raise ValueError("use_qualified_frames must be true or false")
     qualified_mode = qualified_value == "true"
+    attach_candidate = LaunchConfiguration("attach_candidate").perform(context).lower() == "true"
     base_frame = LaunchConfiguration("base_frame").perform(context)
     optical_frame = LaunchConfiguration("optical_frame").perform(context)
     transforms, driver_tf = load_calibration_frames(
@@ -85,6 +86,7 @@ def _launch_nodes(context):
                 "camera_target_calibration": target_path,
                 "camera_arm_calibration": arm_path,
                 "qualified_mode": qualified_mode,
+                "attach_candidate": attach_candidate,
                 "base_frame": base_frame,
                 "optical_frame": optical_frame,
                 "camera_link_frame": "camera_link",
@@ -99,10 +101,10 @@ def _launch_nodes(context):
                 "depth_topic": "/camera/aligned_depth_to_color/image_raw",
                 "camera_info_topic": "/camera/color/camera_info",
                 "depth_scale_m": float(LaunchConfiguration("depth_scale_m").perform(context)),
-                "diagnostic_frame": "so101_diag_camera_optical" if unqualified_arm else "",
+                "diagnostic_frame": "so101_diag_camera_optical" if unqualified_arm and not attach_candidate else "",
             }],
         ))
-    if unqualified_arm:
+    if unqualified_arm and not attach_candidate:
         actions.append(Node(
             package="so101_station_perception", executable="diagnostic_pointcloud",
             name="so101_diagnostic_pointcloud", output="screen",
@@ -142,6 +144,7 @@ def generate_launch_description():
         DeclareLaunchArgument("camera_target_calibration", default_value=""),
         DeclareLaunchArgument("camera_arm_calibration", default_value=""),
         DeclareLaunchArgument("use_qualified_frames", default_value="false"),
+        DeclareLaunchArgument("attach_candidate", default_value="false", description="Explicitly attach the current unqualified calibration estimate to the native camera tree; status remains provisional"),
         DeclareLaunchArgument("base_frame", default_value="base_link"),
         DeclareLaunchArgument("optical_frame", default_value="camera_color_optical_frame"),
         DeclareLaunchArgument("rviz", default_value="false"),

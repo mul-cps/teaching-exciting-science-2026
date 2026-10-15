@@ -25,6 +25,7 @@ def generate_launch_description():
         'station_lock': '',
         'rviz': 'true',
         'use_camera': 'true',
+        'attach_candidate': 'true',
         'camera_arm_calibration': '',
         'camera_target_calibration': '',
         'evidence_folder': '',
@@ -42,6 +43,7 @@ def generate_launch_description():
                     {k: LaunchConfiguration(k) for k in robot_keys})
     perception = include('so101_station_perception', 'perception.launch.py', {
         'camera_arm_calibration': LaunchConfiguration('camera_arm_calibration'),
+        'attach_candidate': LaunchConfiguration('attach_candidate'),
         'camera_target_calibration': LaunchConfiguration('camera_target_calibration'),
         'resident_state_file': LaunchConfiguration('state_file'),
         'evidence_folder': LaunchConfiguration('evidence_folder'),

@@ -369,3 +369,23 @@ def test_diagnostic_cloud_hot_path_is_rate_limited_and_has_no_point_loop():
     callback = inspect.getsource(diagnostic_cloud.DiagnosticCloud._cloud)
     assert "self.min_period" in callback
     assert "5.0" in inspect.getsource(diagnostic_cloud.DiagnosticCloud.__init__)
+
+
+def test_realsense_compacted_unordered_cloud_retains_allocation_stride():
+    from types import SimpleNamespace
+    fields = [SimpleNamespace(name=n, offset=i*4, datatype=7, count=1)
+              for i,n in enumerate(("x", "y", "z"))]
+    data = np.array([[1.,2.,3.],[4.,5.,6.]],dtype="<f4").tobytes()
+    out = transform_xyz_data(data, height=1, width=2, point_step=12,
+        row_step=640*480*12, fields=fields, is_bigendian=False,
+        rotation=np.eye(3), translation=np.array([.1,.2,.3]))
+    assert np.allclose(np.frombuffer(out,dtype="<f4").reshape(2,3),
+                       [[1.1,2.2,3.3],[4.1,5.2,6.3]])
+
+def test_vendor_transform_stamped_is_accepted():
+    from geometry_msgs.msg import TransformStamped
+    from so101_station_perception.calibration_tf import _transform_matrix
+    msg=TransformStamped();msg.transform.rotation.w=1.0
+    msg.transform.translation.x=.015
+    result=_transform_matrix(msg)
+    assert np.allclose(result[:3,3],[.015,0,0])
