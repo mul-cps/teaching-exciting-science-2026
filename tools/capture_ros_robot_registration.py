@@ -355,7 +355,7 @@ class RegistrationCaptureNode:
                     if not cv2.imwrite(str(self.output_directory / "color.png"), color):
                         raise RuntimeError("could not save color.png")
                     np.save(self.output_directory / "depth.npy", depth, allow_pickle=False)
-                    urdf_path.write_text(self.robot_description, encoding="utf-8")
+                    (self.output_directory / "robot.urdf").write_text(self.robot_description, encoding="utf-8")
                     capture = {
                         "schema": 1,
                         "stamp": stamp,
