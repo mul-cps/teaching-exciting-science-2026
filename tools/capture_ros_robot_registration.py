@@ -15,6 +15,12 @@ import numpy as np
 
 JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex",
           "wrist_roll", "gripper")
+GRIPPER_FRAME = "gripper_frame_link"
+
+
+def timeout_message(last_rejection_reason):
+    detail = last_rejection_reason or "no complete candidate frame arrived"
+    return f"timed out waiting for a valid settled ROS registration frame; last rejection: {detail}"
 
 
 def validate_frame_triplet(stamps, frame_ids, *, now, expected_frame,
@@ -74,10 +80,16 @@ def closest_settled_joint_state(samples, image_stamp, joint_names=JOINTS, *,
     nearest_stamp, nearest = min(valid, key=lambda item: abs(item[0] - image_stamp))
     if abs(nearest_stamp - image_stamp) > max_age_s:
         raise ValueError("no joint state is nearby the image timestamp")
-    window = [(stamp, pose) for stamp, pose in valid
-              if image_stamp - window_s <= stamp <= image_stamp]
-    if (len(window) < 2 or window[0][0] > image_stamp - window_s + 0.025
-            or image_stamp - window[-1][0] > max_age_s):
+    boundary = image_stamp - window_s
+    before_boundary = [(stamp, pose) for stamp, pose in valid if stamp <= boundary]
+    if not before_boundary:
+        raise ValueError("joint samples do not cover the settled window")
+    bracket = max(before_boundary, key=lambda item: item[0])
+    if boundary - bracket[0] > max_age_s:
+        raise ValueError("joint samples do not bracket the settled window boundary")
+    window = [bracket] + [(stamp, pose) for stamp, pose in valid
+                          if boundary < stamp <= image_stamp]
+    if (len(window) < 2 or image_stamp - window[-1][0] > max_age_s):
         raise ValueError("joint samples do not cover the settled window")
     for joint in expected:
         values = [pose[joint] for _, pose in window]
@@ -151,7 +163,7 @@ class RegistrationCaptureNode:
                          tracking_topic="/so101_perception/charuco_world/status",
                          optical_frame="camera_color_optical_frame",
                          world_frame="charuco_board", base_frame="base_link",
-                         gripper_frame="gripper_frame"):
+                         gripper_frame=GRIPPER_FRAME):
                 super().__init__("capture_ros_robot_registration")
                 self.output_directory = Path(output_directory)
                 self.timeout_s = timeout_s
@@ -167,6 +179,7 @@ class RegistrationCaptureNode:
                 self.started = time.monotonic()
                 self.done = False
                 self.failure = None
+                self.last_rejection_reason = "waiting for matching color/depth/CameraInfo frames"
                 self.pending_since = {}
                 self.robot_description = None
                 self.description_client = AsyncParameterClient(
@@ -207,7 +220,7 @@ class RegistrationCaptureNode:
                 if self.done:
                     return
                 if time.monotonic() - self.started > self.timeout_s:
-                    self.failure = RuntimeError("timed out waiting for a valid settled ROS registration frame")
+                    self.failure = RuntimeError(timeout_message(self.last_rejection_reason))
                     self.done = True
                     return
                 if self.robot_description is None:
@@ -223,7 +236,7 @@ class RegistrationCaptureNode:
                         self.failure = RuntimeError(f"could not read actual robot_description: {error}")
                         self.done = True
                         return
-                for color in reversed(self.color):
+                for color in reversed(tuple(self.color)):
                     stamp = _stamp_seconds(color.header.stamp)
                     if stamp in self.pending_since:
                         since = self.pending_since[stamp]
@@ -256,9 +269,12 @@ class RegistrationCaptureNode:
                             "world_from_base": self._lookup(self.world_frame, self.base_frame, frame_stamp),
                             "base_from_gripper_frame": self._lookup(self.base_frame, self.gripper_frame, frame_stamp),
                         }
-                    except ValueError:
+                    except ValueError as error:
+                        self.last_rejection_reason = str(error)
                         continue
-                    except Exception:
+                    except Exception as error:
+                        self.last_rejection_reason = (
+                            f"exact TF lookup at image stamp {frame_stamp:.9f} failed: {error}")
                         continue
                     self._write_capture(color, depth, info, frame_stamp,
                                         joint_positions, transforms, now)
@@ -334,7 +350,7 @@ def main(argv=None):
     parser.add_argument("--optical-frame", default="camera_color_optical_frame")
     parser.add_argument("--world-frame", default="charuco_board")
     parser.add_argument("--base-frame", default="base_link")
-    parser.add_argument("--gripper-frame", default="gripper_frame")
+    parser.add_argument("--gripper-frame", default=GRIPPER_FRAME)
     args = parser.parse_args(argv)
     if not math.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("--timeout must be positive and finite")
