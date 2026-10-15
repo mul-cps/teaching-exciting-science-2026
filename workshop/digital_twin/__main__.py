@@ -19,8 +19,10 @@ DEFAULT_PHASE_FILE = Path('/tmp/cps-pick-place-phase.json')
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--snapshot', type=Path, required=True)
-    parser.add_argument('--calibration', type=Path, required=True)
+    parser.add_argument('--snapshot', type=Path)
+    parser.add_argument('--calibration', type=Path)
+    parser.add_argument('--ros-state-file', type=Path,
+                        help='Select passive ROS-driven MuJoCo/Viser twin mode; requires no snapshot/calibration')
     parser.add_argument('--camera-arm-calibration', type=Path, default=DEFAULT_CAMERA_ARM_CALIBRATION,
                         help='Saved provisional base_from_camera transform; never opens hardware')
     parser.add_argument('--camera-target-calibration', type=Path, default=DEFAULT_CAMERA_TARGET_CALIBRATION,
@@ -47,6 +49,13 @@ def main(argv=None):
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=8096)
     args = parser.parse_args(argv)
+    if args.ros_state_file is not None:
+        from .ros_viewer import serve_ros_twin
+        serve_ros_twin(args.ros_state_file, args.port, args.host)
+        return 0
+    if args.snapshot is None or args.calibration is None:
+        parser.error('standalone demo mode requires --snapshot and --calibration; '
+                     'use --ros-state-file for the passive ROS twin')
     if args.rgbd_live_folder is not None and (args.keyframes is not None or args.rgbd_keyframes is not None
             or args.image is not None or args.depth is not None or args.original_snapshot):
         parser.error('--rgbd-live-folder cannot be combined with keyframe, explicit image/depth, or original-snapshot selection')

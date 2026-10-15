@@ -30,6 +30,10 @@ def generate_launch_description():
         'use_objects': 'true',
         'use_map': 'true',
         'use_planning_scene': 'true',
+        'use_web_twin': 'true',
+        'web_twin_host': '0.0.0.0',
+        'web_twin_port': '8099',
+        'web_twin_python': str(home / 'miniforge3/bin/python'),
         'track_charuco_world': 'true',
         'base_registration_file': str(station / 'calibration/robot_base_registration.json') if (station / 'calibration/robot_base_registration.json').is_file() else '',
         'attach_candidate': 'true',
@@ -61,6 +65,12 @@ def generate_launch_description():
     return LaunchDescription([
         *(DeclareLaunchArgument(k, default_value=v) for k, v in defaults.items()),
         robot, perception,
+        include('so101_station_bringup', 'ros_web_twin.launch.py', {
+                    'host': LaunchConfiguration('web_twin_host'),
+                    'port': LaunchConfiguration('web_twin_port'),
+                    'viewer_python': LaunchConfiguration('web_twin_python'),
+                },
+                condition=IfCondition(LaunchConfiguration('use_web_twin'))),
         include('so101_station_objects', 'objects.launch.py', {},
                 condition=IfCondition(LaunchConfiguration('use_objects'))),
         include('so101_station_scene', 'station_scene.launch.py', {},
