@@ -21,6 +21,7 @@ install(PROGRAMS
   scripts/diagnostic_pointcloud
   scripts/tag_observations
   scripts/rgbd_evidence_sink
+  scripts/charuco_world
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
