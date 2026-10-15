@@ -76,6 +76,57 @@ def test_owner_startup_accepts_fresh_first_sample_with_matching_identity():
                                      calibration_sha256="a" * 64, owner_started=12.0)
 
 
+def test_late_teleop_step_error_after_watchdog_keeps_bridge_disabled(monkeypatch, tmp_path):
+    if not rclpy.ok():
+        rclpy.init(args=["so101-offline-teleop-watchdog-test"])
+    root = Path(__file__).resolve().parents[4]
+    runtime_state = tmp_path / "owner-state.json"
+
+    def start_fake_owner(node):
+        node._state_file = runtime_state
+        node._process = _FakeProcess()
+        node._owner_started = time.monotonic()
+
+    monkeypatch.setattr(TrajectoryBridge, "_start_owner", start_fake_owner)
+    monkeypatch.setattr(TrajectoryBridge, "_send", lambda _node, _command: None)
+    bridge = TrajectoryBridge(parameter_overrides=[
+        Parameter("enable_hardware", Parameter.Type.BOOL, False),
+        Parameter("station_root", Parameter.Type.STRING, str(root)),
+        Parameter("state_file", Parameter.Type.STRING, str(runtime_state)),
+    ])
+    session_id = "expired-session"
+    with bridge._active_lock:
+        bridge._teleop_state = "active"
+        bridge._teleop_session = session_id
+        bridge._teleop_inflight = True
+        bridge._teleop_inflight_sequence = 7
+        bridge._active_goal = "teleop"
+        bridge._teleop_step_done.clear()
+    try:
+        watchdog = {"command": "teleop_watchdog", "session_id": session_id,
+                    "ok": False, "state": {"event": "teleop_watchdog_hold"}}
+        assert bridge._route_teleop_response(watchdog)
+        assert bridge._teleop_state == "disabled"
+        assert bridge._active_goal is None
+        assert bridge._teleop_session is None
+        assert bridge._teleop_step_done.is_set()
+
+        late_error = {"command": "teleop_step", "session_id": session_id,
+                      "ok": False,
+                      "error": "teleop watchdog expired; measured pose held"}
+        assert bridge._route_teleop_response(late_error)
+        assert bridge._teleop_state == "disabled"
+        assert bridge._active_goal is None
+        assert bridge._teleop_session is None
+        assert not bridge._teleop_inflight
+        assert bridge._response_queue.empty()
+        assert "teleop_step" not in bridge._teleop_acknowledgements
+    finally:
+        bridge.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
 def test_action_preflight_success_collision_tolerance_and_cancel(monkeypatch, tmp_path):
     if not rclpy.ok():
         rclpy.init(args=["so101-offline-action-test"])

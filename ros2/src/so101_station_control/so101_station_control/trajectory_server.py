@@ -283,11 +283,25 @@ class TrajectoryBridge(Node):
     def _route_teleop_response(self, response):
         command = response.get("command")
         state = response.get("state")
-        event = state.get("event") if isinstance(state, dict) else None
+        session_id = response.get("session_id")
+        if command not in {"teleop_start", "teleop_step", "teleop_stop", "teleop_watchdog"}:
+            return False
+        with self._active_lock:
+            session_matches = bool(session_id) and session_id == self._teleop_session
+            current_state = self._teleop_state
+            inflight_matches = (self._teleop_inflight and
+                                (type(response.get("sequence")) is not int or
+                                 response.get("sequence") == self._teleop_inflight_sequence))
+
+        # Responses for an expired or superseded session are still owner replies, but
+        # they must not mutate the current teleop state or the action response queue.
+        if not session_matches:
+            return True
         if command == "teleop_watchdog":
             with self._active_lock:
-                if self._active_goal in {"teleop", "teleop_starting", "teleop_stopping"}:
-                    self._active_goal = None
+                if self._teleop_session != session_id:
+                    return True
+                self._active_goal = None
                 self._teleop_state = "disabled"
                 self._teleop_session = None
                 self._teleop_origin = None
@@ -299,59 +313,37 @@ class TrajectoryBridge(Node):
             self.get_logger().warning("Leader stream expired; ArmSession watchdog held measured pose")
             with self._teleop_condition:
                 self._teleop_acknowledgements["teleop_watchdog"] = response
-                if self._teleop_state == "disabled":
-                    self._teleop_acknowledgements["teleop_stop"] = {
-                        "ok": True, "state": state,
-                        "message": "ArmSession watchdog held measured pose"}
+                self._teleop_acknowledgements["teleop_stop"] = {
+                    "ok": True, "state": state,
+                    "message": "ArmSession watchdog held measured pose"}
                 self._teleop_condition.notify_all()
             return True
-        with self._active_lock:
-            teleop_context = self._teleop_state in {"starting", "active", "stopping"}
-            expected_step = (type(response.get("sequence")) is int and
-                             response.get("sequence") == self._teleop_inflight_sequence)
-        if command not in {"teleop_start", "teleop_step", "teleop_stop"}:
-            if event == "teleop_started" and self._teleop_state == "starting":
-                command = "teleop_start"
-            elif event == "teleop_step" and expected_step:
-                command = "teleop_step"
-            elif event == "trajectory_cancel_hold" and self._teleop_state == "stopping" and self._teleop_session:
-                command = "teleop_stop"
-            elif type(response.get("sequence")) is int and expected_step and teleop_context:
-                command = "teleop_step"
-            else:
-                return False
-        if command == "teleop_step" and type(response.get("sequence")) is int and not expected_step:
-            return False
-        if type(response.get("sequence")) is int:
-            sequence = response["sequence"]
+        if command == "teleop_step":
+            if not inflight_matches or current_state not in {"active", "stopping"}:
+                return True
             with self._active_lock:
-                if sequence == self._teleop_inflight_sequence:
-                    self._teleop_inflight = False
-                    self._teleop_inflight_sequence = None
-                    if not response.get("ok"):
-                        self._teleop_state = "stopping"
-                        self._active_goal = "teleop_stopping"
+                if not self._teleop_inflight or self._teleop_session != session_id:
+                    return True
+                self._teleop_inflight = False
+                self._teleop_inflight_sequence = None
+                if not response.get("ok") and self._teleop_state == "active":
+                    self._teleop_state = "stopping"
+                    self._active_goal = "teleop_stopping"
             self._teleop_step_done.set()
             if not response.get("ok"):
-                self.get_logger().error(f"ArmSession rejected teleop step {sequence}: {response.get('error', 'unknown error')}")
+                self.get_logger().error(
+                    f"ArmSession rejected teleop step: {response.get('error', 'unknown error')}")
             return True
-        elif command == "teleop_start" or event == "teleop_started":
+        if command == "teleop_start":
+            if current_state != "starting":
+                return True
             key = "teleop_start"
-        elif command == "teleop_stop" or event == "trajectory_cancel_hold":
+        else:
+            if current_state != "stopping":
+                return True
             key = "teleop_stop"
             if response.get("ok"):
                 self._clear_teleop()
-        else:
-            if command == "teleop_step":
-                with self._active_lock:
-                    self._teleop_inflight = False
-                    self._teleop_inflight_sequence = None
-                    self._teleop_state = "stopping"
-                    self._active_goal = "teleop_stopping"
-                self._teleop_step_done.set()
-                self.get_logger().error(f"ArmSession rejected teleop step: {response.get('error', 'unknown error')}")
-                return True
-            key = command
         with self._teleop_condition:
             self._teleop_acknowledgements[key] = response
             self._teleop_condition.notify_all()
@@ -443,6 +435,8 @@ class TrajectoryBridge(Node):
                 response.message = "follower torque state must be fresh and consistently verified on or off"
                 return response
             session_id = uuid.uuid4().hex
+            with self._active_lock:
+                self._teleop_session = session_id
             with self._teleop_condition:
                 self._teleop_acknowledgements.pop("teleop_start", None)
             command_sent = False
