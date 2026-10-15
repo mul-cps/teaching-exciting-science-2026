@@ -60,7 +60,7 @@ def main() -> int:
         print("NO PLAN: trajectory has no meaningful joint displacement", flush=True)
         os._exit(1)
 
-    trajectory_path = Path("/ws/ros2/.cache/plan-only-smoke.yaml")
+    trajectory_path = Path(os.environ.get("SO101_PLAN_OUTPUT", "ros2/.cache/plan-only-smoke.yaml")).expanduser().resolve()
     trajectory_path.parent.mkdir(parents=True, exist_ok=True)
     trajectory_path.write_text(message_to_yaml(trajectory_msg), encoding="utf-8")
     print(
