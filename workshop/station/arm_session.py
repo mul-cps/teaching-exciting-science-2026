@@ -124,6 +124,7 @@ class ArmSession:
         self.admitted_max = None
         self.calibration_digest = None
         self.profile = "unmodified"
+        self._active_profile = None
         self.last_command = self.clock()
         self.log_path = self.logdir / ("arm-session-" + uuid.uuid4().hex + ".jsonl")
         self._log_stream = None
@@ -448,7 +449,7 @@ class ArmSession:
                      torque_monotonic=torque_monotonic,
                      violations=violations,
                      profile=self.profile,
-                     profile_registers=(PROFILE if self.saved_ram is not None and self.profile != "unmodified" else None),
+                     profile_registers=(self._active_profile if self.saved_ram is not None and self.profile != "unmodified" else None),
                      phase=phase, label=label, feedback_timing=feedback_timing,
                      trajectory_goal_id=trajectory_goal_id,
                      trajectory_time=trajectory_time,
@@ -540,6 +541,7 @@ class ArmSession:
                 self._poll_busy_input()
                 if self._read(register) != wanted:
                     raise RuntimeError("native RAM profile readback mismatch: " + register)
+        self._active_profile = {register: dict(values) for register, values in profile.items()}
         self.profile = ("teleop-8-uncapped-velocity-torque-700-250" if teleop else
                         "native-8-160-220-torque-700-250")
 

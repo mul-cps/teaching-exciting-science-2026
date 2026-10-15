@@ -1344,7 +1344,8 @@ def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):
 def test_teleop_removes_servo_velocity_cap_and_home_restores_native_profile(tmp_path):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
-    session.handle({"command": "teleop_start", "session_id": "uncapped"})
+    started = session.handle({"command": "teleop_start", "session_id": "uncapped"})
+    assert started["state"]["profile_registers"]["Goal_Velocity"] == dict.fromkeys(JOINTS, 0)
     assert arm.bus.data["Goal_Velocity"] == dict.fromkeys(JOINTS, 0)
     assert arm.bus.data["Acceleration"] == dict.fromkeys(JOINTS, 8)
     assert arm.bus.data["Torque_Limit"] == PROFILE["Torque_Limit"]
