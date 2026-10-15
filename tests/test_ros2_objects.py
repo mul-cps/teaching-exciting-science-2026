@@ -14,6 +14,7 @@ from so101_station_objects.objects import (  # noqa: E402
     analyze_rgbd,
     cached_marker_should_clear,
     camera_points,
+    pregrasp_position,
     transform_points,
 )
 
@@ -70,6 +71,29 @@ def test_low_profile_brick_above_board_plane_is_retained():
     report = analyze_rgbd(rgb, depth, intrinsics, distortion, .001, camera_to_board)
     assert len(report["objects"]) == 1
     assert report["objects"][0]["dimensions_m"][2] == pytest.approx(.003, abs=.001)
+
+
+@pytest.mark.parametrize("tilt", [0.0, 0.12])
+def test_object_box_bottom_remains_on_measured_support_plane(tilt):
+    rgb, depth, intrinsics, distortion, camera_to_board = tabletop_scene()
+    depth[220:250, 305:335] = 780
+    c, s = np.cos(tilt), np.sin(tilt)
+    board_tilt = np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
+    camera_to_board[:3, :] = board_tilt @ camera_to_board[:3, :]
+    normal = board_tilt @ np.array([0.0, 0.0, 1.0])
+    plane = {"normal": normal, "d": 0.0}
+    report = analyze_rgbd(rgb, depth, intrinsics, distortion, .001,
+                          camera_to_board, support_plane=plane)
+    obj = report["objects"][0]
+    bottom = obj["position"] - normal * obj["dimensions_m"][2] / 2
+    assert float(bottom @ normal) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_pregrasp_is_60mm_from_contact_along_surface_normal():
+    contact = np.array([.05, .08, .004])
+    approach = np.array([0.0, 0.0, -1.0])
+    pregrasp = pregrasp_position(contact, approach)
+    np.testing.assert_allclose(pregrasp - contact, [0.0, 0.0, .06], atol=1e-12)
 
 
 def test_long_narrow_color_fragment_is_not_reported_as_brick():
