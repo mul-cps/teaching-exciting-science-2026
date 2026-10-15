@@ -1264,7 +1264,7 @@ class ArmSession:
             if not low <= value <= high:
                 overrun = value - high if value > high else low - value
                 if (not self._sag_recovery_available or joint == "gripper" or overrun > 16):
-                    raise ValueError("actual raw position outside firmware limits: " + joint)
+                    raise ValueError("actual raw position outside admitted configured limits: " + joint)
                 recovery_target[joint] = high if value > high else low
                 outside[joint] = True
         previous = dict(start)

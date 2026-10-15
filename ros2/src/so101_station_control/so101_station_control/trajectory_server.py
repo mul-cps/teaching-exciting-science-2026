@@ -31,14 +31,18 @@ from .leader_reader import JOINTS as TELEOP_JOINTS, matched_pose, validate_pose_
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 
 
-def _arm_session_command(station_python, config, state_file, log_dir, lock, idle_timeout_s):
+def _arm_session_command(station_python, config, state_file, log_dir, lock, idle_timeout_s,
+                         recover_sag=False):
     timeout = float(idle_timeout_s)
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("owner_idle_timeout_s must be finite and positive")
-    return [str(station_python), "-m", "workshop.station.arm_session",
+    command = [str(station_python), "-m", "workshop.station.arm_session",
             "--config", str(config), "--state-file", str(state_file),
             "--logdir", str(log_dir), "--lock", str(lock),
             "--persistent-idle", "--idle-timeout", str(timeout)]
+    if recover_sag:
+        command.append("--recover-sag")
+    return command
 
 
 def _owner_state_is_ready(state, *, arm_id, calibration_sha256, owner_started):
@@ -165,6 +169,7 @@ class TrajectoryBridge(Node):
         self.declare_parameter("trajectory_log_dir", "")
         self.declare_parameter("station_lock", "")
         self.declare_parameter("owner_idle_timeout_s", 300.0)
+        self.declare_parameter("recover_sag", False)
         self.declare_parameter("action_name", "/follower/arm_trajectory_controller/follow_joint_trajectory")
         self.declare_parameter("state_validity_service", "/follower/check_state_validity")
         self.declare_parameter("planning_group", "manipulator")
@@ -337,7 +342,8 @@ class TrajectoryBridge(Node):
         self._state_file.parent.mkdir(parents=True, exist_ok=True)
         command = _arm_session_command(
             station_python, config, self._state_file, logs, lock,
-            self.get_parameter("owner_idle_timeout_s").value)
+            self.get_parameter("owner_idle_timeout_s").value,
+            self.get_parameter("recover_sag").value)
         child_env = os.environ.copy()
         for key in tuple(child_env):
             if (key.startswith(("PYTHON", "LD_", "ROS_", "AMENT_", "COLCON_", "RMW_",

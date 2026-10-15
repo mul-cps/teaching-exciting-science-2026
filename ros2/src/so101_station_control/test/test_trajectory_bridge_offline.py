@@ -69,6 +69,11 @@ def test_ros_owner_uses_persistent_idle_and_five_minute_timeout():
                        "--logdir", "/run/arm-logs", "--lock", "/run/station.lock",
                        "--persistent-idle", "--idle-timeout", "300.0"]
 
+    recovered = _arm_session_command("/station/python", "/station/config.json",
+                                     "/run/arm-state.json", "/run/arm-logs",
+                                     "/run/station.lock", 300, recover_sag=True)
+    assert recovered == command + ["--recover-sag"]
+
 
 def test_owner_startup_accepts_fresh_first_sample_with_matching_identity():
     state = {"event": "sample", "monotonic": 12.1,

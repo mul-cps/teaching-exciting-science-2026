@@ -475,6 +475,34 @@ def test_sag_recovery_requires_explicit_flag_and_small_body_overrun(tmp_path):
     session.close_log()
 
 
+def test_home_sag_recovery_is_opt_in_and_stays_inside_admitted_limits(tmp_path):
+    reject_dir = tmp_path / "home-reject"
+    reject_dir.mkdir()
+    rejected, rejected_arm, _ = make_session(reject_dir)
+    rejected.initialize()
+    outside = dict(rejected_arm.bus.data["Present_Position"])
+    outside["elbow_flex"] = rejected.admitted_max["elbow_flex"] + 8
+    rejected_arm.bus.data["Present_Position"] = dict(outside)
+    with pytest.raises(ValueError, match="outside admitted configured limits"):
+        rejected.home()
+    rejected.shutdown()
+    rejected.close_log()
+
+    recover_dir = tmp_path / "home-recover"
+    recover_dir.mkdir()
+    recovered, recovered_arm, _ = make_session(recover_dir, recover_sag=True)
+    recovered.initialize()
+    outside = dict(recovered_arm.bus.data["Present_Position"])
+    outside["elbow_flex"] = recovered.admitted_max["elbow_flex"] + 8
+    recovered_arm.bus.data["Present_Position"] = dict(outside)
+    recovered.home()
+    assert recovered_arm.bus.goal_history[0]["elbow_flex"] == recovered.admitted_max["elbow_flex"]
+    assert recovered_arm.bus.goal_history[0]["elbow_flex"] < outside["elbow_flex"]
+    assert recovered_arm.bus.data["Present_Position"] == recovered.home_raw
+    recovered.shutdown()
+    recovered.close_log()
+
+
 def test_eof_disables_torque_and_restores_ram(tmp_path):
     session, arm, _ = make_session(tmp_path)
     session.initialize()
