@@ -79,6 +79,10 @@ class ArmSessionCancelled(RuntimeError):
     """Internal signal used to unwind motion into verified torque-off cleanup."""
 
 
+class ArmPlanPreflightError(ValueError):
+    """A move plan rejected before any profile, goal, or torque write."""
+
+
 class ArmSession:
     """One serialized owner of a connected follower bus.
 
@@ -711,29 +715,37 @@ class ArmSession:
 
     def move_plan(self, legs):
         self._require_initialized()
-        if not isinstance(legs, list) or not legs:
-            raise ValueError("move_plan requires a nonempty list of raw pose legs")
-        if len(legs) > 100:
-            raise ValueError("move_plan may contain at most 100 legs")
+        try:
+            if not isinstance(legs, list) or not legs:
+                raise ValueError("move_plan requires a nonempty list of raw pose legs")
+            if len(legs) > 100:
+                raise ValueError("move_plan may contain at most 100 legs")
+        except ValueError as error:
+            raise ArmPlanPreflightError(str(error)) from error
         # Parse and validate the complete plan against the current raw state
         # before any profile write or torque enable.
         start = self._read("Present_Position")
-        prepared = []
-        previous = start
-        for index, leg in enumerate(legs):
-            if not isinstance(leg, dict) or set(leg) - {"label", "target_raw", "grasp"}:
-                raise ValueError("each leg accepts only label, target_raw, and optional grasp")
-            label = leg.get("label")
-            if not isinstance(label, str) or not label.strip():
-                raise ValueError("each leg requires a nonempty label")
-            grasp = leg.get("grasp", False)
-            if type(grasp) is not bool:
-                raise ValueError("grasp must be a boolean")
-            target = self._validate_target(leg.get("target_raw"), label)
-            self._validate_transition(previous, target, label,
-                                      allow_sag=self._sag_recovery_available and index == 0)
-            prepared.append((label, target, grasp))
-            previous = target
+        try:
+            prepared = []
+            previous = start
+            for index, leg in enumerate(legs):
+                if not isinstance(leg, dict) or set(leg) - {"label", "target_raw", "grasp"}:
+                    raise ValueError("each leg accepts only label, target_raw, and optional grasp")
+                label = leg.get("label")
+                if not isinstance(label, str) or not label.strip():
+                    raise ValueError("each leg requires a nonempty label")
+                grasp = leg.get("grasp", False)
+                if type(grasp) is not bool:
+                    raise ValueError("grasp must be a boolean")
+                target = self._validate_target(leg.get("target_raw"), label)
+                self._validate_transition(previous, target, label,
+                                          allow_sag=self._sag_recovery_available and index == 0)
+                prepared.append((label, target, grasp))
+                previous = target
+        except ValueError as error:
+            if isinstance(error, ArmPlanPreflightError):
+                raise
+            raise ArmPlanPreflightError(str(error)) from error
         deadline = self.clock() + len(prepared) * LEG_DEADLINE_S + len(prepared) * DWELL_S + 1.0
         self._event("plan_start", legs=len(prepared))
         actual = start
@@ -960,9 +972,18 @@ class ArmSession:
                         self._cancel_requested = False
                         self._cancel_reason = None
                         self._exit_requested = False
+                    previous_last_command = self.last_command
                     self.last_command = self.clock()
                     try:
                         result = self.handle(command)
+                    except ArmPlanPreflightError as error:
+                        # A plan rejected before motion is not a control fault.
+                        # Preserve the idle deadline because the command was
+                        # not admitted and leave the resident pose/profile held.
+                        self.last_command = previous_last_command
+                        emit({"ok": False, "error": str(error),
+                              "error_type": type(error).__name__, "command": name})
+                        continue
                     except ArmSessionCancelled as error:
                         reason = self._cancel_reason or str(error)
                         self._motion_busy = False
