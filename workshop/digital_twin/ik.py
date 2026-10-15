@@ -56,7 +56,7 @@ class SO101IK:
     Dependencies load only when constructing a backend. Use as a context manager.
     """
 
-    def __init__(self, calibration, offset_provider, urdf_path=None, backend_factory=None):
+    def __init__(self, calibration, offset_provider, urdf_path=None, backend_factory=None, joint_limits_deg=None):
         if isinstance(calibration, (str, Path)):
             calibration_bytes = Path(calibration).read_bytes()
             calibration = json.loads(calibration_bytes)
@@ -78,13 +78,30 @@ class SO101IK:
         self.urdf_path = Path(urdf_path or ASSETS / "so101_new_calib.urdf").resolve()
         self.official_urdf_sha256 = hashlib.sha256(self.urdf_path.read_bytes()).hexdigest()
         self._source = ET.parse(self.urdf_path)
+        if joint_limits_deg is None:
+            self.admitted_joint_limits_deg = None
+        else:
+            if not hasattr(joint_limits_deg, "keys") or set(joint_limits_deg) != set(ARM_JOINTS):
+                raise ValueError("Declared joint limits must specify every arm joint")
+            self.admitted_joint_limits_deg = {}
+            for name in ARM_JOINTS:
+                bounds = np.asarray(joint_limits_deg[name], dtype=float)
+                if bounds.shape != (2,) or not np.isfinite(bounds).all() or bounds[0] >= bounds[1]:
+                    raise ValueError(f"Invalid declared joint limits for {name}")
+                self.admitted_joint_limits_deg[name] = (float(bounds[0]), float(bounds[1]))
         self.limits = []
         for name in ARM_JOINTS:
             limit = self._source.getroot().find(f"joint[@name='{name}']/limit")
             urdf_lo, urdf_hi = np.rad2deg([float(limit.get("lower")), float(limit.get("upper"))])
             lo, hi = self.calibration[name]
             span = (hi - lo) * 180 / 4095
-            self.limits.append((max(-span, urdf_lo), min(span, urdf_hi)))
+            lo, hi = max(-span, urdf_lo), min(span, urdf_hi)
+            if self.admitted_joint_limits_deg is not None:
+                admitted_lo, admitted_hi = self.admitted_joint_limits_deg[name]
+                lo, hi = max(lo, admitted_lo), min(hi, admitted_hi)
+            if lo >= hi:
+                raise ValueError(f"Declared joint limits do not overlap URDF/calibration limits for {name}")
+            self.limits.append((lo, hi))
         self.limits = np.asarray(self.limits)
         self._factory = backend_factory
         self._backend = None
@@ -110,7 +127,7 @@ class SO101IK:
                 raise ValueError(f"Raw {name} outside calibrated range")
             vals.append((value - (lo + hi) / 2) * 360 / 4095)
         if np.any(np.asarray(vals[:5]) < self.limits[:, 0] - 1e-8) or np.any(np.asarray(vals[:5]) > self.limits[:, 1] + 1e-8):
-            raise ValueError("Raw pose violates URDF joint limits")
+            raise ValueError("Raw pose violates admitted joint limits")
         lo, hi = self.calibration["gripper"]
         return np.asarray(vals[:5]), 100 * (raw["gripper"] - lo) / (hi - lo)
 
@@ -191,6 +208,8 @@ class SO101IK:
             "calibration_sha256": self.calibration_sha256,
             "calibration_sha_source": self.calibration_sha_source,
             "official_urdf_sha256": self.official_urdf_sha256,
+            "declared_admitted_joint_limits_deg": self.admitted_joint_limits_deg,
+            "effective_joint_limits_deg": {name: [float(lo), float(hi)] for name, (lo, hi) in zip(ARM_JOINTS, self.limits)},
             "gripper_angle_mapping": "approximate-native-minus10-plus1.1percent",
             "frame": "urdf-base",
             "numerical_ik_only": True,

@@ -103,6 +103,78 @@ def test_constructor_validation():
         SO101IK(bad, offset)
 
 
+def test_declared_station_limits_preserve_calibrated_zero_and_bound_fk_seed_and_solve():
+    declared = {name: [-90, 90] for name in ARM_JOINTS}
+    ik = SO101IK(CAL, offset, joint_limits_deg=declared)
+    try:
+        q, opening = ik._raw_degrees(RAW)
+        expected_q = np.asarray([
+            (RAW[name] - sum(CAL[name][key] for key in ("range_min", "range_max")) / 2) * 360 / 4095
+            for name in ARM_JOINTS
+        ])
+        np.testing.assert_allclose(q, expected_q, atol=1e-12)
+        assert opening == pytest.approx(100 * (RAW["gripper"] - CAL["gripper"]["range_min"]) / (CAL["gripper"]["range_max"] - CAL["gripper"]["range_min"]))
+        assert np.all(ik.limits[:, 0] >= -90)
+        assert np.all(ik.limits[:, 1] <= 90)
+        with pytest.raises(ValueError, match="admitted joint limits"):
+            ik.forward_raw(dict(RAW, wrist_flex=RAW["wrist_flex"] + 1100))
+        provenance = ik.forward_provenance(RAW)
+        assert provenance["declared_admitted_joint_limits_deg"]["wrist_flex"] == (-90., 90.)
+        assert provenance["effective_joint_limits_deg"]["wrist_flex"] == pytest.approx(ik.limits[3].tolist())
+
+        class Solver:
+            def mask_dof(self, *_):
+                pass
+
+            def enable_joint_limits(self, *_):
+                pass
+
+        class Robot:
+            def set_joint_limits(self, *_):
+                pass
+
+            def set_joint(self, *_):
+                pass
+
+            def update_kinematics(self):
+                pass
+
+        class Backend:
+            solver = Solver()
+            robot = Robot()
+
+            def inverse_kinematics(self, *_args, **_kwargs):
+                return np.full(5, 200.)
+
+            def forward_kinematics(self, _q):
+                return np.eye(4)
+
+        ik._factory = lambda *_args, **_kwargs: Backend()
+        result = ik.solve_pinch(np.eye(4), RAW)
+        assert result.success, result
+        solved_degrees, _ = ik._raw_degrees(result.raw)
+        assert np.all(solved_degrees <= ik.limits[:, 1] + 1e-8)
+        assert np.all(solved_degrees >= ik.limits[:, 0] - 1e-8)
+    finally:
+        ik.close()
+
+
+def test_declared_limits_require_all_joints_and_nonempty_intersection():
+    with pytest.raises(ValueError, match="every arm joint"):
+        SO101IK(CAL, offset, joint_limits_deg={"wrist_flex": [-90, 90]})
+
+    calls = []
+    def factory(*_args, **_kwargs):
+        calls.append(True)
+        raise AssertionError("backend must not be created")
+
+    disjoint = {name: [-90, 90] for name in ARM_JOINTS}
+    disjoint["wrist_flex"] = [200, 220]
+    with pytest.raises(ValueError, match="do not overlap"):
+        SO101IK(CAL, offset, joint_limits_deg=disjoint, backend_factory=factory)
+    assert calls == []
+
+
 def test_reachable_orientation_and_masked_gripper(ik):
     target = ik.forward_raw(RAW)
     seed = dict(RAW, shoulder_pan=RAW["shoulder_pan"] + 40)
