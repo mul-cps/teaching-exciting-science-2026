@@ -14,7 +14,9 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from trajectory_msgs.msg import JointTrajectoryPoint
 
-from so101_station_control.trajectory_server import ARM_JOINTS, TrajectoryBridge
+from so101_station_control.trajectory_server import (ARM_JOINTS, TrajectoryBridge,
+                                                      _arm_session_command,
+                                                      _owner_state_is_ready)
 
 
 class _FakeProcess:
@@ -47,6 +49,31 @@ def _goal(*, nondefault_path_tolerance=False):
         tolerance.position = 0.01
         goal.path_tolerance.append(tolerance)
     return goal
+
+
+def test_ros_owner_uses_persistent_idle_and_five_minute_timeout():
+    command = _arm_session_command("/station/python", "/station/config.json",
+                                   "/run/arm-state.json", "/run/arm-logs",
+                                   "/run/station.lock", 300)
+    assert command == ["/station/python", "-m", "workshop.station.arm_session",
+                       "--config", "/station/config.json",
+                       "--state-file", "/run/arm-state.json",
+                       "--logdir", "/run/arm-logs", "--lock", "/run/station.lock",
+                       "--persistent-idle", "--idle-timeout", "300.0"]
+
+
+def test_owner_startup_accepts_fresh_first_sample_with_matching_identity():
+    state = {"event": "sample", "monotonic": 12.1,
+             "arm_id": "station-arm", "calibration_sha256": "a" * 64,
+             "torque": {"joint": 0}}
+    assert _owner_state_is_ready(state, arm_id="station-arm",
+                                 calibration_sha256="a" * 64, owner_started=12.0)
+    assert not _owner_state_is_ready(state, arm_id="wrong-arm",
+                                     calibration_sha256="a" * 64, owner_started=12.0)
+    assert not _owner_state_is_ready({**state, "monotonic": 11.9}, arm_id="station-arm",
+                                     calibration_sha256="a" * 64, owner_started=12.0)
+    assert not _owner_state_is_ready({**state, "torque": {"joint": 1}}, arm_id="station-arm",
+                                     calibration_sha256="a" * 64, owner_started=12.0)
 
 
 def test_action_preflight_success_collision_tolerance_and_cancel(monkeypatch, tmp_path):

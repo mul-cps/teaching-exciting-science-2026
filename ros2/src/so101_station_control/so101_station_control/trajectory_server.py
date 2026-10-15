@@ -27,6 +27,31 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 
 
+def _arm_session_command(station_python, config, state_file, log_dir, lock, idle_timeout_s):
+    timeout = float(idle_timeout_s)
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("owner_idle_timeout_s must be finite and positive")
+    return [str(station_python), "-m", "workshop.station.arm_session",
+            "--config", str(config), "--state-file", str(state_file),
+            "--logdir", str(log_dir), "--lock", str(lock),
+            "--persistent-idle", "--idle-timeout", str(timeout)]
+
+
+def _owner_state_is_ready(state, *, arm_id, calibration_sha256, owner_started):
+    if not isinstance(state, dict) or state.get("event") not in {"connected", "sample"}:
+        return False
+    try:
+        monotonic = float(state["monotonic"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    torque = state.get("torque")
+    return (math.isfinite(monotonic) and monotonic >= owner_started and
+            state.get("arm_id") == arm_id and
+            state.get("calibration_sha256") == calibration_sha256 and
+            isinstance(torque, dict) and torque and
+            all(value == 0 for value in torque.values()))
+
+
 class _PreflightCancelled(RuntimeError):
     pass
 
@@ -60,6 +85,7 @@ class TrajectoryBridge(Node):
         self.declare_parameter("log_dir", "")
         self.declare_parameter("trajectory_log_dir", "")
         self.declare_parameter("station_lock", "")
+        self.declare_parameter("owner_idle_timeout_s", 300.0)
         self.declare_parameter("action_name", "/follower/arm_trajectory_controller/follow_joint_trajectory")
         self.declare_parameter("state_validity_service", "/follower/check_state_validity")
         self.declare_parameter("planning_group", "manipulator")
@@ -160,6 +186,18 @@ class TrajectoryBridge(Node):
             raise RuntimeError("station_python must name the station venv Python executable")
         if not station_root.is_dir() or not config:
             raise RuntimeError("station_root and station_config are required")
+        config_path = Path(config)
+        if not config_path.is_absolute():
+            config_path = station_root / config_path
+        try:
+            config_data = json.loads(config_path.read_text())
+            expected_arm_id = str(config_data["arm"]["id"])
+            expected_calibration_sha256 = str(config_data["arm"]["calibration"]["sha256"])
+        except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+            raise RuntimeError("station_config must provide arm id and calibration SHA256") from error
+        if (not expected_arm_id or len(expected_calibration_sha256) != 64 or
+                any(character not in "0123456789abcdef" for character in expected_calibration_sha256)):
+            raise RuntimeError("station_config has invalid arm identity or calibration SHA256")
         logs = str(self.get_parameter("log_dir").value)
         if not logs:
             runtime = os.environ.get("XDG_RUNTIME_DIR") or "/dev/shm"
@@ -171,9 +209,9 @@ class TrajectoryBridge(Node):
         if not self._is_runtime_path(self._state_file) or not self._is_runtime_path(logs):
             raise RuntimeError("ArmSession state_file and log_dir must be RAM-backed under XDG_RUNTIME_DIR or /dev/shm")
         self._state_file.parent.mkdir(parents=True, exist_ok=True)
-        command = [station_python, "-m", "workshop.station.arm_session",
-                   "--config", config, "--state-file", str(self._state_file),
-                   "--logdir", logs, "--lock", lock]
+        command = _arm_session_command(
+            station_python, config, self._state_file, logs, lock,
+            self.get_parameter("owner_idle_timeout_s").value)
         child_env = os.environ.copy()
         for key in tuple(child_env):
             if (key.startswith(("PYTHON", "LD_", "ROS_", "AMENT_", "COLCON_", "RMW_",
@@ -193,8 +231,9 @@ class TrajectoryBridge(Node):
             if self._process.poll() is not None:
                 raise RuntimeError(f"ArmSession exited during startup ({self._process.returncode})")
             state = self._read_state()
-            if (state and state.get("event") == "connected" and
-                    float(state.get("monotonic", 0.0)) >= self._owner_started):
+            if _owner_state_is_ready(state, arm_id=expected_arm_id,
+                                     calibration_sha256=expected_calibration_sha256,
+                                     owner_started=self._owner_started):
                 self.get_logger().info("ArmSession connected; action server is ready")
                 return
             time.sleep(0.05)
