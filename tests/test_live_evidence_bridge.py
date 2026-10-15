@@ -85,7 +85,9 @@ def test_live_camera_pair_requires_qualified_camera_arm_sample(tmp_path):
     record = {
         'index': 12, 'monotonic': 199.8,
         'utc': datetime.fromtimestamp(capture_wall, timezone.utc).isoformat(),
-        'paths': {'latest_color': image.name, 'latest_depth': depth.name},
+        'paths': {'latest_color': image.name, 'latest_depth': depth.name,
+                  'snapshot_color': 'frames/000012.png',
+                  'snapshot_depth': 'frames/000012.npy'},
         'arm': {'monotonic': 199.7, 'delta_s': .1, 'qualified_sync': True,
                 'raw': {'shoulder_pan': 2000}},
     }
@@ -98,6 +100,9 @@ def test_live_camera_pair_requires_qualified_camera_arm_sample(tmp_path):
     assert pair['pose_qualified_sync'] is True
     assert pair['pose_raw'] == {'shoulder_pan': 2000}
     assert pair['pose_sample_delta_seconds'] == pytest.approx(.1)
+    assert pair['frame_index'] == pair['camera_frame_index'] == 12
+    assert pair['immutable_image'] == tmp_path / 'frames/000012.png'
+    assert pair['immutable_depth'] == tmp_path / 'frames/000012.npy'
 
     record['arm']['qualified_sync'] = False
     latest.write_text(json.dumps(record))
