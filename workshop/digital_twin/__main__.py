@@ -33,6 +33,8 @@ def main(argv=None):
                         help='Saved RGB-D keyframe folder to display and poll; never access camera')
     parser.add_argument('--rgbd-live-folder', type=Path,
                         help='Saved latest RGB-D plus qualified latest.json metadata; reject stale/unpaired samples and poll files only')
+    parser.add_argument('--fiducial-calibration', type=Path,
+                        help='Optional saved 25h9 wrist-tag fit JSON; draws an unqualified comparison from paired RGB-D only')
     parser.add_argument('--register-icp',action='store_true',help='Iterate measured follower points to official CAD with --base-yaw hard prior')
     parser.add_argument('--base-yaw',type=float,help='User visual mount-yaw prior in degrees; not measured registration')
     parser.add_argument('--model-convention',choices=('new','old'),default='new',help='Official native calibration hypothesis; does not change hardware calibration')
@@ -94,6 +96,11 @@ def main(argv=None):
                                   write_pointcloud_provenance)
     registration = load_camera_arm_registration(args.camera_arm_calibration,
                                                 args.camera_target_calibration)
+    fiducial_calibration = None
+    if args.fiducial_calibration is not None:
+        from .fiducial import validate_fiducial_calibration
+        fiducial_calibration = validate_fiducial_calibration(
+            json.loads(args.fiducial_calibration.read_text()))
     report = prepare(args.snapshot, args.calibration, args.output, latest=not args.original_snapshot,
         home_path=args.home, image_override=args.image, depth_override=args.depth,
         pose_series=not args.no_pose_series, convention=args.model_convention,
@@ -122,6 +129,12 @@ def main(argv=None):
     report['world_from_camera'] = registration['world_from_camera']
     report['world_from_scene'] = world_from_scene.tolist()
     report['camera_arm_registration'] = registration
+    report['fiducial_overlay'] = ({'enabled': True, 'source_status': 'SOURCE UNQUALIFIED',
+        'source': str(args.fiducial_calibration), 'dictionary': 'DICT_APRILTAG_25h9',
+        'tag_id': 0, 'tag_size_m': .0194,
+        'association': 'initial wrist ROI x=330..440,y=200..290, then nearest track within 40 px; ambiguous candidates rejected',
+        'prediction_source': 'qualified paired actual raw pose; never virtual slider or commanded goal'}
+        if fiducial_calibration is not None else {'enabled': False})
     report['watch_latest_saved_camera'] = watch_latest_saved_camera
     report['frame_convention'] = 'ChArUco board origin; target y/z flipped so world +Z is up; scene points re-expressed from table-fit frame'
     report['arm']['provisional_world_from_base'] = registration['world_from_base']
@@ -161,7 +174,8 @@ def main(argv=None):
         return 0
     server = serve(args.output, args.port, args.host, phase_file=args.phase_file,
                    calibration_path=args.calibration,
-                   watch_latest_saved_camera=camera_watch_path)
+                   watch_latest_saved_camera=camera_watch_path,
+                   fiducial_calibration=fiducial_calibration)
     try:
         while True: time.sleep(1)
     except KeyboardInterrupt:
