@@ -25,7 +25,8 @@ Actions:
 Options:
   --gpu      Pass /dev/dri and preserve host supplementary groups
   --hardware --device PATH --station-lock PATH
-             Explicitly pass one serial device while holding an exclusive lock
+             Explicitly pass one serial device while holding the canonical
+             station lock for the entire container process lifetime
   -h, --help Show this help
 
 Hardware is disabled by default. The caller must arrange the station lock used
@@ -63,6 +64,13 @@ fi
 if ((!HARDWARE)) && [[ -n "$DEVICE" || -n "$STATION_LOCK" ]]; then
   fail "--device and --station-lock require --hardware"
 fi
+if ((HARDWARE)); then
+  STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+  [[ "$STATE_HOME" == /* ]] || fail "XDG_STATE_HOME must be an absolute path"
+  CANONICAL_STATION_LOCK="$STATE_HOME/exciting-science/station.lock"
+  [[ "$STATION_LOCK" == "$CANONICAL_STATION_LOCK" ]] || \
+    fail "hardware mode must use canonical station lock: $CANONICAL_STATION_LOCK"
+fi
 case "$ACTION" in
   plan|shell|run|build) ;;
   help) usage; exit 0 ;;
@@ -99,7 +107,6 @@ fi
 if ((HARDWARE)); then
   [[ -e "$DEVICE" ]] || fail "device does not exist: $DEVICE"
   [[ -c "$DEVICE" ]] || fail "device is not a character device: $DEVICE"
-  [[ -e "$STATION_LOCK" ]] || fail "station lock does not exist: $STATION_LOCK"
   podman_args+=(--device "$DEVICE:$DEVICE")
 fi
 podman_args+=(--workdir /ws "$IMAGE")
@@ -119,15 +126,15 @@ case "$ACTION" in
     ;;
   shell)
     if ((HARDWARE)); then
-      exec {lock_fd}>"$STATION_LOCK" || fail "cannot open station lock: $STATION_LOCK"
-      flock -n "$lock_fd" || fail "station lock is held: $STATION_LOCK"
+      mkdir -p "$(dirname -- "$CANONICAL_STATION_LOCK")"
+      exec flock -n "$CANONICAL_STATION_LOCK" podman "${podman_args[@]}"
     fi
     exec podman "${podman_args[@]}"
     ;;
   run)
     if ((HARDWARE)); then
-      exec {lock_fd}>"$STATION_LOCK" || fail "cannot open station lock: $STATION_LOCK"
-      flock -n "$lock_fd" || fail "station lock is held: $STATION_LOCK"
+      mkdir -p "$(dirname -- "$CANONICAL_STATION_LOCK")"
+      exec flock -n "$CANONICAL_STATION_LOCK" podman "${podman_args[@]}"
     fi
     exec podman "${podman_args[@]}"
     ;;

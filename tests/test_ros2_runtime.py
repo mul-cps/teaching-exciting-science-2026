@@ -1,5 +1,6 @@
 import os
 import subprocess
+import time
 from pathlib import Path
 
 
@@ -7,13 +8,13 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "ros2/scripts/runtime.sh"
 
 
-def run_runtime(*args: str) -> subprocess.CompletedProcess[str]:
+def run_runtime(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(RUNTIME), *args],
         cwd=ROOT,
         text=True,
         capture_output=True,
-        env={**os.environ, "ROS2_IMAGE": "localhost/so101-ros2:test"},
+        env={**os.environ, "ROS2_IMAGE": "localhost/so101-ros2:test", **(env or {})},
         check=False,
     )
 
@@ -52,6 +53,80 @@ def test_hardware_requires_explicit_device_and_station_lock():
 
     assert result.returncode != 0
     assert "requires --device and --station-lock" in result.stderr
+
+
+def test_hardware_rejects_noncanonical_station_lock(tmp_path: Path):
+    state_home = tmp_path / "state"
+    foreign_lock = tmp_path / "foreign.lock"
+    foreign_lock.touch()
+
+    result = run_runtime(
+        "plan",
+        "--hardware",
+        "--device",
+        "/dev/null",
+        "--station-lock",
+        str(foreign_lock),
+        env={"XDG_STATE_HOME": str(state_home)},
+    )
+
+    assert result.returncode != 0
+    assert "must use canonical station lock" in result.stderr
+
+
+def test_hardware_holds_canonical_lock_for_full_podman_lifecycle(tmp_path: Path):
+    state_home = tmp_path / "state"
+    canonical_lock = state_home / "exciting-science/station.lock"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    marker = tmp_path / "podman-started"
+    release = tmp_path / "release-podman"
+    fake_podman = fake_bin / "podman"
+    fake_podman.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "if flock -n \"$TEST_STATION_LOCK\" -c true; then\n"
+        "  echo 'lock was not held inside podman' >&2; exit 81\n"
+        "fi\n"
+        "touch \"$TEST_PODMAN_MARKER\"\n"
+        "while [[ ! -e \"$TEST_PODMAN_RELEASE\" ]]; do sleep 0.02; done\n"
+    )
+    fake_podman.chmod(0o755)
+    env = {
+        **os.environ,
+        "ROS2_IMAGE": "localhost/so101-ros2:test",
+        "XDG_STATE_HOME": str(state_home),
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "TEST_STATION_LOCK": str(canonical_lock),
+        "TEST_PODMAN_MARKER": str(marker),
+        "TEST_PODMAN_RELEASE": str(release),
+    }
+    process = subprocess.Popen(
+        [
+            str(RUNTIME), "run", "--hardware", "--device", "/dev/null",
+            "--station-lock", str(canonical_lock), "--", "true",
+        ],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while not marker.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert marker.exists(), "fake Podman did not start while runtime was running"
+        assert process.poll() is None, "runtime exited before fake Podman lifecycle ended"
+        contender = subprocess.run(
+            ["flock", "-n", str(canonical_lock), "-c", "true"],
+            check=False,
+        )
+        assert contender.returncode != 0, "station lock was released while Podman was running"
+    finally:
+        release.touch()
+        stdout, stderr = process.communicate(timeout=5)
+    assert process.returncode == 0, f"stdout={stdout}\nstderr={stderr}"
 
 
 def test_stateful_build_directories_live_in_user_cache():
