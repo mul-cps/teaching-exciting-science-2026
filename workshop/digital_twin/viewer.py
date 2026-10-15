@@ -18,6 +18,9 @@ from .evidence_bridge import (apply_world_registration, camera_sample_status,
                               raw_pose_to_joint_degrees, select_latest_keyframe_pair_tail,
                               select_latest_rgbd_pair,
                               transform_points)
+from .registration_diagnostics import (arm_roi_cloud, detect_charuco_depth,
+                                       diagnostic_pair_is_fresh,
+                                       diagnostic_source_is_fresh)
 
 LIVE_SURFACE_REFRESH_INTERVAL_S = .2
 DEPTH_VIEW_NEAR_M = .3
@@ -153,8 +156,10 @@ def _rgbd_frame(image_path, depth_path, report, world_from_scene, max_surface_fa
                                       faces=compact_faces.reshape(-1, 3), process=False)
     measured_surface.visual.vertex_colors = np.column_stack((vertex_colors[used_vertices],
                                                               np.full(len(used_vertices), 255, dtype=np.uint8)))
+    arm_points, arm_colors = arm_roi_cloud(world, rgb, valid)
     return ({'points': world[sampled].astype(np.float32), 'colors': rgb[sampled],
-             'focused_points': world[focused].astype(np.float32), 'focused_colors': rgb[focused]},
+             'focused_points': world[focused].astype(np.float32), 'focused_colors': rgb[focused],
+             'arm_roi_points': arm_points, 'arm_roi_colors': arm_colors},
             {'mesh': measured_surface, 'vertices_scene': vertices_scene, 'faces': faces,
              'colors': vertex_colors, 'used_vertices': used_vertices, 'rgb': rgb,
              'depth': depth,
@@ -312,8 +317,9 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                      'visualization_mode': 'RGB', 'mean_luminance': None,
                      'visualization_note': None}
     initial_frame = None
+    initial_cloud = None
     try:
-        _, initial_frame = _rgbd_frame(report['image'], report['depth'], report,
+        initial_cloud, initial_frame = _rgbd_frame(report['image'], report['depth'], report,
                                        world_from_scene, max_surface_faces=face_capacity)
         if surface_geom_id >= 0:
             _update_compiled_surface(model, surface_geom_id, initial_frame)
@@ -377,10 +383,20 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         cloud_data = {key: cloud_data[key] for key in cloud_data.files}
         for key in ('points', 'focused_points'):
             cloud_data[key] = transform_points(cloud_data[key], world_from_scene).astype(np.float32)
+        cloud_data['arm_roi_points'] = (initial_cloud['arm_roi_points'] if initial_cloud is not None
+                                        else np.empty((0, 3), dtype=np.float32))
+        cloud_data['arm_roi_colors'] = (initial_cloud['arm_roi_colors'] if initial_cloud is not None
+                                        else np.empty((0, 3), dtype=np.uint8))
     else:
         cloud_data, _ = _rgbd_frame(report['image'], report['depth'], report, world_from_scene,
                                     max_surface_faces=face_capacity)
     clouds = {}
+    diagnostics_state = {'status': 'waiting for fresh RGB-D pair', 'source_pair': None,
+                         'residuals': None, 'last_detection': 0.0, 'fresh': False,
+                         'board_fresh': False,
+                         'raw_rgb': None, 'raw_depth': None, 'raw_pair': None,
+                         'raw_pair_status': None}
+    diagnostic_handles = {}
     def replace_clouds(values, show_focus=False, show_context=False):
         for name in ('focused', 'context'):
             if name in clouds:
@@ -389,6 +405,12 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                     values['focused_colors'], point_size=.003, point_shape='circle', precision='float32', visible=show_focus)
         clouds['context'] = server.scene.add_point_cloud('/measured/rgbd_context', values['points'],
                     values['colors'], point_size=.003, point_shape='circle', precision='float32', visible=show_context)
+        if 'arm_roi' in clouds:
+            clouds['arm_roi'].remove()
+        clouds['arm_roi'] = server.scene.add_point_cloud('/diagnostics/observed_arm_depth',
+            values.get('arm_roi_points', np.empty((0, 3), dtype=np.float32)),
+            values.get('arm_roi_colors', np.empty((0, 3), dtype=np.uint8)),
+            point_size=.004, point_shape='circle', precision='float32', visible=False)
     replace_clouds(cloud_data)
     camera_transform = np.array(report['world_from_camera'])
     q = np.zeros(4); mujoco.mju_mat2Quat(q, camera_transform[:3, :3].reshape(-1))
@@ -454,6 +476,7 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         server.gui.add_markdown(calibration_note)
         phase_status_handle = server.gui.add_text('Actual pose evidence', initial_value='', disabled=True)
         sample_status_handle = server.gui.add_text('Camera sample / point cloud', initial_value='', disabled=True)
+        diagnostic_status_handle = server.gui.add_text('Registration diagnostics', initial_value='waiting', disabled=True)
         view_mode_handle = server.gui.add_text('Surface texture mode',
             initial_value=surface_state['visualization_note'] or 'RGB photograph', disabled=True)
         if 'user_visual_alignment' in report['arm']: server.gui.add_markdown(f"**User-aligned base yaw {report['arm']['orientation_estimate_deg']:.1f}°. Visual registration remains unqualified.**")
@@ -476,6 +499,7 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         surface_toggle.on_update(lambda event: setattr(observed_mesh, 'visible', event.target.value)
                                  if observed_mesh is not None else None)
         points_toggle = server.gui.add_checkbox('Measured RGB-D points', False)
+        diagnostic_toggle = server.gui.add_checkbox('Unqualified board / arm depth diagnostics', False)
         model_toggle = server.gui.add_checkbox('Official SO101 CAD model', True)
         context_toggle = server.gui.add_checkbox('Full room context (chair / walls)', False)
         frustum_toggle = server.gui.add_checkbox('Small camera frustum', False)
@@ -483,6 +507,13 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
             clouds['focused'].visible = points_toggle.value and not context_toggle.value
             clouds['context'].visible = points_toggle.value and context_toggle.value
         points_toggle.on_update(show_cloud); context_toggle.on_update(show_cloud)
+        def show_diagnostics(event):
+            arm_cloud = clouds.get('arm_roi')
+            if arm_cloud is not None:
+                arm_cloud.visible = bool(event.target.value and diagnostics_state.get('fresh', False))
+            for handle in diagnostic_handles.values():
+                handle.visible = bool(event.target.value and diagnostics_state.get('board_fresh', False))
+        diagnostic_toggle.on_update(show_diagnostics)
         frustum_toggle.on_update(lambda event: setattr(frustum, 'visible', event.target.value))
         def show_model(event):
             for _, handle in handles: handle.visible = event.target.value
@@ -593,6 +624,17 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                    'camera_keyframe': report.get('camera_keyframe'),
                    'camera_sample_pose_raw': report.get('camera_sample_pose_raw'),
                    'camera_timestamp_source': report.get('camera_sample_timestamp_source'),
+                   'registration_diagnostics': {
+                       'status': diagnostics_state['status'],
+                       'source_pair': diagnostics_state['source_pair'],
+                       'residuals': diagnostics_state['residuals'],
+                       'current_pair_fresh': bool(diagnostics_state['fresh']),
+                       'source_pair_fresh': bool(diagnostics_state['board_fresh']),
+                       'board_geometry': {'dictionary': 'DICT_6X6_250', 'squares': [7, 5],
+                           'square_length_m': .025, 'marker_length_m': .018,
+                           'max_corners': 24},
+                       'qualified': False,
+                       'table_plane_fit_p95_mm': float(report['table_fit']['residual_p95_m'] * 1000)},
                    'fiducial_overlay': {'status': fiducial_state['status'],
                        'residual': fiducial_state['residual'],
                        'nominal_pnp_residual': fiducial_state['nominal_pnp_residual'],
@@ -603,6 +645,87 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         temporary = output / 'live-status.json.tmp'
         temporary.write_text(json.dumps(payload, indent=2) + '\n')
         os.replace(temporary, output / 'live-status.json')
+
+    def update_registration_diagnostics(pair, raw_rgb, raw_depth, pair_status):
+        """Refresh the optional bounded board/arm layers from a fresh saved pair only."""
+        now = time.monotonic()
+        fresh = diagnostic_pair_is_fresh(pair, pair_status)
+        diagnostics_state['fresh'] = fresh
+        if not fresh:
+            diagnostics_state.update(status='STALE / UNPAIRED · diagnostics hidden',
+                                     source_pair=None, residuals=None, board_fresh=False)
+            diagnostic_status_handle.value = diagnostics_state['status']
+            if 'arm_roi' in clouds: clouds['arm_roi'].visible = False
+            for handle in diagnostic_handles.values(): handle.visible = False
+            return
+        if raw_rgb is not None and raw_depth is not None:
+            diagnostics_state['raw_rgb'], diagnostics_state['raw_depth'] = raw_rgb, raw_depth
+            diagnostics_state['raw_pair'] = dict(pair)
+            diagnostics_state['raw_pair_status'] = dict(pair_status)
+        raw_rgb, raw_depth = diagnostics_state['raw_rgb'], diagnostics_state['raw_depth']
+        if raw_rgb is None or raw_depth is None:
+            diagnostics_state.update(status='RGB-D unavailable', residuals=None)
+            diagnostic_status_handle.value = diagnostics_state['status']
+            return
+        source = diagnostics_state.get('source_pair') or {}
+        diagnostics_state['board_fresh'] = diagnostic_source_is_fresh(source, time.time())
+        if now - diagnostics_state['last_detection'] < 1.0:
+            if 'arm_roi' in clouds: clouds['arm_roi'].visible = diagnostic_toggle.value
+            for handle in diagnostic_handles.values():
+                handle.visible = bool(diagnostic_toggle.value and diagnostics_state['board_fresh'])
+            return
+        detected_pair = diagnostics_state['raw_pair']
+        detected_pair_status = diagnostics_state['raw_pair_status'] or {}
+        if not diagnostic_pair_is_fresh(detected_pair, detected_pair_status):
+            diagnostics_state.update(status='STALE DIAGNOSTIC SOURCE · overlay hidden', source_pair=None,
+                                     residuals=None, board_fresh=False)
+            diagnostic_status_handle.value = diagnostics_state['status']
+            for handle in diagnostic_handles.values(): handle.visible = False
+            return
+        diagnostics_state['last_detection'] = now
+        try:
+            flip = np.diag([1., -1., -1., 1.])
+            camera_from_target = np.linalg.inv(np.asarray(report['world_from_camera'])) @ flip
+            result = detect_charuco_depth(raw_rgb, raw_depth, intrinsic,
+                report['camera']['depth_scale_m'], report['world_from_camera'], camera_from_target)
+            for handle in diagnostic_handles.values(): handle.remove()
+            from scipy.spatial.transform import Rotation
+            frame = np.asarray(result['world_from_detected_board'])
+            axes = server.scene.add_frame('/diagnostics/detected-charuco-board',
+                axes_length=.045, axes_radius=.0015, origin_radius=.002,
+                position=frame[:3, 3],
+                wxyz=Rotation.from_matrix(frame[:3, :3]).as_quat()[[3, 0, 1, 2]], visible=diagnostic_toggle.value)
+            observed = np.asarray(result['observed_depth_points_world'], dtype=np.float32)
+            points = server.scene.add_point_cloud('/diagnostics/charuco-depth-corners', observed,
+                np.tile(np.array([[255, 180, 20]], dtype=np.uint8), (len(observed), 1)),
+                point_size=.008, point_shape='circle', precision='float32', visible=diagnostic_toggle.value)
+            plane_vertices = np.asarray(result['observed_depth_plane_world'], dtype=np.float32)
+            plane = server.scene.add_mesh_simple('/diagnostics/charuco-depth-plane', plane_vertices,
+                np.array([[0, 1, 2], [0, 2, 3]], dtype=np.int32), color=(20, 190, 255),
+                opacity=.35, side='double', cast_shadow=False, receive_shadow=False,
+                visible=diagnostic_toggle.value)
+            diagnostic_handles.update(axes=axes, points=points, plane=plane)
+            diag = {key: result[key] for key in ('status', 'corner_count', 'depth_corner_count',
+                'rgb_pnp_depth_residual_rms_mm', 'rgb_pnp_depth_residual_median_mm',
+                'depth_plane_rms_mm', 'registered_board_pnp_residual', 'qualified') if key in result}
+            diagnostics_state.update(status='FRESH · RGB PnP / depth diagnostic · UNQUALIFIED', residuals=diag,
+                source_pair={'image': str(detected_pair.get('image', current_pair['image'])),
+                    'depth': str(detected_pair.get('depth', current_pair['depth'])),
+                    'timestamp_wall': detected_pair.get('timestamp_wall'),
+                    'pose_sample_delta_seconds': detected_pair_status.get('pose_sample_delta_seconds'),
+                    'pairing_status': detected_pair_status.get('pairing_status')})
+            diagnostics_state['board_fresh'] = diagnostic_source_is_fresh(
+                diagnostics_state['source_pair'], time.time())
+            diagnostic_status_handle.value = (f"{diag['depth_corner_count']}/{diag['corner_count']} corners · "
+                f"PnP-depth RMS {diag['rgb_pnp_depth_residual_rms_mm']:.1f} mm · "
+                f"depth-plane RMS {diag['depth_plane_rms_mm']:.1f} mm · UNQUALIFIED")
+        except Exception as error:
+            diagnostics_state.update(status=f'CHARUCO DIAGNOSTIC UNAVAILABLE · {type(error).__name__}', residuals=None,
+                                     source_pair=None, board_fresh=False)
+            diagnostic_status_handle.value = diagnostics_state['status']
+            for handle in diagnostic_handles.values(): handle.visible = False
+        if 'arm_roi' in clouds:
+            clouds['arm_roi'].visible = bool(diagnostic_toggle.value)
 
     def hide_fiducial(status):
         if fiducial_calibration is None:
@@ -685,6 +808,13 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
 
     initial_camera_status = camera_sample_status(report, phase,
         cache_reusable=cache_status['reusable'])
+    initial_diagnostic_pair = {'image': report['image'], 'depth': report['depth'],
+        'timestamp_wall': report.get('camera_sample_timestamp_wall')}
+    if initial_frame is not None:
+        update_registration_diagnostics(initial_diagnostic_pair, rgb, initial_frame['depth'],
+                                        initial_camera_status)
+    else:
+        update_registration_diagnostics(None, rgb, None, {'freshness': 'stale'})
     phase_status_handle.value = phase_label(phase)
     sample_status_handle.value = sample_label(initial_camera_status, cache_status['reusable'])
     publish_live_status(phase, initial_camera_status, cache_status['reusable'])
@@ -693,6 +823,7 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         nonlocal observed_mesh, view_distance
         last_surface_refresh = [0.0]
         while True:
+            new_raw_pair = None
             try:
                 current_phase = read_phase_evidence(phase_file) if phase_file else phase
                 event_time = current_phase.get('event_monotonic')
@@ -714,6 +845,7 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                               'timestamp_monotonic': sample_monotonic[0]})
                 if pair is None:
                     hide_fiducial('STALE / UNPAIRED · marker hidden')
+                    update_registration_diagnostics(None, None, None, {'freshness': 'stale'})
                 if pair is not None:
                     image_path, depth_path = Path(pair['image']), Path(pair['depth'])
                     signature = (_file_signature(image_path), _file_signature(depth_path))
@@ -732,6 +864,7 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                         after = (_file_signature(image_path), _file_signature(depth_path))
                         if before != after or before != signature:
                             continue
+                        new_raw_pair = (pair, new_surface['rgb'], new_surface['depth'])
                         refreshed_rgb = new_surface['display_texture']
                         surface_generation = int(surface_state.get('generation', 0)) + 1
                         next_mesh = server.scene.add_mesh_trimesh(
@@ -802,6 +935,12 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                     surface_state['freshness'] = 'stale-live' if surface_state.get('generation') else 'stale-snapshot'
                 sample_status = camera_sample_status(current_report, current_phase,
                     cache_reusable=cache_state['valid'])
+                if pair is not None:
+                    if new_raw_pair is not None:
+                        update_registration_diagnostics(new_raw_pair[0], new_raw_pair[1],
+                                                        new_raw_pair[2], sample_status)
+                    else:
+                        update_registration_diagnostics(pair, None, None, sample_status)
                 phase_status_handle.value = phase_label(current_phase)
                 sample_status_handle.value = sample_label(sample_status, cache_state['valid'])
                 publish_live_status(current_phase, sample_status, cache_state['valid'])
