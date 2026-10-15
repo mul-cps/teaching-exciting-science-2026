@@ -108,3 +108,20 @@ def test_surface_voxels_crop_cap_and_expire_without_free_space_inference():
     assert voxel_map.clear_expired(1.49) == 0
     assert voxel_map.clear_expired(1.51) == 2
     assert voxel_map.centers().shape == (0, 3)
+
+
+def test_cached_surface_fades_across_tracking_gap_and_expires_at_ttl():
+    voxel_map = SurfaceVoxelMap(resolution=0.01, ttl_s=2.0, max_voxels=10,
+                                bounds=((-0.1, 0.1), (-0.1, 0.1), (0, 0.2)))
+    voxel_map.integrate(np.array([[0.011, 0.021, 0.101], [0.051, 0.021, 0.101]]), now=1.0)
+
+    fresh_alpha = voxel_map.display_alphas(1.2)
+    gap_alpha = voxel_map.display_alphas(2.0)
+    assert len(fresh_alpha) == len(gap_alpha) == len(voxel_map.centers()) == 2
+    assert np.allclose(fresh_alpha, [0.9, 0.9])
+    assert np.all(gap_alpha < fresh_alpha)
+    assert np.all(gap_alpha > 0.2)
+
+    assert voxel_map.clear_expired(2.99) == 0
+    assert voxel_map.clear_expired(3.01) == 2
+    assert voxel_map.display_alphas(3.01).shape == (0,)

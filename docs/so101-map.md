@@ -9,9 +9,12 @@ and never publishes or modifies TF.
 The map stores only observed surface cells. A colored cube means that a depth
 sample landed in that 1 cm voxel. Empty space means **unknown**: this view does
 not trace sensor rays, infer free space, or provide a planning collision map.
-Cells expire after 0.8 seconds, which limits stale arm echoes when the arm
-moves. No robot geometry is removed from the cloud, so recently observed robot
-surfaces can briefly appear in the map.
+Cells expire after 2 seconds. To ride through brief board-tracking gaps, cached
+cells remain visible at full opacity for 0.8 seconds, then fade until expiry.
+The freshness gate still blocks integration during stale tracking. No robot
+geometry is removed from the cloud, so recently observed robot surfaces can
+briefly appear in the map; the longer cache can leave faint moving-arm echoes
+for up to 2 seconds.
 
 The node limits range to 1.2 m, crops transformed points to the configurable
 workspace (default X/Y -0.6..0.6 m and Z -0.05..0.8 m in the board frame), and

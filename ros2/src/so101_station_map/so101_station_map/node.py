@@ -14,7 +14,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import String
+from std_msgs.msg import ColorRGBA, String
 from visualization_msgs.msg import Marker
 from tf2_ros import Buffer, TransformException, TransformListener
 
@@ -52,7 +52,7 @@ class SurfaceVoxelMapNode(Node):
             "target_frame": "charuco_board",
             "max_range_m": 1.2,
             "resolution_m": 0.01,
-            "ttl_s": 0.8,
+            "ttl_s": 2.0,
             "max_voxels": 60000,
             "max_points_per_cloud": 120000,
             "publish_hz": 2.0,
@@ -207,7 +207,12 @@ class SurfaceVoxelMapNode(Node):
         marker.pose.orientation.w = 1.0
         marker.scale.x = marker.scale.y = marker.scale.z = self.map.resolution
         marker.color.r, marker.color.g, marker.color.b, marker.color.a = 0.18, 0.72, 0.95, 0.9
-        marker.points = [Point(x=float(x), y=float(y), z=float(z)) for x, y, z in self.map.centers()]
+        centers = self.map.centers()
+        marker.points = [Point(x=float(x), y=float(y), z=float(z)) for x, y, z in centers]
+        alphas = self.map.display_alphas(now.nanoseconds * 1e-9)
+        marker.colors = [ColorRGBA(r=marker.color.r, g=marker.color.g,
+                                   b=marker.color.b, a=float(alpha))
+                         for alpha in alphas]
         self.marker_pub.publish(marker)
         self._status(self.map.last_status, stamp=(
             None if self.last_output_stamp is None else

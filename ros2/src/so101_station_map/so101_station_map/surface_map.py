@@ -73,7 +73,7 @@ def cloud_xyz_chunks(message, *, max_chunk_points=8192):
 class SurfaceVoxelMap:
     """Sparse, bounded voxel cache; cells mean observed surfaces only."""
 
-    def __init__(self, resolution=0.01, ttl_s=0.8, max_voxels=60000,
+    def __init__(self, resolution=0.01, ttl_s=2.0, max_voxels=60000,
                  bounds=((-0.6, 0.6), (-0.6, 0.6), (-0.05, 0.8))):
         self.resolution = float(resolution)
         self.ttl_s = float(ttl_s)
@@ -129,4 +129,18 @@ class SurfaceVoxelMap:
             return np.empty((0, 3), dtype=np.float32)
         indices = np.asarray(sorted(self.cells), dtype=np.float32)
         return (indices + 0.5) * self.resolution
+
+    def display_alphas(self, now, *, fade_start_s=0.8):
+        """Return per-cell alpha in the same sorted order as ``centers``."""
+        if not self.cells:
+            return np.empty((0,), dtype=np.float32)
+        if not math.isfinite(float(fade_start_s)) or fade_start_s < 0:
+            raise ValueError("fade_start_s must be nonnegative and finite")
+        fade_start = min(float(fade_start_s), self.ttl_s)
+        keys = sorted(self.cells)
+        ages = np.fromiter((max(0.0, float(now) - self.cells[key]) for key in keys),
+                           dtype=np.float32, count=len(keys))
+        fade_duration = max(self.ttl_s - fade_start, 1e-9)
+        fade = np.clip((ages - fade_start) / fade_duration, 0.0, 1.0)
+        return (0.9 - 0.7 * fade).astype(np.float32)
 
