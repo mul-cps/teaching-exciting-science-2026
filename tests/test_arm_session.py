@@ -1065,6 +1065,33 @@ def test_resident_teleop_rejects_gripper_outside_percent_range_without_goal_writ
     session.close_log()
 
 
+def test_resident_teleop_start_and_stop_through_json_stdio(tmp_path):
+    session, arm, _clock = make_session(tmp_path)
+    session.initialize()
+    read_fd, write_fd = os.pipe()
+    commands = [
+        {"command": "teleop_start", "session_id": "stdio-bridge"},
+        {"command": "teleop_stop", "session_id": "stdio-bridge"},
+        {"command": "exit"},
+    ]
+    os.write(write_fd, b"".join((json.dumps(command) + "\n").encode()
+                                 for command in commands))
+    os.close(write_fd)
+    results = []
+    try:
+        assert session.serve(read_fd, emit=results.append) == 0
+    finally:
+        os.close(read_fd)
+        session.close_log()
+    assert len(results) == 3
+    assert results[0]["ok"] is True
+    assert results[0]["state"]["event"] == "teleop_started"
+    assert results[1]["ok"] is True
+    assert results[2]["exit"] is True
+    assert session._teleop is None
+    assert arm.bus.data["Torque_Enable"] == dict.fromkeys(JOINTS, 0)
+
+
 def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):
     session, arm, _ = make_session(tmp_path)
     session.initialize()

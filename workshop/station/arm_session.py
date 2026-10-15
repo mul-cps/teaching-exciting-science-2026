@@ -1354,7 +1354,7 @@ class ArmSession:
                     command = json.loads(line)
                     name = command.get("command") if isinstance(command, dict) else None
                     previous_idle_handled = self._idle_handled
-                    if name in ("move_plan", "home", "execute_trajectory", "teleop_start"):
+                    if name in ("move_plan", "home", "execute_trajectory"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None
