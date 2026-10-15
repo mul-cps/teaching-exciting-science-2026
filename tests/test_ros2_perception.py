@@ -327,6 +327,26 @@ def test_tag_observation_callback_does_not_open_device_or_write_history():
     assert "open(" not in callback
     assert "DELETEALL" in callback
     assert "StaticTransformBroadcaster" not in callback
+    assert "marker_grayscale(self.bridge, color_msg)" in callback
+    assert "self.detector.detect(gray)" in callback
+    assert 'desired_encoding="rgb8"' not in callback
+
+
+def test_tag_observation_requests_grayscale_directly_from_bridge():
+    from so101_station_perception.tag_observations import marker_grayscale
+
+    class Bridge:
+        def __init__(self):
+            self.calls = []
+
+        def imgmsg_to_cv2(self, message, desired_encoding):
+            self.calls.append(desired_encoding)
+            return np.zeros((480, 640), dtype=np.uint8)
+
+    bridge = Bridge()
+    mono = marker_grayscale(bridge, object())
+    assert bridge.calls == ["mono8"]
+    assert mono.shape == (480, 640) and mono.dtype == np.uint8
 
 
 def test_realsense_profile_is_low_bandwidth_aligned_and_keeps_native_tf():
