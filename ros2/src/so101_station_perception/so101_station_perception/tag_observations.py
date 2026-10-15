@@ -1,5 +1,7 @@
 """Publish depth-backed AprilTag center observations without adding TF frames."""
 
+import time
+
 import cv2
 import message_filters
 import numpy as np
@@ -7,6 +9,7 @@ import rclpy
 from cv_bridge import CvBridge
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, Image
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -39,6 +42,38 @@ def timestamps_paired(color_stamp, depth_stamp, max_delta_s=0.04):
     return abs(delta) <= max_delta_s
 
 
+def stamp_is_fresh(now_seconds, stamp_seconds_value, max_age_s=0.5):
+    return abs(float(now_seconds) - float(stamp_seconds_value)) <= float(max_age_s)
+
+
+def camera_intrinsics(info, image_shape):
+    """Validate CameraInfo against the image and return finite pinhole values."""
+    height, width = image_shape
+    if (int(info.width), int(info.height)) != (int(width), int(height)):
+        raise ValueError("CameraInfo dimensions differ from image dimensions")
+    k = np.asarray(info.k, dtype=float)
+    distortion = np.asarray(info.d, dtype=float)
+    if k.size != 9 or not np.isfinite(k).all() or not np.isfinite(distortion).all():
+        raise ValueError("CameraInfo intrinsics and distortion must be finite")
+    values = {"fx": float(k[0]), "fy": float(k[4]),
+              "ppx": float(k[2]), "ppy": float(k[5])}
+    if values["fx"] <= 0 or values["fy"] <= 0:
+        raise ValueError("CameraInfo focal lengths must be positive")
+    return values
+
+
+def depth_scale_for_encoding(encoding, depth, configured_scale=0.001):
+    """Return metres per sample for supported ROS depth encodings."""
+    if encoding == "16UC1" and depth.dtype == np.uint16:
+        scale = float(configured_scale)
+        if not np.isfinite(scale) or scale <= 0:
+            raise ValueError("16UC1 depth_scale_m must be positive and finite")
+        return scale
+    if encoding == "32FC1" and depth.dtype == np.float32:
+        return 1.0
+    raise ValueError(f"Depth encoding {encoding!r} does not match decoded array dtype")
+
+
 def select_region_detection(detections, previous_centers=(), max_distance_px=60.0):
     """Fail closed on multiple candidates or a temporal jump outside one ROI."""
     if len(detections) != 1:
@@ -60,17 +95,27 @@ def depth_center_point(center_px, depth, intrinsics, depth_scale_m):
     if valid.size < 5:
         return None
     z = float(np.median(valid)) * float(depth_scale_m)
-    return ((float(u) - intrinsics["ppx"]) * z / intrinsics["fx"],
-            (float(v) - intrinsics["ppy"]) * z / intrinsics["fy"], z)
+    point = ((float(u) - intrinsics["ppx"]) * z / intrinsics["fx"],
+             (float(v) - intrinsics["ppy"]) * z / intrinsics["fy"], z)
+    return point if np.isfinite(point).all() else None
+
+
+def unassociated_tag_points(detections, depth, intrinsics, depth_scale_m):
+    """Return only depth-backed ID0 points without claiming physical identity."""
+    observations = []
+    for detection in detections:
+        if int(detection.get("code_id", -1)) != 0:
+            continue
+        corners = np.asarray(detection["corners_px"], dtype=float).reshape(4, 2)
+        if not np.isfinite(corners).all():
+            continue
+        point = depth_center_point(corners.mean(axis=0), depth, intrinsics, depth_scale_m)
+        if point is not None:
+            observations.append({"tag_id": 0, "association": "unassociated", "xyz": point})
+    return observations
 
 
 class TagObservations(Node):
-    # Source-space image ROIs keep the two repeated ID-0 codes distinct.
-    DEFAULT_REGIONS = {
-        "wrist_mount": (330, 190, 460, 320),
-        "upperarm_mount": (345, 35, 465, 155),
-    }
-
     def __init__(self):
         from so101_station_perception_tag_tracking.tag_tracking import TagTracker
 
@@ -82,24 +127,31 @@ class TagObservations(Node):
         self.declare_parameter("depth_scale_m", 0.001)
         self.declare_parameter("max_pair_delta_s", 0.04)
         self.declare_parameter("camera_info_max_age_s", 0.5)
+        self.declare_parameter("max_processing_hz", 5.0)
         self.bridge = CvBridge()
         self.depth_scale = float(self.get_parameter("depth_scale_m").value)
+        if not np.isfinite(self.depth_scale) or self.depth_scale <= 0:
+            raise ValueError("depth_scale_m must be positive and finite")
         self.max_pair_delta = float(self.get_parameter("max_pair_delta_s").value)
         self.camera_info_max_age = float(self.get_parameter("camera_info_max_age_s").value)
+        self.min_processing_period = 1.0 / min(5.0, max(0.1, float(
+            self.get_parameter("max_processing_hz").value)))
+        self.last_processing = 0.0
         self.diagnostic_frame = self.get_parameter("diagnostic_frame").value
         self.camera_info = None
-        self.trackers = {
-            name: TagTracker(max_distance_px=60.0, max_missed=3, detector_scale=2,
-                             size_candidates=(0.0194,))
-            for name in self.DEFAULT_REGIONS
-        }
+        # This detector only returns code IDs and image corners. It does not
+        # apply an unverified tag size or assign physical arm-link identities.
+        self.detector = TagTracker(detector_scale=2)
         self.publisher = self.create_publisher(MarkerArray, "/so101_perception/tag_observations", 10)
         self.info_sub = self.create_subscription(
-            CameraInfo, self.get_parameter("camera_info_topic").value, self._camera_info, 5)
+            CameraInfo, self.get_parameter("camera_info_topic").value, self._camera_info,
+            qos_profile_sensor_data)
         self.color_sub = message_filters.Subscriber(
-            self, Image, self.get_parameter("color_topic").value)
+            self, Image, self.get_parameter("color_topic").value,
+            qos_profile=qos_profile_sensor_data)
         self.depth_sub = message_filters.Subscriber(
-            self, Image, self.get_parameter("depth_topic").value)
+            self, Image, self.get_parameter("depth_topic").value,
+            qos_profile=qos_profile_sensor_data)
         self.sync = message_filters.ApproximateTimeSynchronizer(
             [self.color_sub, self.depth_sub], queue_size=5, slop=self.max_pair_delta)
         self.sync.registerCallback(self._images)
@@ -117,11 +169,19 @@ class TagObservations(Node):
         self.publisher.publish(output)
 
     def _images(self, color_msg, depth_msg):
+        now = self.get_clock().now().nanoseconds * 1e-9
+        color_stamp = stamp_seconds(color_msg.header.stamp)
+        if not stamp_is_fresh(now, color_stamp):
+            return
+        if time.monotonic() - self.last_processing < self.min_processing_period:
+            return
+        self.last_processing = time.monotonic()
         delta = stamp_seconds(depth_msg.header.stamp) - stamp_seconds(color_msg.header.stamp)
         info = self.camera_info
         if (abs(delta) > self.max_pair_delta or info is None
-                or abs(stamp_seconds(color_msg.header.stamp) - stamp_seconds(info.header.stamp))
-                > self.camera_info_max_age):
+                or color_msg.header.frame_id != depth_msg.header.frame_id
+                or info.header.frame_id != color_msg.header.frame_id
+                or abs(color_stamp - stamp_seconds(info.header.stamp)) > self.camera_info_max_age):
             self._empty(color_msg.header.stamp, color_msg.header.frame_id)
             return
         try:
@@ -129,61 +189,29 @@ class TagObservations(Node):
             depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
             if rgb.shape[:2] != depth.shape[:2] or depth.ndim != 2:
                 raise ValueError("RGB and aligned depth dimensions differ")
-            k = info.k
-            base_intrinsics = {"fx": float(k[0]), "fy": float(k[4]),
-                               "ppx": float(k[2]), "ppy": float(k[5])}
-            if min(base_intrinsics["fx"], base_intrinsics["fy"]) <= 0:
-                raise ValueError("camera_info has invalid pinhole intrinsics")
-            height, width = depth.shape
-            scale_x, scale_y = width / 640.0, height / 480.0
+            base_intrinsics = camera_intrinsics(info, depth.shape)
+            depth_scale = depth_scale_for_encoding(depth_msg.encoding, depth, self.depth_scale)
             output = MarkerArray()
             clear = Marker()
             clear.header.stamp = color_msg.header.stamp
             clear.header.frame_id = self.diagnostic_frame or color_msg.header.frame_id
             clear.action = Marker.DELETEALL
             output.markers.append(clear)
-            marker_id = 1
-            for region_index, (name, bounds) in enumerate(self.DEFAULT_REGIONS.items()):
-                x0, y0, x1, y1 = [int(round(v * (scale_x if i % 2 == 0 else scale_y)))
-                                  for i, v in enumerate(bounds)]
-                crop = rgb[max(y0, 0):min(y1, height), max(x0, 0):min(x1, width)]
-                if crop.size == 0:
-                    continue
-                detections = [d for d in self.trackers[name].detect(crop) if d["code_id"] == 0]
-                tracker = self.trackers[name]
-                active = [state for state in tracker.tracks.values() if state["missed"] <= 3]
-                selected = select_region_detection(
-                    detections, [state["center"] for state in active])
-                if selected is None:
-                    # An ROI with multiple same-code candidates is ambiguous;
-                    # a distant return cannot steal another region's identity.
-                    tracker.update([], base_intrinsics, depth=None)
-                    continue
-                detection = selected
-                center = np.mean(detection["corners_px"], axis=0) + [x0, y0]
-                crop_depth = depth[y0:y1, x0:x1]
-                crop_intrinsics = dict(base_intrinsics)
-                crop_intrinsics["ppx"] -= x0
-                crop_intrinsics["ppy"] -= y0
-                observations = tracker.update([detection], crop_intrinsics, depth=crop_depth,
-                                              depth_scale_m=self.depth_scale,
-                                              distortion=np.asarray(info.d))
-                point = depth_center_point(center, depth, base_intrinsics, self.depth_scale)
-                if not observations or point is None:
-                    continue
+            detections = self.detector.detect(rgb)
+            points = unassociated_tag_points(detections, depth, base_intrinsics, depth_scale)
+            for marker_id, observation in enumerate(points):
+                point = observation["xyz"]
                 marker = Marker()
                 marker.header.stamp = color_msg.header.stamp
                 marker.header.frame_id = self.diagnostic_frame or color_msg.header.frame_id
-                marker.ns = f"{name}_id0_unqualified"
+                marker.ns = "apriltag_id0_unassociated"
                 marker.id = marker_id
-                marker_id += 1
                 marker.type = Marker.SPHERE
                 marker.action = Marker.ADD
                 marker.pose.position.x, marker.pose.position.y, marker.pose.position.z = point
                 marker.pose.orientation.w = 1.0
                 marker.scale.x = marker.scale.y = marker.scale.z = 0.012
-                marker.color.r, marker.color.g, marker.color.b = ((0.15, 0.85, 0.3)
-                    if region_index == 0 else (0.2, 0.55, 0.95))
+                marker.color.r, marker.color.g, marker.color.b = (0.2, 0.75, 0.95)
                 marker.color.a = 0.95
                 marker.lifetime = Duration(seconds=0.4).to_msg()
                 output.markers.append(marker)
@@ -197,7 +225,7 @@ class TagObservations(Node):
                 text.pose.orientation.w = 1.0
                 text.scale.z = 0.018
                 text.color.r = text.color.g = text.color.b = text.color.a = 1.0
-                text.text = f"{name} · tag 0 · diagnostic"
+                text.text = "ID0 unassociated"
                 text.lifetime = Duration(seconds=0.4).to_msg()
                 output.markers.append(text)
             self.publisher.publish(output)
