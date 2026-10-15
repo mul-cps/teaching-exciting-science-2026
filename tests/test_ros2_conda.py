@@ -62,9 +62,12 @@ def test_conda_run_clears_inherited_ros_python_and_loader_environment(tmp_path: 
         "env | sort > \"$TEST_CONDA_ENV\"\n"
     )
     fake_conda.chmod(0o755)
+    environment_prefix = tmp_path / "environment"
+    (environment_prefix / "lib").mkdir(parents=True)
+    (environment_prefix / "lib/librmw_cyclonedds_cpp.so").touch()
     env = {
         "SO101_CONDA_EXE": str(fake_conda),
-        "SO101_CONDA_PREFIX": str(tmp_path / "environment"),
+        "SO101_CONDA_PREFIX": str(environment_prefix),
         "TEST_CONDA_ARGS": str(capture / "args"),
         "TEST_CONDA_ENV": str(capture / "environment"),
         "AMENT_PREFIX_PATH": "/opt/ros/iron",
@@ -101,8 +104,43 @@ def test_conda_run_clears_inherited_ros_python_and_loader_environment(tmp_path: 
     ):
         assert name not in clean_environment
     assert clean_environment["ROS_AUTOMATIC_DISCOVERY_RANGE"] == expected
+    assert clean_environment["RMW_IMPLEMENTATION"] == "rmw_cyclonedds_cpp"
     assert clean_environment["DISPLAY"] == ":77"
     assert clean_environment["XAUTHORITY"] == "/tmp/test.xauth"
+
+
+def test_conda_run_respects_explicit_rmw_override(tmp_path: Path):
+    fake_conda = tmp_path / "conda"
+    capture = tmp_path / "capture"
+    fake_conda.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "mkdir -p \"$(dirname \"$TEST_CONDA_ARGS\")\"\n"
+        "env | sort > \"$TEST_CONDA_ENV\"\n"
+    )
+    fake_conda.chmod(0o755)
+    environment_prefix = tmp_path / "environment"
+    (environment_prefix / "lib").mkdir(parents=True)
+    (environment_prefix / "lib/librmw_cyclonedds_cpp.so").touch()
+
+    result = run_wrapper(
+        "run", "ros2", "topic", "list",
+        env={
+            "SO101_CONDA_EXE": str(fake_conda),
+            "SO101_CONDA_PREFIX": str(environment_prefix),
+            "TEST_CONDA_ARGS": str(capture / "args"),
+            "TEST_CONDA_ENV": str(capture / "environment"),
+            "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    clean_environment = dict(
+        line.split("=", 1)
+        for line in (capture / "environment").read_text().splitlines()
+        if "=" in line
+    )
+    assert clean_environment["RMW_IMPLEMENTATION"] == "rmw_fastrtps_cpp"
 
 
 def test_create_uses_repository_environment_file_and_dedicated_prefix(tmp_path: Path):

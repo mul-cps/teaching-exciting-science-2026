@@ -26,7 +26,10 @@ Miniforge installation or prefix. `create` refuses to overwrite an existing
 prefix. The wrapper strips inherited ROS, Python, CMake, and dynamic-loader
 search paths before invoking Conda, so a previously sourced system ROS setup
 does not contaminate the environment. It preserves display authentication
-variables and honors the caller's `ROS_DOMAIN_ID`.
+variables and honors the caller's `ROS_DOMAIN_ID`. When the environment
+contains `librmw_cyclonedds_cpp.so`, the wrapper selects CycloneDDS by default.
+Set `RMW_IMPLEMENTATION` explicitly to choose another installed RMW; the
+wrapper preserves that override.
 
 The workspace build fetches the pinned upstream source through the existing
 `ros2/scripts/so101.sh fetch` command and builds it with two colcon workers.

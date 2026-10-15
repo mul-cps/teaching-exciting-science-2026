@@ -43,6 +43,12 @@ fi
 [[ -x "$CONDA_EXE" ]] || fail "Conda executable is not available: $CONDA_EXE"
 
 clean_conda() {
+  local -a rmw_env=()
+  if [[ -n "${RMW_IMPLEMENTATION:-}" ]]; then
+    rmw_env=("RMW_IMPLEMENTATION=$RMW_IMPLEMENTATION")
+  elif [[ -f "$ENV_PREFIX/lib/librmw_cyclonedds_cpp.so" ]]; then
+    rmw_env=("RMW_IMPLEMENTATION=rmw_cyclonedds_cpp")
+  fi
   env \
     -u AMENT_PREFIX_PATH \
     -u COLCON_PREFIX_PATH \
@@ -58,6 +64,7 @@ clean_conda() {
     -u LD_PRELOAD \
     -u PKG_CONFIG_PATH \
     ROS_AUTOMATIC_DISCOVERY_RANGE="${ROS_AUTOMATIC_DISCOVERY_RANGE:-LOCALHOST}" \
+    "${rmw_env[@]}" \
     OPENBLAS_NUM_THREADS="${SO101_BLAS_THREADS:-1}" \
     OMP_NUM_THREADS="${SO101_OMP_THREADS:-1}" \
     MKL_NUM_THREADS="${SO101_BLAS_THREADS:-1}" \
