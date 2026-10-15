@@ -5,7 +5,7 @@ tracks into incremental MoveIt world-object updates. It subscribes to
 `/so101/objects` (`vision_msgs/Detection3DArray`) and transforms each box from
 its stamped source frame into `base_link` using TF at the detection timestamp.
 Zero, stale, future, unframed, or untransformable observations are rejected.
-Boxes require stable detection IDs, finite dimensions between 4 mm and 300 mm,
+Boxes require stable detection IDs, finite dimensions between 2 mm and 300 mm,
 and receive 6 mm padding on each side because the current extents are
 provisional. Tracked IDs become `colorbrick_<escaped-id>` and expire after
 750 ms without an update.

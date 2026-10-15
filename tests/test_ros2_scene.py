@@ -35,7 +35,15 @@ def test_scene_ids_are_stable_and_confined_to_owned_prefix():
 ])
 def test_box_dimensions_reject_invalid_or_implausible_extents(size):
     with pytest.raises(ValueError):
-        validate_box(size, min_extent_m=0.004, max_extent_m=0.30)
+        validate_box(size, min_extent_m=0.002, max_extent_m=0.30)
+
+
+def test_scene_box_minimum_accepts_thin_detected_parts_at_two_millimeters():
+    assert validate_box((0.002, 0.02, 0.03), min_extent_m=0.002,
+                        max_extent_m=0.30) == pytest.approx((0.002, 0.02, 0.03))
+    with pytest.raises(ValueError):
+        validate_box((0.0019, 0.02, 0.03), min_extent_m=0.002,
+                     max_extent_m=0.30)
 
 
 def test_box_pose_transforms_center_and_orientation_with_full_se3():
@@ -56,7 +64,7 @@ def test_box_transform_rejects_nonrigid_and_zero_quaternion_inputs():
 
 
 def test_registry_replaces_track_and_expires_only_its_owned_collision_ids():
-    registry = LiveObjectRegistry(ttl_s=0.75, min_extent_m=0.004, max_extent_m=0.30)
+    registry = LiveObjectRegistry(ttl_s=0.75, min_extent_m=0.002, max_extent_m=0.30)
     first = registry.update("brick-a", (0, 0, 0.1), (0.04, 0.03, 0.02),
                             (0, 0, 0, 1), now_mono_s=1.0)
     assert first.collision_id == "colorbrick_brick-a"
@@ -162,3 +170,24 @@ def test_validator_throttles_batches_not_candidates_within_batch():
                                  last_batch_start=1.0, min_period=1.0)
     assert not should_wait_for_batch(active=False, pending=True, now=2.0,
                                      last_batch_start=1.0, min_period=1.0)
+
+
+def test_async_grasp_results_require_live_request_and_fresh_source_and_joint_state():
+    pytest.importorskip("rclpy")
+    from so101_station_scene.grasp_validator import (
+        async_result_is_current,
+        async_request_expired,
+    )
+
+    args = dict(token=7, active_token=7, now_mono=10.2, deadline_mono=10.45,
+                received_mono=10.0,
+                max_age_s=0.5, now_ros=20.2, source_stamp_s=20.0,
+                joint_stamp_s=20.0, joint_max_age_s=0.5)
+    assert async_result_is_current(**args)
+    assert not async_result_is_current(**{**args, "now_mono": 10.46})
+    assert not async_result_is_current(**{**args, "now_mono": 10.51})
+    assert not async_result_is_current(**{**args, "now_ros": 20.51})
+    assert not async_result_is_current(**{**args, "joint_stamp_s": 19.6})
+    assert not async_result_is_current(**{**args, "active_token": 8})
+    assert not async_request_expired(now=10.0, deadline=10.1)
+    assert async_request_expired(now=10.1, deadline=10.1)

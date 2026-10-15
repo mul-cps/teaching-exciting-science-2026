@@ -60,6 +60,24 @@ def should_wait_for_batch(*, active, pending, now, last_batch_start, min_period)
             and now - last_batch_start < min_period)
 
 
+def async_request_expired(*, now, deadline):
+    return now >= deadline
+
+
+def async_result_is_current(*, token, active_token, now_mono, deadline_mono,
+                            received_mono, max_age_s, now_ros, source_stamp_s,
+                            joint_stamp_s, joint_max_age_s):
+    """Reject late callbacks and any result based on stale source/state data."""
+    if token != active_token or async_request_expired(now=now_mono, deadline=deadline_mono):
+        return False
+    if now_mono < received_mono or now_mono - received_mono > max_age_s:
+        return False
+    return (stamp_is_fresh(now_s=now_ros, stamp_s=source_stamp_s,
+                           max_age_s=max_age_s)
+            and stamp_is_fresh(now_s=now_ros, stamp_s=joint_stamp_s,
+                               max_age_s=joint_max_age_s))
+
+
 class GraspValidator(Node):
     """Validate isolated pregrasp IK states; never plan or execute motion."""
 
@@ -78,12 +96,14 @@ class GraspValidator(Node):
             "joint_state_max_age_s": 0.5,
             "max_candidates": 8,
             "max_processing_hz": 1.0,
+            "max_async_s": 0.45,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
         get = lambda name: self.get_parameter(name).value
         self.world_frame = str(get("world_frame"))
         self.max_age_s = float(get("max_age_s"))
+        self.max_async_s = float(get("max_async_s"))
         self.joint_age_s = float(get("joint_state_max_age_s"))
         self.max_candidates = int(get("max_candidates"))
         self.min_period = 1.0 / min(1.0, max(0.1, float(get("max_processing_hz"))))
@@ -94,6 +114,11 @@ class GraspValidator(Node):
         self._pending_batch = None
         self._active_batch = None
         self._busy = False
+        self._request_sequence = 0
+        self._inflight_token = None
+        self._inflight_deadline_mono = 0.0
+        self._inflight_candidate = None
+        self._inflight_future = None
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.ik_client = self.create_client(GetPositionIK, str(get("ik_service")))
@@ -180,6 +205,13 @@ class GraspValidator(Node):
 
     def _tick(self):
         if self._busy:
+            if async_request_expired(now=time.monotonic(),
+                                     deadline=self._inflight_deadline_mono):
+                if self._inflight_future is not None:
+                    self._inflight_future.cancel()
+                self._finish_candidate(
+                    self._inflight_candidate["stamp_s"], self._inflight_candidate,
+                    "validation_timeout", "IK/state-validity response exceeded freshness deadline")
             return
         if self._active_batch is None:
             if should_wait_for_batch(active=False, pending=self._pending_batch,
@@ -194,7 +226,12 @@ class GraspValidator(Node):
         if self._active_batch is None:
             return
         header, poses, index, received_mono = self._active_batch
-        if time.monotonic() - received_mono > self.max_age_s:
+        now_mono = time.monotonic()
+        now_s = self.get_clock().now().nanoseconds * 1e-9
+        if (now_mono - received_mono > self.max_age_s
+                or not stamp_is_fresh(now_s=now_s,
+                                      stamp_s=stamp_seconds(header.stamp),
+                                      max_age_s=self.max_age_s)):
             self._publish({"state": "stale_before_ik", "stamp": stamp_seconds(header.stamp),
                            "geometric_only": True, "ik_validated": False,
                            "execution_enabled": False})
@@ -211,7 +248,6 @@ class GraspValidator(Node):
             self._active_batch = None
             return
         joint_stamp_s = stamp_seconds(self.latest_joints.header.stamp)
-        now_s = self.get_clock().now().nanoseconds * 1e-9
         if not stamp_is_fresh(now_s=now_s, stamp_s=joint_stamp_s,
                               max_age_s=self.joint_age_s):
             self.latest_joints = None
@@ -240,10 +276,38 @@ class GraspValidator(Node):
         request.ik_request.timeout = Duration(seconds=0.35).to_msg()
         self._busy = True
         header_stamp = stamp_seconds(header.stamp)
-        self.ik_client.call_async(request).add_done_callback(
-            lambda future: self._ik_done(future, header_stamp, candidate))
+        self._request_sequence += 1
+        token = self._request_sequence
+        candidate.update({"stamp_s": header_stamp,
+                          "received_mono": received_mono,
+                          "joint_stamp_s": joint_stamp_s,
+                          "request_token": token})
+        self._inflight_candidate = candidate
+        self._inflight_token = token
+        self._inflight_deadline_mono = min(
+            received_mono + self.max_age_s, time.monotonic() + self.max_async_s)
+        self._inflight_future = self.ik_client.call_async(request)
+        self._inflight_future.add_done_callback(
+            lambda future: self._ik_done(future, header_stamp, candidate, token))
 
-    def _ik_done(self, future, stamp_s, candidate):
+    def _async_current(self, candidate, token):
+        now_mono = time.monotonic()
+        now_ros = self.get_clock().now().nanoseconds * 1e-9
+        return async_result_is_current(
+            token=token, active_token=self._inflight_token,
+            now_mono=now_mono, deadline_mono=self._inflight_deadline_mono,
+            received_mono=candidate["received_mono"], max_age_s=self.max_age_s,
+            now_ros=now_ros, source_stamp_s=candidate["stamp_s"],
+            joint_stamp_s=candidate["joint_stamp_s"],
+            joint_max_age_s=self.joint_age_s)
+
+    def _ik_done(self, future, stamp_s, candidate, token):
+        if token != self._inflight_token:
+            return
+        if not self._async_current(candidate, token):
+            self._finish_candidate(stamp_s, candidate, "stale_async_result",
+                                   "candidate or IK joint state became stale before IK response")
+            return
         try:
             response = future.result()
         except Exception as exc:
@@ -256,10 +320,17 @@ class GraspValidator(Node):
         validity = GetStateValidity.Request()
         validity.robot_state = response.solution
         validity.group_name = self.group_name
-        self.validity_client.call_async(validity).add_done_callback(
-            lambda result: self._validity_done(result, stamp_s, candidate))
+        self._inflight_future = self.validity_client.call_async(validity)
+        self._inflight_future.add_done_callback(
+            lambda result: self._validity_done(result, stamp_s, candidate, token))
 
-    def _validity_done(self, future, stamp_s, candidate):
+    def _validity_done(self, future, stamp_s, candidate, token):
+        if token != self._inflight_token:
+            return
+        if not self._async_current(candidate, token):
+            self._finish_candidate(stamp_s, candidate, "stale_async_result",
+                                   "candidate or IK joint state became stale before validity response")
+            return
         try:
             response = future.result()
             valid = bool(response and response.valid)
@@ -291,6 +362,8 @@ class GraspValidator(Node):
             "path_validated": False,
         })
         self._busy = False
+        self._inflight_token = None
+        self._inflight_future = None
         if self._active_batch is not None:
             header, poses, _, received_mono = self._active_batch
             next_index = self._active_batch[2] + 1
