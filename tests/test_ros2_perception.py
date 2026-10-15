@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+pytest.importorskip("rclpy", reason="Optional ROS perception tests run in the RoboStack environment")
+
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 PACKAGE_SOURCE = REPOSITORY / "ros2/src/so101_station_perception"
@@ -60,7 +62,7 @@ def test_unqualified_calibration_stays_in_diagnostic_subtree_and_keeps_direction
 
     assert driver_tf is True
     assert [(item["parent"], item["child"]) for item in transforms] == [
-        ("follower/base_link", "so101_diag_base"),
+        ("base_link", "so101_diag_base"),
         ("so101_diag_base", "so101_diag_camera_optical"),
         ("so101_diag_camera_optical", "so101_diag_charuco_target"),
     ]
@@ -258,7 +260,7 @@ def test_station_rviz_config_contains_robot_camera_cloud_tags_and_diagnostic_fra
 
     path = PACKAGE_SOURCE / "config/station_live.rviz"
     config = yaml.safe_load(path.read_text())
-    assert config["Visualization Manager"]["Global Options"]["Fixed Frame"] == "follower/base_link"
+    assert config["Visualization Manager"]["Global Options"]["Fixed Frame"] == "base_link"
     displays = config["Visualization Manager"]["Displays"]
     text = str(displays)
     for value in ("RobotModel", "/follower/robot_description", "/camera/color/image_raw",

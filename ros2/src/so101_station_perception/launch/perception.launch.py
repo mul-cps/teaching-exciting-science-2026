@@ -52,7 +52,7 @@ def _launch_nodes(context):
         launch_arguments={
             "camera_name": "camera",
             "camera_namespace": "",
-            "serial_no": LaunchConfiguration("serial_no"),
+            "serial_no": "_" + serial,
             # Keep the full vendor camera/depth/color TF in both modes. The
             # qualified base transform is attached at camera_link by composing
             # the official camera_link-to-optical edge.
@@ -142,7 +142,7 @@ def generate_launch_description():
         DeclareLaunchArgument("camera_target_calibration", default_value=""),
         DeclareLaunchArgument("camera_arm_calibration", default_value=""),
         DeclareLaunchArgument("use_qualified_frames", default_value="false"),
-        DeclareLaunchArgument("base_frame", default_value="follower/base_link"),
+        DeclareLaunchArgument("base_frame", default_value="base_link"),
         DeclareLaunchArgument("optical_frame", default_value="camera_color_optical_frame"),
         DeclareLaunchArgument("rviz", default_value="false"),
         DeclareLaunchArgument("publish_tag_observations", default_value="true"),

@@ -58,7 +58,7 @@ ros2/scripts/runtime.sh run -- bash -lc '
     serial_no:=243322071783 \
     camera_target_calibration:=/home/bjoern/.cache/cps-tag-calibration-held/joint-registration-followup-analysis-2026-10-15/new-camera-from-board-candidate.json \
     rviz:=true \
-    base_frame:=follower/base_link \
+    base_frame:=base_link \
     camera_arm_calibration:=/home/bjoern/.local/share/exciting-science/station/evidence/2026-10-15/ros-control-runtime/camera-arm-wider-unqualified.json
 '
 ```
@@ -72,7 +72,7 @@ forward). Accordingly, the calibration source frame is
 `camera_color_optical_frame`; qualified attachment composes through the
 official camera-link transform supplied by RealSense.
 
-Unqualified hand-eye candidates publish `follower/base_link ->
+Unqualified hand-eye candidates publish `base_link ->
 so101_diag_base` as an identity **visual-only anchor**, then the candidate
 `so101_diag_base -> so101_diag_camera_optical` transform. This does not qualify
 or alter the planning transform. The optional diagnostic cloud node looks up
@@ -91,14 +91,14 @@ before broadcasting.
 Qualified attachment is deliberately opt-in:
 
 ```bash
-... use_qualified_frames:=true base_frame:=follower/base_link
+... use_qualified_frames:=true base_frame:=base_link
 ```
 
 This mode fails before starting the camera unless the arm JSON contains the
 exact boolean `"qualified": true`. It keeps the RealSense TF tree enabled and
 waits for the official `camera_link -> camera_color_optical_frame` transform.
 It composes the calibrated base-to-optical matrix with that measured vendor
-edge, then publishes `follower/base_link -> camera_link`; this preserves the
+edge, then publishes `base_link -> camera_link`; this preserves the
 camera's internal depth/color transforms and avoids assigning a second parent
 to the optical frame. The current camera-arm candidate is explicitly
 unqualified, so this mode refuses it. ChArUco target frames remain under the

@@ -28,7 +28,7 @@ def _read(path):
 
 
 def load_calibration_frames(target_path="", arm_path="", *, qualified_mode=False,
-                            base_frame="follower/base_link", optical_frame="camera_color_optical_frame"):
+                            base_frame="base_link", optical_frame="camera_color_optical_frame"):
     """Load exact transform directions and return (transforms, use_driver_tf).
 
     Unqualified calibration frames live under ``so101_diag_*``. A qualified

@@ -58,7 +58,7 @@ class CalibrationTfPublisher(Node):
         super().__init__("so101_calibration_tf")
         for name, default in (
             ("camera_target_calibration", ""), ("camera_arm_calibration", ""),
-            ("qualified_mode", False), ("base_frame", "follower/base_link"),
+            ("qualified_mode", False), ("base_frame", "base_link"),
             ("optical_frame", "camera_color_optical_frame"),
             ("camera_link_frame", "camera_link"),
         ):
