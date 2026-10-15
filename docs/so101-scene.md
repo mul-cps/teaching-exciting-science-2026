@@ -59,11 +59,23 @@ tracked-box updates.
 
 `grasp_validator` consumes `/so101/grasp_candidates` (`geometry_msgs/PoseArray`)
 in the stamped `charuco_board` frame. The perception worker's poses are
-pregrasp poses offset 60 mm opposite the downward approach. The validator
-requires current TF and a fresh `/follower/joint_states` sample, then checks
-one candidate per second using `/follower/compute_ik` with collision checking
-and `/follower/check_state_validity` on the returned joint state. Results are
-published as JSON on `/so101/grasp_validation`, one record per candidate.
+pregrasp poses offset 60 mm opposite the downward approach. For each candidate
+the validator transforms its position to `base_link` at the message timestamp
+and tests a base-vertical-down orientation: tool +Z points along base −Z, with
+the requested jaw-closing axis projected into the base horizontal plane. This
+keeps each candidate's transformed XYZ while allowing the tool approach and
+closing directions to differ from the source pose; the JSON reports both
+angular changes. The base vertical differs from the board normal by about five
+degrees in the current unqualified setup. This is a tested IK variant, not a
+claim that the source grasp orientation was preserved.
+
+The validator requires current TF and a fresh `/follower/joint_states` sample.
+It checks up to eight candidates from each batch in sequence using
+`/follower/compute_ik` with collision checking and
+`/follower/check_state_validity` on each returned joint state. It rate-limits
+batch starts to at most one per second, while allowing candidates in that batch
+to advance without an extra one-second delay. Results are published as JSON on
+`/so101/grasp_validation`, one record per candidate.
 
 `pregrasp_ik_collision_valid` means only that one instantaneous pregrasp pose
 has an IK solution and passes MoveIt's state-validity check in the current

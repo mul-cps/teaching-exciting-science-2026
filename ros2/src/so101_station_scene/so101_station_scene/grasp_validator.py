@@ -1,8 +1,10 @@
 """Check geometric pregrasp candidates with MoveIt IK/state validity only."""
 
 import json
+import math
 import time
 
+import numpy as np
 import rclpy
 from geometry_msgs.msg import PoseArray, PoseStamped
 from moveit_msgs.msg import MoveItErrorCodes
@@ -11,11 +13,51 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
 from sensor_msgs.msg import JointState
-from std_msgs.msg import String
+from std_msgs.msg import Header, String
 from tf2_ros import Buffer, TransformException, TransformListener
 
-from .scene_geometry import stamp_is_fresh
+from .scene_geometry import (matrix_quaternion_xyzw, quaternion_matrix_xyzw,
+                             stamp_is_fresh, transform_box_pose)
 from .scene_updater import stamp_seconds
+
+
+def base_vertical_variant(target_from_source, position, orientation_xyzw):
+    """Transform a grasp position, then make tool +Z point down in base_link.
+
+    The source candidate's closing axis is projected into the base horizontal
+    plane. This changes orientation only; it preserves the transformed XYZ.
+    Returns (position, quaternion_xyzw, approach_error_deg, closing_error_deg).
+    """
+    position, source_orientation = transform_box_pose(
+        target_from_source, position, orientation_xyzw)
+    target_rotation = quaternion_matrix_xyzw(source_orientation)
+    desired_approach = target_rotation[:, 2]
+    desired_closing = target_rotation[:, 0]
+    down = (0.0, 0.0, -1.0)
+    closing = desired_closing.copy()
+    closing[2] = 0.0
+    norm = float((closing @ closing) ** 0.5)
+    if norm < 1e-8:
+        raise ValueError("grasp closing axis is parallel to base vertical")
+    closing /= norm
+    lateral = np.cross(down, closing)
+    lateral /= np.linalg.norm(lateral)
+    closing = np.cross(lateral, down)
+    rotation = np.column_stack((closing, lateral, down))
+    quaternion = matrix_quaternion_xyzw(rotation)
+
+    def angle_degrees(a, b):
+        cosine = max(-1.0, min(1.0, float(a @ b)))
+        return math.degrees(math.acos(cosine))
+
+    return (position, quaternion, angle_degrees(desired_approach, down),
+            angle_degrees(desired_closing, closing))
+
+
+def should_wait_for_batch(*, active, pending, now, last_batch_start, min_period):
+    """Rate-limit batch starts while allowing candidates within a batch through."""
+    return (not active and pending is not None
+            and now - last_batch_start < min_period)
 
 
 class GraspValidator(Node):
@@ -47,7 +89,7 @@ class GraspValidator(Node):
         self.min_period = 1.0 / min(1.0, max(0.1, float(get("max_processing_hz"))))
         self.group_name = str(get("planning_group"))
         self.ik_link = str(get("ik_link"))
-        self.last_started_mono = 0.0
+        self.last_batch_started_mono = 0.0
         self.latest_joints = None
         self._pending_batch = None
         self._active_batch = None
@@ -90,27 +132,65 @@ class GraspValidator(Node):
                            "execution_enabled": False})
             return
         try:
-            self.tf_buffer.lookup_transform(
+            transform_msg = self.tf_buffer.lookup_transform(
                 self.world_frame, msg.header.frame_id, Time.from_msg(msg.header.stamp))
         except TransformException as exc:
             self._publish({"state": "missing_candidate_tf", "stamp": stamp_s,
                            "reason": str(exc), "geometric_only": True,
                            "ik_validated": False, "execution_enabled": False})
             return
-        poses = list(msg.poses[:self.max_candidates])
-        if not poses:
+        matrix = np.eye(4)
+        transform = transform_msg.transform
+        matrix[:3, :3] = quaternion_matrix_xyzw((
+            transform.rotation.x, transform.rotation.y,
+            transform.rotation.z, transform.rotation.w))
+        matrix[:3, 3] = (transform.translation.x, transform.translation.y,
+                         transform.translation.z)
+        candidates = []
+        for index, source_pose in enumerate(msg.poses[:self.max_candidates]):
+            try:
+                position, orientation, approach_error, closing_error = base_vertical_variant(
+                    matrix,
+                    (source_pose.position.x, source_pose.position.y,
+                     source_pose.position.z),
+                    (source_pose.orientation.x, source_pose.orientation.y,
+                     source_pose.orientation.z, source_pose.orientation.w))
+            except ValueError as exc:
+                self._publish({"state": "invalid_candidate_orientation", "stamp": stamp_s,
+                               "candidate_index": index, "reason": str(exc),
+                               "geometric_only": True, "ik_validated": False,
+                               "execution_enabled": False})
+                continue
+            pose = PoseStamped().pose
+            pose.position.x, pose.position.y, pose.position.z = position
+            (pose.orientation.x, pose.orientation.y, pose.orientation.z,
+             pose.orientation.w) = orientation
+            candidates.append({"source_index": index, "pose": pose,
+                               "approach_error_deg": approach_error,
+                               "closing_error_deg": closing_error})
+        if not candidates:
             self._publish({"state": "empty", "stamp": stamp_s,
                            "geometric_only": True, "ik_validated": False,
                            "execution_enabled": False})
             return
-        self._pending_batch = (msg.header, poses, 0, time.monotonic())
+        header = Header()
+        header.stamp = msg.header.stamp
+        header.frame_id = self.world_frame
+        self._pending_batch = (header, candidates, 0, time.monotonic())
 
     def _tick(self):
-        if self._busy or time.monotonic() - self.last_started_mono < self.min_period:
+        if self._busy:
             return
         if self._active_batch is None:
+            if should_wait_for_batch(active=False, pending=self._pending_batch,
+                                     now=time.monotonic(),
+                                     last_batch_start=self.last_batch_started_mono,
+                                     min_period=self.min_period):
+                return
             self._active_batch = self._pending_batch
             self._pending_batch = None
+            if self._active_batch is not None:
+                self.last_batch_started_mono = time.monotonic()
         if self._active_batch is None:
             return
         header, poses, index, received_mono = self._active_batch
@@ -121,8 +201,7 @@ class GraspValidator(Node):
             self._active_batch = None
             return
         if index >= len(poses):
-            self._active_batch = self._pending_batch
-            self._pending_batch = None
+            self._active_batch = None
             return
         if self.latest_joints is None:
             self._publish({"state": "waiting_for_fresh_joint_state",
@@ -146,7 +225,8 @@ class GraspValidator(Node):
         if not self.ik_client.service_is_ready() or not self.validity_client.service_is_ready():
             return
 
-        pose = poses[index]
+        candidate = poses[index]
+        pose = candidate["pose"]
         pose_stamped = PoseStamped()
         pose_stamped.header = header
         pose_stamped.pose = pose
@@ -159,28 +239,27 @@ class GraspValidator(Node):
         request.ik_request.avoid_collisions = True
         request.ik_request.timeout = Duration(seconds=0.35).to_msg()
         self._busy = True
-        self.last_started_mono = time.monotonic()
         header_stamp = stamp_seconds(header.stamp)
         self.ik_client.call_async(request).add_done_callback(
-            lambda future: self._ik_done(future, header_stamp, index, pose))
+            lambda future: self._ik_done(future, header_stamp, candidate))
 
-    def _ik_done(self, future, stamp_s, index, pose):
+    def _ik_done(self, future, stamp_s, candidate):
         try:
             response = future.result()
         except Exception as exc:
-            self._finish_candidate(stamp_s, index, pose, "ik_service_error", str(exc))
+            self._finish_candidate(stamp_s, candidate, "ik_service_error", str(exc))
             return
         if response is None or response.error_code.val != MoveItErrorCodes.SUCCESS:
             code = "no_response" if response is None else str(response.error_code.val)
-            self._finish_candidate(stamp_s, index, pose, "ik_failed", code)
+            self._finish_candidate(stamp_s, candidate, "ik_failed", code)
             return
         validity = GetStateValidity.Request()
         validity.robot_state = response.solution
         validity.group_name = self.group_name
         self.validity_client.call_async(validity).add_done_callback(
-            lambda result: self._validity_done(result, stamp_s, index, pose))
+            lambda result: self._validity_done(result, stamp_s, candidate))
 
-    def _validity_done(self, future, stamp_s, index, pose):
+    def _validity_done(self, future, stamp_s, candidate):
         try:
             response = future.result()
             valid = bool(response and response.valid)
@@ -188,15 +267,19 @@ class GraspValidator(Node):
             state = "pregrasp_ik_collision_valid" if valid else "pregrasp_collision_invalid"
         except Exception as exc:
             valid, reason, state = False, str(exc), "state_validity_service_error"
-        self._finish_candidate(stamp_s, index, pose, state, reason, ik_validated=True,
-                               collision_valid=valid)
+        self._finish_candidate(stamp_s, candidate, state, reason,
+                               ik_validated=True, collision_valid=valid)
 
-    def _finish_candidate(self, stamp_s, index, pose, state, reason,
+    def _finish_candidate(self, stamp_s, candidate, state, reason,
                           *, ik_validated=False, collision_valid=False):
+        index, pose = candidate["source_index"], candidate["pose"]
         self._publish({
             "state": state,
             "reason": reason,
             "candidate_index": index,
+            "candidate_variant": "base_vertical_down",
+            "requested_approach_tilt_deg": candidate["approach_error_deg"],
+            "requested_closing_axis_change_deg": candidate["closing_error_deg"],
             "candidate_kind": "pregrasp",
             "pregrasp_position_m": [float(pose.position.x), float(pose.position.y),
                                     float(pose.position.z)],
@@ -210,7 +293,8 @@ class GraspValidator(Node):
         self._busy = False
         if self._active_batch is not None:
             header, poses, _, received_mono = self._active_batch
-            self._active_batch = (header, poses, index + 1, received_mono)
+            next_index = self._active_batch[2] + 1
+            self._active_batch = (header, poses, next_index, received_mono)
 
 
 def main(args=None):
