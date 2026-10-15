@@ -52,3 +52,24 @@ The leader ROS node does not own or open the follower serial port. Follower
 commands continue through the one resident `ArmSession`, which enforces a
 300 ms command watchdog. A lost leader stream therefore expires at the bridge
 and resident owner rather than leaving a stale command queued for later use.
+
+## Explicit measured-endpoint calibration mode
+
+For a calibration capture that needs the stable measured endpoint even when
+the planned goal misses the normal tolerance, start `trajectory_server` with
+`calibration_endpoint_mode:=true`. The setting defaults to false. In this mode
+ArmSession still waits at least three seconds and only reports
+`calibration_measured_endpoint_held` when the measured endpoint stays quiet,
+torque remains on, and the maximum joint error is at most 10 degrees. Quiet
+means no more than four raw counts of span per joint during the final 0.3
+seconds. It retains the measured pose and reports `target_reached: false`;
+this is a calibration measurement, not plan success or an endpoint-accuracy
+claim.
+
+The ROS action deliberately returns `GOAL_TOLERANCE_VIOLATED` (-5) and saves
+the artifact status `calibration_measured_endpoint_held`. The planning client
+accepts that one explicit result only when both `--execute` and `--calibration`
+are supplied. Its metadata records `target_reached: false` and status
+`calibration_measured_endpoint_held`, not
+`executed_successfully`. Without `--calibration`, the same action result is a
+failure. The mode does not change trajectory tolerances or motion profiles.

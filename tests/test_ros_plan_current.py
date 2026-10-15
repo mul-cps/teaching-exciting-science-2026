@@ -12,11 +12,20 @@ from ros_plan_current import (  # noqa: E402
     ARM_JOINTS,
     ALL_JOINTS,
     _joint_state_map,
+    is_calibration_endpoint_result,
     max_deviation_from_linear_knots,
     parse_joint_offsets,
     prepare_with_retiming,
     scale_points,
 )
+
+
+def test_calibration_endpoint_result_requires_flag_code_and_exact_prefix():
+    prefix = "calibration_measured_endpoint_held: measured endpoint held"
+    assert is_calibration_endpoint_result(True, -5, prefix)
+    assert not is_calibration_endpoint_result(False, -5, prefix)
+    assert not is_calibration_endpoint_result(True, 0, prefix)
+    assert not is_calibration_endpoint_result(True, -5, "trajectory target reached")
 
 
 def test_joint_offset_defaults_to_small_pan_only_and_accepts_partial_json():

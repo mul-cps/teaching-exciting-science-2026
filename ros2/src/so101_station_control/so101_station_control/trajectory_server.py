@@ -96,6 +96,7 @@ class TrajectoryBridge(Node):
         self.declare_parameter("state_freshness_s", 0.25)
         self.declare_parameter("collision_check_timeout_s", 30.0)
         self.declare_parameter("max_jerk_rad_s3", 2.0)
+        self.declare_parameter("calibration_endpoint_mode", False)
         self.declare_parameter("teleop_pose_topic", "/leader/teleop_pose")
         self.declare_parameter("teleop_enable_service", "/follower/teleop_enable")
         self.declare_parameter("teleop_pose_stale_s", 0.15)
@@ -873,9 +874,12 @@ class TrajectoryBridge(Node):
                 else:
                     cancelled_before_send = False
                     self._active_goal = goal_handle
-                    self._send({"command": "execute_trajectory", "goal_id": goal_id,
-                                "joint_names": names, "points": command_points,
-                                "path_sha256": artifact["effective_path_sha256"]})
+                    command = {"command": "execute_trajectory", "goal_id": goal_id,
+                               "joint_names": names, "points": command_points,
+                               "path_sha256": artifact["effective_path_sha256"]}
+                    if bool(self.get_parameter("calibration_endpoint_mode").value):
+                        command["calibration_endpoint"] = True
+                    self._send(command)
             if cancelled_before_send:
                 artifact["status"] = "cancelled_before_send"
                 self._write_artifact(artifact)
@@ -935,6 +939,15 @@ class TrajectoryBridge(Node):
             self._write_artifact(artifact)
             goal_handle.canceled()
             return self._result(FollowJointTrajectory.Result.SUCCESSFUL, "cancelled; measured pose held")
+        if result_payload and result_payload.get("status") == "calibration_measured_endpoint_held":
+            artifact["status"] = "calibration_measured_endpoint_held"
+            artifact["target_reached"] = False
+            artifact["result"] = result_payload
+            self._write_artifact(artifact)
+            goal_handle.abort()
+            return self._result(
+                FollowJointTrajectory.Result.GOAL_TOLERANCE_VIOLATED,
+                "calibration_measured_endpoint_held: measured endpoint held; plan target not reached")
         if result_payload and result_payload.get("ok"):
             artifact["status"] = "succeeded"
             artifact["result"] = result_payload

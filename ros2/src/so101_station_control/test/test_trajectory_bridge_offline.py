@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 import rclpy
+import pytest
 from builtin_interfaces.msg import Duration
 from control_msgs.action import FollowJointTrajectory
 from control_msgs.msg import JointTolerance
@@ -227,6 +228,83 @@ def test_action_preflight_success_collision_tolerance_and_cancel(monkeypatch, tm
         result = _spin_until(executor, accepted.get_result_async())
         assert result.status == 5  # action_msgs/GoalStatus.STATUS_CANCELED
         assert any(item["command"] == "cancel_hold" for item in commands)
+    finally:
+        executor.remove_node(client_node)
+        executor.remove_node(bridge)
+        client_node.destroy_node()
+        bridge.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+def test_calibration_endpoint_is_aborted_and_recorded_without_faulting_owner(monkeypatch, tmp_path):
+    if not rclpy.ok():
+        rclpy.init(args=["so101-offline-calibration-endpoint-test"])
+    root = Path(__file__).resolve().parents[4]
+    runtime_state = tmp_path / "owner-state.json"
+    artifacts = tmp_path / "trajectory-artifacts"
+    commands = []
+    state = {
+        "schema": 1, "event": "sample", "arm_id": "offline-fake",
+        "calibration_sha256": "offline-fake", "timestamp_utc": "offline",
+        "monotonic": time.monotonic(),
+        "raw": {joint: 2048 for joint in (*ARM_JOINTS, "gripper")},
+        "pose": {**dict.fromkeys(ARM_JOINTS, 0.0), "gripper": 50.0},
+        "torque": dict.fromkeys((*ARM_JOINTS, "gripper"), 1),
+    }
+
+    def start_fake_owner(node):
+        runtime_state.write_text(json.dumps(state))
+        node._state_file = runtime_state
+        node._process = _FakeProcess()
+        node._owner_started = time.monotonic()
+
+    def send_to_fake_owner(node, command):
+        commands.append(command)
+        if command["command"] == "execute_trajectory":
+            node._response_queue.put({
+                "ok": True, "status": "calibration_measured_endpoint_held",
+                "target_reached": False, "goal_error_rad": {"elbow_flex": 0.0399},
+                "state": state, "trajectory": {"feedback_count": 70},
+            })
+
+    monkeypatch.setattr(TrajectoryBridge, "_start_owner", start_fake_owner)
+    monkeypatch.setattr(TrajectoryBridge, "_send", send_to_fake_owner)
+    bridge = TrajectoryBridge(parameter_overrides=[
+        Parameter("enable_hardware", Parameter.Type.BOOL, False),
+        Parameter("station_root", Parameter.Type.STRING, str(root)),
+        Parameter("state_file", Parameter.Type.STRING, str(runtime_state)),
+        Parameter("trajectory_log_dir", Parameter.Type.STRING, str(artifacts)),
+        Parameter("calibration_endpoint_mode", Parameter.Type.BOOL, True),
+    ])
+    def validity_callback(_request, response):
+        response.valid = True
+        return response
+
+    bridge.create_service(GetStateValidity, "/follower/check_state_validity", validity_callback)
+    client_node = Node("so101_offline_calibration_endpoint_client")
+    client = ActionClient(client_node, FollowJointTrajectory,
+                          "/follower/arm_trajectory_controller/follow_joint_trajectory")
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(bridge)
+    executor.add_node(client_node)
+    try:
+        assert client.wait_for_server(timeout_sec=3.0)
+        state["monotonic"] = time.monotonic()
+        runtime_state.write_text(json.dumps(state))
+        accepted = _spin_until(executor, client.send_goal_async(_goal()))
+        assert accepted.accepted
+        result = _spin_until(executor, accepted.get_result_async())
+        assert result.result.error_code == FollowJointTrajectory.Result.GOAL_TOLERANCE_VIOLATED
+        assert result.result.error_string.startswith("calibration_measured_endpoint_held")
+        command = next(item for item in commands if item["command"] == "execute_trajectory")
+        assert command["calibration_endpoint"] is True
+        artifact = json.loads(next(artifacts.glob("trajectory-*.json")).read_text())
+        assert artifact["status"] == "calibration_measured_endpoint_held"
+        assert artifact["target_reached"] is False
+        assert artifact["result"]["goal_error_rad"]["elbow_flex"] == pytest.approx(0.0399)
+        assert bridge._owner_faulted is False
+        assert bridge._process.poll() is None
     finally:
         executor.remove_node(client_node)
         executor.remove_node(bridge)

@@ -51,6 +51,13 @@ def validate_scaling(value: float, label: str) -> float:
     return value
 
 
+def is_calibration_endpoint_result(enabled: bool, error_code: int, error_string: str) -> bool:
+    """Recognize only the bridge's explicit measured-endpoint calibration result."""
+    return (enabled and error_code == -5 and
+            isinstance(error_string, str) and
+            error_string.startswith("calibration_measured_endpoint_held"))
+
+
 def scale_points(points: list[dict], factor: float) -> list[dict]:
     """Time-scale points while preserving their spatial path and derivatives."""
     if not math.isfinite(factor) or factor < 1:
@@ -136,6 +143,8 @@ def _parse_arguments(argv=None):
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--execute", action="store_true",
                         help="send the retimed trajectory to FollowJointTrajectory after saving")
+    parser.add_argument("--calibration", action="store_true",
+                        help="accept a measured-but-outside-tolerance endpoint for calibration data only")
     args = parser.parse_args(argv)
     try:
         args.offsets = parse_joint_offsets(args.joint_offset)
@@ -335,8 +344,9 @@ def main(argv=None) -> int:
         }
         output_directory = _write_artifacts(
             args.output_directory, original, effective, metadata, message_to_yaml)
-        print(f"PLAN VALIDATED: saved original and retimed plan in {output_directory}; no execution requested",
-              flush=True)
+        if not args.execute:
+            print(f"PLAN VALIDATED: saved original and retimed plan in {output_directory}; no execution requested",
+                  flush=True)
 
         if args.execute:
             action_name = args.namespace + "/arm_trajectory_controller/follow_joint_trajectory"
@@ -354,12 +364,22 @@ def main(argv=None) -> int:
                                   "FollowJointTrajectory result")
             result_code = result.result.error_code
             result_text = result.result.error_string
-            metadata["status"] = "executed_successfully" if result_code == 0 else "execution_failed"
+            calibration_endpoint_held = is_calibration_endpoint_result(
+                args.calibration, result_code, result_text)
+            metadata["status"] = (
+                "executed_successfully" if result_code == 0 else
+                "calibration_measured_endpoint_held" if calibration_endpoint_held else
+                "execution_failed")
             metadata["action_result"] = {"error_code": result_code, "error_string": result_text}
+            if calibration_endpoint_held:
+                metadata["target_reached"] = False
             (output_directory / "metadata.json").write_text(
                 json.dumps(metadata, indent=2, sort_keys=True, allow_nan=False) + "\n",
                 encoding="utf-8")
-            if result_code != 0:
+            if calibration_endpoint_held:
+                print("CALIBRATION ENDPOINT HELD: measured endpoint recorded; plan target was not reached",
+                      flush=True)
+            elif result_code != 0:
                 raise RuntimeError(f"FollowJointTrajectory failed with result code {result_code}")
         return 0
     except KeyboardInterrupt:
