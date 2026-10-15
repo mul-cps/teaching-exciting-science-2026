@@ -9,8 +9,10 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY / "ros2/src/so101_station_objects"))
 
 from so101_station_objects.objects import (  # noqa: E402
+    SupportPlaneUnavailable,
     StableObjectTracker,
     analyze_rgbd,
+    cached_marker_should_clear,
     camera_points,
     transform_points,
 )
@@ -60,6 +62,16 @@ def test_subcentimeter_color_fragment_is_not_reported_as_object():
     report = analyze_rgbd(rgb, depth, intrinsics, distortion, .001, camera_to_board)
     assert [obj["color"] for obj in report["objects"]] == ["red"]
     assert np.min(report["objects"][0]["dimensions_m"][:2]) >= .010
+
+
+def test_sparse_support_plane_failure_is_typed_and_cached_marker_expires_once():
+    rgb, depth, intrinsics, distortion, camera_to_board = tabletop_scene()
+    with pytest.raises(SupportPlaneUnavailable, match="fewer than 30"):
+        analyze_rgbd(rgb, depth, intrinsics, distortion, .001, camera_to_board,
+                     world_roi=(1, 2, 1, 2, 1, 2))
+    assert not cached_marker_should_clear(4.0, 4.9, False)
+    assert cached_marker_should_clear(4.0, 5.01, False)
+    assert not cached_marker_should_clear(4.0, 6.0, True)
 
 
 def test_camera_motion_transform_backprojection_preserves_world_position():

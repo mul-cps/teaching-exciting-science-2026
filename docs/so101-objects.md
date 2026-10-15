@@ -17,6 +17,9 @@ count as fresh localization. When registration is missing or stale, the node
 clears detections and grasp proposals and reports the reason in
 `/so101/grasp_status`. Set `require_registration_tracking:=false` only when
 using a separately validated static board-to-camera transform.
+When tracking drops briefly, fresh detections and grasp proposals are cleared
+immediately, while the last RViz marker set keeps its original image stamp and
+expires after 1 second. A single clear is sent after that display hold expires.
 
 It fits the observed table from at most 2,000 depth samples in a bounded
 board-frame ROI (`x=-30..210 mm`, `y=-30..160 mm`, `z=-50..60 mm`). The
