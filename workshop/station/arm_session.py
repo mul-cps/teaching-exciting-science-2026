@@ -39,6 +39,8 @@ ROS_GOAL_TOLERANCE_RAD = math.radians(2.0)
 MAX_MISSED_FEEDBACK_TICKS_PER_LEG = 4
 MAX_FEEDBACK_GAP_S = PERIOD_S * (MAX_MISSED_FEEDBACK_TICKS_PER_LEG + 1)
 FEEDBACK_GAP_EPSILON_S = 0.001
+SYNC_READ_MAX_ATTEMPTS = 3
+SYNC_READ_DEADLINE_S = 0.020
 BODY_STEP = 180
 GRIPPER_STEP = 650
 ARRIVAL_COUNTS = 10
@@ -132,6 +134,7 @@ class ArmSession:
         self._emit = None
         self._active_leg = None
         self._completed_leg_records = []
+        self._read_diagnostics = {}
 
     @staticmethod
     def _six_ints(values, label):
@@ -146,8 +149,46 @@ class ArmSession:
         return result
 
     def _read(self, register):
-        values = self.bus.sync_read(register, normalize=False, num_retry=0)
-        return self._six_ints(values, register)
+        started = self.clock()
+        error = None
+        attempts = 0
+        deadline_exceeded = False
+        for attempt in range(1, SYNC_READ_MAX_ATTEMPTS + 1):
+            attempts = attempt
+            try:
+                # Each SDK call rebuilds the GroupSyncRead parameter list via
+                # clearParam/addParam. Only idempotent reads are retried; writes
+                # remain single-shot to avoid replaying partially applied goals.
+                values = self.bus.sync_read(register, normalize=False, num_retry=0)
+                result = self._six_ints(values, register)
+                duration = max(0.0, self.clock() - started)
+                retry_deadline_exceeded = (
+                    attempts > 1 and duration >= SYNC_READ_DEADLINE_S)
+                self._read_diagnostics[register] = {
+                    "attempts": attempts, "retries": attempts - 1,
+                    "duration_s": duration, "success": not retry_deadline_exceeded,
+                    "deadline_exceeded": retry_deadline_exceeded,
+                }
+                if retry_deadline_exceeded:
+                    raise TimeoutError(
+                        f"sync read {register} exceeded {SYNC_READ_DEADLINE_S * 1000:.0f} ms retry deadline")
+                return result
+            except ConnectionError as exc:
+                error = exc
+                duration = max(0.0, self.clock() - started)
+                deadline_exceeded = duration >= SYNC_READ_DEADLINE_S
+                if deadline_exceeded or attempt == SYNC_READ_MAX_ATTEMPTS:
+                    self._read_diagnostics[register] = {
+                        "attempts": attempts, "retries": attempts - 1,
+                        "duration_s": duration, "success": False,
+                        "deadline_exceeded": deadline_exceeded,
+                        "error": str(exc),
+                    }
+                    break
+        diagnostic = self._read_diagnostics[register]
+        raise ConnectionError(
+            f"sync read {register} failed after {attempts} attempts "
+            f"({attempts - 1} retries, {diagnostic['duration_s']:.6f}s): {error}") from error
 
     def _write_each(self, register, values):
         for joint in JOINTS:
@@ -406,7 +447,8 @@ class ArmSession:
                      phase=phase, label=label, feedback_timing=feedback_timing,
                      trajectory_goal_id=trajectory_goal_id,
                      trajectory_time=trajectory_time,
-                     trajectory_desired=trajectory_desired)
+                     trajectory_desired=trajectory_desired,
+                     bus_read_diagnostics=dict(self._read_diagnostics))
         snapshot_started = self.clock()
         _atomic_snapshot_json(self.state_file, state)
         if feedback_timing is not None:
