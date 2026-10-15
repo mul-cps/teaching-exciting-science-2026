@@ -20,6 +20,21 @@ from .evidence_bridge import (apply_world_registration, camera_sample_status,
                               transform_points)
 
 LIVE_SURFACE_REFRESH_INTERVAL_S = .2
+
+
+def _reflect_actual_pose(lock, sliders, degrees, next_degrees, update_pose,
+                         reflecting_actual):
+    """Reflect evidence values under the render lock without treating them as user input."""
+    with lock:
+        reflecting_actual[0] = True
+        try:
+            degrees.update(next_degrees)
+            for key, slider in sliders.items():
+                if key in next_degrees:
+                    slider.value = float(next_degrees[key])
+            update_pose()
+        finally:
+            reflecting_actual[0] = False
 DEPTH_VIEW_NEAR_M = .3
 DEPTH_VIEW_FAR_M = .9
 
@@ -472,7 +487,13 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
     base_position = model.body_pos[arm_id].copy()
     base_quaternion = model.body_quat[arm_id].copy()
     virtual_override = [False]
+    reflecting_actual = [False]
     def change(event):
+        # Viser dispatches value assignment callbacks synchronously. Evidence
+        # refresh sets this guard before reflecting authoritative values while
+        # holding the non-reentrant render lock.
+        if reflecting_actual[0]:
+            return
         with lock:
             virtual_override[0] = True
             degrees.update({key: value.value for key, value in sliders.items()})
@@ -661,14 +682,12 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                 event_time = current_phase.get('event_monotonic')
                 if current_phase.get('pose_raw') and event_time != last_phase_event[0] and calibration:
                     next_degrees = raw_pose_to_joint_degrees(current_phase['pose_raw'], calibration)
-                    with lock:
-                        degrees.update(next_degrees)
-                        for key, slider in sliders.items():
-                            if key in degrees:
-                                slider.value = float(degrees[key])
+                    def apply_actual_pose():
                         set_pose(model, data, degrees, carriage.value, feeder.value)
                         update_model()
                         virtual_override[0] = False
+                    _reflect_actual_pose(lock, sliders, degrees, next_degrees,
+                                         apply_actual_pose, reflecting_actual)
                     last_phase_event[0] = event_time
 
                 pair = ((select_latest_keyframe_pair_tail(watch_latest_saved_camera)
