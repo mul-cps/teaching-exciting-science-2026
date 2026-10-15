@@ -8,7 +8,6 @@ import queue
 import subprocess
 import threading
 import time
-import time
 
 import rclpy
 from rclpy.duration import Duration
@@ -38,6 +37,7 @@ class LeaderTeleopPublisher(Node):
             JointState, str(self.get_parameter("joint_states_topic").value), 10)
         self._latest = queue.Queue(maxsize=1)
         self._reader_fault_reported = False
+        self._leader_ready_reported = False
         self._reader = self._start_reader()
         self._timer = self.create_timer(1.0 / 125.0, self._publish_latest)
 
@@ -103,6 +103,10 @@ class LeaderTeleopPublisher(Node):
         age = time.monotonic() - float(packet["stamp_s"])
         if age < -0.02 or age > float(self.get_parameter("pose_stale_s").value):
             return
+        if not self._leader_ready_reported:
+            self.get_logger().info(
+                f"Leader ready: fresh calibrated pose stream from {self.get_parameter('leader_port').value}")
+            self._leader_ready_reported = True
         # The JSON stamp is the reader's monotonic acquisition time; bridge freshness checks
         # use this shared host clock and reject data older than 150 ms.
         packet["stamp_s"] = float(packet["stamp_s"])

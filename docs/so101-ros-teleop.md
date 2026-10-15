@@ -1,5 +1,47 @@
 # SO-ARM101 ROS leader teleoperation
 
+## Integrated ROS launch
+
+Build and source the ROS workspace, then start the follower resident owner,
+MoveIt state publisher, and read-only leader ROS publisher together:
+
+```bash
+ros2 launch so101_station_control leader_follower_teleop.launch.py enable_hardware:=true
+```
+
+The launch starts the follower bus owner only once, through `trajectory_server`,
+and the leader publisher only reads the calibrated leader. The combined launch
+defaults `enable_hardware` to `false`; pass `true` explicitly to start the
+follower hardware owner. It does not enable teleoperation on startup. Wait for
+the follower owner and leader reader readiness messages, then explicitly arm
+teleoperation:
+
+```bash
+ros2 service call /follower/teleop_enable std_srvs/srv/SetBool "{data: true}"
+```
+
+The bridge captures fresh leader and follower references when that service
+acknowledges. Consequently the first mapped command equals the follower's
+measured starting pose, and subsequent commands apply only the leader's change
+from its captured reference. If the stream becomes stale, the resident owner
+holds the measured position and the bridge disables the session; inspect the
+diagnostic and issue a new explicit enable request to rearm. To stop motion,
+disable first and then stop the ROS launch with Ctrl-C:
+
+```bash
+ros2 service call /follower/teleop_enable std_srvs/srv/SetBool "{data: false}"
+```
+
+For a publisher-only start, use `leader_teleop.launch.py`; it never opens or
+starts the follower owner. The same four leader arguments and station Python
+and checkout overrides described below are accepted by the integrated launch.
+
+The built-in defaults use Rig01's current station files. For a different
+installation, override `station_python`, `station_root`, `station_config`,
+`leader_port`, and `calibration_dir`. Startup remains unqualified until the
+installed calibration hashes, exact serial identities, and both ready states
+have been checked on the target station.
+
 The ROS leader reader publishes calibrated leader state from the exact device
 `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AB9068765-if00` using
 `hs_rig01_leader.json` in `/home/bjoern/git/soarm101-highschool-demos/.calibration`.
