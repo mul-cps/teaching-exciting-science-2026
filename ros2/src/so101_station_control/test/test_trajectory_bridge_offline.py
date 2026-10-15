@@ -17,6 +17,7 @@ from std_srvs.srv import Trigger
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 from so101_station_control.trajectory_server import (ARM_JOINTS, TrajectoryBridge,
+                                                      calibration_ready_raw_legs,
                                                       _arm_session_command,
                                                       _owner_state_is_ready)
 
@@ -387,3 +388,137 @@ def test_home_service_uses_owner_and_denies_busy_or_unavailable(monkeypatch, tmp
         bridge.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
+
+
+def test_calibration_ready_service_is_explicit_identity_checked_and_bounded(monkeypatch, tmp_path):
+    if not rclpy.ok():
+        rclpy.init(args=["so101-offline-calibration-ready-service-test"])
+    root = Path(__file__).resolve().parents[4]
+    runtime_state = tmp_path / "owner-state.json"
+    pose_file = tmp_path / "observation-pose.json"
+    joints = (*ARM_JOINTS, "gripper")
+    state = {"schema": 1, "event": "sample", "monotonic": time.monotonic(),
+             "arm_id": "rig01", "calibration_sha256": "a" * 64,
+             "raw": dict.fromkeys(joints, 2000),
+             "pose": {**dict.fromkeys(ARM_JOINTS, 0.0), "gripper": 50.0},
+             "torque": dict.fromkeys(joints, 0)}
+    target = {"shoulder_pan": 2807, "shoulder_lift": 1594, "elbow_flex": 2151,
+              "wrist_flex": 2825, "wrist_roll": 2320, "gripper": 2168}
+    commands = []
+
+    def start_fake_owner(node):
+        runtime_state.write_text(json.dumps(state))
+        node._state_file = runtime_state
+        node._process = _FakeProcess()
+        node._owner_started = time.monotonic()
+
+    def send_to_fake_owner(node, command):
+        commands.append(command)
+        if command.get("command") == "move_plan":
+            node._response_queue.put({"ok": True, "state": {"event": "plan_complete"}})
+
+    monkeypatch.setattr(TrajectoryBridge, "_start_owner", start_fake_owner)
+    monkeypatch.setattr(TrajectoryBridge, "_send", send_to_fake_owner)
+    bridge = TrajectoryBridge(parameter_overrides=[
+        Parameter("enable_hardware", Parameter.Type.BOOL, False),
+        Parameter("station_root", Parameter.Type.STRING, str(root)),
+        Parameter("state_file", Parameter.Type.STRING, str(runtime_state)),
+        Parameter("calibration_ready_pose_file", Parameter.Type.STRING, str(pose_file)),
+    ])
+    client_node = Node("so101_offline_calibration_ready_client")
+    client = client_node.create_client(Trigger, "/follower/calibration_ready")
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(bridge)
+    executor.add_node(client_node)
+
+    def invoke():
+        return _spin_until(executor, client.call_async(Trigger.Request()))
+
+    try:
+        assert client.wait_for_service(timeout_sec=3.0)
+        pose_file.write_text(json.dumps({"arm_id": "rig01",
+                                         "calibration_sha256": "a" * 64,
+                                         "raw": target}))
+        # The mode defaults off even when the pose file is configured.
+        disabled = invoke()
+        assert not disabled.success
+        assert "calibration_endpoint_mode" in disabled.message
+        assert not commands
+        assert bridge.set_parameters([
+            Parameter("calibration_endpoint_mode", Parameter.Type.BOOL, True)]
+        )[0].successful
+
+        pose_file.write_text(json.dumps({"arm_id": "other-arm",
+                                         "calibration_sha256": "a" * 64,
+                                         "raw": target}))
+        mismatch = invoke()
+        assert not mismatch.success
+        assert "identity" in mismatch.message
+        assert not commands
+
+        pose_file.write_text(json.dumps({"arm_id": "rig01",
+                                         "calibration_sha256": "b" * 64,
+                                         "raw": target}))
+        calibration_mismatch = invoke()
+        assert not calibration_mismatch.success
+        assert "identity" in calibration_mismatch.message
+        assert not commands
+
+        invalid_target = {**target, "elbow_flex": 4096}
+        pose_file.write_text(json.dumps({"arm_id": "rig01",
+                                         "calibration_sha256": "a" * 64,
+                                         "raw": invalid_target}))
+        invalid = invoke()
+        assert not invalid.success
+        assert "0..4095" in invalid.message
+        assert not commands
+
+        pose_file.write_text(json.dumps({"arm_id": "rig01",
+                                         "calibration_sha256": "a" * 64,
+                                         "raw": target}))
+        ready = invoke()
+        assert ready.success
+        assert "not MoveIt- or collision-qualified" in ready.message
+        assert len(commands) == 1
+        command = commands[0]
+        assert command["command"] == "move_plan"
+        assert len(command["legs"]) <= 100
+        assert command["legs"][-1]["target_raw"] == target
+        previous = state["raw"]
+        for leg in command["legs"]:
+            assert all(abs(leg["target_raw"][joint] - previous[joint]) <= 100
+                       for joint in joints)
+            previous = leg["target_raw"]
+        assert bridge._active_goal is None
+
+        with bridge._active_lock:
+            bridge._active_goal = "home"
+        busy = invoke()
+        assert not busy.success
+        assert "active" in busy.message
+        assert len(commands) == 1
+        with bridge._active_lock:
+            bridge._active_goal = None
+    finally:
+        executor.remove_node(client_node)
+        executor.remove_node(bridge)
+        client_node.destroy_node()
+        bridge.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+def test_calibration_ready_raw_legs_reject_out_of_range_and_make_bounded_steps():
+    joints = (*ARM_JOINTS, "gripper")
+    start = dict.fromkeys(joints, 0)
+    target = dict.fromkeys(joints, 4095)
+    legs = calibration_ready_raw_legs(start, target)
+    assert len(legs) == 41
+    previous = start
+    for leg in legs:
+        assert all(abs(leg["target_raw"][joint] - previous[joint]) <= 100
+                   for joint in joints)
+        previous = leg["target_raw"]
+    invalid = {**target, "gripper": -1}
+    with pytest.raises(ValueError, match="0..4095"):
+        calibration_ready_raw_legs(start, invalid)

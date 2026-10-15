@@ -61,6 +61,18 @@ trajectory and teleoperation operations are rejected. The call times out after
 at most 90 seconds; it does not add a motion profile or a MoveIt collision
 bypass to trajectory execution.
 
+For a camera-confirmed calibration observation pose, the opt-in
+`/follower/calibration_ready` Trigger is available only when
+`calibration_endpoint_mode:=true` and `calibration_ready_pose_file` names an
+absolute JSON file containing `arm_id`, `calibration_sha256`, and six integer
+raw counts under `raw`. The file identity must match the fresh resident state.
+The bridge creates linear sublegs no larger than 100 raw counts per servo and
+sends them to the existing `move_plan` owner command; ArmSession still applies
+its normal raw limits and transition checks. This explicit observation-pose
+move does not run MoveIt and does not establish collision qualification. The
+service reserves control exclusively and requires an `ok` owner reply with
+`plan_complete` before it reports success.
+
 ## Explicit measured-endpoint calibration mode
 
 For a calibration capture that needs the stable measured endpoint even when

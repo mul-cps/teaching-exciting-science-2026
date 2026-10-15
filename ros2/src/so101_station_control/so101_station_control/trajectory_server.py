@@ -56,6 +56,34 @@ def _owner_state_is_ready(state, *, arm_id, calibration_sha256, owner_started):
             all(value == 0 for value in torque.values()))
 
 
+def calibration_ready_raw_legs(start_raw, target_raw):
+    """Create bounded linear raw-count sublegs for the observation-pose move."""
+    joints = set(TELEOP_JOINTS)
+    for label, pose in (("start", start_raw), ("target", target_raw)):
+        if not isinstance(pose, dict) or set(pose) != joints:
+            raise ValueError(f"calibration-ready {label} raw pose must contain exactly six joints")
+        if any(type(value) is not int or not 0 <= value <= 4095 for value in pose.values()):
+            raise ValueError(f"calibration-ready {label} raw values must be integers in 0..4095")
+    count = max(1, max(math.ceil(abs(target_raw[joint] - start_raw[joint]) / 100)
+                       for joint in TELEOP_JOINTS))
+    if count > 100:
+        raise ValueError("calibration-ready route exceeds ArmSession's 100-leg limit")
+    legs = []
+    previous = start_raw
+    for index in range(1, count + 1):
+        target = {
+            joint: int(round(start_raw[joint] +
+                             (target_raw[joint] - start_raw[joint]) * index / count))
+            for joint in TELEOP_JOINTS
+        }
+        if any(abs(target[joint] - previous[joint]) > 100 for joint in TELEOP_JOINTS):
+            raise ValueError("calibration-ready subleg exceeds 100 raw counts")
+        legs.append({"label": f"calibration_ready_{index:03d}_of_{count:03d}",
+                     "target_raw": target})
+        previous = target
+    return legs
+
+
 class _PreflightCancelled(RuntimeError):
     pass
 
@@ -103,6 +131,9 @@ class TrajectoryBridge(Node):
         self.declare_parameter("teleop_owner_timeout_s", 2.0)
         self.declare_parameter("home_service", "/follower/home")
         self.declare_parameter("home_timeout_s", 90.0)
+        self.declare_parameter("calibration_ready_service", "/follower/calibration_ready")
+        self.declare_parameter("calibration_ready_pose_file", "")
+        self.declare_parameter("calibration_ready_timeout_s", 90.0)
         self._active_lock = threading.Lock()
         self._active_goal = None
         self._cancel_before_start = False
@@ -154,6 +185,9 @@ class TrajectoryBridge(Node):
         self._home_service = self.create_service(
             Trigger, str(self.get_parameter("home_service").value),
             self._home, callback_group=self._teleop_service_group)
+        self._calibration_ready_service = self.create_service(
+            Trigger, str(self.get_parameter("calibration_ready_service").value),
+            self._calibration_ready, callback_group=self._teleop_service_group)
         self.create_timer(1.0 / 125.0, self._teleop_tick)
         if not self._external_state_only:
             self._trajectory_helper = self._load_trajectory_helper()
@@ -604,6 +638,96 @@ class TrajectoryBridge(Node):
         finally:
             with self._active_lock:
                 if self._active_goal == "home":
+                    self._active_goal = None
+        return response
+
+    def _calibration_ready(self, _request, response):
+        """Move from the measured current pose to an explicit observation pose."""
+        if not bool(self.get_parameter("calibration_endpoint_mode").value):
+            response.success = False
+            response.message = "calibration-ready motion requires calibration_endpoint_mode:=true"
+            return response
+        process = self._process
+        if (self._external_state_only or process is None or process.poll() is not None or
+                self._owner_faulted):
+            response.success = False
+            response.message = "resident ArmSession owner is unavailable or faulted"
+            return response
+        with self._active_lock:
+            if self._active_goal is not None:
+                response.success = False
+                response.message = "a trajectory, teleoperation session, or owner operation is active"
+                return response
+            self._active_goal = "calibration_ready"
+
+        try:
+            pose_file_value = str(self.get_parameter("calibration_ready_pose_file").value).strip()
+            if not pose_file_value:
+                raise ValueError("calibration_ready_pose_file must name the measured observation pose JSON")
+            pose_path = Path(pose_file_value)
+            if not pose_path.is_absolute():
+                raise ValueError("calibration_ready_pose_file must be an absolute path")
+            try:
+                observation = json.loads(pose_path.read_text())
+            except (OSError, json.JSONDecodeError) as error:
+                raise ValueError(f"could not read calibration-ready pose file: {error}") from error
+            if not isinstance(observation, dict):
+                raise ValueError("calibration-ready pose file must contain a JSON object")
+            state = self._read_state()
+            if state is None:
+                raise RuntimeError("resident ArmSession state is not fresh")
+            arm_id = state.get("arm_id")
+            calibration_sha256 = state.get("calibration_sha256")
+            if (not isinstance(arm_id, str) or not arm_id or
+                    not isinstance(calibration_sha256, str) or len(calibration_sha256) != 64 or
+                    any(character not in "0123456789abcdef" for character in calibration_sha256)):
+                raise RuntimeError("fresh resident state has invalid arm or calibration identity")
+            if (observation.get("arm_id") != arm_id or
+                    observation.get("calibration_sha256") != calibration_sha256):
+                raise ValueError("calibration-ready pose identity does not match fresh resident state")
+            legs = calibration_ready_raw_legs(state.get("raw"), observation.get("raw"))
+
+            timeout_s = float(self.get_parameter("calibration_ready_timeout_s").value)
+            if not math.isfinite(timeout_s) or not 0 < timeout_s <= 90.0:
+                raise ValueError("calibration_ready_timeout_s must be in (0, 90] seconds")
+            deadline = time.monotonic() + timeout_s
+            # This reservation excludes other bridge operations, so old queue
+            # entries cannot be acknowledgements for this single owner request.
+            while True:
+                try:
+                    self._response_queue.get_nowait()
+                except queue.Empty:
+                    break
+            self._send({"command": "move_plan", "legs": legs})
+            while True:
+                if process.poll() is not None:
+                    raise RuntimeError("ArmSession owner stopped before calibration-ready move completed")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("calibration-ready move did not complete within timeout")
+                try:
+                    result = self._response_queue.get(timeout=min(0.05, remaining))
+                    break
+                except queue.Empty:
+                    continue
+            if not isinstance(result, dict):
+                raise RuntimeError("ArmSession returned a malformed calibration-ready acknowledgement")
+            if not result.get("ok"):
+                raise RuntimeError(result.get("error", result.get("error_type",
+                                                                 "ArmSession rejected calibration-ready move")))
+            final_state = result.get("state")
+            if not isinstance(final_state, dict) or final_state.get("event") != "plan_complete":
+                raise RuntimeError("ArmSession acknowledgement did not confirm plan_complete")
+            response.success = True
+            response.message = (
+                f"measured observation pose reached in {len(legs)} raw sublegs; "
+                "not MoveIt- or collision-qualified")
+        except (OSError, ValueError, RuntimeError, TimeoutError, TypeError) as error:
+            response.success = False
+            response.message = str(error)
+        finally:
+            with self._active_lock:
+                if self._active_goal == "calibration_ready":
                     self._active_goal = None
         return response
 
