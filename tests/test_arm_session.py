@@ -979,6 +979,55 @@ def test_cancel_hold_rewrites_measured_pose_without_disabling_torque(tmp_path):
     session.close_log()
 
 
+def test_resident_teleop_maps_and_rate_limits_steps_and_rejects_stale_or_finite_motion(tmp_path):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    initial = dict(arm.bus.data["Present_Position"])
+    started = session.handle({"command": "teleop_start", "session_id": "bridge-1"})
+    assert started["ok"]
+    assert arm.bus.data["Goal_Position"] == initial
+    assert arm.bus.data["Torque_Enable"] == dict.fromkeys(JOINTS, 1)
+    clock.sleep(0.1)
+    pose = dict.fromkeys(JOINTS, 0.0)
+    pose["shoulder_pan"] = 30.0
+    pose["gripper"] = 100.0
+    result = session.handle({"command": "teleop_step", "session_id": "bridge-1",
+                             "sequence": 1, "pose": pose})
+    assert result["ok"]
+    assert arm.bus.data["Goal_Position"]["shoulder_pan"] < initial["shoulder_pan"] + 70
+    assert arm.bus.data["Goal_Position"]["gripper"] < arm.calibration["gripper"]["range_max"]
+    with pytest.raises(ValueError, match="increase strictly"):
+        session.handle({"command": "teleop_step", "session_id": "bridge-1",
+                        "sequence": 1, "pose": pose})
+    with pytest.raises(ValueError, match="finite motion"):
+        session.handle({"command": "move_plan", "legs": []})
+    stopped = session.handle({"command": "teleop_stop", "session_id": "bridge-1"})
+    assert stopped["ok"]
+    assert arm.bus.data["Goal_Position"] == arm.bus.data["Present_Position"]
+    assert session._teleop is None
+    session.shutdown(reason="test_cleanup")
+    session.close_log()
+
+
+def test_resident_teleop_watchdog_holds_measured_pose_and_invalidates_session(tmp_path):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    session.handle({"command": "teleop_start", "session_id": "bridge-2"})
+    actual = dict(arm.bus.data["Present_Position"])
+    actual["wrist_roll"] += 9
+    arm.bus.data["Present_Position"] = actual
+    clock.sleep(0.301)
+    state = session._expire_teleop_if_stale()
+    assert state["raw"] == actual
+    assert arm.bus.data["Goal_Position"] == actual
+    assert session._teleop is None
+    with pytest.raises(ValueError, match="not active"):
+        session.handle({"command": "teleop_step", "session_id": "bridge-2",
+                        "sequence": 1, "pose": dict.fromkeys(JOINTS, 0)})
+    session.shutdown(reason="test_cleanup")
+    session.close_log()
+
+
 def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):
     session, arm, _ = make_session(tmp_path)
     session.initialize()

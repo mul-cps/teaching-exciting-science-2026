@@ -26,6 +26,7 @@ from .locking import station_lock, station_lock_path
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
                              ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S,
                              path_digest, prepare_trajectory)
+TELEOP_RATE = dict(zip(JOINTS, (60, 60, 60, 60, 90, 100)))
 
 PERIOD_S = 0.05
 ROS_MAX_TRACK_ERROR_RAD = math.radians(10.0)
@@ -135,6 +136,7 @@ class ArmSession:
         self._active_leg = None
         self._completed_leg_records = []
         self._read_diagnostics = {}
+        self._teleop = None
 
     @staticmethod
     def _six_ints(values, label):
@@ -864,6 +866,7 @@ class ArmSession:
     def cancel_hold(self):
         """Replace goals with measured pose while preserving torque state."""
         self._require_initialized()
+        self._teleop = None
         measured = self._read("Present_Position")
         self.bus.sync_write("Goal_Position", measured, normalize=False, num_retry=0)
         goals = self._read("Goal_Position")
@@ -874,6 +877,75 @@ class ArmSession:
         self.last_command = self.clock()
         self._event("trajectory_cancel_hold", raw=measured, torque=torque)
         return state
+
+    def _teleop_start(self, command):
+        if set(command) != {"command", "session_id"} or not isinstance(command["session_id"], str) or not command["session_id"]:
+            raise ArmPlanPreflightError("teleop_start requires a nonempty session_id")
+        if self._teleop is not None or self._motion_busy:
+            raise ArmPlanPreflightError("arm session already has active motion")
+        self._require_initialized()
+        actual = self._read("Present_Position")
+        target = self._validate_target(actual, "teleop_start")
+        self._ensure_profile()
+        self._enable_current_goal(target, self.clock(), "teleop_start")
+        self._teleop = {"session_id": command["session_id"], "sequence": -1,
+                        "start": dict(actual), "previous": dict(actual),
+                        "last": self.clock(), "last_valid": self.clock()}
+        return self.publish_state(event="teleop_started", raw=actual,
+                                  torque=self._read("Torque_Enable"))
+
+    def _teleop_step(self, command):
+        if set(command) != {"command", "session_id", "sequence", "pose"}:
+            raise ArmPlanPreflightError("teleop_step requires session_id, sequence, and pose")
+        active = self._teleop
+        if active is None or command["session_id"] != active["session_id"]:
+            raise ArmPlanPreflightError("teleop session is not active")
+        sequence = command["sequence"]
+        pose = command["pose"]
+        if type(sequence) is not int or sequence <= active["sequence"]:
+            raise ArmPlanPreflightError("teleop sequence must increase strictly")
+        if not isinstance(pose, dict) or set(pose) != set(JOINTS):
+            raise ArmPlanPreflightError("teleop pose requires exactly six named joints")
+        if any(type(pose[j]) not in (int, float) or not math.isfinite(pose[j]) for j in JOINTS):
+            raise ArmPlanPreflightError("teleop pose values must be finite numbers")
+        now = self.clock()
+        dt = max(0.0, now - active["last"])
+        target = {}
+        for joint in JOINTS:
+            entry = self.arm.calibration[joint]
+            if joint == "gripper":
+                requested = entry["range_min"] + pose[joint] * (entry["range_max"] - entry["range_min"]) / 100
+                rate = TELEOP_RATE[joint] * (entry["range_max"] - entry["range_min"]) / 100
+            else:
+                requested = (entry["range_min"] + entry["range_max"]) / 2 + pose[joint] * 4095 / 360
+                rate = TELEOP_RATE[joint] * 4095 / 360
+            low, high = self.admitted_min[joint], self.admitted_max[joint]
+            bounded = max(low, min(high, requested))
+            previous = active["previous"][joint]
+            target[joint] = int(round(max(previous - rate * dt, min(previous + rate * dt, bounded))))
+        target = self._validate_target(target, "teleop_step")
+        self.bus.sync_write("Goal_Position", target, normalize=False, num_retry=0)
+        goals = self._read("Goal_Position")
+        if any(abs(goals[j] - target[j]) > 1 for j in JOINTS):
+            raise RuntimeError("teleop goal readback mismatch")
+        active.update(sequence=sequence, previous=target, last=now, last_valid=now)
+        state = self.publish_state(event="teleop_step", raw=self._read("Present_Position"),
+                                   torque=self._read("Torque_Enable"))
+        return {"ok": True, "state": state, "sequence": sequence}
+
+    def _teleop_stop(self, command):
+        if set(command) != {"command", "session_id"}:
+            raise ArmPlanPreflightError("teleop_stop requires session_id")
+        if self._teleop is None or command["session_id"] != self._teleop["session_id"]:
+            raise ArmPlanPreflightError("teleop session is not active")
+        self._teleop = None
+        return {"ok": True, "state": self.cancel_hold()}
+
+    def _expire_teleop_if_stale(self):
+        if self._teleop is None or self.clock() - self._teleop["last_valid"] <= 0.30:
+            return None
+        self._teleop = None
+        return self.cancel_hold()
 
     def execute_trajectory(self, goal_id, joint_names, points, *,
                            max_velocity=ROS_MAX_VELOCITY_RAD_S,
@@ -1171,6 +1243,8 @@ class ArmSession:
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
+        if self._teleop is not None and name in ("move_plan", "home", "execute_trajectory"):
+            raise ArmPlanPreflightError("finite motion is unavailable during active teleop")
         if name == "read_state":
             if set(command) != {"command"}:
                 raise ValueError("read_state accepts no extra fields")
@@ -1189,6 +1263,12 @@ class ArmSession:
             if set(command) != {"command"}:
                 raise ValueError("cancel_hold accepts no extra fields")
             return {"ok": True, "state": self.cancel_hold()}
+        if name == "teleop_start":
+            return {"ok": True, "state": self._teleop_start(command)}
+        if name == "teleop_step":
+            return self._teleop_step(command)
+        if name == "teleop_stop":
+            return self._teleop_stop(command)
         if name == "home":
             if set(command) != {"command"}:
                 raise ValueError("home accepts no extra fields")
@@ -1223,6 +1303,14 @@ class ArmSession:
         self._emit = emit
         while True:
             now = self.clock()
+            if self._teleop is not None and now - self._teleop["last_valid"] > 0.30:
+                try:
+                    state = self._expire_teleop_if_stale()
+                    emit({"ok": False, "error": "teleop watchdog expired; measured pose held",
+                          "command": "teleop_watchdog", "state": state})
+                except BaseException:
+                    self.shutdown(reason="teleop_watchdog_hold_error")
+                    raise
             if not self._idle_handled and now - self.last_command >= self.idle_timeout:
                 self._event("idle_timeout", idle_seconds=now - self.last_command)
                 self.shutdown(reason="idle_timeout")
@@ -1261,7 +1349,7 @@ class ArmSession:
                     command = json.loads(line)
                     name = command.get("command") if isinstance(command, dict) else None
                     previous_idle_handled = self._idle_handled
-                    if name in ("move_plan", "home", "execute_trajectory"):
+                    if name in ("move_plan", "home", "execute_trajectory", "teleop_start"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None
