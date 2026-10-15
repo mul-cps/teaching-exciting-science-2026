@@ -74,6 +74,15 @@ def depth_scale_for_encoding(encoding, depth, configured_scale=0.001):
     raise ValueError(f"Depth encoding {encoding!r} does not match decoded array dtype")
 
 
+def marker_grayscale(bridge, color_message):
+    """Decode directly to mono8 so the detector avoids a full RGB array."""
+    gray = bridge.imgmsg_to_cv2(color_message, desired_encoding="mono8")
+    gray = np.asarray(gray)
+    if gray.ndim != 2 or gray.dtype != np.uint8:
+        raise ValueError("color bridge did not produce a mono8 image")
+    return gray
+
+
 def select_region_detection(detections, previous_centers=(), max_distance_px=60.0):
     """Fail closed on multiple candidates or a temporal jump outside one ROI."""
     if len(detections) != 1:
@@ -125,6 +134,7 @@ class TagObservations(Node):
         self.declare_parameter("depth_topic", "/camera/aligned_depth_to_color/image_raw")
         self.declare_parameter("camera_info_topic", "/camera/color/camera_info")
         self.declare_parameter("diagnostic_frame", "")
+        self.declare_parameter("display_hold_s", 1.5)
         self.declare_parameter("depth_scale_m", 0.001)
         self.declare_parameter("max_pair_delta_s", 0.04)
         self.declare_parameter("camera_info_max_age_s", 0.5)
@@ -186,9 +196,9 @@ class TagObservations(Node):
             self._empty(color_msg.header.stamp, color_msg.header.frame_id)
             return
         try:
-            rgb = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding="rgb8")
+            gray = marker_grayscale(self.bridge, color_msg)
             depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
-            if rgb.shape[:2] != depth.shape[:2] or depth.ndim != 2:
+            if gray.shape != depth.shape or depth.ndim != 2:
                 raise ValueError("RGB and aligned depth dimensions differ")
             base_intrinsics = camera_intrinsics(info, depth.shape)
             depth_scale = depth_scale_for_encoding(depth_msg.encoding, depth, self.depth_scale)
@@ -198,7 +208,7 @@ class TagObservations(Node):
             clear.header.frame_id = self.diagnostic_frame or color_msg.header.frame_id
             clear.action = Marker.DELETEALL
             output.markers.append(clear)
-            detections = self.detector.detect(rgb)
+            detections = self.detector.detect(gray)
             points = unassociated_tag_points(detections, depth, base_intrinsics, depth_scale)
             for marker_id, observation in enumerate(points):
                 point = observation["xyz"]
@@ -214,7 +224,7 @@ class TagObservations(Node):
                 marker.scale.x = marker.scale.y = marker.scale.z = 0.012
                 marker.color.r, marker.color.g, marker.color.b = (0.2, 0.75, 0.95)
                 marker.color.a = 0.95
-                marker.lifetime = Duration(seconds=0.4).to_msg()
+                marker.lifetime = Duration(seconds=float(self.get_parameter("display_hold_s").value)).to_msg()
                 output.markers.append(marker)
                 text = Marker()
                 text.header = marker.header
@@ -227,7 +237,7 @@ class TagObservations(Node):
                 text.scale.z = 0.018
                 text.color.r = text.color.g = text.color.b = text.color.a = 1.0
                 text.text = "ID0 unassociated"
-                text.lifetime = Duration(seconds=0.4).to_msg()
+                text.lifetime = Duration(seconds=float(self.get_parameter("display_hold_s").value)).to_msg()
                 output.markers.append(text)
             self.publisher.publish(output)
         except (ValueError, TypeError, IndexError, cv2.error) as error:

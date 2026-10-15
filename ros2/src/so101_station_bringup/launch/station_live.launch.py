@@ -21,10 +21,12 @@ def generate_launch_description():
         'station_python': str(station / 'venv/bin/python'),
         'station_config': str(station / 'station.json'),
         'state_file': str(runtime / 'arm-state.json'),
-        'log_dir': str(station / 'evidence/ros-control'),
+        'log_dir': str(runtime / 'arm-owner-logs'),
+        'trajectory_log_dir': str(station / 'evidence/ros-control'),
         'station_lock': '',
         'rviz': 'true',
         'use_camera': 'true',
+        'track_charuco_world': 'true',
         'attach_candidate': 'true',
         'camera_arm_calibration': '',
         'camera_target_calibration': '',
@@ -38,10 +40,11 @@ def generate_launch_description():
 
     robot_keys = ['external_state_only', 'enable_hardware', 'station_root',
                   'station_python', 'station_config', 'state_file', 'log_dir',
-                  'station_lock', 'rviz']
+                  'station_lock', 'rviz', 'trajectory_log_dir']
     robot = include('so101_station_control', 'moveit_resident.launch.py',
                     {k: LaunchConfiguration(k) for k in robot_keys})
     perception = include('so101_station_perception', 'perception.launch.py', {
+        'track_charuco_world': LaunchConfiguration('track_charuco_world'),
         'camera_arm_calibration': LaunchConfiguration('camera_arm_calibration'),
         'attach_candidate': LaunchConfiguration('attach_candidate'),
         'camera_target_calibration': LaunchConfiguration('camera_target_calibration'),

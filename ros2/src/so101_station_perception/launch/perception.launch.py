@@ -14,6 +14,7 @@ def _launch_nodes(context):
     serial = LaunchConfiguration("serial_no").perform(context)
     if serial != "243322071783":
         raise ValueError("Rig01 perception is pinned to D435i serial 243322071783")
+    live_world = LaunchConfiguration("track_charuco_world").perform(context).lower() == "true"
     target_path = LaunchConfiguration("camera_target_calibration").perform(context)
     arm_path = LaunchConfiguration("camera_arm_calibration").perform(context)
     qualified_value = LaunchConfiguration("use_qualified_frames").perform(context).lower()
@@ -78,7 +79,15 @@ def _launch_nodes(context):
             "enable_accel": "false",
         }.items(),
     )]
-    if transforms:
+    if live_world:
+        actions.append(Node(
+            package="so101_station_perception", executable="charuco_world",
+            name="so101_charuco_world", output="screen", parameters=[{
+                "initial_base_from_camera_file": arm_path,
+                "initial_camera_from_board_file": target_path,
+                "optical_frame": optical_frame,
+            }]))
+    if transforms and not live_world:
         actions.append(Node(
             package="so101_station_perception", executable="calibration_tf_publisher",
             name="so101_calibration_tf", output="screen",
@@ -101,10 +110,10 @@ def _launch_nodes(context):
                 "depth_topic": "/camera/aligned_depth_to_color/image_raw",
                 "camera_info_topic": "/camera/color/camera_info",
                 "depth_scale_m": float(LaunchConfiguration("depth_scale_m").perform(context)),
-                "diagnostic_frame": "so101_diag_camera_optical" if unqualified_arm and not attach_candidate else "",
+                "diagnostic_frame": "so101_diag_camera_optical" if unqualified_arm and not attach_candidate and not live_world else "",
             }],
         ))
-    if unqualified_arm and not attach_candidate:
+    if unqualified_arm and not attach_candidate and not live_world:
         actions.append(Node(
             package="so101_station_perception", executable="diagnostic_pointcloud",
             name="so101_diagnostic_pointcloud", output="screen",
@@ -133,13 +142,14 @@ def _launch_nodes(context):
     if rviz_enabled == "true":
         actions.append(Node(
             package="rviz2", executable="rviz2", name="so101_station_live_rviz",
-            arguments=["-d", rviz_config], output="screen",
+            arguments=["-d", rviz_config, "-f", "charuco_board" if live_world else base_frame], output="screen",
         ))
     return actions
 
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument("track_charuco_world", default_value="false"),
         DeclareLaunchArgument("serial_no", default_value="243322071783"),
         DeclareLaunchArgument("camera_target_calibration", default_value=""),
         DeclareLaunchArgument("camera_arm_calibration", default_value=""),

@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 import pytest
 
+pytest.importorskip("rclpy", reason="Optional ROS perception tests require RoboStack")
+
 from so101_station_perception.charuco_world import estimate_board_pose
 
 
@@ -91,3 +93,39 @@ def test_world_convention_is_right_handed_z_up_and_preserves_registration():
     raw_from_base[:3, 3] = [.3, .2, 0]
     assert np.allclose(np.linalg.inv(correction @ raw_from_base) @ (correction @ raw_from_camera),
                        np.linalg.inv(raw_from_base) @ raw_from_camera)
+
+
+def test_pose_stabilization_damps_jitter_but_tracks_camera_relocation():
+    from so101_station_perception.charuco_world import stabilize_pose
+    old = np.eye(4)
+    noisy = old.copy()
+    noisy[0, 3] = .004
+    smooth = stabilize_pose(old, noisy)
+    assert smooth[0, 3] == pytest.approx(.0014)
+    moved = old.copy()
+    moved[0, 3] = .1
+    assert np.allclose(stabilize_pose(old, moved), moved)
+    assert np.linalg.det(smooth[:3, :3]) == pytest.approx(1)
+
+
+def test_held_transform_stops_when_observation_is_stale():
+    from so101_station_perception.charuco_world import CharucoWorld
+    published = []
+    now = SimpleNamespace(nanoseconds=2_000_000_000, to_msg=lambda: SimpleNamespace(sec=2, nanosec=0))
+    node = SimpleNamespace(filtered_pose=np.eye(4), last_valid_stamp=.5, hold_s=1.,
+                           get_clock=lambda: SimpleNamespace(now=lambda: now),
+                           broadcaster=SimpleNamespace(sendTransform=published.append),
+                           board_frame="charuco_board", camera_link_frame="camera_link")
+    CharucoWorld._publish_pose_estimate(node)
+    assert published == []
+    node.last_valid_stamp = 1.5
+    CharucoWorld._publish_pose_estimate(node)
+    assert len(published) == 1
+
+
+def test_reacquisition_does_not_blend_with_expired_pose():
+    from so101_station_perception.charuco_world import stabilize_pose
+    previous = np.eye(4)
+    measured = previous.copy()
+    measured[0, 3] = .01
+    assert np.allclose(stabilize_pose(previous, measured, observation_gap_s=1.1), measured)

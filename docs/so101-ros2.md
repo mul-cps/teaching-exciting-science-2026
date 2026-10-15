@@ -33,3 +33,22 @@ The pinned driver patch adds a default `read_only:=true` mode, suppresses torque
 ## Scope and limitations
 
 Upstream supports MoveIt 2 planning with OMPL and `pick_ik`; its checked-in `kinematics.yaml` selects `pick_ik/PickIkPlugin` with approximate solutions. The plan-only smoke checks a small, reachable target generated from a near-zero joint state. It does not qualify arbitrary full-pose IK or physical accuracy. Cameras and MuJoCo are not enabled in the supported mock launch.
+
+
+### Live board world and timing
+
+The station launch defaults to `track_charuco_world:=true`. Keep the 7x5,
+25/18 mm DICT_6X6_250 ChArUco board fixed: `charuco_board` is a right-handed
+Z-up table frame. The camera can move. `camera_arm_calibration` and
+`camera_target_calibration` seed board-to-base placement from a previously
+paired calibration; this robot-base estimate is still provisional.
+The live world publisher replaces the static camera calibration publisher;
+never run both against `camera_link`.
+
+Board detection is capped at 5 Hz; a 30 Hz zero-order-held pose estimate fills
+TF between observations and expires after at most 1 second. The status topic
+`/so101_perception/charuco_world/status` retains the original observation time
+and distinguishes tracking, held, and stale. Held TF is an estimate, not a new
+camera measurement. Small PnP noise is filtered; substantial camera motion and
+reacquisition after expiry reset the filter. The official fixed optical-to-link
+transform is cached. Native joint telemetry remains live when idle torque is off.

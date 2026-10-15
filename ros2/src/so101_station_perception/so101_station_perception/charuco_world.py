@@ -18,12 +18,26 @@ from std_msgs.msg import String
 from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener
 
 from .calibration import matrix_quaternion, rigid_matrix
-from .tag_observations import stamp_is_fresh, stamp_seconds
+from .tag_observations import marker_grayscale, stamp_is_fresh, stamp_seconds
 
 
 def world_from_opencv_board():
     """Right-handed table world: keep board X, reverse Y, point Z outward/up."""
     return np.diag([1.0, -1.0, -1.0, 1.0])
+
+
+def stabilize_pose(previous, measured, alpha=0.35, observation_gap_s=0.0, max_gap_s=1.0):
+    """Damp small PnP noise; immediately follow substantial camera movement."""
+    if previous is None or not 0 <= observation_gap_s <= max_gap_s:
+        return measured.copy()
+    delta_rotation = measured[:3, :3] @ previous[:3, :3].T
+    rvec, _ = cv2.Rodrigues(delta_rotation)
+    if np.linalg.norm(measured[:3, 3] - previous[:3, 3]) > 0.03 or np.linalg.norm(rvec) > 0.12:
+        return measured.copy()
+    result = np.eye(4)
+    result[:3, :3] = cv2.Rodrigues(alpha * rvec)[0] @ previous[:3, :3]
+    result[:3, 3] = previous[:3, 3] + alpha * (measured[:3, 3] - previous[:3, 3])
+    return result
 
 
 def board_definition():
@@ -48,7 +62,7 @@ def estimate_board_pose(image_bgr, info, board, detector, min_corners=6,
                         max_reprojection_error_px=2.5):
     """Return optical_T_board from calibrated PnP, or fail closed with a reason."""
     k, d = camera_matrices(info, image_bgr.shape)
-    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    gray = image_bgr if image_bgr.ndim == 2 else cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     corners, ids, _, _ = detector.detectBoard(gray)
     if ids is None or len(ids) < int(min_corners):
         raise ValueError(f"only {0 if ids is None else len(ids)} ChArUco corners (need {min_corners})")
@@ -121,6 +135,7 @@ class CharucoWorld(Node):
             "min_corners": 6,
             "max_reprojection_error_px": 2.5,
             "max_processing_hz": 5.0,
+            "transform_hold_s": 1.0,
             "initial_base_from_camera_file": "",
             "initial_camera_from_board_file": "",
         }
@@ -136,6 +151,11 @@ class CharucoWorld(Node):
         self.last_process_mono = 0.0
         self.last_stamp = None
         self.last_valid_stamp = None
+        self.cached_optical_from_link = None
+        self.filtered_pose = None
+        self.hold_s = float(self.get_parameter("transform_hold_s").value)
+        if not math.isfinite(self.hold_s) or not 0 < self.hold_s <= 1.0:
+            raise ValueError("transform_hold_s must be finite and in (0, 1] seconds")
         self.bridge = CvBridge()
         self.board, self.detector = board_definition()
         self.broadcaster = TransformBroadcaster(self)
@@ -150,6 +170,7 @@ class CharucoWorld(Node):
             [image, info], queue_size=6, slop=float(self.get_parameter("max_pair_delta_s").value))
         self.sync.registerCallback(self._pair)
         self.timer = self.create_timer(0.2, self._stale_status)
+        self.tf_timer = self.create_timer(1.0 / 30.0, self._publish_pose_estimate)
         self._publish_provisional_base_seed()
 
     def _status(self, state, stamp=None, **extra):
@@ -174,23 +195,35 @@ class CharucoWorld(Node):
             return
         self.last_stamp, self.last_process_mono = stamp, time.monotonic()
         try:
-            image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
+            image = marker_grayscale(self.bridge, image_msg)
             optical_from_board, count, rms = estimate_board_pose(
                 image, info_msg, self.board, self.detector, self.min_corners, self.max_error)
             # lookup gives optical_T_camera_link; compose board_T_camera_link
             # so the vendor camera_link -> optical edge remains the sole parent.
-            optical_from_link_msg = self.buffer.lookup_transform(
-                self.optical_frame, self.camera_link_frame, Time())
-            optical_from_link = transform_matrix(optical_from_link_msg)
-            board_from_link = world_from_opencv_board() @ np.linalg.inv(optical_from_board) @ optical_from_link
-            tf = transform_message(self.board_frame, self.camera_link_frame, board_from_link,
-                                   image_msg.header.stamp)
-            self.broadcaster.sendTransform(tf)
+            if self.cached_optical_from_link is None:
+                self.cached_optical_from_link = transform_matrix(self.buffer.lookup_transform(
+                    self.optical_frame, self.camera_link_frame, Time()))
+            board_from_link = world_from_opencv_board() @ np.linalg.inv(optical_from_board) @ self.cached_optical_from_link
+            gap = float("inf") if self.last_valid_stamp is None else stamp - self.last_valid_stamp
+            self.filtered_pose = stabilize_pose(self.filtered_pose, board_from_link,
+                                                observation_gap_s=gap, max_gap_s=self.hold_s)
             self.last_valid_stamp = stamp
+            self._publish_pose_estimate()
             self._status("tracking", stamp=stamp, charuco_corners=count, reprojection_rms_px=rms,
+                         transform_model="bounded_zero_order_hold", transform_hold_s=self.hold_s,
                          parent=self.board_frame, child=self.camera_link_frame)
         except (ValueError, cv2.error, TransformException, np.linalg.LinAlgError) as exc:
             self._status("occluded", stamp=stamp, reason=str(exc))
+
+    def _publish_pose_estimate(self):
+        # TF describes a bounded held pose estimate at publication time. The
+        # original observation time remains explicit in the status topic.
+        now = self.get_clock().now()
+        if (self.filtered_pose is None or self.last_valid_stamp is None
+                or not 0 <= now.nanoseconds * 1e-9 - self.last_valid_stamp <= self.hold_s):
+            return
+        self.broadcaster.sendTransform(transform_message(
+            self.board_frame, self.camera_link_frame, self.filtered_pose, now.to_msg()))
 
     def _stale_status(self):
         if self.last_valid_stamp is None:
@@ -198,7 +231,11 @@ class CharucoWorld(Node):
             return
         now = self.get_clock().now().nanoseconds * 1e-9
         if not stamp_is_fresh(now, self.last_valid_stamp, self.max_age):
-            self._status("stale", stamp=self.last_valid_stamp, reason="no fresh board observation")
+            age = now - self.last_valid_stamp
+            self._status("held" if 0 <= age <= self.hold_s else "stale",
+                         stamp=self.last_valid_stamp, observation_age_s=age,
+                         pose_estimate_valid=0 <= age <= self.hold_s,
+                         reason="no fresh board observation; bounded hold until expiry")
 
     def _publish_provisional_base_seed(self):
         base_path = str(self.get_parameter("initial_base_from_camera_file").value)
