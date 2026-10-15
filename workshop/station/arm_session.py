@@ -23,8 +23,12 @@ import uuid
 from workshop.safe_home import load_home
 from .config import JOINTS, load_config
 from .locking import station_lock, station_lock_path
+from .ros_trajectory import ARM_JOINTS, prepare_trajectory
 
 PERIOD_S = 0.05
+ROS_MAX_VELOCITY_RAD_S = 0.125
+ROS_MAX_ACCELERATION_RAD_S2 = 0.2
+ROS_MAX_TRACK_ERROR_RAD = math.radians(10.0)
 # The native servo profile (Goal_Velocity 160 body / 220 gripper) executes
 # independently of this Python feedback loop. Tolerate at most four missing
 # 50 ms observations per leg (one 250 ms freshness window), then re-anchor the
@@ -202,6 +206,12 @@ class ArmSession:
             if self._emit is not None:
                 self._emit(result)
             return
+        if name == "cancel_hold":
+            if set(command) != {"command"}:
+                self._cancel("malformed_busy_command")
+                self._check_cancel()
+            self._cancel("trajectory_cancel_hold")
+            self._check_cancel()
         if name in ("stop", "exit"):
             if set(command) != {"command"}:
                 self._cancel("malformed_busy_command")
@@ -342,7 +352,9 @@ class ArmSession:
 
     def publish_state(self, *, event="sample", torque=None, phase=None, label=None, raw=None,
                       position_monotonic=None, position_utc=None,
-                      torque_monotonic=None, torque_utc=None, feedback_timing=None):
+                      torque_monotonic=None, torque_utc=None, feedback_timing=None,
+                      trajectory_goal_id=None, trajectory_time=None,
+                      trajectory_desired=None):
         raw = self._read("Present_Position") if raw is None else dict(raw)
         if position_monotonic is None:
             position_monotonic = self.clock()
@@ -387,7 +399,10 @@ class ArmSession:
                      violations=violations,
                      profile=self.profile,
                      profile_registers=(PROFILE if self.saved_ram is not None and self.profile != "unmodified" else None),
-                     phase=phase, label=label, feedback_timing=feedback_timing)
+                     phase=phase, label=label, feedback_timing=feedback_timing,
+                     trajectory_goal_id=trajectory_goal_id,
+                     trajectory_time=trajectory_time,
+                     trajectory_desired=trajectory_desired)
         snapshot_started = self.clock()
         _atomic_snapshot_json(self.state_file, state)
         if feedback_timing is not None:
@@ -781,6 +796,209 @@ class ArmSession:
                 error.add_note("arm session cleanup failed: " + str(cleanup_error))
             raise
 
+    def _arm_radians(self, raw):
+        result = {}
+        for joint in ARM_JOINTS:
+            entry = self.arm.calibration[joint]
+            midpoint = (entry["range_min"] + entry["range_max"]) / 2
+            result[joint] = (raw[joint] - midpoint) * (2 * math.pi / 4095)
+        return result
+
+    def _trajectory_raw(self, positions, gripper_raw):
+        raw = {"gripper": gripper_raw}
+        for joint, radians in zip(ARM_JOINTS, positions):
+            entry = self.arm.calibration[joint]
+            midpoint = (entry["range_min"] + entry["range_max"]) / 2
+            raw[joint] = int(round(midpoint + radians * 4095 / (2 * math.pi)))
+        return self._six_ints(raw, "trajectory sample")
+
+    def cancel_hold(self):
+        """Replace goals with measured pose while preserving torque state."""
+        self._require_initialized()
+        measured = self._read("Present_Position")
+        self.bus.sync_write("Goal_Position", measured, normalize=False, num_retry=0)
+        goals = self._read("Goal_Position")
+        if any(abs(goals[joint] - measured[joint]) > 1 for joint in JOINTS):
+            raise RuntimeError("cancel hold goal readback mismatch")
+        torque = self._read("Torque_Enable")
+        state = self.publish_state(event="trajectory_cancel_hold", raw=measured, torque=torque)
+        self.last_command = self.clock()
+        self._event("trajectory_cancel_hold", raw=measured, torque=torque)
+        return state
+
+    def execute_trajectory(self, goal_id, joint_names, points, *,
+                           max_velocity=ROS_MAX_VELOCITY_RAD_S,
+                           max_acceleration=ROS_MAX_ACCELERATION_RAD_S2,
+                           period=PERIOD_S, goal_tolerance_rad=math.radians(2.0)):
+        """Execute one prevalidated C2 ROS trajectory without waypoint dwells."""
+        self._require_initialized()
+        if not isinstance(goal_id, str) or not goal_id.strip() or len(goal_id) > 128:
+            raise ArmPlanPreflightError("goal_id must be a nonempty string up to 128 characters")
+        if max_velocity > ROS_MAX_VELOCITY_RAD_S or max_acceleration > ROS_MAX_ACCELERATION_RAD_S2:
+            raise ArmPlanPreflightError("requested dynamics exceed the station software envelope")
+        if not math.isfinite(goal_tolerance_rad) or not 0 < goal_tolerance_rad <= math.radians(10):
+            raise ArmPlanPreflightError("goal tolerance must be in (0, 10] degrees")
+        try:
+            start_raw = self._read("Present_Position")
+            start_time = self.clock()
+            prepared = prepare_trajectory(
+                joint_names, points, start_radians=self._arm_radians(start_raw),
+                max_velocity=max_velocity, max_acceleration=max_acceleration,
+                period=period)
+            gripper_raw = start_raw["gripper"]
+            raw_samples = [self._validate_target(self._trajectory_raw(sample.positions, gripper_raw),
+                                                  f"trajectory/{index}")
+                           for index, sample in enumerate(prepared.samples)]
+            previous = start_raw
+            for index, target_raw in enumerate(raw_samples):
+                self._validate_transition(previous, target_raw, f"trajectory/{index}")
+                previous = target_raw
+        except (ValueError, KeyError, TypeError) as error:
+            raise ArmPlanPreflightError(str(error)) from error
+
+        sample_record = [{"time": sample.time,
+                          "positions": dict(zip(ARM_JOINTS, sample.positions))}
+                         for sample in prepared.samples]
+        self.publish_state(event="trajectory_preflight", raw=start_raw,
+                           phase="preflight", label=goal_id,
+                           trajectory_goal_id=goal_id, trajectory_time=0.0,
+                           trajectory_desired=dict(zip(ARM_JOINTS,
+                               prepared.samples[0].positions)))
+        self._event("trajectory_preflight_passed", goal_id=goal_id,
+                    point_count=len(prepared.input_points), sample_count=len(sample_record),
+                    original_points=list(prepared.input_points),
+                    commanded_samples=sample_record,
+                    derivatives_ignored=prepared.ignored_derivatives,
+                    max_velocity_rad_s=max_velocity,
+                    max_acceleration_rad_s2=max_acceleration,
+                    sample_period_s=period)
+        previous_feedback = start_time
+        feedback_samples = []
+        motion_started = False
+        try:
+            self._ensure_profile()
+            # Install measured pose before enabling torque; all validation has
+            # completed and the first interpolation sample is exactly this pose.
+            motion_started = True
+            self._enable_current_goal(start_raw, start_time, "trajectory-start")
+            started = self.clock()
+            previous_feedback = started
+            for index, (sample, target_raw) in enumerate(zip(prepared.samples, raw_samples)):
+                self._poll_busy_input()
+                deadline = started + sample.time
+                wait = deadline - self.clock()
+                if wait > 0:
+                    self.sleep(wait)
+                self._poll_busy_input()
+                if self.clock() - deadline > MAX_FEEDBACK_GAP_S:
+                    raise RuntimeError("trajectory command missed its scheduled tick")
+                self._calibration_guard()
+                self.bus.sync_write("Goal_Position", target_raw, normalize=False, num_retry=0)
+                goal_read_started = self.clock()
+                goals = self._read("Goal_Position")
+                if any(abs(goals[joint] - target_raw[joint]) > 1 for joint in JOINTS):
+                    raise RuntimeError("trajectory goal readback mismatch")
+                actual = self._read("Present_Position")
+                read_ended = self.clock()
+                self._check_feedback_freshness(
+                    label=goal_id, phase="trajectory", previous_read_at=previous_feedback,
+                    read_started=goal_read_started, read_ended=read_ended,
+                    total_missed=0, previous_tick_timing=None)
+                previous_feedback = read_ended
+                actual_radians = self._arm_radians(actual)
+                for joint in ARM_JOINTS:
+                    if abs(actual_radians[joint] - sample.positions[ARM_JOINTS.index(joint)]) > ROS_MAX_TRACK_ERROR_RAD:
+                        raise RuntimeError("trajectory tracking error exceeded 10 degrees: " + joint)
+                torque = self._read("Torque_Enable")
+                if any(torque[joint] != 1 for joint in JOINTS):
+                    raise RuntimeError("trajectory torque state changed unexpectedly")
+                state = self.publish_state(event="trajectory_feedback", raw=actual,
+                                           torque=torque, phase="trajectory", label=goal_id,
+                                           trajectory_goal_id=goal_id,
+                                           trajectory_time=sample.time,
+                                           trajectory_desired=dict(zip(ARM_JOINTS, sample.positions)))
+                feedback_samples.append({"time": sample.time, "monotonic": read_ended,
+                                         "raw": actual, "goal_raw": target_raw,
+                                         "state_timestamp_utc": state["timestamp_utc"]})
+                self._poll_busy_input()
+
+            # Keep commanding the terminal pose until measured state is within
+            # tolerance for three consecutive observations or deadline expires.
+            terminal = raw_samples[-1]
+            settled = 0
+            settle_deadline = self.clock() + 3.0
+            while settled < 3 and self.clock() < settle_deadline:
+                self._poll_busy_input()
+                self.bus.sync_write("Goal_Position", terminal, normalize=False, num_retry=0)
+                actual = self._read("Present_Position")
+                read_ended = self.clock()
+                self._check_feedback_freshness(
+                    label=goal_id, phase="trajectory-settle", previous_read_at=previous_feedback,
+                    read_started=read_ended, read_ended=read_ended,
+                    total_missed=0, previous_tick_timing=None)
+                previous_feedback = read_ended
+                errors = [abs(self._arm_radians(actual)[joint] -
+                              prepared.samples[-1].positions[ARM_JOINTS.index(joint)])
+                          for joint in ARM_JOINTS]
+                settled = settled + 1 if max(errors) <= goal_tolerance_rad else 0
+                torque = self._read("Torque_Enable")
+                if any(torque[joint] != 1 for joint in JOINTS):
+                    raise RuntimeError("trajectory torque state changed during settle")
+                state = self.publish_state(event="trajectory_settle", raw=actual,
+                                           torque=torque, phase="settling", label=goal_id,
+                                           trajectory_goal_id=goal_id,
+                                           trajectory_time=prepared.duration + self.clock() - (started + prepared.duration),
+                                           trajectory_desired=dict(zip(ARM_JOINTS,
+                                               prepared.samples[-1].positions)))
+                feedback_samples.append({"time": prepared.duration + self.clock() - (started + prepared.duration),
+                                         "monotonic": read_ended, "raw": actual,
+                                         "goal_raw": terminal,
+                                         "state_timestamp_utc": state["timestamp_utc"]})
+                if settled < 3:
+                    self.sleep(period)
+            if settled < 3:
+                raise TimeoutError("trajectory final goal tolerance was not reached")
+            state = self.publish_state(event="trajectory_complete", raw=actual,
+                                       torque=torque, phase="complete", label=goal_id)
+            self._record({"event": "trajectory_feedback_complete", "goal_id": goal_id,
+                          "samples": feedback_samples})
+            self._sag_recovery_available = False
+            self.last_command = self.clock()
+            return {"state": state, "trajectory": {
+                "goal_id": goal_id, "duration_s": prepared.duration,
+                "sample_count": len(prepared.samples),
+                "feedback_count": len(feedback_samples),
+                "input_derivatives_ignored": prepared.ignored_derivatives,
+                "final_tolerance_rad": goal_tolerance_rad}}
+        except ArmSessionCancelled as error:
+            if self._cancel_reason == "trajectory_cancel_hold":
+                try:
+                    state = self.cancel_hold()
+                except BaseException as hold_error:
+                    try:
+                        self.shutdown(reason="trajectory_cancel_hold_error")
+                    except BaseException as cleanup_error:
+                        hold_error.add_note("cancel hold cleanup failed: " + str(cleanup_error))
+                    raise
+                self._record({"event": "trajectory_cancelled", "goal_id": goal_id,
+                              "feedback_samples": feedback_samples, "state": state})
+                self._cancel_requested = False
+                return {"cancelled": True, "state": state,
+                        "trajectory": {"goal_id": goal_id, "feedback_count": len(feedback_samples)}}
+            if motion_started:
+                self.shutdown(reason=self._cancel_reason or str(error))
+            raise
+        except BaseException as error:
+            if motion_started or self.saved_ram is not None:
+                try:
+                    self.shutdown(reason="trajectory_error")
+                except BaseException as cleanup_error:
+                    error.add_note("trajectory fault cleanup failed: " + str(cleanup_error))
+            self._record({"event": "trajectory_error", "goal_id": goal_id,
+                          "error": str(error), "error_type": type(error).__name__,
+                          "feedback_samples": feedback_samples})
+            raise
+
     def home(self):
         """Reach measured home through validated raw sublegs of at most 100 counts."""
         self._require_initialized()
@@ -900,6 +1118,15 @@ class ArmSession:
             if set(command) != {"command", "legs"}:
                 raise ValueError("move_plan requires exactly command and legs")
             return {"ok": True, "state": self.move_plan(command["legs"])}
+        if name == "execute_trajectory":
+            if set(command) != {"command", "goal_id", "joint_names", "points"}:
+                raise ValueError("execute_trajectory requires goal_id, joint_names, and points")
+            return {"ok": True, **self.execute_trajectory(command["goal_id"],
+                    command["joint_names"], command["points"])}
+        if name == "cancel_hold":
+            if set(command) != {"command"}:
+                raise ValueError("cancel_hold accepts no extra fields")
+            return {"ok": True, "state": self.cancel_hold()}
         if name == "home":
             if set(command) != {"command"}:
                 raise ValueError("home accepts no extra fields")
@@ -967,7 +1194,7 @@ class ArmSession:
                 try:
                     command = json.loads(line)
                     name = command.get("command") if isinstance(command, dict) else None
-                    if name in ("move_plan", "home"):
+                    if name in ("move_plan", "home", "execute_trajectory"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None

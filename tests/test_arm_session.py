@@ -715,3 +715,77 @@ def test_malformed_json_during_motion_aborts_and_restores(tmp_path):
     assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
     assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)
     session.close_log()
+
+
+def test_ros_trajectory_streams_without_waypoint_dwells_and_keeps_gripper(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    names = ["wrist_roll", "elbow_flex", "shoulder_pan", "wrist_flex", "shoulder_lift"]
+    start = session._arm_radians(arm.bus.sync_read("Present_Position"))
+    positions = [start[name] for name in names]
+    points = [
+        {"time": 0.0, "positions": positions, "velocities": [0.0] * 5,
+         "accelerations": [0.8] * 5},
+        {"time": 1.0, "positions": [value + 0.01 for value in positions], "velocities": [0.0] * 5,
+         "accelerations": [-0.8] * 5},
+    ]
+    result = session.execute_trajectory("goal-test", names, points)
+    assert result["trajectory"]["sample_count"] == 21
+    assert result["trajectory"]["input_derivatives_ignored"] is True
+    assert arm.bus.eeprom_writes == []
+    assert arm.bus.goal_history
+    assert all(sample["gripper"] == 2000 for sample in arm.bus.goal_history)
+    assert set(arm.bus.sync_read("Torque_Enable").values()) == {1}
+    assert arm.bus.sync_read("Present_Position")["shoulder_pan"] == result["state"]["raw"]["shoulder_pan"]
+    session.shutdown(reason="test_cleanup")
+    session.close_log()
+
+
+def test_ros_trajectory_preflight_rejection_has_no_writes(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    points = [{"time": 0.0, "positions": [0.2] * 5},
+              {"time": 1.0, "positions": [0.21] * 5}]
+    with pytest.raises(ValueError, match="start position"):
+        session.execute_trajectory("goal-invalid", ["shoulder_pan", "shoulder_lift",
+            "elbow_flex", "wrist_flex", "wrist_roll"], points)
+    assert arm.bus.writes == []
+    assert arm.bus.goal_history == []
+    assert arm.bus.eeprom_writes == []
+    assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
+    session.close_log()
+
+
+def test_cancel_hold_rewrites_measured_pose_without_disabling_torque(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    session.move_plan([{"label": "establish", "target_raw": target(shoulder_pan=2030)}])
+    before = arm.bus.sync_read("Present_Position")
+    torque_before = arm.bus.sync_read("Torque_Enable")
+    arm.bus.goal_history.clear()
+    result = session.cancel_hold()
+    assert result["raw"] == before
+    assert arm.bus.goal_history[-1] == before
+    assert arm.bus.sync_read("Torque_Enable") == torque_before
+    assert not any(register == "Torque_Enable" and value == 0
+                   for register, _joint, value in arm.bus.writes)
+    session.shutdown(reason="test_cleanup")
+    session.close_log()
+
+
+def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    start = session._arm_radians(arm.bus.sync_read("Present_Position"))
+    points = [{"time": 0.0, "positions": [start[j] for j in (
+        "shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")]},
+        {"time": 1.0, "positions": [start[j] + 0.01 for j in (
+        "shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")]}]
+    arm.bus.delay_after_goal = 0.30
+    with pytest.raises(RuntimeError, match="feedback freshness"):
+        session.execute_trajectory("goal-stale", ["shoulder_pan", "shoulder_lift",
+            "elbow_flex", "wrist_flex", "wrist_roll"], points)
+    assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
+    assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)
+    assert arm.bus.eeprom_writes == []
+    session.close_log()
