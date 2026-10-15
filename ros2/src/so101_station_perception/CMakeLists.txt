@@ -22,6 +22,7 @@ install(PROGRAMS
   scripts/tag_observations
   scripts/rgbd_evidence_sink
   scripts/charuco_world
+  scripts/marker_pipeline
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

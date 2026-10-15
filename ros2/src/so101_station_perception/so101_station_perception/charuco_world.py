@@ -121,9 +121,11 @@ def transform_message(parent, child, matrix, stamp):
 
 
 class CharucoWorld(Node):
-    def __init__(self):
+    def __init__(self, *, subscribe_images=True, use_global_arguments=True,
+                 parameter_overrides=None):
         cv2.setNumThreads(1)
-        super().__init__("so101_charuco_world")
+        super().__init__("so101_charuco_world", use_global_arguments=use_global_arguments,
+                         parameter_overrides=parameter_overrides)
         defaults = {
             "color_topic": "/camera/color/image_raw",
             "camera_info_topic": "/camera/color/camera_info",
@@ -162,13 +164,15 @@ class CharucoWorld(Node):
         self.buffer = Buffer()
         self.listener = TransformListener(self.buffer, self)
         self.status_pub = self.create_publisher(String, "/so101_perception/charuco_world/status", 10)
-        image = message_filters.Subscriber(self, Image, self.get_parameter("color_topic").value,
-                                           qos_profile=qos_profile_sensor_data)
-        info = message_filters.Subscriber(self, CameraInfo, self.get_parameter("camera_info_topic").value,
-                                          qos_profile=qos_profile_sensor_data)
-        self.sync = message_filters.ApproximateTimeSynchronizer(
-            [image, info], queue_size=6, slop=float(self.get_parameter("max_pair_delta_s").value))
-        self.sync.registerCallback(self._pair)
+        self.sync = None
+        if subscribe_images:
+            image = message_filters.Subscriber(self, Image, self.get_parameter("color_topic").value,
+                                               qos_profile=qos_profile_sensor_data)
+            info = message_filters.Subscriber(self, CameraInfo, self.get_parameter("camera_info_topic").value,
+                                              qos_profile=qos_profile_sensor_data)
+            self.sync = message_filters.ApproximateTimeSynchronizer(
+                [image, info], queue_size=6, slop=float(self.get_parameter("max_pair_delta_s").value))
+            self.sync.registerCallback(self._pair)
         self.timer = self.create_timer(0.2, self._stale_status)
         self.tf_timer = self.create_timer(1.0 / 30.0, self._publish_pose_estimate)
         self._publish_provisional_base_seed()
@@ -179,7 +183,7 @@ class CharucoWorld(Node):
         msg.data = json.dumps(payload, sort_keys=True)
         self.status_pub.publish(msg)
 
-    def _pair(self, image_msg, info_msg):
+    def _pair(self, image_msg, info_msg, prepared_gray=None):
         stamp = stamp_seconds(image_msg.header.stamp)
         now = self.get_clock().now().nanoseconds * 1e-9
         if not stamp_is_fresh(now, stamp, self.max_age):
@@ -195,7 +199,8 @@ class CharucoWorld(Node):
             return
         self.last_stamp, self.last_process_mono = stamp, time.monotonic()
         try:
-            image = marker_grayscale(self.bridge, image_msg)
+            image = (marker_grayscale(self.bridge, image_msg)
+                     if prepared_gray is None else prepared_gray)
             optical_from_board, count, rms = estimate_board_pose(
                 image, info_msg, self.board, self.detector, self.min_corners, self.max_error)
             # lookup gives optical_T_camera_link; compose board_T_camera_link
