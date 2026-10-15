@@ -37,6 +37,18 @@ DEFAULT_TABLE_ROI = (-0.03, 0.21, -0.03, 0.16, -0.05, 0.06)
 DEFAULT_MAX_OBJECT_HEIGHT_M = 0.025
 MAX_OBJECT_EXTENT_M = 0.065
 MIN_OBJECT_EXTENT_M = 0.010
+MARKER_HOLD_SECONDS = 1.0
+
+
+class SupportPlaneUnavailable(ValueError):
+    """The current depth frame has too few stable support-plane samples."""
+
+
+def cached_marker_should_clear(last_update_mono, now_mono, clear_already_sent,
+                               hold_seconds=MARKER_HOLD_SECONDS):
+    """Clear a retained visualization once, after its bounded display hold."""
+    return (last_update_mono is not None and not clear_already_sent
+            and float(now_mono) - float(last_update_mono) > float(hold_seconds))
 
 
 def camera_points(pixels, depth_m, intrinsics, distortion=None):
@@ -103,11 +115,11 @@ def _fit_world_support(depth, valid_depth, rgb, intrinsics, distortion,
         indices = np.random.default_rng(17).choice(len(board), max_points, replace=False)
         board = board[indices]
     if len(board) < 30:
-        raise ValueError("fewer than 30 observed table points inside bounded world ROI")
+        raise SupportPlaneUnavailable("fewer than 30 observed table points inside bounded world ROI")
     plane = _orient_plane_up(fit_support_plane(board, threshold_m=0.003))
     inliers = int(plane["inlier_mask"].sum())
     if inliers < 30 or inliers / len(board) < 0.35:
-        raise ValueError("no dominant measured support plane in table ROI")
+        raise SupportPlaneUnavailable("no dominant measured support plane in table ROI")
     plane["support_points"] = len(board)
     plane["support_inliers"] = inliers
     return plane
@@ -302,7 +314,13 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
             area = int(stats[label, cv2.CC_STAT_AREA])
             if area < min_component_pixels:
                 continue
-            yy, xx = np.nonzero(labels == label)
+            x0 = int(stats[label, cv2.CC_STAT_LEFT])
+            y0 = int(stats[label, cv2.CC_STAT_TOP])
+            box_width = int(stats[label, cv2.CC_STAT_WIDTH])
+            box_height = int(stats[label, cv2.CC_STAT_HEIGHT])
+            label_roi = labels[y0:y0 + box_height, x0:x0 + box_width]
+            yy_local, xx_local = np.nonzero(label_roi == label)
+            yy, xx = yy_local + y0, xx_local + x0
             samples = depth_m[yy, xx]
             valid = valid_depth[yy, xx]
             if int(valid.sum()) < 8:
@@ -319,8 +337,8 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
             # Restrict the silhouette to depth-supported pixels in the bounded
             # tabletop volume. This removes colored walls/arm parts before they
             # can bias the PCA footprint or produce grasp proposals.
-            component = np.zeros(depth.shape, dtype=np.uint8)
-            component[pixels[inside, 1], pixels[inside, 0]] = 1
+            component = np.zeros((box_height, box_width), dtype=np.uint8)
+            component[pixels[inside, 1] - y0, pixels[inside, 0] - x0] = 1
             component = cv2.morphologyEx(component, cv2.MORPH_CLOSE,
                                          np.ones((3, 3), dtype=np.uint8))
             contours, _ = cv2.findContours(component, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -330,12 +348,16 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
             # one-dimensional silhouette has a clear internal valley.
             contours = _split_elongated_contours(contours)
             for contour in contours:
-                contour_mask = np.zeros(depth.shape, dtype=np.uint8)
+                contour_mask = np.zeros((box_height, box_width), dtype=np.uint8)
                 cv2.drawContours(contour_mask, [contour], -1, 1, thickness=cv2.FILLED)
-                selected = inside & (contour_mask[pixels[:, 1], pixels[:, 0]] != 0)
+                selected = inside & (contour_mask[pixels[:, 1] - y0,
+                                                   pixels[:, 0] - x0] != 0)
                 if int(selected.sum()) < 8:
                     continue
-                item = _component_geometry(contour.reshape(-1, 2), pixels[selected],
+                contour_global = contour.reshape(-1, 2).copy()
+                contour_global[:, 0] += x0
+                contour_global[:, 1] += y0
+                item = _component_geometry(contour_global, pixels[selected],
                                            samples[valid][selected], intrinsics, distortion,
                                            transform, plane, color, max_opening_m,
                                            world_roi, max_object_height_m)
@@ -517,6 +539,8 @@ class ColoredObjectsNode:
                 self.last_process = 0.0
                 self.last_warning = 0.0
                 self.last_support_plane = None
+                self.last_marker_update_mono = None
+                self.marker_clear_sent = True
                 self.bridge = CvBridge()
                 self.tracker = StableObjectTracker()
                 self.tf_buffer = Buffer()
@@ -555,23 +579,29 @@ class ColoredObjectsNode:
                 except (TypeError, ValueError, json.JSONDecodeError):
                     return
 
-            def _publish_empty(self, stamp):
+            def _publish_empty(self, stamp, *, clear_markers=True):
                 array = Detection3DArray()
                 array.header.stamp, array.header.frame_id = stamp, self.board_frame
                 self.detections_pub.publish(array)
                 poses = PoseArray()
                 poses.header = array.header
                 self.grasps_pub.publish(poses)
-                markers = MarkerArray()
-                clear = Marker()
-                clear.header = array.header
-                clear.action = Marker.DELETEALL
-                markers.markers.append(clear)
-                self.markers_pub.publish(markers)
+                if clear_markers:
+                    markers = MarkerArray()
+                    clear = Marker()
+                    clear.header = array.header
+                    clear.action = Marker.DELETEALL
+                    markers.markers.append(clear)
+                    self.markers_pub.publish(markers)
 
             def _publish_unavailable(self, stamp, state, reason, **extra):
                 from so101_station_perception.tag_observations import stamp_seconds
-                self._publish_empty(stamp)
+                now_mono = time.monotonic()
+                clear_markers = cached_marker_should_clear(
+                    self.last_marker_update_mono, now_mono, self.marker_clear_sent)
+                self._publish_empty(stamp, clear_markers=clear_markers)
+                if clear_markers:
+                    self.marker_clear_sent = True
                 message = String()
                 message.data = json.dumps({
                     "schema": 1, "state": state, "frame_id": self.board_frame,
@@ -630,11 +660,11 @@ class ColoredObjectsNode:
                             "support_inliers": int(plane["support_inliers"]),
                             "stamp": stamp,
                         }
-                    except ValueError as error:
+                    except SupportPlaneUnavailable as error:
                         cache = self.last_support_plane
                         cache_age = None if cache is None else stamp - cache["stamp"]
                         if (cache is None or cache_age is None or cache_age < 0
-                                or cache_age > 2.0 or "support plane" not in str(error)):
+                                or cache_age > 2.0):
                             raise
                         report = analyze_rgbd(rgb, depth, intrinsics, info_msg.d, scale,
                                               board_from_camera, self.roi, self.max_opening,
@@ -710,6 +740,7 @@ class ColoredObjectsNode:
                               "blue": (.1, .3, 1.0), "yellow": (1.0, .8, .05)}
                     cube.color.r, cube.color.g, cube.color.b = colors[obj["color"]]
                     cube.color.a = .35
+                    cube.lifetime.sec = int(MARKER_HOLD_SECONDS)
                     markers.markers.append(cube)
                     label = Marker()
                     label.header = detections.header
@@ -719,6 +750,7 @@ class ColoredObjectsNode:
                     label.scale.z = .015
                     label.color.r = label.color.g = label.color.b = label.color.a = 1.0
                     label.text = f"{obj['color']} {det.id}"
+                    label.lifetime.sec = int(MARKER_HOLD_SECONDS)
                     markers.markers.append(label)
                     for grasp_index, grasp in enumerate(obj["grasps"]):
                         rotation_grasp = grasp_pose_rotation(grasp["closing_axis"], grasp["approach_direction"])
@@ -743,6 +775,8 @@ class ColoredObjectsNode:
                 self.detections_pub.publish(detections)
                 self.markers_pub.publish(markers)
                 self.grasps_pub.publish(grasps)
+                self.last_marker_update_mono = time.monotonic()
+                self.marker_clear_sent = not bool(report["objects"])
                 status = {
                     "schema": 1, "state": "tracking", "frame_id": self.board_frame,
                     "stamp": report["stamp"], "qualified": False,
