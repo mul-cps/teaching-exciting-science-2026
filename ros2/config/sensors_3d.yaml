@@ -1,0 +1,15 @@
+# Optional MoveIt occupancy-map input. The official filtered output removes
+# the robot body; the range/update-rate limits keep the update bounded.
+octomap_frame: base_link
+octomap_resolution: 0.02
+sensors:
+  - resident_pointcloud
+resident_pointcloud:
+  sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
+  point_cloud_topic: /camera/depth/color/points
+  max_range: 1.2
+  point_subsample: 4
+  padding_offset: 0.01
+  padding_scale: 1.0
+  max_update_rate: 2.0
+  filtered_cloud_topic: /so101_perception/filtered_points
