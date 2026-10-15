@@ -8,6 +8,7 @@ from tools.fit_ros_robot_joint_offsets import (
     fit_joint_offsets,
     forward_kinematics,
     validate_pose_diversity,
+    _coverage_fraction,
 )
 from tools.fit_ros_robot_registration import parse_urdf
 
@@ -52,6 +53,14 @@ def test_pan_zero_cannot_be_selected_because_it_shares_base_yaw_gauge():
         fit_joint_offsets([], holdout_index=0, offset_names=("shoulder_pan",))
 
 
+def test_visible_cad_coverage_uses_all_projected_frontface_samples():
+    metrics = {"matched_depth_pixels": 20, "per_link": {
+        "base": {"projected_frontface_samples": 60},
+        "wrist": {"projected_frontface_samples": 40},
+    }}
+    assert _coverage_fraction(metrics) == .2
+
+
 def test_multiview_fit_recovers_joint_zero_bias_and_shared_base_delta():
     links, joints = _tiny_chain()
     rng = np.random.default_rng(731)
@@ -90,4 +99,7 @@ def test_multiview_fit_recovers_joint_zero_bias_and_shared_base_delta():
     assert result["training_after"]["median_surface_residual_m"] < .0015
     assert result["holdout_after"]["median_surface_residual_m"] < .0015
     assert set(result["holdout_after"]["per_link"]) == {"base", "shoulder", "elbow", "wrist"}
+    assert result["parameter_uncertainty"]["parameter_count"] == 9
+    assert "joint_zero_elbow_flex_rad" in result["parameter_uncertainty"]["standard_error"]
+    assert "parameters" in result["bound_hits"]
     json.dumps(result)

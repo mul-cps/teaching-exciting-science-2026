@@ -30,6 +30,11 @@ residuals and visible-CAD-to-depth matching coverage and residuals, each with
 per-link detail for training and held-out snapshots. Observed ROI populations
 are selected from the initial URDF z-buffer and optional tag-pose seed, then
 remain fixed during fitting. The holdout is only scored; it is never optimized.
+The visible-CAD direction reports both a loose 60 mm residual population and
+the fraction of projected front-face CAD samples with depth within 10 mm.
+Parameter standard errors come from a local linearized fit and are diagnostic
+only; the residual model does not capture correlated pixel noise, mesh error,
+or calibration uncertainty. The report also lists any parameter bound hits.
 
 The output always remains an unqualified candidate. It does not update ROS TF,
 write into input bundles, start ROS, or move hardware. Review residuals,

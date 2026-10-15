@@ -164,6 +164,8 @@ def fit_joint_offsets(frames, *, holdout_index, offset_names=DEFAULT_OFFSETS,
         "holdout_after": _public_metrics(holdout_after),
         "optimizer": {"success": bool(result.success), "message": result.message,
                       "cost": float(result.cost), "nfev": int(result.nfev)},
+        "parameter_uncertainty": _local_uncertainty(result, lower, upper, offset_names),
+        "bound_hits": _bound_hits(result.x, lower, upper, offset_names),
         "gauge": "shoulder_pan zero fixed; its rotation is indistinguishable from base yaw; wrist_roll and gripper zeros fixed unless explicitly selected and independently excited",
     }
 
@@ -177,6 +179,51 @@ def _aggregate_metrics(items):
 
 def _public_metrics(item):
     return {key: value for key, value in item.items() if not key.startswith("_")}
+
+
+def _parameter_names(offset_names):
+    return ["base_translation_x_m", "base_translation_y_m", "base_translation_z_m",
+            "base_rotation_x_rad", "base_rotation_y_rad", "base_rotation_z_rad"] + [
+                f"joint_zero_{name}_rad" for name in offset_names]
+
+
+def _local_uncertainty(result, lower, upper, offset_names):
+    """Approximate local least-squares errors; not calibrated physical uncertainty."""
+    jacobian = np.asarray(result.jac, float)
+    singular = np.linalg.svd(jacobian, compute_uv=False)
+    tolerance = (singular[0] * 1e-8) if len(singular) and singular[0] else 0.0
+    rank = int(np.sum(singular > tolerance))
+    dof = max(1, jacobian.shape[0] - rank)
+    variance = 2.0 * float(result.cost) / dof
+    covariance = variance * np.linalg.pinv(jacobian.T @ jacobian, rcond=1e-12)
+    standard = np.sqrt(np.maximum(0.0, np.diag(covariance)))
+    names = _parameter_names(offset_names)
+    return {
+        "method": "local linearized least-squares covariance from robust optimizer Jacobian",
+        "standard_error": dict(zip(names, standard.tolist())),
+        "standard_error_deg": {
+            name: float(np.rad2deg(standard[index]))
+            for index, name in enumerate(names) if name.endswith("_rad")
+        },
+        "jacobian_rank": rank, "parameter_count": int(jacobian.shape[1]),
+        "condition_number": (float(singular[0] / singular[-1])
+                             if len(singular) and singular[-1] > 0 else None),
+        "interpretation": "diagnostic only; not a physical confidence interval because depth noise, mesh error, correspondence selection, and robust loss are not fully modeled",
+    }
+
+
+def _bound_hits(parameters, lower, upper, offset_names):
+    names = _parameter_names(offset_names)
+    tolerance = np.maximum(1e-5, (upper - lower) * 1e-3)
+    hits = {}
+    for name, value, low, high, tol in zip(names, parameters, lower, upper, tolerance):
+        side = "lower" if value - low <= tol else "upper" if high - value <= tol else None
+        if side:
+            hits[name] = side
+    return {"any": bool(hits), "parameters": hits,
+            "limits": {"translation_component_m": 0.03,
+                       "rotation_component_deg": 6.0,
+                       "joint_zero_deg": 12.0}}
 
 
 def _load_bundle(bundle, samples=10000):
@@ -238,8 +285,25 @@ def _directional_scores(frame, delta, offsets, max_depth_gap_m=.06):
         frame["depth_raw"], frame["depth_scale"], frame["intrinsics"],
         frame["distortion"], max_depth_gap_m=max_depth_gap_m)
     visible = _metrics(visible_matches, world_from_base, labels, max_depth_gap_m)
+    tight_matches = depth_matches(
+        points, normals, labels, world_from_base, frame["world_from_camera"],
+        frame["depth_raw"], frame["depth_scale"], frame["intrinsics"],
+        frame["distortion"], max_depth_gap_m=.01)
+    tight = _metrics(tight_matches, world_from_base, labels, .01)
+    visible["coverage_within_10mm"] = _coverage_fraction(tight)
+    visible["matched_depth_pixels_within_10mm"] = tight["matched_depth_pixels"]
+    for link, metrics in visible["per_link"].items():
+        tight_link = tight["per_link"][link]
+        metrics["coverage_within_10mm"] = tight_link["overlap_fraction"]
+        metrics["matched_depth_pixels_within_10mm"] = tight_link["matched_depth_pixels"]
     return {"observed_to_cad_fixed_population": _public_metrics(_observed_metrics(frame, delta, offsets)),
             "visible_cad_to_depth": visible}
+
+
+def _coverage_fraction(metrics):
+    projected = sum(link["projected_frontface_samples"]
+                    for link in metrics["per_link"].values())
+    return float(metrics["matched_depth_pixels"] / projected) if projected else 0.0
 
 
 def _write_overlay(frame, before_delta, before_offsets, after_delta, after_offsets, path):
