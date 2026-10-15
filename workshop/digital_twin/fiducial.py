@@ -9,6 +9,8 @@ BOOTSTRAP_CENTER_PX = (377., 257.)
 BOOTSTRAP_ROI_PX = (330., 200., 440., 290.)
 TRACK_MAX_SHIFT_PX = 40.
 TRACK_AMBIGUITY_MARGIN_PX = 8.
+REACQUIRE_RADIUS_PX = 100.
+REACQUIRE_AMBIGUITY_MARGIN_PX = 12.
 DETECTION_INTERVAL_S = .2
 POSE_PAIR_LIMIT_S = .16
 IPPE_BRANCH_SEPARATION_DEG = 15.
@@ -37,8 +39,10 @@ def track_tag_candidates(detections, previous_center=None,
                          bootstrap_center=BOOTSTRAP_CENTER_PX,
                          bootstrap_roi=BOOTSTRAP_ROI_PX,
                          max_shift_px=TRACK_MAX_SHIFT_PX,
-                         ambiguity_margin_px=TRACK_AMBIGUITY_MARGIN_PX):
-    """Bootstrap in a known wrist ROI, then associate only nearby ID-0 detections."""
+                         ambiguity_margin_px=TRACK_AMBIGUITY_MARGIN_PX,
+                         expected_center=None, reacquire_radius_px=REACQUIRE_RADIUS_PX,
+                         reacquire_margin_px=REACQUIRE_AMBIGUITY_MARGIN_PX):
+    """Track temporally first; bounded expected-center fallback only reacquires identity."""
     candidates = [(corners.reshape(4, 2).mean(axis=0), corners)
                   for marker_id, corners in detections if marker_id == TAG_ID]
     anchor = np.asarray(bootstrap_center if previous_center is None else previous_center,
@@ -50,14 +54,30 @@ def track_tag_candidates(detections, previous_center=None,
                    and bootstrap_roi[1] <= center[1] <= bootstrap_roi[3])
                   if previous_center is None else float(np.linalg.norm(center - anchor)) <= limit)]
     nearby.sort(key=lambda item: item[0])
-    if not nearby:
-        return {'status': 'missing', 'center_px': None, 'corners': None}
-    if previous_center is None and len(nearby) != 1:
+    if nearby:
+        ambiguous = ((previous_center is None and len(nearby) != 1)
+                     or (len(nearby) > 1 and nearby[1][0] - nearby[0][0] < ambiguity_margin_px))
+        if not ambiguous:
+            return {'status': 'tracked', 'association': 'bootstrap_roi' if previous_center is None else 'temporal',
+                    'center_px': nearby[0][1].copy(), 'corners': nearby[0][2].copy()}
+        base_status = 'ambiguous'
+    else:
+        base_status = 'missing'
+    if expected_center is None:
+        return {'status': base_status, 'center_px': None, 'corners': None}
+    expected_center = np.asarray(expected_center, dtype=float).reshape(2)
+    if not np.isfinite(expected_center).all():
+        return {'status': base_status, 'center_px': None, 'corners': None}
+    predicted = [(float(np.linalg.norm(center - expected_center)), center, corners)
+                 for center, corners in candidates]
+    predicted.sort(key=lambda item: item[0])
+    predicted = [item for item in predicted if item[0] <= float(reacquire_radius_px)]
+    if not predicted:
+        return {'status': base_status, 'center_px': None, 'corners': None}
+    if len(predicted) > 1 and predicted[1][0] - predicted[0][0] < float(reacquire_margin_px):
         return {'status': 'ambiguous', 'center_px': None, 'corners': None}
-    if len(nearby) > 1 and nearby[1][0] - nearby[0][0] < ambiguity_margin_px:
-        return {'status': 'ambiguous', 'center_px': None, 'corners': None}
-    return {'status': 'tracked', 'center_px': nearby[0][1].copy(),
-            'corners': nearby[0][2].copy()}
+    return {'status': 'tracked', 'association': 'model_reacquisition',
+            'center_px': predicted[0][1].copy(), 'corners': predicted[0][2].copy()}
 
 
 def paired_pose_raw(pair):
@@ -266,8 +286,11 @@ def evaluate_tag_overlay(rgb, pair, expected_camera_from_tag, intrinsics,
         return {'status': 'STALE / UNPAIRED · marker hidden', 'visible': False,
                 'center_px': None, 'expected_camera_from_tag': None,
                 'observed_camera_from_tag': None, 'image': display.copy(), 'residual': None}
+    expected = _rigid(expected_camera_from_tag, 'expected_camera_from_tag')
+    expected_center = _project(expected[:3, 3][None], intrinsics)[0]
     detections = detect_apriltag_25h9(rgb)
-    selection = track_tag_candidates(detections, previous_center=previous_center)
+    selection = track_tag_candidates(detections, previous_center=previous_center,
+                                     expected_center=expected_center)
     if selection['status'] != 'tracked':
         return {'status': selection['status'].upper() + ' ID0 · comparison hidden',
                 'visible': False, 'center_px': None, 'expected_camera_from_tag': None,
@@ -315,7 +338,6 @@ def evaluate_tag_overlay(rgb, pair, expected_camera_from_tag, intrinsics,
                 'center_px': None, 'expected_camera_from_tag': None,
                 'observed_camera_from_tag': None, 'image': display.copy(), 'residual': None}
     orientation_uncertain = pose_diagnostic['orientation_status'] == 'orientation_uncertain'
-    expected = _rigid(expected_camera_from_tag, 'expected_camera_from_tag')
     nominal_residual = tag_pose_residual(expected, observed, intrinsics)
     residual = nominal_residual
     reported_pose = observed.copy()
@@ -343,7 +365,11 @@ def evaluate_tag_overlay(rgb, pair, expected_camera_from_tag, intrinsics,
         status = ('SOURCE UNQUALIFIED · PnP only Δ %.1f mm / %.1f px / %.1f° '
                   '· depth unavailable' % (residual['translation_mm'], residual['pixel'],
                   residual['rotation_deg']))
+    if selection.get('association') == 'model_reacquisition':
+        status = 'SOURCE UNQUALIFIED · MODEL-GUIDED REACQUISITION · identity only · ' + status.removeprefix('SOURCE UNQUALIFIED · ')
     return {'status': status,
+            'association': selection.get('association', 'unknown'),
+            'reacquired': selection.get('association') == 'model_reacquisition',
             'visible': True, 'center_px': selection['center_px'],
             'expected_camera_from_tag': expected,
             'observed_camera_from_tag': reported_pose, 'image': image,

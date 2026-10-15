@@ -470,10 +470,9 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                                 'Actual raw joint events and saved RGB-D sample freshness are shown below.')
         calibration_note = 'Camera-arm transform: **PROVISIONAL / UNQUALIFIED**'
         if registration:
-            component = registration.get('component_status', {})
-            calibration_note += ('\n\nHeld-out camera-arm closure: 1.6–4.4 mm / 1.1–3.7°. '
-                                 'Branch identity and both component calibrations remain provisional. '
-                                 'No physical calibration is claimed.')
+            calibration_note += ('\n\nThis view uses the explicitly supplied camera-arm registration. '
+                                 'Branch identity and component calibrations remain provisional; '
+                                 'no closure metrics from another fit are attributed to this transform.')
         server.gui.add_markdown(calibration_note)
         phase_status_handle = server.gui.add_text('Actual pose evidence', initial_value='', disabled=True)
         sample_status_handle = server.gui.add_text('Camera sample / point cloud', initial_value='', disabled=True)
