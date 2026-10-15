@@ -1,0 +1,27 @@
+name: so101-jazzy
+channels:
+  - conda-forge
+  - robostack-jazzy
+dependencies:
+  - python=3.12
+  - ros-jazzy-desktop=0.11.0
+  - ros-jazzy-moveit=2.12.4
+  - ros-jazzy-moveit-py=2.12.4
+  - ros-jazzy-pick-ik=1.1.2
+  - ros-jazzy-moveit-servo=2.12.4
+  - ros-jazzy-ros2-control=4.49.0
+  - ros-jazzy-ros2-controllers=4.43.0
+  - ros-jazzy-realsense2-camera=4.58.4
+  - ros-jazzy-tf2-tools
+  - ros-jazzy-kdl-parser
+  - ros-jazzy-joint-state-publisher-gui
+  - colcon-common-extensions=0.3.0
+  - cxx-compiler
+  - cmake
+  - ninja
+  - pkg-config
+  - make
+  - git
+  - pyyaml
+  - scipy=1.16.2
+  - libserial

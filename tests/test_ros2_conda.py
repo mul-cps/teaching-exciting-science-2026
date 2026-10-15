@@ -1,0 +1,155 @@
+import os
+import subprocess
+from pathlib import Path
+
+import yaml
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CONDA_DIR = ROOT / "ros2/conda"
+ENVIRONMENT = CONDA_DIR / "environment.yml"
+WRAPPER = CONDA_DIR / "so101-conda.sh"
+
+
+def run_wrapper(*args: str, env: dict[str, str] | None = None):
+    return subprocess.run(
+        [str(WRAPPER), *args],
+        cwd=ROOT,
+        env={**os.environ, **(env or {})},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def test_environment_declares_isolated_pinned_ros_jazzy_control_stack():
+    data = yaml.safe_load(ENVIRONMENT.read_text(encoding="utf-8"))
+    packages = {entry.split("=")[0]: entry for entry in data["dependencies"] if isinstance(entry, str)}
+
+    assert data["name"] == "so101-jazzy"
+    assert data["channels"] == ["conda-forge", "robostack-jazzy"]
+    assert packages["python"] == "python=3.12"
+    for package in (
+        "ros-jazzy-desktop",
+        "ros-jazzy-moveit",
+        "ros-jazzy-moveit-py",
+        "ros-jazzy-pick-ik",
+        "ros-jazzy-moveit-servo",
+        "ros-jazzy-ros2-control",
+        "ros-jazzy-ros2-controllers",
+        "ros-jazzy-realsense2-camera",
+        "ros-jazzy-tf2-tools",
+        "colcon-common-extensions",
+        "cxx-compiler",
+        "cmake",
+        "ninja",
+        "scipy",
+    ):
+        assert package in packages
+    assert packages["scipy"] == "scipy=1.16.2"
+
+
+def test_conda_run_clears_inherited_ros_python_and_loader_environment(tmp_path: Path):
+    fake_conda = tmp_path / "conda"
+    capture = tmp_path / "capture"
+    fake_conda.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "mkdir -p \"$(dirname \"$TEST_CONDA_ARGS\")\"\n"
+        "printf '%s\\n' \"$@\" > \"$TEST_CONDA_ARGS\"\n"
+        "env | sort > \"$TEST_CONDA_ENV\"\n"
+    )
+    fake_conda.chmod(0o755)
+    env = {
+        "SO101_CONDA_EXE": str(fake_conda),
+        "SO101_CONDA_PREFIX": str(tmp_path / "environment"),
+        "TEST_CONDA_ARGS": str(capture / "args"),
+        "TEST_CONDA_ENV": str(capture / "environment"),
+        "AMENT_PREFIX_PATH": "/opt/ros/iron",
+        "COLCON_PREFIX_PATH": "/opt/ros/iron",
+        "CMAKE_PREFIX_PATH": "/opt/ros/iron",
+        "PYTHONPATH": "/opt/ros/iron/lib/python3/site-packages",
+        "PYTHONHOME": "/opt/ros/iron",
+        "ROS_DISTRO": "iron",
+        "LD_LIBRARY_PATH": "/opt/ros/iron/lib",
+        "DISPLAY": ":77",
+        "XAUTHORITY": "/tmp/test.xauth",
+    }
+
+    result = run_wrapper("run", "ros2", "pkg", "list", env=env)
+
+    assert result.returncode == 0, result.stderr
+    args = (capture / "args").read_text().splitlines()
+    assert args[:4] == ["run", "--no-capture-output", "--prefix", str(tmp_path / "environment")]
+    assert args[-3:] == ["ros2", "pkg", "list"]
+    clean_environment = dict(
+        line.split("=", 1)
+        for line in (capture / "environment").read_text().splitlines()
+        if "=" in line
+    )
+    for name in (
+        "AMENT_PREFIX_PATH",
+        "COLCON_PREFIX_PATH",
+        "CMAKE_PREFIX_PATH",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "ROS_DISTRO",
+        "LD_LIBRARY_PATH",
+    ):
+        assert name not in clean_environment
+    assert clean_environment["DISPLAY"] == ":77"
+    assert clean_environment["XAUTHORITY"] == "/tmp/test.xauth"
+
+
+def test_create_uses_repository_environment_file_and_dedicated_prefix(tmp_path: Path):
+    fake_conda = tmp_path / "conda"
+    capture = tmp_path / "create-args"
+    fake_conda.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "printf '%s\\n' \"$@\" > \"$TEST_CONDA_ARGS\"\n"
+    )
+    fake_conda.chmod(0o755)
+
+    result = run_wrapper(
+        "create",
+        env={
+            "SO101_CONDA_EXE": str(fake_conda),
+            "SO101_CONDA_PREFIX": str(tmp_path / "envs/so101-jazzy"),
+            "TEST_CONDA_ARGS": str(capture),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    args = capture.read_text().splitlines()
+    assert args == [
+        "env",
+        "create",
+        "--yes",
+        "--solver",
+        "libmamba",
+        "--prefix",
+        str(tmp_path / "envs/so101-jazzy"),
+        "--file",
+        str(ENVIRONMENT),
+    ]
+
+
+def test_wrapper_refuses_real_device_startup_without_invoking_conda(tmp_path: Path):
+    fake_conda = tmp_path / "conda"
+    called = tmp_path / "called"
+    fake_conda.write_text(f"#!/usr/bin/env bash\ntouch '{called}'\n")
+    fake_conda.chmod(0o755)
+
+    result = run_wrapper("real", env={"SO101_CONDA_EXE": str(fake_conda)})
+
+    assert result.returncode != 0
+    assert "real hardware remains gated" in result.stderr
+    assert not called.exists()
+
+
+def test_help_lists_conda_environment_commands_without_creating_environment():
+    result = run_wrapper("--help")
+
+    assert result.returncode == 0
+    assert "create|fetch|build|rviz|servo|plan-smoke|inspect|packages|run|shell|real" in result.stdout
