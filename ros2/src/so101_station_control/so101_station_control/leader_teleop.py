@@ -37,8 +37,10 @@ class LeaderTeleopPublisher(Node):
                               reliability=QoSReliabilityPolicy.BEST_EFFORT)
         self._pose_pub = self.create_publisher(
             String, str(self.get_parameter("pose_topic").value), pose_qos)
+        joint_state_qos = QoSProfile(depth=1, history=QoSHistoryPolicy.KEEP_LAST,
+                                     reliability=QoSReliabilityPolicy.BEST_EFFORT)
         self._joint_pub = self.create_publisher(
-            JointState, str(self.get_parameter("joint_states_topic").value), 10)
+            JointState, str(self.get_parameter("joint_states_topic").value), joint_state_qos)
         self._latest = queue.Queue(maxsize=1)
         self._reader_fault_reported = False
         self._leader_ready_reported = False
@@ -114,6 +116,7 @@ class LeaderTeleopPublisher(Node):
         # The JSON stamp is the reader's monotonic acquisition time; bridge freshness checks
         # use this shared host clock and reject data older than 150 ms.
         packet["stamp_s"] = float(packet["stamp_s"])
+        packet["publish_stamp_s"] = time.monotonic()
         message = String()
         message.data = json.dumps(packet, separators=(",", ":"))
         self._pose_pub.publish(message)

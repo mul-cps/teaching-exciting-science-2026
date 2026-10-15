@@ -1,6 +1,7 @@
 """ROS action preflight integration with a fake owner and fake MoveIt scene."""
 import json
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -15,8 +16,9 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import (QoSDurabilityPolicy, QoSHistoryPolicy,
-                       QoSReliabilityPolicy)
+                       QoSProfile, QoSReliabilityPolicy)
 from std_srvs.srv import Trigger
+from std_msgs.msg import String
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 from so101_station_control.trajectory_server import (ARM_JOINTS, TrajectoryBridge,
@@ -114,6 +116,7 @@ def test_teleop_control_qos_is_latest_only_best_effort_and_status_is_latched(mon
     leader = LeaderTeleopPublisher()
     try:
         for qos in (leader._pose_pub.qos_profile,
+                    leader._joint_pub.qos_profile,
                     bridge._teleop_pose_subscription.qos_profile):
             assert qos.history == QoSHistoryPolicy.KEEP_LAST
             assert qos.depth == 1
@@ -123,8 +126,76 @@ def test_teleop_control_qos_is_latest_only_best_effort_and_status_is_latched(mon
         assert status_qos.depth == 1
         assert status_qos.reliability == QoSReliabilityPolicy.RELIABLE
         assert status_qos.durability == QoSDurabilityPolicy.TRANSIENT_LOCAL
+        assert bridge._teleop_pose_subscription.callback_group is bridge._teleop_control_group
+        assert bridge._teleop_tick_timer.callback_group is bridge._teleop_control_group
+        assert bridge._teleop_control_group is not bridge.default_callback_group
     finally:
         leader.destroy_node()
+        bridge._process = None
+        bridge.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+def test_control_pose_callback_runs_while_default_visualization_group_is_slow(monkeypatch, tmp_path):
+    if not rclpy.ok():
+        rclpy.init(args=["so101-offline-teleop-callback-groups-test"])
+    root = Path(__file__).resolve().parents[4]
+    runtime_state = tmp_path / "owner-state.json"
+    entered = threading.Event()
+    pose = dict.fromkeys((*ARM_JOINTS, "gripper"), 0.0)
+    packet = {"schema": 1, "stamp_s": time.monotonic(), "sequence": 1,
+              "units": {"body": "degrees", "gripper": "percent"}, "pose": pose}
+
+    def start_fake_owner(node):
+        node._state_file = runtime_state
+        node._process = _FakeProcess()
+        node._owner_started = time.monotonic()
+
+    monkeypatch.setattr(TrajectoryBridge, "_start_owner", start_fake_owner)
+    bridge = TrajectoryBridge(parameter_overrides=[
+        Parameter("enable_hardware", Parameter.Type.BOOL, False),
+        Parameter("station_root", Parameter.Type.STRING, str(root)),
+        Parameter("state_file", Parameter.Type.STRING, str(runtime_state)),
+    ])
+    publisher_node = Node("so101_offline_control_pose_publisher")
+    publisher = publisher_node.create_publisher(
+        String, "/leader/teleop_pose",
+        QoSProfile(depth=1, history=QoSHistoryPolicy.KEEP_LAST,
+                   reliability=QoSReliabilityPolicy.BEST_EFFORT))
+
+    def slow_visualization_callback():
+        entered.set()
+        time.sleep(0.30)
+
+    slow_timer = bridge.create_timer(
+        0.01, slow_visualization_callback,
+        callback_group=bridge.default_callback_group)
+    executor = MultiThreadedExecutor(num_threads=3)
+    executor.add_node(bridge)
+    executor.add_node(publisher_node)
+    spin_thread = threading.Thread(target=executor.spin, daemon=True)
+    spin_thread.start()
+    try:
+        assert entered.wait(timeout=2.0)
+        sent_at = time.monotonic()
+        message = String()
+        message.data = json.dumps(packet, separators=(",", ":"))
+        publisher.publish(message)
+        deadline = sent_at + 0.18
+        while time.monotonic() < deadline:
+            with bridge._teleop_latest_lock:
+                latest = bridge._teleop_latest
+            if latest is not None and latest["sequence"] == 1:
+                break
+            time.sleep(0.002)
+        assert latest is not None and latest["sequence"] == 1
+        assert time.monotonic() - sent_at < 0.18
+    finally:
+        slow_timer.cancel()
+        executor.shutdown(timeout_sec=1.0)
+        spin_thread.join(timeout=1.0)
+        publisher_node.destroy_node()
         bridge._process = None
         bridge.destroy_node()
         if rclpy.ok():

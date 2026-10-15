@@ -212,6 +212,9 @@ class TrajectoryBridge(Node):
         self._teleop_latest = None
         self._teleop_latest_lock = threading.Lock()
         self._teleop_last_receive_age_ms = None
+        self._teleop_last_publish_delay_ms = None
+        self._teleop_last_delivery_delay_ms = None
+        self._teleop_stale_packet_count = 0
         self._teleop_sequence_gap_total = 0
         self._closed = False
         self._process = None
@@ -243,12 +246,16 @@ class TrajectoryBridge(Node):
         self._teleop_status_pub = self.create_publisher(
             String, str(self.get_parameter("teleop_status_topic").value), status_qos)
         self._publish_teleop_status("disabled", "bridge_startup")
+        # Control traffic must not queue behind the default group, which also
+        # services the reliable follower joint-state visualization publisher.
+        self._teleop_control_group = MutuallyExclusiveCallbackGroup()
         self._teleop_service_group = MutuallyExclusiveCallbackGroup()
         self._teleop_pose_subscription = self.create_subscription(
             String, str(self.get_parameter("teleop_pose_topic").value),
             self._leader_pose_received,
             QoSProfile(depth=1, history=QoSHistoryPolicy.KEEP_LAST,
-                       reliability=QoSReliabilityPolicy.BEST_EFFORT))
+                       reliability=QoSReliabilityPolicy.BEST_EFFORT),
+            callback_group=self._teleop_control_group)
         self._teleop_service = self.create_service(
             SetBool, str(self.get_parameter("teleop_enable_service").value),
             self._set_teleop_enabled, callback_group=self._teleop_service_group)
@@ -258,7 +265,9 @@ class TrajectoryBridge(Node):
         self._calibration_ready_service = self.create_service(
             Trigger, str(self.get_parameter("calibration_ready_service").value),
             self._calibration_ready, callback_group=self._teleop_service_group)
-        self.create_timer(1.0 / 125.0, self._teleop_tick)
+        self._teleop_tick_timer = self.create_timer(
+            1.0 / 125.0, self._teleop_tick,
+            callback_group=self._teleop_control_group)
         self.create_timer(1.0, self._publish_teleop_monitor)
         if not self._external_state_only:
             self._trajectory_helper = self._load_trajectory_helper()
@@ -502,6 +511,9 @@ class TrajectoryBridge(Node):
         with self._teleop_latest_lock:
             latest = dict(self._teleop_latest) if self._teleop_latest else None
             receive_age_ms = self._teleop_last_receive_age_ms
+            publish_delay_ms = self._teleop_last_publish_delay_ms
+            delivery_delay_ms = self._teleop_last_delivery_delay_ms
+            stale_packet_count = self._teleop_stale_packet_count
             sequence_gap_total = self._teleop_sequence_gap_total
         source_age_ms = (max(0.0, time.monotonic() - latest["stamp_s"]) * 1000.0
                          if latest is not None else None)
@@ -510,6 +522,9 @@ class TrajectoryBridge(Node):
             source_sequence=latest["sequence"] if latest is not None else None,
             source_age_ms=round(source_age_ms, 1) if source_age_ms is not None else None,
             last_receive_age_ms=receive_age_ms,
+            last_source_to_publish_ms=publish_delay_ms,
+            last_publish_to_callback_ms=delivery_delay_ms,
+            stale_packet_count=stale_packet_count,
             source_sequence_gap_total=sequence_gap_total)
 
     def _wait_teleop_ack(self, key):
@@ -525,9 +540,24 @@ class TrajectoryBridge(Node):
             return self._teleop_acknowledgements.pop(key)
 
     def _leader_pose_received(self, message):
+        callback_stamp_s = time.monotonic()
         try:
             packet = json.loads(message.data)
-            receive_age_ms = round((time.monotonic() - float(packet["stamp_s"])) * 1000.0, 1)
+            source_stamp_s = float(packet["stamp_s"])
+            publish_stamp_s = float(packet.get("publish_stamp_s", source_stamp_s))
+            receive_age_ms = round((callback_stamp_s - source_stamp_s) * 1000.0, 1)
+            publish_delay_ms = round((publish_stamp_s - source_stamp_s) * 1000.0, 1)
+            delivery_delay_ms = round((callback_stamp_s - publish_stamp_s) * 1000.0, 1)
+            if not all(math.isfinite(value) for value in
+                       (source_stamp_s, publish_stamp_s, receive_age_ms,
+                        publish_delay_ms, delivery_delay_ms)):
+                raise ValueError("non-finite leader diagnostic timestamp")
+            with self._teleop_latest_lock:
+                self._teleop_last_receive_age_ms = receive_age_ms
+                self._teleop_last_publish_delay_ms = publish_delay_ms
+                self._teleop_last_delivery_delay_ms = delivery_delay_ms
+                if receive_age_ms > float(self.get_parameter("teleop_pose_stale_s").value) * 1000.0:
+                    self._teleop_stale_packet_count += 1
             pose = validate_pose_packet(
                 packet, time.monotonic(), float(self.get_parameter("teleop_pose_stale_s").value))
         except (ValueError, TypeError, KeyError, json.JSONDecodeError) as error:
@@ -544,7 +574,6 @@ class TrajectoryBridge(Node):
             if current is not None:
                 self._teleop_sequence_gap_total += max(
                     0, int(packet["sequence"]) - int(current["sequence"]) - 1)
-            self._teleop_last_receive_age_ms = receive_age_ms
             self._teleop_latest = {"stamp_s": float(packet["stamp_s"]),
                                    "sequence": int(packet["sequence"]), "pose": pose}
 

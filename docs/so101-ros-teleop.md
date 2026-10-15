@@ -36,8 +36,10 @@ ros2 topic echo /follower/teleop_status std_msgs/msg/String
 The latched JSON status reports active/stopping/disabled state, stop reason,
 leader source age, age at the last bridge receipt, and cumulative source
 sequence gaps. A stale stop logs the measured age and unchanged 150 ms limit.
-The control pose topic uses best-effort, depth-one QoS at both ends so delayed
-history is discarded while source timestamps still enforce freshness. To stop motion,
+The leader control and visualization publishers and bridge control subscription
+use best-effort, depth-one QoS so delayed history cannot block or replay old
+samples; source timestamps still enforce freshness. Status includes separate
+source-to-publish and publish-to-callback delays. To stop motion,
 disable first and then stop the ROS launch with Ctrl-C:
 
 ```bash
