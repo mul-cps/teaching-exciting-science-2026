@@ -28,14 +28,20 @@ from so101_station_perception.diagnostic_cloud import (  # noqa: E402
     transform_xyz_data,
 )
 from so101_station_perception.tag_observations import (  # noqa: E402
+    camera_intrinsics,
     depth_center_point,
+    depth_scale_for_encoding,
     ensure_aruco_detector_api,
     select_region_detection,
+    stamp_is_fresh,
     timestamps_paired,
+    unassociated_tag_points,
 )
 from so101_station_perception.evidence_sink import (  # noqa: E402
     arm_pair_record,
     read_resident_state,
+    validate_depth_encoding,
+    validated_camera_metadata,
 )
 
 
@@ -166,6 +172,85 @@ def test_marker_pairing_rejects_timestamp_skew_and_invalid_depth():
     assert depth_center_point([1, 1], depth, intrinsics, .001) is None
     depth[0:3, 0:3] = 500
     assert depth_center_point([1, 1], depth, intrinsics, .001) == pytest.approx((0, 0, .5))
+
+
+def test_camera_info_rejects_nonfinite_intrinsics_and_requires_image_geometry():
+    info = type("Info", (), {"k": [600, 0, 320, 0, 600, 240, 0, 0, 1],
+                              "d": [0.0] * 5, "width": 640, "height": 480})()
+    assert camera_intrinsics(info, (480, 640)) == {"fx": 600.0, "fy": 600.0,
+                                                     "ppx": 320.0, "ppy": 240.0}
+    info.k[0] = float("nan")
+    with pytest.raises(ValueError, match="finite"):
+        camera_intrinsics(info, (480, 640))
+    info.k[0] = 600
+    info.d[2] = float("inf")
+    with pytest.raises(ValueError, match="finite"):
+        camera_intrinsics(info, (480, 640))
+    info.d[2] = 0.0
+    with pytest.raises(ValueError, match="dimensions"):
+        camera_intrinsics(info, (240, 320))
+
+
+def test_depth_encodings_have_explicit_units_and_reject_dtype_mismatch():
+    assert depth_scale_for_encoding("16UC1", np.zeros((2, 2), dtype=np.uint16)) == .001
+    assert depth_scale_for_encoding("32FC1", np.zeros((2, 2), dtype=np.float32)) == 1.0
+    with pytest.raises(ValueError, match="encoding"):
+        depth_scale_for_encoding("16UC1", np.zeros((2, 2), dtype=np.float32))
+    with pytest.raises(ValueError, match="encoding"):
+        depth_scale_for_encoding("32FC1", np.zeros((2, 2), dtype=np.uint16))
+    assert validate_depth_encoding("16UC1", np.zeros((2, 2), dtype=np.uint16)) == .001
+    assert validate_depth_encoding("32FC1", np.zeros((2, 2), dtype=np.float32)) == 1.0
+    with pytest.raises(ValueError, match="encoding"):
+        validate_depth_encoding("32FC1", np.zeros((2, 2), dtype=np.uint16))
+
+
+def test_evidence_sink_rejects_invalid_camera_info_before_serializing(tmp_path):
+    info = type("Info", (), {"k": [500, 0, 320, 0, 500, 240, 0, 0, 1],
+                              "d": [0.0] * 5, "width": 640, "height": 480})()
+    assert validated_camera_metadata(info, (480, 640))["fx"] == 500.0
+    info.k[2] = float("nan")
+    with pytest.raises(ValueError, match="finite"):
+        validated_camera_metadata(info, (480, 640))
+
+
+def test_all_id_zero_tags_can_publish_depth_points_without_physical_association():
+    depth = np.full((20, 20), 1000, dtype=np.uint16)
+    intrinsics = {"fx": 500, "fy": 500, "ppx": 10, "ppy": 10}
+    detections = [
+        {"code_id": 0, "corners_px": [[4, 4], [8, 4], [8, 8], [4, 8]]},
+        {"code_id": 0, "corners_px": [[12, 12], [16, 12], [16, 16], [12, 16]]},
+        {"code_id": 1, "corners_px": [[2, 2], [4, 2], [4, 4], [2, 4]]},
+    ]
+    points = unassociated_tag_points(detections, depth, intrinsics, .001)
+    assert len(points) == 2
+    assert all(point["tag_id"] == 0 and point["association"] == "unassociated"
+               for point in points)
+    assert all(np.isfinite(point["xyz"]).all() for point in points)
+
+
+def test_full_image_detector_sees_id_zero_near_physical_elbow_tag_location():
+    import cv2
+    from workshop.digital_twin.tag_tracking import TagTracker
+
+    image = np.full((480, 640), 255, dtype=np.uint8)
+    marker = cv2.aruco.generateImageMarker(
+        cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_25h9), 0, 80)
+    image[11:91, 303:383] = marker  # center (343, 51), partly outside the old ROI
+    detections = TagTracker(detector_scale=2).detect(image)
+    assert any(item["code_id"] == 0 for item in detections)
+
+
+def test_tag_processing_rejects_stale_camera_stamps():
+    assert stamp_is_fresh(100.0, 99.6)
+    assert not stamp_is_fresh(100.0, 99.49)
+
+
+def test_camera_subscriptions_use_sensor_data_qos():
+    import inspect
+    from so101_station_perception import evidence_sink, tag_observations
+
+    assert "qos_profile=qos_profile_sensor_data" in inspect.getsource(tag_observations.TagObservations.__init__)
+    assert "qos_profile=qos_profile_sensor_data" in inspect.getsource(evidence_sink.EvidenceSink.__init__)
 
 
 def test_opencv_aruco_api_compatibility_shim_supports_legacy_detector():
