@@ -15,12 +15,17 @@ def diagnostic_pair_is_fresh(pair, status):
                 and status.get('pairing_status', 'paired') == 'paired')
 
 
-def diagnostic_source_is_fresh(pair, now_wall, max_age_s=.5):
+def diagnostic_source_is_fresh(pair, now_wall, max_age_s=1.25):
+    age = diagnostic_source_age_s(pair, now_wall)
+    return age is not None and 0. <= age <= max_age_s
+
+
+def diagnostic_source_age_s(pair, now_wall):
     try:
         age = float(now_wall) - float(pair['timestamp_wall'])
     except (KeyError, TypeError, ValueError):
-        return False
-    return 0. <= age <= max_age_s
+        return None
+    return age if math.isfinite(age) else None
 
 
 def arm_roi_cloud(world_points, rgb, valid, stride=2):

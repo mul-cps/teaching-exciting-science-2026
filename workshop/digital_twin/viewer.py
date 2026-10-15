@@ -20,6 +20,7 @@ from .evidence_bridge import (apply_world_registration, camera_sample_status,
                               transform_points)
 from .registration_diagnostics import (arm_roi_cloud, detect_charuco_depth,
                                        diagnostic_pair_is_fresh,
+                                       diagnostic_source_age_s,
                                        diagnostic_source_is_fresh)
 
 LIVE_SURFACE_REFRESH_INTERVAL_S = .2
@@ -393,7 +394,7 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
     clouds = {}
     diagnostics_state = {'status': 'waiting for fresh RGB-D pair', 'source_pair': None,
                          'residuals': None, 'last_detection': 0.0, 'fresh': False,
-                         'board_fresh': False,
+                         'board_fresh': False, 'source_age_s': None,
                          'raw_rgb': None, 'raw_depth': None, 'raw_pair': None,
                          'raw_pair_status': None}
     diagnostic_handles = {}
@@ -630,6 +631,8 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                        'residuals': diagnostics_state['residuals'],
                        'current_pair_fresh': bool(diagnostics_state['fresh']),
                        'source_pair_fresh': bool(diagnostics_state['board_fresh']),
+                       'source_kind': ('cached_detection_pair' if diagnostics_state['source_pair'] else None),
+                       'source_age_seconds': diagnostics_state['source_age_s'],
                        'board_geometry': {'dictionary': 'DICT_6X6_250', 'squares': [7, 5],
                            'square_length_m': .025, 'marker_length_m': .018,
                            'max_corners': 24},
@@ -653,7 +656,8 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
         diagnostics_state['fresh'] = fresh
         if not fresh:
             diagnostics_state.update(status='STALE / UNPAIRED · diagnostics hidden',
-                                     source_pair=None, residuals=None, board_fresh=False)
+                                     source_pair=None, residuals=None, board_fresh=False,
+                                     source_age_s=None)
             diagnostic_status_handle.value = diagnostics_state['status']
             if 'arm_roi' in clouds: clouds['arm_roi'].visible = False
             for handle in diagnostic_handles.values(): handle.visible = False
@@ -668,17 +672,25 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
             diagnostic_status_handle.value = diagnostics_state['status']
             return
         source = diagnostics_state.get('source_pair') or {}
-        diagnostics_state['board_fresh'] = diagnostic_source_is_fresh(source, time.time())
+        source_now = time.time()
+        diagnostics_state['source_age_s'] = diagnostic_source_age_s(source, source_now)
+        diagnostics_state['board_fresh'] = diagnostic_source_is_fresh(source, source_now)
         if now - diagnostics_state['last_detection'] < 1.0:
             if 'arm_roi' in clouds: clouds['arm_roi'].visible = diagnostic_toggle.value
             for handle in diagnostic_handles.values():
                 handle.visible = bool(diagnostic_toggle.value and diagnostics_state['board_fresh'])
+            if diagnostics_state['board_fresh'] and diagnostics_state['source_age_s'] is not None:
+                diagnostic_status_handle.value = (f"cached source {diagnostics_state['source_age_s']:.1f}s · "
+                    f"{diagnostics_state['status']} · UNQUALIFIED")
+            elif diagnostics_state['source_pair'] is not None:
+                diagnostics_state.update(status='CACHED SOURCE STALE · overlay hidden', board_fresh=False)
+                diagnostic_status_handle.value = diagnostics_state['status']
             return
         detected_pair = diagnostics_state['raw_pair']
         detected_pair_status = diagnostics_state['raw_pair_status'] or {}
         if not diagnostic_pair_is_fresh(detected_pair, detected_pair_status):
             diagnostics_state.update(status='STALE DIAGNOSTIC SOURCE · overlay hidden', source_pair=None,
-                                     residuals=None, board_fresh=False)
+                                     residuals=None, board_fresh=False, source_age_s=None)
             diagnostic_status_handle.value = diagnostics_state['status']
             for handle in diagnostic_handles.values(): handle.visible = False
             return
@@ -721,9 +733,12 @@ def serve(output, port=8096, host='127.0.0.1', phase_file=None, calibration_path
                     'pairing_status': detected_pair_status.get('pairing_status')})
             diagnostics_state['board_fresh'] = diagnostic_source_is_fresh(
                 diagnostics_state['source_pair'], time.time())
+            diagnostics_state['source_age_s'] = diagnostic_source_age_s(
+                diagnostics_state['source_pair'], time.time())
             diagnostic_status_handle.value = (f"{diag['depth_corner_count']}/{diag['corner_count']} corners · "
                 f"PnP-depth RMS {diag['rgb_pnp_depth_residual_rms_mm']:.1f} mm · "
-                f"depth-plane RMS {diag['depth_plane_rms_mm']:.1f} mm · UNQUALIFIED")
+                f"depth-plane RMS {diag['depth_plane_rms_mm']:.1f} mm · "
+                f"cached source {diagnostics_state['source_age_s']:.1f}s · UNQUALIFIED")
         except Exception as error:
             diagnostics_state.update(status=f'CHARUCO DIAGNOSTIC UNAVAILABLE · {type(error).__name__}', residuals=None,
                                      source_pair=None, board_fresh=False)
