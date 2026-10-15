@@ -19,6 +19,9 @@ from std_msgs.msg import String
 from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener
 
 from .calibration import matrix_quaternion, rigid_matrix
+from .charuco_plane import (camera_from_world_from_plane, decode_color_pixels,
+                            decode_depth, fit_depth_plane,
+                            plane_tilt_from_pnp_degrees)
 from .tag_observations import marker_grayscale, stamp_is_fresh, stamp_seconds
 
 
@@ -71,7 +74,7 @@ def camera_matrices(info, image_shape):
 
 
 def estimate_board_pose(image_bgr, info, board, detector, min_corners=6,
-                        max_reprojection_error_px=2.5):
+                        max_reprojection_error_px=2.5, return_observations=False):
     """Return optical_T_board from calibrated PnP, or fail closed with a reason."""
     k, d = camera_matrices(info, image_bgr.shape)
     gray = image_bgr if image_bgr.ndim == 2 else cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
@@ -103,7 +106,8 @@ def estimate_board_pose(image_bgr, info, board, detector, min_corners=6,
     optical_from_board = np.eye(4)
     optical_from_board[:3, :3] = rotation
     optical_from_board[:3, 3] = tvec.reshape(3)
-    return optical_from_board, len(ids), rms
+    result = (optical_from_board, len(ids), rms)
+    return (*result, object_points.copy(), pixels.copy()) if return_observations else result
 
 
 def transform_matrix(msg):
@@ -167,6 +171,7 @@ class CharucoWorld(Node):
         self.last_stamp = None
         self.last_valid_stamp = None
         self.cached_optical_from_link = None
+        self.require_depth_plane = False
         self.filtered_pose = None
         self.pose_estimate = None
         self.hold_s = float(self.get_parameter("transform_hold_s").value)
@@ -194,12 +199,15 @@ class CharucoWorld(Node):
         self._publish_provisional_base_seed()
 
     def _status(self, state, stamp=None, **extra):
-        payload = {"state": state, "observation_valid": state == "tracking", "base_calibration_qualified": False, "stamp": stamp, **extra}
+        observed = state == "tracking" and extra.get("plane_source") == "aligned_depth"
+        payload = {"state": state, "observation_valid": observed,
+                   "plane_source": extra.get("plane_source", "none"),
+                   "base_calibration_qualified": False, "stamp": stamp, **extra}
         msg = String()
         msg.data = json.dumps(payload, sort_keys=True)
         self.status_pub.publish(msg)
 
-    def _pair(self, image_msg, info_msg, prepared_gray=None):
+    def _pair(self, image_msg, info_msg, prepared_gray=None, depth_msg=None):
         stamp = stamp_seconds(image_msg.header.stamp)
         now = self.get_clock().now().nanoseconds * 1e-9
         if not stamp_is_fresh(now, stamp, self.max_age):
@@ -217,21 +225,50 @@ class CharucoWorld(Node):
         try:
             image = (marker_grayscale(self.bridge, image_msg)
                      if prepared_gray is None else prepared_gray)
-            optical_from_board, count, rms = estimate_board_pose(
-                image, info_msg, self.board, self.detector, self.min_corners, self.max_error)
+            optical_from_board, count, rms, board_points, pixels = estimate_board_pose(
+                image, info_msg, self.board, self.detector, self.min_corners, self.max_error,
+                return_observations=True)
+            k, d = camera_matrices(info_msg, image.shape)
+            plane_metrics = {"plane_source": "pnp_unqualified"}
+            if depth_msg is not None:
+                depth_raw = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
+                depth_m = decode_depth(depth_raw, depth_msg.encoding)
+                if depth_m.shape != image.shape[:2]:
+                    raise ValueError("aligned depth dimensions differ from color image")
+                color_pixels = decode_color_pixels(image_msg)
+                center, normal, plane_metrics = fit_depth_plane(
+                    depth_m, k, d, optical_from_board, color_image=color_pixels)
+                optical_from_world = camera_from_world_from_plane(optical_from_board, center, normal)
+                tilt = plane_tilt_from_pnp_degrees(optical_from_board, normal,
+                                                   max_tilt_degrees=12.0)
+                world_points = (world_from_opencv_board()[:3, :3] @ board_points.T).T
+                projected, _ = cv2.projectPoints(
+                    world_points, cv2.Rodrigues(optical_from_world[:3, :3])[0],
+                    optical_from_world[:3, 3], k, d)
+                plane_rms = float(np.sqrt(np.mean(np.sum(
+                    (projected.reshape(-1, 2) - pixels) ** 2, axis=1))))
+                if not math.isfinite(plane_rms) or plane_rms > max(self.max_error + 3.0, rms * 2.0):
+                    raise ValueError(f"depth-plane reprojection RMS {plane_rms:.3f}px is inconsistent with PnP")
+                plane_metrics.update({"plane_source": "aligned_depth", "plane_tilt_from_pnp_deg": tilt,
+                                      "reprojection_before_px": rms, "reprojection_after_px": plane_rms})
+                camera_from_world = optical_from_world
+            else:
+                if self.require_depth_plane:
+                    raise ValueError("aligned depth is required for canonical world tracking")
+                camera_from_world = optical_from_board @ np.linalg.inv(world_from_opencv_board())
             # lookup gives optical_T_camera_link; compose board_T_camera_link
             # so the vendor camera_link -> optical edge remains the sole parent.
             if self.cached_optical_from_link is None:
                 self.cached_optical_from_link = transform_matrix(self.buffer.lookup_transform(
                     self.optical_frame, self.camera_link_frame, Time()))
-            board_from_link = world_from_opencv_board() @ np.linalg.inv(optical_from_board) @ self.cached_optical_from_link
+            board_from_link = np.linalg.inv(camera_from_world) @ self.cached_optical_from_link
             gap = float("inf") if self.last_valid_stamp is None else stamp - self.last_valid_stamp
             self.filtered_pose = stabilize_pose(self.filtered_pose, board_from_link,
                                                 observation_gap_s=gap, max_gap_s=self.hold_s)
             self.last_valid_stamp = stamp
             self.pose_estimate = (self.filtered_pose, stamp)
             self._status("tracking", stamp=stamp, charuco_corners=count, reprojection_rms_px=rms,
-                         transform_model="last_known_calibration", observation_validity_s=self.hold_s,
+                         **plane_metrics, transform_model="last_known_calibration", observation_validity_s=self.hold_s,
                          parent=self.board_frame, child=self.camera_link_frame)
         except (ValueError, cv2.error, TransformException, np.linalg.LinAlgError) as exc:
             self._status("occluded", stamp=stamp, reason=str(exc))
@@ -260,7 +297,7 @@ class CharucoWorld(Node):
                          stamp=self.last_valid_stamp, observation_age_s=age,
                          pose_estimate_valid=0 <= age <= self.hold_s,
                          transform_available=self.pose_estimate is not None,
-                         transform_model="last_known_calibration",
+                         transform_model="last_known_calibration", plane_source="held_last_valid",
                          reason="board observation stale; display retains last calibration")
 
     def _publish_provisional_base_seed(self):

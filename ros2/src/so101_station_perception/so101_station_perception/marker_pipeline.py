@@ -39,6 +39,7 @@ class MarkerPipeline(CharucoWorld):
 
     def __init__(self):
         super().__init__(subscribe_images=False)
+        self.require_depth_plane = True
         self.declare_parameter("publish_timing", False)
         self.declare_parameter("depth_topic", "/camera/aligned_depth_to_color/image_raw")
         value = lambda key: self.get_parameter(key).value
@@ -90,7 +91,7 @@ class MarkerPipeline(CharucoWorld):
             metrics = dispatch_shared_gray(
                 color, depth, info, self.bridge,
                 lambda image, camera_info, gray: self._pair(
-                    image, camera_info, prepared_gray=gray),
+                    image, camera_info, prepared_gray=gray, depth_msg=depth),
                 lambda image, aligned_depth, gray: self._process_tags_with_info(
                     image, aligned_depth, info, gray),
             )
