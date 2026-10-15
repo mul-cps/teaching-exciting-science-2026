@@ -10,6 +10,19 @@ import pytest
 from workshop.station.arm_session import (ArmSession, JOINTS, PROFILE,
                                           run_locked_session, validate_arm_session_config)
 from workshop.station.config import load_config
+from workshop.station.ros_trajectory import (ROS_MAX_ACCELERATION_RAD_S2,
+                                             ROS_MAX_JERK_RAD_S3,
+                                             ROS_MAX_VELOCITY_RAD_S,
+                                             path_digest, prepare_trajectory)
+
+
+def _collision_path_digest(session, arm, names, points):
+    prepared = prepare_trajectory(
+        names, points, start_radians=session._arm_radians(arm.bus.sync_read("Present_Position")),
+        max_velocity=ROS_MAX_VELOCITY_RAD_S,
+        max_acceleration=ROS_MAX_ACCELERATION_RAD_S2,
+        max_jerk=ROS_MAX_JERK_RAD_S3)
+    return path_digest(prepared, held_gripper_raw=arm.bus.sync_read("Present_Position")["gripper"])
 
 
 class FakeClock:
@@ -729,7 +742,8 @@ def test_ros_trajectory_streams_without_waypoint_dwells_and_keeps_gripper(tmp_pa
         {"time": 1.0, "positions": [value + 0.01 for value in positions], "velocities": [0.0] * 5,
          "accelerations": [-0.8] * 5},
     ]
-    result = session.execute_trajectory("goal-test", names, points)
+    result = session.execute_trajectory("goal-test", names, points,
+        expected_path_sha256=_collision_path_digest(session, arm, names, points))
     assert result["trajectory"]["sample_count"] == 21
     assert result["trajectory"]["input_derivatives_ignored"] is True
     assert arm.bus.eeprom_writes == []
@@ -748,11 +762,44 @@ def test_ros_trajectory_preflight_rejection_has_no_writes(tmp_path):
               {"time": 1.0, "positions": [0.21] * 5}]
     with pytest.raises(ValueError, match="start position"):
         session.execute_trajectory("goal-invalid", ["shoulder_pan", "shoulder_lift",
-            "elbow_flex", "wrist_flex", "wrist_roll"], points)
+            "elbow_flex", "wrist_flex", "wrist_roll"], points,
+            expected_path_sha256="0" * 64)
     assert arm.bus.writes == []
     assert arm.bus.goal_history == []
     assert arm.bus.eeprom_writes == []
     assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
+    session.close_log()
+
+
+def test_ros_trajectory_collision_digest_mismatch_has_no_writes(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    names = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
+    start = session._arm_radians(arm.bus.sync_read("Present_Position"))
+    points = [{"time": 0.0, "positions": [start[name] for name in names]},
+              {"time": 1.0, "positions": [start[name] + 0.005 for name in names]}]
+    checked_digest = _collision_path_digest(session, arm, names, points)
+    points[1]["positions"][0] += 0.001
+    with pytest.raises(ValueError, match="differs from collision-checked path"):
+        session.execute_trajectory("goal-path-mismatch", names, points,
+                                   expected_path_sha256=checked_digest)
+    assert arm.bus.writes == []
+    assert arm.bus.goal_history == []
+    session.close_log()
+
+
+def test_feedback_snapshots_do_not_append_to_durable_owner_log(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    log = session._log_stream
+    before = log.tell()
+    raw = arm.bus.sync_read("Present_Position")
+    torque = arm.bus.sync_read("Torque_Enable")
+    state = session.publish_state(event="trajectory_feedback", raw=raw, torque=torque)
+    assert Path(session.state_file).is_file()
+    assert state["event"] == "trajectory_feedback"
+    assert log.tell() == before
+    session.shutdown(reason="test_cleanup")
     session.close_log()
 
 
@@ -783,8 +830,9 @@ def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):
         "shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")]}]
     arm.bus.delay_after_goal = 0.30
     with pytest.raises(RuntimeError, match="feedback freshness"):
-        session.execute_trajectory("goal-stale", ["shoulder_pan", "shoulder_lift",
-            "elbow_flex", "wrist_flex", "wrist_roll"], points)
+        names = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
+        session.execute_trajectory("goal-stale", names, points,
+            expected_path_sha256=_collision_path_digest(session, arm, names, points))
     assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
     assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)
     assert arm.bus.eeprom_writes == []

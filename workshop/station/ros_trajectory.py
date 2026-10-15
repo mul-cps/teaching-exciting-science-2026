@@ -9,11 +9,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import hashlib
+import json
 
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 MAX_POINTS = 1000
 START_TOLERANCE_RAD = math.radians(1.0)
 POSITION_LIMIT_RAD = math.pi / 2
+ROS_MAX_VELOCITY_RAD_S = 0.125
+ROS_MAX_ACCELERATION_RAD_S2 = 0.2
+ROS_MAX_JERK_RAD_S3 = 2.0
+MAX_COLLISION_CHECK_STATES = 12000
 
 
 @dataclass(frozen=True)
@@ -150,15 +156,18 @@ def _poly_roots(coefficients, low, high):
     return sorted(set(roots))
 
 
-def _check_limits(coeffs, durations, joint, max_velocity, max_acceleration):
+def _check_limits(coeffs, durations, joint, max_velocity, max_acceleration, max_jerk):
     for coeff, duration in zip(coeffs, durations):
         velocity_coeff = [i * coeff[i] for i in range(1, len(coeff))]
         acceleration_coeff = [i * velocity_coeff[i] for i in range(1, len(velocity_coeff))]
         jerk_coeff = [i * acceleration_coeff[i] for i in range(1, len(acceleration_coeff))]
+        snap_coeff = [i * jerk_coeff[i] for i in range(1, len(jerk_coeff))]
         velocity_points = [0.0, duration, *_poly_roots(acceleration_coeff, 0.0, duration)]
         acceleration_points = [0.0, duration, *_poly_roots(jerk_coeff, 0.0, duration)]
         vmax = max(abs(_evaluate(velocity_coeff, x)) for x in velocity_points)
         amax = max(abs(_evaluate(acceleration_coeff, x)) for x in acceleration_points)
+        jerk_points = [0.0, duration, *_poly_roots(snap_coeff, 0.0, duration)]
+        jmax = max(abs(_evaluate(jerk_coeff, x)) for x in jerk_points)
         position_points = [0.0, duration, *_poly_roots(velocity_coeff, 0.0, duration)]
         positions = [_evaluate(coeff, x) for x in position_points]
         if min(positions) < -POSITION_LIMIT_RAD - 1e-9 or max(positions) > POSITION_LIMIT_RAD + 1e-9:
@@ -167,10 +176,12 @@ def _check_limits(coeffs, durations, joint, max_velocity, max_acceleration):
             raise ValueError(f"velocity limit exceeded: {joint} {vmax:.6g} > {max_velocity:.6g} rad/s")
         if amax > max_acceleration + 1e-9:
             raise ValueError(f"acceleration limit exceeded: {joint} {amax:.6g} > {max_acceleration:.6g} rad/s^2")
+        if jmax > max_jerk + 1e-9:
+            raise ValueError(f"jerk limit exceeded: {joint} {jmax:.6g} > {max_jerk:.6g} rad/s^3")
 
 
 def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
-                       max_acceleration, period=0.05):
+                       max_acceleration, max_jerk=ROS_MAX_JERK_RAD_S3, period=0.05):
     """Validate a ROS-like position trajectory and generate 20 Hz spline samples.
 
     Input derivatives are preserved but intentionally not commanded. `start`
@@ -182,9 +193,10 @@ def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
         raise ValueError("joint_names must contain exactly the five arm joints")
     max_velocity = _number(max_velocity, "max_velocity")
     max_acceleration = _number(max_acceleration, "max_acceleration")
+    max_jerk = _number(max_jerk, "max_jerk")
     period = _number(period, "period")
-    if min(max_velocity, max_acceleration, period) <= 0:
-        raise ValueError("velocity, acceleration, and sample period must be positive")
+    if min(max_velocity, max_acceleration, max_jerk, period) <= 0:
+        raise ValueError("velocity, acceleration, jerk, and sample period must be positive")
     if not isinstance(points, (list, tuple)) or not 2 <= len(points) <= MAX_POINTS:
         raise ValueError(f"trajectory must contain 2..{MAX_POINTS} points")
     if not isinstance(start_radians, dict) or set(start_radians) != set(ARM_JOINTS):
@@ -231,7 +243,7 @@ def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
     segment_durations = [times[i + 1] - times[i] for i in range(len(times) - 1)]
     for index, joint in enumerate(ARM_JOINTS):
         coeffs = _spline(times, [row[index] for row in ordered])
-        _check_limits(coeffs, segment_durations, joint, max_velocity, max_acceleration)
+        _check_limits(coeffs, segment_durations, joint, max_velocity, max_acceleration, max_jerk)
         coeff_by_joint.append(coeffs)
     count = int(math.ceil(duration / period - 1e-12))
     # Keep writes on the 20 Hz grid. If the trajectory ends between ticks,
@@ -248,3 +260,34 @@ def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
                                        for j in range(len(ARM_JOINTS)))))
     return PreparedTrajectory(names, duration, tuple(samples), tuple(audit),
                               any("velocities" in p or "accelerations" in p for p in audit))
+
+
+def path_digest(prepared, *, held_gripper_raw=None):
+    # Suppress harmless last-bit differences between pose-degrees->radians in
+    # the ROS process and raw-count->radians in the station process.
+    payload = {"times": [round(sample.time, 12) for sample in prepared.samples],
+               "positions": [[round(value, 12) for value in sample.positions]
+                             for sample in prepared.samples]}
+    if held_gripper_raw is not None:
+        payload["held_gripper_raw"] = int(held_gripper_raw)
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def dense_path_samples(prepared, *, max_joint_step_rad=0.01,
+                       max_states=MAX_COLLISION_CHECK_STATES):
+    """Interpolate sampled commands so adjacent checks differ by at most 0.01 rad."""
+    max_joint_step_rad = _number(max_joint_step_rad, "max_joint_step_rad")
+    if max_joint_step_rad <= 0 or max_states < 2:
+        raise ValueError("dense validation bounds must be positive")
+    dense = [prepared.samples[0].positions]
+    for left, right in zip(prepared.samples, prepared.samples[1:]):
+        delta = max(abs(b - a) for a, b in zip(left.positions, right.positions))
+        count = max(1, math.ceil(delta / max_joint_step_rad))
+        if len(dense) + count > max_states:
+            raise ValueError(f"collision validation would exceed {max_states} states")
+        for index in range(1, count + 1):
+            ratio = index / count
+            dense.append(tuple(a + (b - a) * ratio
+                               for a, b in zip(left.positions, right.positions)))
+    return tuple(dense)

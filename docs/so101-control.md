@@ -1,31 +1,36 @@
 # Resident MoveIt trajectory control
 
-The real action bridge keeps the existing Python `ArmSession` as the only
-Feetech serial owner. A ROS 2 `FollowJointTrajectory` action server sends one
-complete goal to that child process over JSON-lines stdin. It never opens the
-serial port or imports LeRobot. The resident owner validates the whole goal
-before writing, streams a C2 quintic position path at 20 Hz with the station's
-native servo profile, publishes fresh measured state, and holds the terminal
-pose until measured error is within tolerance. It does not stop at each MoveIt
-waypoint.
+ROS is the station control and measured-state interface. The ROS action bridge
+keeps the Python `ArmSession` subprocess as the sole Feetech bus owner; it does
+not open the serial port or import LeRobot. MoveIt sends complete
+`FollowJointTrajectory` goals through that bridge. `/follower/joint_states`
+publishes the measured five-axis arm state and visual jaw estimate, while the
+runtime JSON file is private IPC between the bridge and its owner.
 
 MoveIt point velocities and accelerations are preserved in the command audit,
 but are not used directly: planner output may contain discontinuous
 accelerations. The owner builds a C2 quintic through the requested positions
-and timestamps, with zero velocity and acceleration at the endpoints, then
-checks interpolated position, velocity, and acceleration bounds before any
-profile or goal write. Timing is retained; trajectories that exceed the
-station software limits are rejected rather than silently sped up. The
-current configured software limits are 0.125 rad/s and 0.2 rad/s². These are
-software admission limits, not measured hardware performance guarantees.
+and timestamps, with zero velocity and acceleration at the endpoints. Before
+any owner command, the bridge asks MoveIt's `/follower/check_state_validity`
+service to validate every effective 20 Hz command state and a bounded
+interpolation with no adjacent joint step above 0.01 rad. It saves the checked
+path and original goal before sending anything. The owner independently
+rebuilds the spline from fresh measured state and requires its SHA-256 to match
+the collision-checked path before any profile or goal write. Missing validity
+service, collision, path mismatch, or dynamics-limit violation rejects the
+goal without an actuator command. The software limits are 0.125 rad/s,
+0.2 rad/s², and 2 rad/s³. They are admission limits, not measured hardware
+performance guarantees; unsafe timing is rejected rather than silently sped up.
 
 Only the five arm joints are accepted, in any order. The first point must be
-at time zero and agree with fresh measured state within one degree. The
-gripper goal is never commanded; its measured raw position is held in every
-synchronized position write. `/follower/joint_states` publishes the five
-measured arm joints. It omits gripper because the station's normalized jaw
-state has no qualified URDF radians mapping. MoveIt planning and visualization
-therefore cover the arm only.
+at time zero and agree with fresh measured state within one degree. Non-default
+client path tolerance, goal tolerance, or goal-time tolerance is rejected
+instead of being silently ignored. The action uses the station's fixed 2°
+measured terminal tolerance. The gripper goal is never commanded; its measured
+raw position is held in every synchronized position write. For visualization,
+the measured normalized opening percent maps linearly to the URDF gripper range
+of -10° to 100°. That proxy is explicitly unqualified and never enters the
+five-axis command interface.
 
 The action server must run on the host ROS 2 Jazzy environment. It launches the
 configured station virtual-environment Python as a subprocess, with ROS,
@@ -52,17 +57,20 @@ controller. Hardware remains disabled unless `enable_hardware:=true` is
 passed. The bridge requires verified torque-off startup; a startup failure
 does not qualify the station for execution.
 
-The live state JSON defaults to `XDG_RUNTIME_DIR` or `/dev/shm` so the 20 Hz
-state refresh avoids slow durable storage on the feedback path. Set `state_file`
-only to a similarly low-latency runtime filesystem. The durable log stores the
-original goal and sampled command before motion; measured feedback is buffered
-in memory during the run and appended after motion. Each action has one owner
+The live state JSON and ArmSession log default to `XDG_RUNTIME_DIR` or
+`/dev/shm`; persistent paths are rejected for these high-rate runtime files.
+The bridge writes the original goal and the collision-checked effective path
+to `trajectory_log_dir` before motion, then appends the result after completion.
+The owner buffers measured trajectory samples and writes them after motion, so
+durable storage latency is outside the tick loop. Each action has one owner
 and one active goal. Action cancellation commands a measured-pose hold while
 preserving torque. The explicit `stop` command retains the station's existing
 torque-off cleanup behavior; shutting down the action server sends `exit` and
 therefore also disables torque and restores saved RAM settings.
 
-These tests exercise trajectory math and the owner against a fake bus. The
-real ROS action endpoint, station-specific mapping, physical tracking,
-smoothness, cancellation, and persistent MoveIt replay still require separate
-host/hardware acceptance.
+`external_state_only:=true` is a temporary diagnostic mode for mirroring an
+already-running resident. It starts no owner and rejects all action goals; the
+primary path starts the ROS-owned resident instead. The pure trajectory and
+fake-bus tests do not qualify the ROS action endpoint, collision-scene setup,
+physical tracking, smoothness, cancellation, or replay. Those require separate
+host and hardware acceptance.
