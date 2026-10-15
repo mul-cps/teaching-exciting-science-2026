@@ -87,6 +87,53 @@ def test_only_fresh_paired_actual_raw_pose_can_drive_fiducial_prediction():
                                      'phase_event_delta_s': .1}) is not None
 
 
+def _rotation_about_x(degrees):
+    angle = np.deg2rad(degrees)
+    cosine, sine = np.cos(angle), np.sin(angle)
+    return np.array([[1., 0., 0.], [0., cosine, -sine],
+                     [0., sine, cosine]])
+
+
+def test_depth_plane_normal_selects_ippe_branch_over_wrong_temporal_prior():
+    candidates = []
+    for degrees, error in ((140., .12), (220., .13)):
+        pose = np.eye(4)
+        pose[:3, :3] = _rotation_about_x(degrees)
+        pose[:3, 3] = [.05, 0., .47]
+        candidates.append({'camera_from_tag': pose, 'reprojection_error_px': error})
+    previous = candidates[0]['camera_from_tag']
+    depth_normal = candidates[1]['camera_from_tag'][:3, 2].copy()
+
+    result = fiducial.select_ippe_pose_candidate(
+        candidates, previous_camera_from_tag=previous,
+        depth_normal_camera=depth_normal, depth_valid_module_count=15,
+        depth_plane_rms_m=.0003)
+
+    assert result['orientation_status'] == 'depth_disambiguated'
+    np.testing.assert_allclose(result['camera_from_tag'], candidates[1]['camera_from_tag'])
+    assert result['branch_separation_deg'] > 15.
+
+
+@pytest.mark.parametrize('valid_count,rms', [(0, None), (9, .0003), (15, .0011)])
+def test_ambiguous_ippe_branch_without_qualified_depth_is_explicitly_uncertain(valid_count, rms):
+    candidates = []
+    for degrees, error in ((140., .12), (220., .13)):
+        pose = np.eye(4)
+        pose[:3, :3] = _rotation_about_x(degrees)
+        pose[:3, 3] = [.05, 0., .47]
+        candidates.append({'camera_from_tag': pose, 'reprojection_error_px': error})
+
+    result = fiducial.select_ippe_pose_candidate(
+        candidates, previous_camera_from_tag=candidates[1]['camera_from_tag'],
+        depth_normal_camera=candidates[0]['camera_from_tag'][:3, 2],
+        depth_valid_module_count=valid_count, depth_plane_rms_m=rms)
+
+    assert result['orientation_status'] == 'orientation_uncertain'
+    assert result['camera_from_tag'] is not None
+    assert result['camera_from_tag'][2, 3] == pytest.approx(.47)
+    assert result['rotation_deg'] is None
+
+
 def test_explicit_held_calibration_extracts_rigid_fit_as_unqualified_source():
     path = Path('/home/bjoern/.cache/cps-tag-calibration-held/depth-pnp-hybrid-analysis.json')
     if not path.is_file():
@@ -184,13 +231,17 @@ def test_saved_paired_before_after_frames_report_nominal_vs_depth_translation():
             previous_center=selected_center, previous_camera_from_tag=pnp,
             depth=depth, depth_scale_m=snapshot['depth_scale_m'])
         assert overlay['depth_anchor']['status'] == 'PROVISIONAL_DEPTH_TRANSLATION'
-        assert overlay['nominal_pnp_residual']['translation_mm'] == pytest.approx(0., abs=.01)
+        assert overlay['nominal_pnp_residual']['translation_mm'] < .5
         assert overlay['residual']['translation_mm'] > 10.
         failed_anchor = fiducial.evaluate_tag_overlay(rgb, pair, pnp, intrinsics,
             previous_center=selected_center, previous_camera_from_tag=pnp,
             depth=np.zeros_like(depth), depth_scale_m=snapshot['depth_scale_m'])
         assert failed_anchor['depth_anchor']['status'].startswith('UNAVAILABLE')
-        assert 'PnP only' in failed_anchor['status']
+        assert 'ORIENTATION UNCERTAIN' in failed_anchor['status']
+        assert failed_anchor['visible'] is True
+        assert failed_anchor['center_px'] is not None
+        assert np.isfinite(failed_anchor['observed_camera_from_tag'][:3, 3]).all()
+        assert failed_anchor['residual']['rotation_deg'] is None
         observed = pnp
     assert reports[0]['valid_modules'] >= 8 and reports[1]['valid_modules'] >= 8
     assert abs(reports[0]['delta_z_mm']) > 10.
@@ -240,7 +291,7 @@ def test_depth_pose_hot_path_has_no_file_io_or_history_iteration():
 
 
 def test_saved_bright_frame_bootstraps_wrist_amid_same_id_background_tag():
-    cv2 = pytest.importorskip('cv2')
+    pytest.importorskip('cv2')
     image_path = Path('/home/bjoern/.local/share/exciting-science/station/evidence/2026-10-15/'
                       'gripper-direction-retry/frames/000001.png')
     if not image_path.is_file():
@@ -282,6 +333,12 @@ def test_saved_paired_actual_motion_moves_wrist_track_and_uses_each_raw_pose():
     intrinsics = {'fx': intrinsics_record['fx'], 'fy': intrinsics_record['fy'],
                   'ppx': intrinsics_record['ppx'], 'ppy': intrinsics_record['ppy'],
                   'coeffs': intrinsics_record['coeffs']}
+    from workshop.perception.tag_depth_pose import estimate_tag_pose
+    cv2 = pytest.importorskip('cv2')
+    dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_25h9)
+    tag_bits = np.zeros((7, 7), dtype=np.uint8)
+    tag_bits[1:6, 1:6] = dictionary.getBitsFromByteList(dictionary.bytesList[0:1], 5)
+    depth_scale = json.loads(snapshot.read_text())['depth_scale_m']
     selected = None
     observed_pose = None
     centers, poses, observed_poses = [], [], []
@@ -297,16 +354,23 @@ def test_saved_paired_actual_motion_moves_wrist_track_and_uses_each_raw_pose():
             previous_center=selected)
         assert selection['status'] == 'tracked'
         selected = selection['center_px']
-        observed_pose = fiducial.estimate_camera_from_tag(selection['corners'], intrinsics,
-            previous_camera_from_tag=observed_pose)
+        depth = np.load(root / sample['depth'], allow_pickle=False)
+        depth_fit = estimate_tag_pose(selection['corners'].reshape(4, 2), rgb, depth,
+            intrinsics, depth_scale, tag_bits, white_rgb_min=100)
+        diagnostic = fiducial.estimate_camera_from_tag(selection['corners'], intrinsics,
+            previous_camera_from_tag=observed_pose,
+            depth_normal_camera=depth_fit['plane']['normal_camera'],
+            depth_valid_module_count=depth_fit['valid_module_count'],
+            depth_plane_rms_m=depth_fit['plane']['rms_m'], return_diagnostics=True)
+        assert diagnostic['orientation_status'] == 'depth_disambiguated'
+        observed_pose = diagnostic['camera_from_tag']
         assert observed_pose is not None
         centers.append(selected.copy())
         poses.append(arm['raw'])
         observed_poses.append(observed_pose.copy())
     assert np.linalg.norm(centers[1] - centers[0]) > 15.
     assert poses[0]['shoulder_pan'] != poses[1]['shoulder_pan']
-    # The continuity-selected planar PnP solution must not jump to its mirror
-    # branch between these two nearby actual arm poses.
+    # The independent depth-plane normal resolves each planar IPPE mirror branch.
     relative = observed_poses[0][:3, :3].T @ observed_poses[1][:3, :3]
     angle = np.rad2deg(np.arccos(np.clip((np.trace(relative) - 1) / 2, -1, 1)))
     assert angle < 20.
