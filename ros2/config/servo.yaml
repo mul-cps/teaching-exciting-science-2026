@@ -1,0 +1,22 @@
+moveit_servo:
+  move_group_name: manipulator
+  publish_period: 0.02
+  max_expected_latency: 0.1
+  incoming_command_timeout: 0.1
+  command_in_type: speed_units
+  scale:
+    linear: 0.04
+    rotational: 0.2
+    joint: 0.2
+  command_out_topic: /follower/arm_trajectory_controller/joint_trajectory
+  command_out_type: trajectory_msgs/JointTrajectory
+  joint_topic: /follower/joint_states
+  status_topic: ~/status
+  check_collisions: true
+  collision_check_rate: 10.0
+  self_collision_proximity_threshold: 0.01
+  scene_collision_proximity_threshold: 0.02
+  is_primary_planning_scene_monitor: false
+  use_smoothing: true
+  smoothing_filter_plugin_name: online_signal_smoothing::ButterworthFilterPlugin
+  joint_limit_margins: [0.1]
