@@ -193,14 +193,17 @@ def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distort
     return ComponentValidation(True, 'depth_supported_colored_surface', metrics)
 
 
-def validate_brick_silhouette(contour, *, min_rect_fill=.45):
+def validate_brick_silhouette(contour, *, observed_mask=None, min_rect_fill=.45):
     """Check the FINAL CHILD silhouette against a convex solid shape prior.
 
     Complete convex silhouettes occupy at least about half their minimum-area
     enclosing rectangle. The explicit .45 bound leaves a pixel/partial-corner
     margin. This rejects strongly concave color fragments; it cannot certify
     LEGO identity, recover severe occlusion or classify convex colored hardware.
-    Never apply it to an unsplit touching same-color parent group.
+    Never apply it to an unsplit touching same-color parent group. Live
+    admission must provide ``observed_mask``: original color/depth pixels
+    intersected with THIS child, before any morphology. Holes remain absent;
+    closing or external-contour fill cannot manufacture shape support.
     """
     if type(min_rect_fill) not in (int, float) or not np.isfinite(min_rect_fill) or not 0 < min_rect_fill <= 1:
         raise ValueError('explicit finite silhouette rectangle fill in (0,1] required')
@@ -221,7 +224,43 @@ def validate_brick_silhouette(contour, *, min_rect_fill=.45):
         return ComponentValidation(False, 'insufficient_silhouette_geometry', metrics)
     fill = area/rectangle_area
     metrics.update(min_rectangle_fill=fill, contour_area_px2=area,
-                   convex_hull_fill=area/hull_area)
+                   convex_hull_fill=area/hull_area,
+                   shape_evidence='contour_geometry_only')
+    if observed_mask is not None:
+        observed = np.asarray(observed_mask)
+        if observed.ndim != 2 or not np.isfinite(observed).all():
+            raise ValueError('finite original observed child mask required')
+        yy, xx = np.nonzero(observed)
+        if len(xx) < 3:
+            return ComponentValidation(False, 'insufficient_observed_silhouette', metrics)
+        pixels = np.column_stack((xx, yy)).astype(np.float32)
+        (_, _), (width, height), angle = cv2.minAreaRect(pixels)
+        if min(width, height) <= 1e-9:
+            return ComponentValidation(False, 'insufficient_observed_silhouette', metrics)
+        # Pixel centers represent unit square cells. In a rotated rectangle's
+        # axes each cell contributes |cos(theta)|+|sin(theta)| to both spans.
+        # This preserves dense 2x2 and diagonal patches without inventing holes.
+        radians = np.deg2rad(angle)
+        pixel_span = abs(float(np.cos(radians)))+abs(float(np.sin(radians)))
+        enclosing_pixel_area = (float(width)+pixel_span)*(float(height)+pixel_span)
+        observed_pixel_fill = float(len(xx)/enclosing_pixel_area)
+        boundaries, _ = cv2.findContours((observed != 0).astype(np.uint8),
+            cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Keep the unmorphed concave boundary as independent shape evidence.
+        # Disconnected regions contribute only their own area; no convex hull,
+        # closing, bridge or external reconstruction may fill the gaps.
+        boundary_area = sum(float(cv2.contourArea(boundary)) for boundary in boundaries)
+        observed_boundary_fill = boundary_area/(float(width)*float(height))
+        observed_fill = min(observed_pixel_fill, observed_boundary_fill)
+        metrics.update(reconstructed_min_rectangle_fill=fill,
+                       min_rectangle_fill=observed_fill,
+                       observed_pixels=int(len(xx)),
+                       observed_enclosing_pixel_area=enclosing_pixel_area,
+                       observed_pixel_fill=observed_pixel_fill,
+                       observed_boundary_fill=observed_boundary_fill,
+                       observed_components=len(boundaries),
+                       shape_evidence='original_color_depth_pixels')
+        fill = observed_fill
     if fill < min_rect_fill:
         return ComponentValidation(False, 'silhouette_inconsistent_with_convex_brick', metrics)
     return ComponentValidation(True, 'silhouette_consistent_with_convex_brick_prior', metrics)

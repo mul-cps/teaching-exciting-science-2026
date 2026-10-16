@@ -244,3 +244,103 @@ def test_recorded_fresh_live_shape_metrics_separate_chair_from_real_bricks():
     assert len(chair) == 29
     assert min(real) >= .45
     assert max(chair) < .45
+
+
+def test_morphology_closing_cannot_manufacture_admissible_observed_shape():
+    import cv2
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    observed = np.zeros((40,60),np.uint8)
+    observed[10:30,10:50:3] = 1
+    observed[10,10:50] = 1
+    closed = cv2.morphologyEx(observed,cv2.MORPH_CLOSE,np.ones((3,3),np.uint8))
+    contours,_ = cv2.findContours(closed,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    contour = max(contours,key=cv2.contourArea)
+    assert validate_brick_silhouette(contour).accepted
+    result = validate_brick_silhouette(contour,observed_mask=observed)
+    assert not result.accepted
+    assert result.metrics['min_rectangle_fill'] < .45
+    assert result.metrics['shape_evidence'] == 'original_color_depth_pixels'
+
+
+def test_observed_pixel_rectangle_corrects_small_dense_and_holed_surfaces():
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    observed = np.ones((2,2),np.uint8)
+    contour = np.array([[0,0],[1,0],[1,1],[0,1]],np.float32)
+    result = validate_brick_silhouette(contour,observed_mask=observed)
+    assert result.accepted
+    assert result.metrics['min_rectangle_fill'] == pytest.approx(1.)
+    observed = np.ones((20,30),np.uint8)
+    observed[3:17:3,3:27:3] = 0
+    contour = np.array([[0,0],[29,0],[29,19],[0,19]],np.float32)
+    result = validate_brick_silhouette(contour,observed_mask=observed)
+    assert result.accepted
+    assert .8 < result.metrics['min_rectangle_fill'] < 1.
+
+
+@pytest.mark.parametrize('angle',[0,15,30,45,60,75,90])
+def test_observed_projected_solid_face_retains_oblique_views(angle):
+    import cv2
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    points = cv2.boxPoints(((50,50),(36,22),angle))
+    mask = np.zeros((100,100),np.uint8)
+    cv2.fillConvexPoly(mask,np.rint(points).astype(np.int32),1)
+    contours,_=cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    assert validate_brick_silhouette(contours[0],observed_mask=mask).accepted
+
+
+def test_dense_pixels_cannot_hide_an_unmorphed_concave_boundary():
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    observed = np.zeros((10,10),np.uint8)
+    observed[:3,:] = 1
+    observed[:,:3] = 1
+    reconstructed = np.array([[0,0],[9,0],[9,9],[0,9]],np.float32)
+    result = validate_brick_silhouette(reconstructed,observed_mask=observed)
+    assert not result.accepted
+    assert result.metrics['observed_pixel_fill'] > .45
+    assert result.metrics['observed_boundary_fill'] < .45
+
+
+def test_exact_live_chair_frame005_original_support_is_rejected():
+    import json
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    case = json.loads(_capture_evidence_file('chair-observed-regression.json').read_text())
+    pixels = np.asarray(case['observed_pixels'],np.int64)
+    extent = pixels.max(axis=0)+1
+    mask = np.zeros((extent[1],extent[0]),np.uint8)
+    mask[pixels[:,1],pixels[:,0]] = 1
+    result = validate_brick_silhouette(np.asarray(case['contour'],np.float32),observed_mask=mask)
+    assert not result.accepted
+    assert result.metrics['observed_boundary_fill'] < .45
+
+
+def test_all_recorded_real_children_retain_original_observed_pixel_evidence():
+    import json
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    evidence = json.loads(_capture_evidence_file('observed-child-silhouette-evidence.json').read_text())
+    rows = [row for row in evidence['contours']if row['manual_table_brick']]
+    assert len(rows) == 432
+    for row in rows:
+        pixels = np.asarray(row['observed_pixels'],np.int64)
+        extent = pixels.max(axis=0)+1
+        mask = np.zeros((extent[1],extent[0]),np.uint8)
+        mask[pixels[:,1],pixels[:,0]] = 1
+        assert validate_brick_silhouette(np.asarray(row['contour'],np.float32),observed_mask=mask).accepted
+    assert not any(row['capture']=='tracking-shape-live'and row['color']=='yellow'
+                   and row['pixel'][1]<290 for row in evidence['contours'])
+
+
+def test_observed_corner_occlusion_and_touching_children_survive_without_parent_gate():
+    import cv2
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    corner = np.array([[8,0],[40,0],[40,30],[0,30],[0,8]],np.int32)
+    observed = np.zeros((45,45),np.uint8)
+    cv2.fillPoly(observed,[corner],1)
+    assert validate_brick_silhouette(corner,observed_mask=observed).accepted
+    children = [np.array([[0,0],[20,0],[20,20],[0,20]],np.int32),
+                np.array([[20,20],[40,20],[40,40],[20,40]],np.int32)]
+    parent = np.zeros((45,45),np.uint8)
+    cv2.fillPoly(parent,children,1)
+    for child in children:
+        selected = np.zeros_like(parent)
+        cv2.fillPoly(selected,[child],1)
+        assert validate_brick_silhouette(child,observed_mask=parent&selected).accepted

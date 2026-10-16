@@ -34,17 +34,18 @@ def main():
             current['contour'] = np.asarray(contour).copy()
             yield contour
 
-    def trace(function):
+    def trace(function, pixels_index):
         def wrapped(*values, **keywords):
             result = function(*values, **keywords)
             if result is not None:
                 result['_diagnostic_final_contour'] = current['contour'].copy()
+                result['_diagnostic_observed_pixels'] = np.asarray(values[pixels_index]).copy()
             return result
         return wrapped
 
     objects._split_elongated_contours = split
-    objects._visible_component_geometry = trace(original_visible)
-    objects._component_geometry = trace(original_support)
+    objects._visible_component_geometry = trace(original_visible, 0)
+    objects._component_geometry = trace(original_support, 1)
     rows = []
     try:
         for capture in args.capture:
@@ -63,10 +64,16 @@ def main():
                     pixel = camera[:2]/camera[2]*[k[0],k[4]]+[k[2],k[5]]
                     brick = bool(350 < pixel[0] < 575 and 290 < pixel[1] < 445)
                     contour = item['_diagnostic_final_contour']
-                    validation = validate_brick_silhouette(contour)
+                    observed_pixels = item['_diagnostic_observed_pixels'].astype(np.int64)
+                    observed_pixels -= observed_pixels.min(axis=0)
+                    extent = observed_pixels.max(axis=0)+1
+                    observed_mask = np.zeros((extent[1], extent[0]), np.uint8)
+                    observed_mask[observed_pixels[:,1],observed_pixels[:,0]] = 1
+                    validation = validate_brick_silhouette(contour, observed_mask=observed_mask)
                     rows.append(dict(capture=capture.name,frame=directory.name,stamp=metadata['stamp'],
                         color=item['color'],pixel=pixel.tolist(),manual_table_brick=brick,
-                        contour=contour.reshape(-1,2).tolist(),accepted=validation.accepted,
+                        contour=contour.reshape(-1,2).tolist(),observed_pixels=observed_pixels.tolist(),
+                        accepted=validation.accepted,
                         reason=validation.reason,metrics=validation.metrics))
     finally:
         objects._split_elongated_contours = original_split
