@@ -149,3 +149,98 @@ def test_empty_splitter_input_still_validates_the_depth_gate_parameters():
     assert split_depth_coherent_components(mask, depth) == ()
     with pytest.raises(ValueError):
         split_depth_coherent_components(mask, depth, max_neighbor_jump_m=-1.)
+
+
+def test_final_child_silhouette_rejects_concave_floating_patch():
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    contour = np.array([[0,0],[30,0],[30,3],[3,3],[3,30],[0,30]], np.float32)
+    result = validate_brick_silhouette(contour)
+    assert not result.accepted
+    assert result.reason == 'silhouette_inconsistent_with_convex_brick'
+    assert result.metrics['min_rectangle_fill'] < .45
+
+
+@pytest.mark.parametrize('angle', [0,15,30,45,60,75,89,90])
+def test_projected_solid_brick_silhouettes_allow_oblique_and_edge_on_views(angle):
+    import cv2
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    corners = np.array([[x,y,z]for x in (-.02,.02)for y in (-.012,.012)for z in (-.006,.006)])
+    radians = np.deg2rad(angle)
+    rotation = np.array([[np.cos(radians),0,np.sin(radians)],[0,1,0],[-np.sin(radians),0,np.cos(radians)]])
+    points = corners@rotation.T + [0,0,.6]
+    pixels = points[:,:2]/points[:,2,None]*450 + [320,240]
+    contour = cv2.convexHull(pixels.astype(np.float32))
+    assert validate_brick_silhouette(contour).accepted
+
+
+def test_corner_occlusion_and_final_children_of_touching_group_are_retained():
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    corner_occluded = np.array([[8,0],[40,0],[40,30],[0,30],[0,8]], np.float32)
+    assert validate_brick_silhouette(corner_occluded).accepted
+    # The helper's contract is final children, never a connected parent group.
+    children = [np.array([[0,0],[20,0],[20,20],[0,20]],np.float32),
+                np.array([[20,20],[40,20],[40,40],[20,40]],np.float32)]
+    assert all(validate_brick_silhouette(child).accepted for child in children)
+
+
+def test_foreground_thin_bridge_component_retains_brick_silhouette():
+    import cv2
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    rgb, depth, mask = inputs()
+    mask[5:25, 5:85] = True
+    mask[24:36, 49] = True
+    depth[5:25, 5:85] = 0
+    depth[24:35, 49] = 0
+    pieces = split_depth_coherent_components(mask, depth)
+    foreground = next(piece for piece in pieces if piece.mask[50,50])
+    contours, _ = cv2.findContours(foreground.mask.astype(np.uint8),cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    assert validate_brick_silhouette(max(contours,key=cv2.contourArea)).accepted
+
+
+def test_shape_degenerate_unknown_and_threshold_are_explicit():
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    assert not validate_brick_silhouette(np.array([[0,0],[1,1],[2,2]],np.float32)).accepted
+    with pytest.raises(ValueError):
+        validate_brick_silhouette(np.eye(3), min_rect_fill=-1)
+
+
+def _capture_evidence_file(name):
+    import os
+    evidence = Path(os.environ.get('SO101_COLORED_CAPTURE_EVIDENCE',
+        str(Path.home()/'.local/share/exciting-science/station/evidence/2026-10-16-sorting')))/name
+    if not evidence.is_file():
+        pytest.skip('local real-capture evidence unavailable; synthetic geometry tests still run')
+    return evidence
+
+
+def test_real_final_child_capture_contours_retain_all_development_bricks():
+    import json
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    evidence = json.loads(_capture_evidence_file('final-child-silhouette-evidence.json').read_text())
+    rows = evidence['contours']
+    real = [row for row in rows if row['manual_table_brick']]
+    assert len(real) == 320
+    for row in real:
+        assert validate_brick_silhouette(np.asarray(row['contour'],np.float32)).accepted
+    assert evidence['summaries']['tracking-ghost-diagnosis']['real'] == 112
+    assert evidence['summaries']['tracking-yellow-diagnosis']['real'] == 112
+
+
+def test_recorded_fresh_live_shape_metrics_separate_chair_from_real_bricks():
+    import json
+    reports = json.loads(_capture_evidence_file('tracking-depth-optimized-status.json').read_text())
+    # Manual static-capture labels: eight table-brick track IDs present in the
+    # first report; chair/conveyor components are explicitly outside that set.
+    real_ids = {(obj['color'],obj['track_id'])for obj in reports[0]['objects']
+                if (obj['color'] != 'yellow' or obj['surface_centroid_world'][0] > .08)
+                and (obj['color'] != 'red' or obj['surface_centroid_world'][1] > -.03)}
+    real = [obj['depth_validation']['metrics']['silhouette_rectangularity']
+            for report in reports for obj in report['objects']
+            if (obj['color'],obj['track_id'])in real_ids]
+    chair = [obj['depth_validation']['metrics']['silhouette_rectangularity']
+             for report in reports for obj in report['objects']
+             if obj['color']=='yellow' and obj['surface_centroid_world'][0]<.08]
+    assert len(real) == 334
+    assert len(chair) == 29
+    assert min(real) >= .45
+    assert max(chair) < .45

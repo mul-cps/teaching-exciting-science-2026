@@ -191,3 +191,37 @@ def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distort
     if metrics['depth_neighbor_jump_fraction'] > max_jump_fraction:
         return ComponentValidation(False, 'incoherent_neighbor_depth', metrics)
     return ComponentValidation(True, 'depth_supported_colored_surface', metrics)
+
+
+def validate_brick_silhouette(contour, *, min_rect_fill=.45):
+    """Check the FINAL CHILD silhouette against a convex solid shape prior.
+
+    Complete convex silhouettes occupy at least about half their minimum-area
+    enclosing rectangle. The explicit .45 bound leaves a pixel/partial-corner
+    margin. This rejects strongly concave color fragments; it cannot certify
+    LEGO identity, recover severe occlusion or classify convex colored hardware.
+    Never apply it to an unsplit touching same-color parent group.
+    """
+    if type(min_rect_fill) not in (int, float) or not np.isfinite(min_rect_fill) or not 0 < min_rect_fill <= 1:
+        raise ValueError('explicit finite silhouette rectangle fill in (0,1] required')
+    points = np.asarray(contour)
+    if (points.ndim not in (2, 3) or points.shape[-1] != 2 or
+            points.ndim == 3 and points.shape[1] != 1 or not np.isfinite(points).all()):
+        raise ValueError('finite final-child contour in image pixel coordinates required')
+    points = points.astype(np.float32).reshape(-1, 1, 2)
+    metrics = {'min_rectangle_fill_required': float(min_rect_fill),
+               'semantic_identity': 'unqualified_convex_brick_shape_prior',
+               'applied_to': 'final_child_contour', 'workspace_gate_applied': False}
+    if len(points) < 3:
+        return ComponentValidation(False, 'insufficient_silhouette_geometry', metrics)
+    area = float(cv2.contourArea(points))
+    rectangle_area = float(np.prod(cv2.minAreaRect(points)[1]))
+    hull_area = float(cv2.contourArea(cv2.convexHull(points)))
+    if rectangle_area <= 1e-9 or area <= 1e-9 or hull_area <= 1e-9:
+        return ComponentValidation(False, 'insufficient_silhouette_geometry', metrics)
+    fill = area/rectangle_area
+    metrics.update(min_rectangle_fill=fill, contour_area_px2=area,
+                   convex_hull_fill=area/hull_area)
+    if fill < min_rect_fill:
+        return ComponentValidation(False, 'silhouette_inconsistent_with_convex_brick', metrics)
+    return ComponentValidation(True, 'silhouette_consistent_with_convex_brick_prior', metrics)
