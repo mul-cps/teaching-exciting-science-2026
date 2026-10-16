@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import math
+import numpy as np
 from pathlib import Path
 import sys
 import time
@@ -41,11 +42,24 @@ def load_execution_calibration(jaw_path, tcp_path, *, tip_link):
 
 
 def verify_observed_lift(status_samples, track_id, baseline_position, *, rise_m=0.04,
-                         max_spread_m=0.018, expected_position=None, max_tracking_error_m=0.06):
+                         max_spread_m=0.018, expected_position=None, max_tracking_error_m=0.06,
+                         now_ros=None, expected_frame_id=None):
     """Require three fresh observations of the same brick remaining elevated."""
     track = str(track_id)
     observations = []
-    for status in status_samples:
+    last_stamp = None
+    for received, status in status_samples:
+        stamp = status.get("stamp")
+        if (status.get("state") != "tracking" or not status.get("frame_id") or
+                (expected_frame_id is not None and status.get("frame_id") != expected_frame_id) or
+                not verify_live_registration(status.get("registration"),
+                                             status.get("registration_received", -1), now_ros=now_ros) or
+                not isinstance(stamp, (int, float)) or not math.isfinite(stamp) or
+                (now_ros is not None and not 0 <= now_ros - stamp < 0.5) or
+                time.monotonic() - received >= 0.5 or
+                (last_stamp is not None and stamp <= last_stamp)):
+            continue
+        last_stamp = stamp
         item = next((obj for obj in status.get("objects", [])
                      if str(obj.get("track_id")) == track), None)
         if item is None or item.get("geometric_only") is not True:
@@ -56,6 +70,7 @@ def verify_observed_lift(status_samples, track_id, baseline_position, *, rise_m=
             observations.append(tuple(float(v) for v in position))
     if len(observations) < 3:
         return False
+    observations = observations[-3:]
     z_values = [position[2] for position in observations[-3:]]
     return (min(z_values) - float(baseline_position[2]) >= rise_m and
             max(z_values) - min(z_values) <= max_spread_m and
@@ -96,10 +111,70 @@ def validate_model_links(robot_description, links):
     return True
 
 
-def verify_observed_release(status_samples, track_id, expected_position, *, tolerance_m=0.05):
+def robot_description_from_parameter_response(response):
+    """Read robot_description from the native GetParameters service response."""
+    values = getattr(response, "values", None)
+    if not values or not getattr(values[0], "string_value", ""):
+        raise ValueError("effective robot_description is unavailable")
+    return values[0].string_value
+
+
+def ros_message_json(message):
+    """Serialize ROSIDL messages without the YAML tags emitted by message_to_yaml."""
+    from rosidl_runtime_py.convert import message_to_ordereddict
+    return json.loads(json.dumps(message_to_ordereddict(message), allow_nan=False))
+
+
+def validate_clear_joint_pose(value):
+    if not isinstance(value, dict) or set(value) != set(ARM_JOINTS):
+        raise ValueError("return joint pose must map exactly the five arm joint names to radians")
+    pose = {name: float(value[name]) for name in ARM_JOINTS}
+    if not all(math.isfinite(rad) for rad in pose.values()):
+        raise ValueError("return joint pose radians must be finite")
+    return pose
+
+
+def verify_live_registration(status, received_at, now=None, *, now_ros=None):
+    now = time.monotonic() if now is None else now
+    stamp = status.get("stamp") if isinstance(status, dict) else None
+    return bool(isinstance(status, dict) and status.get("state") == "tracking" and
+                status.get("observation_valid") is True and
+                isinstance(stamp, (int, float)) and math.isfinite(stamp) and
+                (now_ros is None or 0 <= now_ros - stamp < 0.5) and
+                0 <= now - received_at < 0.5)
+
+
+def scene_ack_terminal_state(action, ack):
+    state = ack.get("state") if isinstance(ack, dict) else None
+    if state in {"reserved", "pending", "applying"}:
+        return None
+    if state in {"failed", "rejected", "error", "fault"}:
+        raise RuntimeError(f"scene {action} failed: {ack.get('reason', state)}")
+    expected = {"attach": "attached", "detach": "detached", "lock": "locked",
+                "unlock": "unlocked", "allow_contact": "contact_allowed",
+                "disallow_contact": "contact_disallowed"}[action]
+    if state != expected:
+        raise RuntimeError(f"scene {action} failed: {ack.get('reason', state)}")
+    return state
+
+
+def verify_observed_release(status_samples, track_id, expected_position, *, tolerance_m=0.05,
+                            now_ros=None, expected_frame_id=None):
     track = str(track_id)
     observations = []
-    for status in status_samples:
+    last_stamp = None
+    for received, status in status_samples:
+        stamp = status.get("stamp")
+        if (status.get("state") != "tracking" or not status.get("frame_id") or
+                (expected_frame_id is not None and status.get("frame_id") != expected_frame_id) or
+                not verify_live_registration(status.get("registration"),
+                                             status.get("registration_received", -1), now_ros=now_ros) or
+                not isinstance(stamp, (int, float)) or not math.isfinite(stamp) or
+                (now_ros is not None and not 0 <= now_ros - stamp < 0.5) or
+                time.monotonic() - received >= 0.5 or
+                (last_stamp is not None and stamp <= last_stamp)):
+            continue
+        last_stamp = stamp
         item = next((obj for obj in status.get("objects", [])
                      if str(obj.get("track_id")) == track), None)
         if item is None or item.get("geometric_only") is not True:
@@ -141,6 +216,7 @@ def parse_args(argv=None):
     parser.add_argument("--attachment-request-topic", default="/so101_scene/attachment_request")
     parser.add_argument("--attachment-status-topic", default="/so101_scene/attachment_status")
     parser.add_argument("--touch-link", action="append", default=[])
+    parser.add_argument("--return-joint-pose", help="JSON file with commissioned arm joint radians for post-release clearance")
     parser.add_argument("--open-gap-m", type=float)
     parser.add_argument("--close-gap-m", type=float)
     args = parser.parse_args(argv)
@@ -156,15 +232,17 @@ def main(argv=None):
     import rclpy
     from geometry_msgs.msg import PoseStamped
     from control_msgs.action import FollowJointTrajectory, GripperCommand
-    from moveit_msgs.msg import (Constraints, MoveItErrorCodes, MotionPlanRequest,
+    from moveit_msgs.msg import (Constraints, JointConstraint, MoveItErrorCodes, MotionPlanRequest,
                                  OrientationConstraint, PositionConstraint, RobotState)
     from moveit_msgs.srv import GetMotionPlan
     from rclpy.node import Node
     from rclpy.action import ActionClient
     from rclpy.qos import qos_profile_sensor_data
+    from rclpy.time import Time
     from sensor_msgs.msg import JointState
     from shape_msgs.msg import SolidPrimitive
     from std_msgs.msg import String
+    from tf2_ros import Buffer, TransformListener
 
     class Client(Node):
         def __init__(self):
@@ -174,12 +252,19 @@ def main(argv=None):
             self.status_received = 0.0
             self.status_history = []
             self.attachment_acks = {}
+            self.active_goal_handle = None
+            self.registration_status = None
+            self.registration_received = 0.0
             self.create_subscription(JointState, args.joint_states_topic, self.on_joints,
                                      qos_profile_sensor_data)
             self.create_subscription(String, args.status_topic, self.on_status, 10)
+            self.create_subscription(String, "/so101_perception/charuco_world/status",
+                                     self.on_registration_status, 10)
             self.create_subscription(String, args.attachment_status_topic, self.on_attachment_status, 10)
             self.attachment_pub = self.create_publisher(String, args.attachment_request_topic, 10)
             self.planner = self.create_client(GetMotionPlan, args.planning_service)
+            self.tf_buffer = Buffer()
+            self.tf_listener = TransformListener(self.tf_buffer, self)
             if args.execute:
                 self.arm_action = ActionClient(self, FollowJointTrajectory, args.trajectory_action)
                 self.gripper_action = ActionClient(self, GripperCommand, args.gripper_action)
@@ -191,6 +276,8 @@ def main(argv=None):
             try:
                 self.status = json.loads(msg.data)
                 self.status_received = time.monotonic()
+                self.status["registration"] = self.registration_status
+                self.status["registration_received"] = self.registration_received
                 self.status_history.append((self.status_received, self.status))
                 self.status_history = self.status_history[-20:]
             except (ValueError, TypeError):
@@ -204,6 +291,13 @@ def main(argv=None):
             except (ValueError, TypeError):
                 pass
 
+        def on_registration_status(self, msg):
+            try:
+                self.registration_status = json.loads(msg.data)
+                self.registration_received = time.monotonic()
+            except (ValueError, TypeError):
+                self.registration_status = None
+
     rclpy.init()
     node = Client()
     try:
@@ -211,6 +305,8 @@ def main(argv=None):
         selected_track_id = None
         baseline_object = None
         attached = False
+        scene_locked = False
+        attachment_attempted = False
         pickup_verified = lift_verified = release_verified = False
         if args.execute:
             config_path = Path(args.execution_config).resolve()
@@ -256,16 +352,50 @@ def main(argv=None):
                 raise TimeoutError(f"{label} timed out")
             return future.result()
 
+        def cancel_active_goal(deadline):
+            handle = node.active_goal_handle
+            if handle is None:
+                return True
+            cancel_future = handle.cancel_goal_async()
+            response = spin_future(cancel_future, deadline, "action cancel acknowledgement")
+            if not getattr(response, "goals_canceling", []):
+                if handle.status not in (4, 5, 6):
+                    raise RuntimeError("resident action did not confirm cancellation")
+            spin_future(handle.get_result_async(), deadline, "action terminal result")
+            node.active_goal_handle = None
+            return True
+
+        def send_action_goal(client, goal, deadline, label):
+            future = client.send_goal_async(goal)
+            try:
+                return spin_future(future, deadline, label)
+            except BaseException:
+                recovery_deadline = time.monotonic() + 5.0
+                while rclpy.ok() and not future.done() and time.monotonic() < recovery_deadline:
+                    rclpy.spin_once(node, timeout_sec=0.05)
+                if future.done():
+                    late_handle = future.result()
+                    if late_handle.accepted:
+                        node.active_goal_handle = late_handle
+                        cancel_active_goal(recovery_deadline)
+                raise
+
         def command_gap(gap, deadline):
             if not node.gripper_action.wait_for_server(timeout_sec=max(0.0, deadline-time.monotonic())):
                 raise TimeoutError("resident GripperCommand action is unavailable")
             goal = GripperCommand.Goal()
             goal.command.position = float(gap)
             goal.command.max_effort = 0.0
-            handle = spin_future(node.gripper_action.send_goal_async(goal), deadline, "gripper goal")
+            handle = send_action_goal(node.gripper_action, goal, deadline, "gripper goal")
             if not handle.accepted:
                 raise RuntimeError("resident gripper action rejected goal; calibration or owner unavailable")
-            wrapped = spin_future(handle.get_result_async(), deadline, "gripper result")
+            node.active_goal_handle = handle
+            try:
+                wrapped = spin_future(handle.get_result_async(), deadline, "gripper result")
+            except BaseException:
+                cancel_active_goal(time.monotonic() + 4.0)
+                raise
+            node.active_goal_handle = None
             return wrapped.result
 
         def move_trajectory(trajectory, deadline):
@@ -273,10 +403,16 @@ def main(argv=None):
                 raise TimeoutError("resident FollowJointTrajectory action is unavailable")
             goal = FollowJointTrajectory.Goal()
             goal.trajectory = trajectory.joint_trajectory
-            handle = spin_future(node.arm_action.send_goal_async(goal), deadline, "arm goal")
+            handle = send_action_goal(node.arm_action, goal, deadline, "arm goal")
             if not handle.accepted:
                 raise RuntimeError("resident trajectory action rejected path")
-            wrapped = spin_future(handle.get_result_async(), deadline, "arm trajectory result")
+            node.active_goal_handle = handle
+            try:
+                wrapped = spin_future(handle.get_result_async(), deadline, "arm trajectory result")
+            except BaseException:
+                cancel_active_goal(time.monotonic() + 4.0)
+                raise
+            node.active_goal_handle = None
             if wrapped.status != 4 or wrapped.result.error_code != FollowJointTrajectory.Result.SUCCESSFUL:
                 raise RuntimeError(f"resident trajectory failed: {wrapped.result.error_string}")
 
@@ -291,13 +427,119 @@ def main(argv=None):
                 rclpy.spin_once(node, timeout_sec=0.05)
                 ack = node.attachment_acks.pop(request_id, None)
                 if ack:
-                    expected = {"attach": "attached", "detach": "detached",
-                                "allow_contact": "contact_allowed",
-                                "disallow_contact": "contact_disallowed"}[action]
-                    if ack.get("state") != expected:
-                        raise RuntimeError(f"scene {action} failed: {ack.get('reason', ack.get('state'))}")
+                    terminal_state = scene_ack_terminal_state(action, ack)
+                    if terminal_state is None:
+                        continue
                     return ack
             raise TimeoutError(f"scene {action} acknowledgement timed out; ownership is unresolved")
+
+        def execute_clear_pose(path):
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+            clear_pose = validate_clear_joint_pose(data)
+            now_ros = node.get_clock().now().nanoseconds * 1e-9
+            measured = _joint_state_map(node.joints, now_ros)
+            req = MotionPlanRequest()
+            req.group_name = args.group
+            req.pipeline_id = "ompl"
+            req.planner_id = "RRTConnectkConfigDefault"
+            req.allowed_planning_time = args.planning_time
+            req.num_planning_attempts = 3
+            req.max_velocity_scaling_factor = 0.20
+            req.max_acceleration_scaling_factor = 0.20
+            req.start_state = RobotState()
+            req.start_state.joint_state.header = node.joints.header
+            req.start_state.joint_state.name = list(ALL_JOINTS)
+            req.start_state.joint_state.position = [measured[j] for j in ALL_JOINTS]
+            constraints = Constraints()
+            for joint in ARM_JOINTS:
+                constraint = JointConstraint()
+                constraint.joint_name = joint
+                constraint.position = clear_pose[joint]
+                constraint.tolerance_above = 0.015
+                constraint.tolerance_below = 0.015
+                constraint.weight = 1.0
+                constraints.joint_constraints.append(constraint)
+            req.goal_constraints = [constraints]
+            service_request = GetMotionPlan.Request()
+            service_request.motion_plan_request = req
+            planned = _wait_future(node, node.planner.call_async(service_request),
+                                   max(0.1, deadline-time.monotonic()), "post-release clear pose plan").motion_plan_response
+            if planned.error_code.val != MoveItErrorCodes.SUCCESS:
+                raise RuntimeError("collision checked return joint pose planning failed")
+            points = planned.trajectory.joint_trajectory.points
+            if not points or set(planned.trajectory.joint_trajectory.joint_names) != set(ARM_JOINTS):
+                raise RuntimeError("clear pose planner returned an invalid arm trajectory")
+            move_trajectory(planned.trajectory, deadline)
+            result["segments"].append({"name": "post_release_clear_pose", "state": "trajectory_succeeded",
+                                       "trajectory": ros_message_json(planned.trajectory)})
+
+        def base_link_pose(pose_in_frame):
+            if pose_in_frame["frame_id"] == "base_link":
+                return pose_in_frame
+            transform = node.tf_buffer.lookup_transform("base_link", pose_in_frame["frame_id"], Time())
+            transform_matrix = np.eye(4)
+            t = transform.transform.translation
+            q = transform.transform.rotation
+            transform_matrix[:3, :3] = quaternion_matrix_xyzw((q.x, q.y, q.z, q.w))
+            transform_matrix[:3, 3] = [t.x, t.y, t.z]
+            object_matrix = np.eye(4)
+            object_matrix[:3, :3] = quaternion_matrix_xyzw(pose_in_frame["orientation_xyzw"])
+            object_matrix[:3, 3] = pose_in_frame["position"]
+            composed = transform_matrix @ object_matrix
+            return {"frame_id": "base_link", "position": composed[:3, 3].tolist(),
+                    "orientation_xyzw": list(matrix_quaternion_xyzw(composed[:3, :3]))}
+
+        def execute_tool_retreat(target):
+            # The retreat uses the already commissioned TCP tool axis and the
+            # same 6 cm approach offset used by staged_targets.
+            shifted = PoseTarget(target.frame_id,
+                tuple(p + 0.06*a for p, a in zip(target.position,
+                    (2*(target.orientation_xyzw[0]*target.orientation_xyzw[2] + target.orientation_xyzw[3]*target.orientation_xyzw[1]),
+                     2*(target.orientation_xyzw[1]*target.orientation_xyzw[2] - target.orientation_xyzw[3]*target.orientation_xyzw[0]),
+                     1 - 2*(target.orientation_xyzw[0]**2 + target.orientation_xyzw[1]**2)))),
+                target.orientation_xyzw)
+            now_ros = node.get_clock().now().nanoseconds * 1e-9
+            measured = _joint_state_map(node.joints, now_ros)
+            req = MotionPlanRequest()
+            req.group_name, req.pipeline_id, req.planner_id = args.group, "ompl", "RRTConnectkConfigDefault"
+            req.allowed_planning_time, req.num_planning_attempts = args.planning_time, 3
+            req.max_velocity_scaling_factor = req.max_acceleration_scaling_factor = 0.20
+            req.start_state = RobotState()
+            req.start_state.joint_state.header = node.joints.header
+            req.start_state.joint_state.name = list(ALL_JOINTS)
+            req.start_state.joint_state.position = [measured[j] for j in ALL_JOINTS]
+            pose = PoseStamped()
+            pose.header.frame_id = shifted.frame_id
+            pose.header.stamp = node.get_clock().now().to_msg()
+            pose.pose.position.x, pose.pose.position.y, pose.pose.position.z = shifted.position
+            (pose.pose.orientation.x, pose.pose.orientation.y,
+             pose.pose.orientation.z, pose.pose.orientation.w) = shifted.orientation_xyzw
+            constraints = Constraints()
+            position = PositionConstraint()
+            position.header, position.link_name = pose.header, args.tip_link
+            sphere = SolidPrimitive()
+            sphere.type, sphere.dimensions = SolidPrimitive.SPHERE, [0.008]
+            position.constraint_region.primitives = [sphere]
+            position.constraint_region.primitive_poses = [pose.pose]
+            position.weight = 1.0
+            orientation = OrientationConstraint()
+            orientation.header, orientation.link_name = pose.header, args.tip_link
+            orientation.orientation = pose.pose.orientation
+            orientation.absolute_x_axis_tolerance = orientation.absolute_y_axis_tolerance = 0.35
+            orientation.absolute_z_axis_tolerance, orientation.weight = 0.45, 1.0
+            constraints.position_constraints = [position]
+            constraints.orientation_constraints = [orientation]
+            req.goal_constraints = [constraints]
+            service_request = GetMotionPlan.Request()
+            service_request.motion_plan_request = req
+            planned = _wait_future(node, node.planner.call_async(service_request),
+                                   max(0.1, deadline-time.monotonic()), "tool retreat plan").motion_plan_response
+            if planned.error_code.val != MoveItErrorCodes.SUCCESS:
+                raise RuntimeError("collision checked post-release tool retreat planning failed")
+            move_trajectory(planned.trajectory, deadline)
+            result["segments"].append({"name": "post_release_tool_retreat",
+                                       "state": "trajectory_succeeded",
+                                       "trajectory": ros_message_json(planned.trajectory)})
 
         deadline = time.monotonic() + args.timeout
         while rclpy.ok():
@@ -355,13 +597,12 @@ def main(argv=None):
             model_client = AsyncParameterClient(node, model_parameter_node)
             if not model_client.wait_for_services(timeout_sec=max(0.0, deadline-time.monotonic())):
                 raise TimeoutError(f"model parameter service unavailable at {model_parameter_node}")
-            model_params = spin_future(model_client.get_parameters(["robot_description"]),
-                                       deadline, "effective robot model")
-            if not model_params or not model_params[0].value.string_value:
-                raise RuntimeError("effective robot_description is unavailable")
+            model_response = spin_future(model_client.get_parameters(["robot_description"]),
+                                         deadline, "effective robot model")
+            robot_description = robot_description_from_parameter_response(model_response)
             effective_model_sha256 = verify_effective_model(
-                model_params[0].value.string_value, expected_model_sha256)
-            validate_model_links(model_params[0].value.string_value,
+                robot_description, expected_model_sha256)
+            validate_model_links(robot_description,
                                  [args.tip_link, *args.touch_link])
             result["calibration"] = {"jaw": str(Path(args.jaw_calibration).resolve()),
                                      "tcp": str(Path(args.tcp_calibration).resolve()),
@@ -371,6 +612,8 @@ def main(argv=None):
                                      "execution_config": str(config_path),
                                      "tcp_link": args.tip_link,
                                      "units": {"position": "m", "orientation": "quaternion_xyzw"}}
+            scene_attachment("lock", selected_track_id, deadline)
+            scene_locked = True
             open_result = command_gap(args.open_gap_m, deadline)
             if not open_result.reached_goal:
                 raise RuntimeError("gripper did not reach calibrated open gap")
@@ -382,6 +625,10 @@ def main(argv=None):
                 result["state"] = "target_status_stale"
                 result["segments"].append({"name": name, "state": result["state"]})
                 break
+            if args.execute and not verify_live_registration(
+                    node.registration_status, node.registration_received,
+                    now_ros=node.get_clock().now().nanoseconds * 1e-9):
+                raise RuntimeError("fresh Charuco base registration observation required before motion")
             if args.track_id:
                 if not (args.execute and attached and name == "place"):
                     try:
@@ -469,15 +716,29 @@ def main(argv=None):
                     set(names) != set(ARM_JOINTS) or
                     len(points[-1].positions) != len(names) or
                     not all(math.isfinite(float(value)) for value in points[-1].positions)):
+                if contact_matrix_enabled:
+                    scene_attachment("disallow_contact", args.track_id, deadline,
+                                     touch_links=args.touch_link)
+                    contact_matrix_enabled = False
                 segment["state"] = "invalid_planner_trajectory"
                 result["segments"].append(segment)
                 result["state"] = "incomplete"
                 break
+            if args.execute and args.track_id and not (attached and name == "place"):
+                if (node.status is None or time.monotonic() - node.status_received >= 0.5 or
+                        node.status.get("state") != "tracking" or
+                        node.status.get("frame_id") != locked_target.frame_id):
+                    raise RuntimeError("target tracking became stale while planning")
+                current_candidate = candidate_for_track(node.status, args.track_id)
+                if (any(abs(a-b) > 0.003 for a, b in zip(current_candidate.position,
+                                                           locked_target.position)) or
+                        abs(sum(a*b for a, b in zip(current_candidate.orientation_xyzw,
+                                                    locked_target.orientation_xyzw))) < 0.999):
+                    raise RuntimeError("target moved while planning; motion refused")
             current.update(dict(zip(names, points[-1].positions)))
             segment.update({"state": "path_planned", "joint_names": list(names),
                             "point_count": len(points),
-                            "trajectory": json.loads(__import__("rosidl_runtime_py.convert", fromlist=["message_to_yaml"])
-                                                      .message_to_yaml(planned.trajectory))})
+                            "trajectory": ros_message_json(planned.trajectory)})
             if args.execute:
                 move_trajectory(planned.trajectory, deadline)
                 segment["execution_state"] = "trajectory_succeeded"
@@ -490,9 +751,11 @@ def main(argv=None):
                         "effort": "unavailable"}
                     if close_result.reached_goal or not close_result.stalled:
                         raise RuntimeError("close did not infer contact; refusing provisional attachment")
+                    attachment_attempted = True
                     scene_attachment("attach", args.track_id, deadline,
                                      link_name=args.tip_link, touch_links=args.touch_link)
                     attached = True
+                    scene_locked = False
                     scene_attachment("disallow_contact", args.track_id, deadline,
                                      touch_links=args.touch_link)
                     contact_matrix_enabled = False
@@ -507,11 +770,13 @@ def main(argv=None):
                     samples = []
                     while time.monotonic() < min(deadline, lift_started + 3.0):
                         rclpy.spin_once(node, timeout_sec=0.05)
-                        samples = [status for received, status in node.status_history
+                        samples = [(received, status) for received, status in node.status_history
                                    if received >= lift_started and received <= time.monotonic()]
                         if verify_observed_lift(samples, selected_track_id,
                                                 baseline_object["position_world"],
-                                                expected_position=expected_object_position):
+                                                expected_position=expected_object_position,
+                                                now_ros=node.get_clock().now().nanoseconds * 1e-9,
+                                                expected_frame_id=target.frame_id):
                             pickup_verified = lift_verified = True
                             break
                     result["pickup_verified"] = pickup_verified
@@ -534,33 +799,47 @@ def main(argv=None):
                     if not open_result.reached_goal:
                         raise RuntimeError("jaw failed to reach open gap at place; retaining attachment")
                     # Place pose targets the calibrated TCP. Compose the qualified TCP-to-object pose.
-                    import numpy as np
                     tcp_from_world = np.eye(4)
                     tcp_from_world[:3, :3] = quaternion_matrix_xyzw(target.orientation_xyzw)
                     tcp_from_world[:3, 3] = target.position
                     world_from_object = tcp_from_world @ tcp_from_object
-                    release_pose = {"position": world_from_object[:3, 3].tolist(),
-                                    "orientation_xyzw": list(matrix_quaternion_xyzw(world_from_object[:3, :3]))}
+                    release_expected = {"position": world_from_object[:3, 3].tolist(),
+                                        "orientation_xyzw": list(matrix_quaternion_xyzw(world_from_object[:3, :3]))}
+                    release_pose = base_link_pose({"frame_id": target.frame_id, **release_expected})
                     scene_attachment("detach", args.track_id, deadline,
                                      world_pose=release_pose)
                     attached = False
+                    scene_locked = False
                     result["object_attachment"]["state"] = "detached"
                     result["gripper"]["state"] = "released"
                     release_started = time.monotonic()
                     released_samples = []
                     while time.monotonic() < min(deadline, release_started + 3.0):
                         rclpy.spin_once(node, timeout_sec=0.05)
-                        released_samples = [status for received, status in node.status_history
+                        released_samples = [(received, status) for received, status in node.status_history
                                             if received >= release_started]
-                        if verify_observed_release(
-                                released_samples, selected_track_id, release_pose["position"]):
-                            release_verified = True
-                            break
-                    result["release_verified"] = release_verified
-                    result["object_attachment"]["release_verified"] = release_verified
-                    result["object_attachment"]["release_observation_count"] = len(released_samples)
             result["segments"].append(segment)
         else:
+            if args.execute and result.get("state") == "planning" and not attached and 'release_started' in locals():
+                if args.return_joint_pose:
+                    execute_clear_pose(args.return_joint_pose)
+                else:
+                    execute_tool_retreat(place)
+                release_started = time.monotonic()
+                released_samples = []
+                while time.monotonic() < min(deadline, release_started + 3.0):
+                    rclpy.spin_once(node, timeout_sec=0.05)
+                    released_samples = [(received, status) for received, status in node.status_history
+                                        if received >= release_started]
+                    if verify_observed_release(released_samples, selected_track_id,
+                                               release_expected["position"],
+                                               now_ros=node.get_clock().now().nanoseconds * 1e-9,
+                                               expected_frame_id=place.frame_id):
+                        release_verified = True
+                        break
+                result["release_verified"] = release_verified
+                result["object_attachment"]["release_verified"] = release_verified
+                result["object_attachment"]["release_observation_count"] = len(released_samples)
             if args.execute and result["state"] == "planning":
                 result["state"] = "pick_place_complete" if pickup_verified and release_verified else "execution_incomplete"
             elif not args.execute:
@@ -574,8 +853,16 @@ def main(argv=None):
                    result.get("release_verified") is True)
         print(f"{result['state']}: plan artifact written to {args.output}", flush=True)
         return 0 if success or result["state"] == "all_paths_planned_not_collision_checked_after_retime" else 2
-    except Exception as error:
+    except (Exception, KeyboardInterrupt) as error:
         failed = locals().get("result")
+        if locals().get("scene_locked") and not locals().get("attachment_attempted"):
+            try:
+                scene_attachment("unlock", locals().get("selected_track_id"),
+                                 time.monotonic() + 2.0)
+                scene_locked = False
+            except Exception as unlock_error:
+                if isinstance(failed, dict):
+                    failed["scene_unlock_error"] = str(unlock_error)
         if locals().get("contact_matrix_enabled") and locals().get("selected_track_id") is not None:
             try:
                 scene_attachment("disallow_contact", args.track_id,
@@ -600,6 +887,11 @@ def main(argv=None):
             return 2
         raise
     finally:
+        while node.active_goal_handle is not None and rclpy.ok():
+            try:
+                cancel_active_goal(time.monotonic() + 5.0)
+            except BaseException as cancel_error:
+                node.get_logger().error(f"retrying until resident action cancellation is confirmed: {cancel_error}")
         node.destroy_node()
         rclpy.shutdown()
 

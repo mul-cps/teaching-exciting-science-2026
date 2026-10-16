@@ -853,6 +853,11 @@ class ArmSession:
             state["completed_legs"] = [label for label, _target, _grasp in prepared]
             return state
         except BaseException as error:
+            if isinstance(error, ArmSessionCancelled) and self._cancel_reason == "trajectory_cancel_hold":
+                state = self.cancel_hold()
+                self._cancel_requested = False
+                self._active_leg = None
+                return {**state, "cancelled": True}
             self._event("plan_error", error=str(error), error_type=type(error).__name__)
             try:
                 self.shutdown(reason="control_error")
