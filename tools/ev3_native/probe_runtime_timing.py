@@ -60,6 +60,7 @@ class FakeAxis:
         self.target = None
         self.angle_reads = 0
         self.speed_reads = 0
+        self.dispatches = 0
         self.control = FakeControl(self)
 
     def angle(self):
@@ -75,6 +76,7 @@ class FakeAxis:
 
     def run_target(self, speed, target, then, wait):
         assert then == 'BRAKE' and wait is False
+        self.dispatches += 1
         self.target = target
 
     def advance(self):
@@ -112,6 +114,68 @@ class FakePeripherals:
 
 class FakeStop:
     BRAKE = 'BRAKE'
+
+
+class CriticalProbeAxis(FakeAxis):
+    def __init__(self, clock):
+        FakeAxis.__init__(self)
+        self.sample_clock = clock
+
+    def angle(self):
+        self.sample_clock.ms += 2
+        return FakeAxis.angle(self)
+
+    def speed(self):
+        self.sample_clock.ms += 3
+        return FakeAxis.speed(self)
+
+
+def critical_status_probe():
+    clock = Probe()
+    sorter, feeder = CriticalProbeAxis(clock), CriticalProbeAxis(clock)
+    peripherals = FakePeripherals()
+    api = live_api.LiveAPI({'sorter': sorter, 'feeder': feeder}, peripherals,
+                          peripherals, peripherals, clock.clock, FakeStop,
+                          'portable-fake-critical')
+    api.connect()
+    sorter.value = 13
+    clock.ms += 400
+    started = clock.ms
+    reply = api.request({'id': 1, 'operation': 'critical_status', 'args': {}})
+    assert reply['ok']
+    status = reply['result']
+    assert status['angles']['sorter'] == 13
+    assert status['motor_control']['sorter']['angle_sample_ms'] == started + 2
+    assert status['motor_control']['sorter']['speed_sample']['sampled_ms'] == started + 7
+    assert status['motor_control']['feeder']['angle_sample_ms'] == started + 4
+    assert status['motor_control']['feeder']['speed_sample']['sampled_ms'] == started + 10
+    assert status['sampled_ms'] == started + 4
+    assert status['critical_sample']['finished_ms'] == started + 10
+    assert peripherals.calls == 0 and peripherals.touch_reads == 0
+    assert sorter.target is None and feeder.target is None
+    assert api.references == {'sorter': None, 'feeder': None}
+    api.enter_power_save()
+    reads = (sorter.angle_reads, feeder.angle_reads, sorter.speed_reads, feeder.speed_reads)
+    sleeping = api.request({'id': 2, 'operation': 'critical_status', 'args': {}})
+    assert sleeping['ok'] and sleeping['result']['power_mode'] == 'power_save'
+    assert reads == (sorter.angle_reads, feeder.angle_reads, sorter.speed_reads, feeder.speed_reads)
+    # Exercise guard_only on the actual VM too: fresh other-axis drift must
+    # brake an existing target without issuing a second target or zeroing.
+    api.wake()
+    api.references['sorter'] = 'home'
+    moving = api.request({'id': 3, 'operation': 'motor_target', 'args': {
+        'name': 'sorter', 'target': 14, 'speed': 50, 'acceleration': 400, 'actuation': 30}})
+    assert moving['ok']
+    dispatches = sorter.dispatches
+    feeder.value = 4
+    guarded = api.request({'id': 4, 'operation': 'critical_status', 'args': {}})
+    assert guarded['ok'] and not guarded['result']['busy']
+    assert 'Other motor drift' in guarded['result']['last_error']['message']
+    assert sorter.dispatches == dispatches and sorter.target is None
+    return {'paired_angle_speed_stamps': True, 'optional_peripheral_reads': 0,
+            'read_duration_ms': 10, 'sleep_stayed_asleep': True,
+            'fresh_other_axis_guard_no_dispatch': True,
+            'hardware_access': False}
 
 
 def full_target_probe():
@@ -178,7 +242,9 @@ def run():
     assert result == 42
     assert len(probe.records) == 2
     target = full_target_probe()
+    critical = critical_status_probe()
     return {'timing_helper_passed': True, 'motion_target_passed': True,
+            'critical_status_passed': True, 'fake_critical_status': critical,
             'fake_target': target, 'hardware_access': False,
             'runtime': str(sys.implementation)}
 

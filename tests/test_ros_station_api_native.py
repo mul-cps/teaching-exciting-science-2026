@@ -58,7 +58,7 @@ def test_resident_one_connection_reference_status_fault_and_cancel(tmp_path):
                         motor_control={name: {'angle_sample_ms': sampled, 'angle_read_ms': 1,
                             'speed_sample': {'speed_dps': 0., 'sampled_ms': sampled, 'duration_ms': 1}}
                             for name in ('sorter', 'feeder')})
-                    if op == 'status':
+                    if op in ('status', 'critical_status'):
                         result = status
                     elif op == 'stop':
                         if axis['job']:

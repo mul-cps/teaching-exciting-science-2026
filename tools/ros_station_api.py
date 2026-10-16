@@ -91,7 +91,7 @@ def main():
     def refresh():
         if not ev3.connected:
             cache.update(connected=False, error=str(ev3.failure or 'disconnected'))
-        if ev3.connected:
+        if ev3.connected and not (workflow.thread and workflow.thread.is_alive()):
             try:
                 cache.update(connected=True, error=None, status=ev3.call('status'))
             except Exception as error:
@@ -102,18 +102,19 @@ def main():
         publisher.publish(message)
 
     def ev3_command(request, response):
+        bridge_started = time.monotonic()
         try:
             operation = request.operation
             active = workflow.thread and workflow.thread.is_alive()
-            if operation != 'status':
+            if operation not in {'status', 'critical_status'}:
                 consume_operation_ticket(tickets, ticket_lock, request.capability,
                     job_id=request.job_id, operation=operation, arguments_json=request.arguments_json,
                     cancel=workflow.cancel, stop_pending=stop_state['pending'])
-            if active and request.job_id != workflow.job_id and operation != 'stop':
+            if active and request.job_id != workflow.job_id and operation not in {'stop', 'status', 'critical_status'}:
                 raise RuntimeError('EV3 reserved by active station job')
-            if operation not in {'status', 'stop', 'eject', 'home_touch', 'wake', 'power_save', 'confirm_reference', 'motor_target'}:
+            if operation not in {'status', 'stop', 'eject', 'home_touch', 'wake', 'power_save', 'confirm_reference', 'motor_target', 'critical_status'}:
                 raise ValueError('operation is not admitted by ROS station API')
-            if operation not in {'status', 'stop'} and (not active or request.job_id != workflow.job_id):
+            if operation not in {'status', 'critical_status', 'stop'} and (not active or request.job_id != workflow.job_id):
                 raise RuntimeError('EV3 motion/power command requires admitted station job')
             if operation == 'stop' and (not active or request.job_id != workflow.job_id):
                 raise RuntimeError('external stop must use /station/stop for arm/EV3 cancellation')
@@ -123,7 +124,13 @@ def main():
             # Reference confirmation must pass the explicit operator service.
             if operation == 'confirm_reference':
                 raise ValueError('use /station/ev3/confirm_reference with physical acknowledgement')
+            backend_started = time.monotonic()
             result = ev3.call(operation, arguments)
+            backend_finished = time.monotonic()
+            if operation in {'status', 'critical_status'}:
+                cache.update(connected=True, error=None, status=result)
+            response.message = json.dumps(dict(backend_call_s=backend_finished-backend_started,
+                bridge_processing_s=backend_finished-bridge_started))
             response.success, response.result_json = True, json.dumps(result, allow_nan=False)
         except Exception as error:
             response.success, response.message = False, str(error)
@@ -135,9 +142,11 @@ def main():
             self.node, self.cancel = worker, cancel
             self.client = worker.create_client(EV3Command, '/station/ev3/command')
             self.session = ev3.session
+            self.last_call_timing = None
         def call(self, operation, arguments=None):
+            call_started = time.monotonic()
             def check_cancel():
-                if operation not in {'status', 'stop'} and self.cancel.is_set():
+                if operation not in {'status', 'critical_status', 'stop'} and self.cancel.is_set():
                     raise InterruptedError('station cancellation prohibits EV3 mutation')
             check_cancel()
             if not self.client.wait_for_service(timeout_sec=1.):
@@ -159,6 +168,14 @@ def main():
                         raise TimeoutError('EV3 ROS command delivery unknown; no retry')
                     self.node._station_executor.spin_once(timeout_sec=.02)
                 response = future.result()
+                elapsed = time.monotonic()-call_started
+                try:
+                    bridge_timing = json.loads(response.message) if response.success else {}
+                except (TypeError, ValueError):
+                    bridge_timing = {}
+                self.last_call_timing = dict(operation=operation, roundtrip_s=elapsed, **bridge_timing)
+                if 'backend_call_s' in bridge_timing:
+                    self.last_call_timing['non_backend_s'] = elapsed-bridge_timing['backend_call_s']
                 if not response.success:
                     raise RuntimeError(response.message)
                 return json.loads(response.result_json)
@@ -277,7 +294,7 @@ def main():
 
     def sorter_position(request, response):
         from workshop.station.sorter_position import (validate_target, stationary_snapshot,
-            position_arguments, PHASE_DEADLINE_S, motion_progress, terminal_position, control_diagnostics)
+            position_arguments, PHASE_DEADLINE_S, motion_progress, terminal_position, control_diagnostics, critical_status_read)
         def admit():
             validate_target(request.target_deg)
             def move(worker, proxy, cancel):
@@ -287,23 +304,29 @@ def main():
                         raise InterruptedError('sorter position cancelled')
                     if time.monotonic() >= deadline:
                         raise TimeoutError('sorter position deadline exceeded')
-                def status(deadline):
-                    nonlocal latest_observation
-                    check(deadline)
-                    before = time.monotonic()
-                    result = proxy.call('status')
-                    latest_observation = result
-                    if time.monotonic()-before > .75:
-                        raise TimeoutError('sorter telemetry receipt too slow for admission')
-                    check(deadline)
-                    return result
+                slow_reads = [0]
+                latest_rpc_timing = None
+                def observe(result, timing):
+                    nonlocal latest_observation, latest_rpc_timing
+                    latest_observation, latest_rpc_timing = result, timing
+                    record(dict(event='sorter_critical_observation', timing=timing,
+                        session=result.get('session'), busy=result.get('busy'),
+                        sampled_ms=result.get('sampled_ms'),
+                        encoder_sample_ms={name: control.get('angle_sample_ms')
+                            for name, control in result.get('motor_control', {}).items()},
+                        speed_sample_ms={name: control.get('speed_sample', {}).get('sampled_ms')
+                            for name, control in result.get('motor_control', {}).items()}))
+                def status(deadline, stage):
+                    return critical_status_read(proxy, deadline=deadline, cancel=cancel,
+                        stage=stage, slow_reads=slow_reads, record=record,
+                        observe=observe, clock=time.monotonic)
                 try:
                     admission_deadline = time.monotonic()+2.
-                    first = status(admission_deadline)
+                    first = status(admission_deadline, 'admission')
                     initial_angle, initial_stamp = stationary_snapshot(first, session=proxy.session)
                     while True:
                         time.sleep(.05)
-                        current = status(admission_deadline)
+                        current = status(admission_deadline, 'admission')
                         angle, stamp = stationary_snapshot(current, session=proxy.session)
                         if stamp > initial_stamp:
                             if stamp-initial_stamp > 1500 or abs(angle-initial_angle) > 1.:
@@ -320,10 +343,10 @@ def main():
                     diagnostics = control_diagnostics(current)
                     record(dict(event='sorter_position_started', target_deg=request.target_deg,
                                 native_job_id=job['id'], profile=arguments,
-                                diagnostics=diagnostics, native_job=job))
+                                diagnostics=diagnostics, native_job=job, command_timing=proxy.last_call_timing))
                     last_sample, last_progress = stamp, time.monotonic()
                     while True:
-                        observed = status(deadline)
+                        observed = status(deadline, 'motion_or_terminal')
                         last_sample, last_progress = motion_progress(observed, session=proxy.session,
                             previous_stamp=last_sample, progress_time=last_progress, now=time.monotonic())
                         if observed.get('busy') is False:
@@ -344,7 +367,7 @@ def main():
                     # power mode, active-job state, or cached diagnostics.
                     try:
                         record(dict(event='sorter_position_failed', target_deg=request.target_deg,
-                                    error=str(error), native_observation=latest_observation))
+                                    error=str(error), native_observation=latest_observation, rpc_timing=latest_rpc_timing))
                     except Exception as logging_error:
                         error.add_note('sorter failure evidence write failed: '+str(logging_error))
                     try:

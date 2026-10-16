@@ -150,3 +150,75 @@ def test_cached_idle_angles_refresh_within_half_second():
     harness.motors['feeder'].value = 17
     for _ in range(25): harness.advance()
     assert harness.request('status')['result']['angles']['feeder'] == 17
+
+
+def test_critical_status_reads_truthful_encoders_and_speeds_without_optional_work():
+    from tools.benchmark_ev3_live_api import Harness
+    harness = Harness()
+    harness.api.connect()
+    harness.clock.ms = 400  # Old cached angles represent the observed idle skew.
+    harness.motors['sorter'].value = 13
+    before = harness.read_counts()
+    result = harness.request('critical_status')['result']
+    after = harness.read_counts()
+    assert result['angles']['sorter'] == 13
+    for name in ('sorter', 'feeder'):
+        assert after[name]['angle'] == before[name]['angle']+1
+        assert after[name]['speed'] == before[name]['speed']+1
+        assert result['motor_control'][name]['angle_sample_ms'] == 400
+        assert result['motor_control'][name]['speed_sample']['sampled_ms'] == 400
+    assert after['touch'] == before['touch'] and after['color'] == before['color']
+    assert result['critical_sample'] == {'started_ms': 400, 'finished_ms': 400}
+    assert all(motor.dispatches == 0 for motor in harness.motors.values())
+    harness.request('power_save')
+    before = harness.read_counts()
+    asleep = harness.request('critical_status')['result']
+    assert asleep['power_mode'] == 'power_save'
+    assert harness.read_counts() == before
+
+
+def test_critical_status_checks_watchdog_after_a_blocking_encoder_read():
+    from tools.benchmark_ev3_live_api import Harness
+    harness = Harness()
+    harness.api.connect()
+    harness.api.references['sorter'] = 'home'
+    assert harness.request('motor_target', name='sorter', target=12, speed=50, acceleration=400, actuation=30)['ok']
+    original = harness.motors['sorter'].angle
+    def delayed():
+        harness.clock.ms += 1100
+        return original()
+    harness.motors['sorter'].angle = delayed
+    result = harness.request('critical_status')['result']
+    assert not result['busy']
+    assert result['last_error']['code'] == 'heartbeat_expired'
+    assert harness.motors['sorter'].target is None
+
+
+@pytest.mark.parametrize('operation', ['shake', 'eject'])
+@pytest.mark.parametrize('other_drift', [0, 4])
+def test_critical_read_never_dispatches_due_phase_and_checks_fresh_other_axis(operation, other_drift):
+    from tools.benchmark_ev3_live_api import Harness
+    harness = Harness()
+    harness.api.connect()
+    if operation == 'shake':
+        harness.start_shake()
+        harness.clock.ms = harness.api.job['_next_half']
+        other = 'feeder'
+    else:
+        harness.api.references['feeder'] = 'eject'
+        assert harness.request('eject', cycles=1)['ok']
+        harness.motors['feeder'].value = 209
+        harness.api.angles['feeder'] = 209
+        harness.api.begin_settle()
+        harness.clock.ms = 250
+        other = 'sorter'
+    harness.motors[other].value = other_drift
+    dispatches = {name: motor.dispatches for name,motor in harness.motors.items()}
+    result = harness.request('critical_status')['result']
+    assert {name: motor.dispatches for name,motor in harness.motors.items()} == dispatches
+    if other_drift:
+        assert not result['busy']
+        assert 'Other motor drift' in result['last_error']['message']
+        assert all(motor.target is None for motor in harness.motors.values())
+    else:
+        assert result['busy']

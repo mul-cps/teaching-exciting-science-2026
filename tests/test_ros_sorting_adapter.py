@@ -133,7 +133,7 @@ class _FakeEV3:
         if self.responses:
             response = self.responses.pop(0)
             return response
-        if operation == "status":
+        if operation in ("status", "critical_status"):
             self.sample += 1
             return {"session": self.session, "busy": False, "connected": True,
                 "last_error": None, "power_mode": "awake", "sampled_ms": self.sample,
@@ -216,7 +216,7 @@ def test_readiness_is_read_only_and_cancellable_without_home_motion(monkeypatch,
 
     assert "/follower/home" not in node.created_clients
     assert node.created_clients["/follower/sorting_ready"].requests == 0
-    assert all(name == "status" for name, _ in ev3.calls)
+    assert all(name in ("status", "critical_status") for name, _ in ev3.calls)
     assert len(ev3.calls) >= 2
 
 
@@ -532,4 +532,4 @@ def test_frozen_native_encoders_block_admission_without_waking(monkeypatch, tmp_
     devices, _, _ = _adapter(monkeypatch, tmp_path, ev3=ev3)
     with pytest.raises(TimeoutError):
         devices.require_ready(time.monotonic()+.02, threading.Event())
-    assert all(name == 'status' for name, _ in ev3.calls)
+    assert all(name in ('status', 'critical_status') for name, _ in ev3.calls)

@@ -86,3 +86,30 @@ def control_diagnostics(status):
     position_tolerance = (tolerances[1] if isinstance(tolerances, (list, tuple)) and len(tolerances) == 2 else None)
     return dict(native_control=control, native_position_tolerance_deg=position_tolerance,
                 position_tolerance_exceeds_terminal_gate=(not finite(position_tolerance) or position_tolerance > 3.))
+
+
+def critical_status_read(proxy, *, deadline, cancel, stage, slow_reads, record,
+                         observe, clock):
+    """Discard one slow read, sharing the unchanged absolute phase deadline."""
+    def check():
+        if cancel.is_set():
+            raise InterruptedError('sorter '+stage+' cancelled')
+        if clock() >= deadline:
+            raise TimeoutError('sorter '+stage+' deadline exceeded')
+    while True:
+        check()
+        before = clock()
+        result = proxy.call('critical_status')
+        elapsed = clock()-before
+        timing = dict(getattr(proxy, 'last_call_timing', None) or {}, stage=stage,
+                      measured_roundtrip_s=elapsed)
+        observe(result, timing)
+        if elapsed <= .75:
+            check()
+            return result
+        slow_reads[0] += 1
+        record(dict(event='sorter_slow_critical_read_discarded', stage=stage,
+                    timing=timing, count=slow_reads[0]))
+        check()
+        if slow_reads[0] > 1:
+            raise TimeoutError('sorter '+stage+' critical telemetry exceeded 0.75s freshness gate twice')

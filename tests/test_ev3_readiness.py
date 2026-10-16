@@ -16,7 +16,7 @@ def test_both_axes_must_advance_and_remain_stopped():
     frozen = sample()
     class Client:
         def call(self, operation):
-            assert operation == 'status'
+            assert operation in ('status', 'critical_status')
             return frozen
     def spin(deadline, cancel):
         clock[0] += .1

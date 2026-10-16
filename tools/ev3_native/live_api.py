@@ -230,7 +230,6 @@ class LiveAPI:
     def status(self):
         diagnostic_job = self.diagnostic_motion_job()
         status_started = self.clock() if diagnostic_job else None
-        motor_control = {}
         for name, motor in self.motors.items():
             if self.power_mode != 'power_save':
                 if self.job:
@@ -238,6 +237,65 @@ class LiveAPI:
                 else:
                     self.speed_samples[name] = self.timed_call(
                         diagnostic_job, 'status_speed_read_ms', self.speed_sample, motor)
+        result = self.status_snapshot()
+        if diagnostic_job:
+            self.record_timing(diagnostic_job, 'status_ms', self.clock() - status_started)
+        return result
+
+    def critical_motion_guard(self, check_positions=False):
+        # Do not run optional display/color/beep work while servicing a critical
+        # read. Retain watchdog, touch and native phase guards around each read.
+        if not self.job:
+            return
+        if self.clock() - self.last_heartbeat >= HEARTBEAT_MS:
+            self.disconnect('heartbeat_expired')
+            return
+        try:
+            if check_positions and self.job['motor'] == 'sorter':
+                self.sensor_touch = bool(self.touch.pressed())
+            if self.job and self.clock() - self.last_heartbeat >= HEARTBEAT_MS:
+                self.disconnect('heartbeat_expired')
+                return
+            if check_positions:
+                self.job_tick(self.clock(), guard_only=True)
+            elif (self.job and self.job['_stage'] == 'moving'
+                    and self.job['operation'] != 'shake' and self.clock() >= self.job['_deadline']):
+                raise ValueError('Native target deadline expired')
+        except Exception as error:
+            if self.job:
+                self.finish('fault', fault('motion_fault', str(error)))
+
+    def critical_status(self):
+        if self.power_mode == 'power_save':
+            return self.status_snapshot()  # Never wake or relabel sleeping data.
+        started = self.clock()
+        for name, motor in self.motors.items():
+            self.critical_motion_guard()
+            before = self.clock()
+            try:
+                self.angles[name] = motor.angle()
+            except Exception as error:
+                if self.job:
+                    self.finish('fault', fault('motion_fault', str(error)))
+                raise
+            self.angle_sample_ms[name] = self.clock()
+            self.angle_read_ms[name] = max(0, self.angle_sample_ms[name] - before)
+            self.critical_motion_guard()
+        # Only after BOTH encoders are fresh may positional guards inspect
+        # other-axis drift. Guard-only job_tick cannot advance a motor phase.
+        self.critical_motion_guard(check_positions=True)
+        for name, motor in self.motors.items():
+            self.critical_motion_guard(check_positions=True)
+            self.speed_samples[name] = self.speed_sample(motor)
+            self.critical_motion_guard(check_positions=True)
+        self.last_angles = max(self.angle_sample_ms.values())
+        result = self.status_snapshot()
+        result['critical_sample'] = {'started_ms': started, 'finished_ms': self.clock()}
+        return result
+
+    def status_snapshot(self):
+        motor_control = {}
+        for name, motor in self.motors.items():
             speed = self.speed_samples[name]
             motor_control[name] = dict(self.motor_control[name])
             motor_control[name]['speed_sample'] = dict(speed)
@@ -252,8 +310,6 @@ class LiveAPI:
                   'references': dict(self.references), 'touch': self.sensor_touch,
                   'color': self.sensor_color, 'last_error': self.last_error,
                   'power_mode': self.power_mode, 'power_save_idle_ms': self.power_save_idle_ms}
-        if diagnostic_job:
-            self.record_timing(diagnostic_job, 'status_ms', self.clock() - status_started)
         return result
 
     def poll_timeout_ms(self):
@@ -352,13 +408,15 @@ class LiveAPI:
             raise ValueError('Motor reference is unconfirmed: ' + str(name))
 
     def operation(self, request_id, operation, args):
-        if operation in ('heartbeat', 'status', 'stop'):
+        if operation in ('heartbeat', 'status', 'critical_status', 'stop'):
             arguments(args, ())
             if operation == 'heartbeat':
                 self.last_heartbeat = self.clock()
                 return {'alive': True, 'session': self.session}
             if operation == 'status':
                 return self.status()
+            if operation == 'critical_status':
+                return self.critical_status()
             self.wake()
             if self.job:
                 errors = self.finish('aborted', fault('stopped', 'Explicit stop'))
@@ -592,7 +650,7 @@ class LiveAPI:
             self.beep_active = True
             self.next_beep = now + 100
 
-    def job_tick(self, now):
+    def job_tick(self, now, guard_only=False):
         job = self.job
         if not job:
             return
@@ -610,6 +668,10 @@ class LiveAPI:
             job['_min'], job['_max'] = min(job['_min'], angle), max(job['_max'], angle)
             if job['_max'] - job['_min'] > 6:
                 raise ValueError('Settling recoil exceeds 6 degrees')
+            if guard_only:
+                if now - job['_settle_start'] >= 1000:
+                    raise ValueError('Motor did not settle within 1000 ms')
+                return
             quiet = job['_quiet']
             quiet.append((now, angle))
             while len(quiet) > 1 and quiet[1][0] <= now - 200:
@@ -704,6 +766,10 @@ class LiveAPI:
             displacement = abs(angle - job['center_angle'])
             if displacement > 20:
                 raise ValueError('Shake displacement exceeds 20 degrees')
+            if guard_only:
+                if motor.control.stalled() and not motor.control.done():
+                    raise ValueError('Shake motor stalled')
+                return
             job['peak_displacement_deg'] = max(job['peak_displacement_deg'], displacement)
             sign = 1 if step > 0 else -1 if step < 0 else 0
             if sign and job['_velocity_sign'] and sign != job['_velocity_sign']:
@@ -757,6 +823,17 @@ class LiveAPI:
             raise ValueError('Motor moved in wrong direction')
         if displacement > job['_budget']:
             raise ValueError('Encoder travel budget exceeded')
+        if guard_only:
+            if now >= job['_deadline']:
+                raise ValueError('Native target deadline expired')
+            if motor.control.done():
+                if home and not self.sensor_touch:
+                    raise ValueError('Home approach ended without touch')
+                if not home and abs(angle - job['target']) > 3:
+                    raise ValueError('Native target error exceeds 3 degrees')
+            elif motor.control.stalled():
+                raise ValueError('Native motor stalled')
+            return
         job['_last'] = angle
         job['_last_sample_ms'] = sample_ms
         job['_last_angle_read_ms'] = self.angle_read_ms[job['motor']]

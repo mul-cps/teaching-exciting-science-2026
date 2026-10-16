@@ -67,3 +67,47 @@ def test_frozen_encoder_fault_and_native_tolerance_diagnostic():
     assert control_diagnostics(status)['position_tolerance_exceeds_terminal_gate']
     status['motor_control']['sorter']['target_tolerances'] = [50, 3]
     assert not control_diagnostics(status)['position_tolerance_exceeds_terminal_gate']
+
+
+def test_observed_slow_terminal_read_is_discarded_then_fresh_zero_is_verified():
+    import threading
+    from workshop.station.sorter_position import critical_status_read, terminal_position
+    clock, log, observed = [0.], [], []
+    class Proxy:
+        def __init__(self): self.durations = [.80,.10]; self.calls = []
+        def call(self, operation):
+            self.calls.append(operation)
+            duration = self.durations.pop(0)
+            clock[0] += duration
+            backend = min(.39, duration)
+            self.last_call_timing = dict(backend_call_s=backend, non_backend_s=duration-backend)
+            result = snapshot()
+            result['last_job'] = dict(id=1775, operation='motor_target', motor='sorter', state='complete')
+            return result
+    proxy = Proxy()
+    result = critical_status_read(proxy, deadline=6., cancel=threading.Event(), stage='motion_or_terminal',
+        slow_reads=[0], record=log.append, observe=lambda result,timing: observed.append(timing), clock=lambda: clock[0])
+    assert terminal_position(result, session='s', job_id=1775, target=0., after_stamp=999) == 0.
+    assert proxy.calls == ['critical_status', 'critical_status']
+    assert len(log) == 1 and log[0]['timing']['measured_roundtrip_s'] == .8
+    assert observed[-1]['measured_roundtrip_s'] == pytest.approx(.1)
+
+
+def test_repeated_slow_terminal_samples_fail_and_cancel_prevents_retry():
+    import threading
+    from workshop.station.sorter_position import critical_status_read
+    for cancel_after_first in (False, True):
+        clock, cancel, calls = [0.], threading.Event(), []
+        class Proxy:
+            last_call_timing = None
+            def call(self, operation):
+                calls.append(operation)
+                clock[0] += .8
+                if cancel_after_first:
+                    cancel.set()
+                return snapshot()
+        error = InterruptedError if cancel_after_first else TimeoutError
+        with pytest.raises(error):
+            critical_status_read(Proxy(), deadline=6., cancel=cancel, stage='motion_or_terminal',
+                slow_reads=[0], record=lambda _: None, observe=lambda *_: None, clock=lambda: clock[0])
+        assert len(calls) == (1 if cancel_after_first else 2)

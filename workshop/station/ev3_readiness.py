@@ -37,7 +37,7 @@ def require_fresh_stationary(client, *, session, deadline, cancel, spin, clock=t
         if clock() >= deadline:
             raise TimeoutError('EV3 encoder telemetry did not advance before readiness deadline')
         before = clock()
-        status = client.call('status')
+        status = client.call('critical_status')
         if clock()-before > .75:
             raise TimeoutError('EV3 readiness telemetry receipt too slow')
         angles, stamps = stationary_station_snapshot(status, session=session)
