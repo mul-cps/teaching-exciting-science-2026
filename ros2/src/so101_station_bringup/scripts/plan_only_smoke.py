@@ -26,6 +26,17 @@ def main() -> int:
     start_state = RobotState(robot_model)
     start_state.set_to_default_values(group, "zero")
     start_state.update()
+    with robot.get_planning_scene_monitor().read_only() as planning_scene:
+        start_valid = bool(planning_scene.is_state_valid(start_state, group))
+        start_colliding = bool(planning_scene.is_state_colliding(start_state, group, True))
+    print(
+        f"START STATE VALID: valid={start_valid} collision={start_colliding} source=SRDF:zero",
+        flush=True,
+    )
+    if not start_valid:
+        print("INVALID START STATE: planning aborted", flush=True)
+        os._exit(1)
+
     target_reference = RobotState(robot_model)
     target_reference.set_to_default_values(group, "zero")
     target_joint_positions = list(target_reference.get_joint_group_positions(group))
