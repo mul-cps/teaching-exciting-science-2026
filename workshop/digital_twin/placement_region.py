@@ -7,11 +7,13 @@ for the station UI and downstream review, not an actuator admission token.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import chain
 from itertools import combinations
 from pathlib import Path
 import hashlib
 import json
 import uuid
+import time
 from typing import Iterable
 
 import numpy as np
@@ -524,29 +526,37 @@ class PlacementRegionTracker:
         return True
 
     def set_goal(self, stamp_ns, goal_corners_root, *, generation, received_monotonic,
-                 now_monotonic=None):
+                 now_monotonic=None, pose_override=None):
         corners = np.asarray(goal_corners_root, dtype=float)
         generation = str(generation)
+        history = self._history.get(generation)
         if (corners.shape != (4, 3) or not np.isfinite(corners).all()
-                or generation not in self._history):
+                or (history is None and pose_override is None)):
             self.reason = "goal_frame_unavailable"
             return False
         now = float(received_monotonic if now_monotonic is None else now_monotonic)
-        history = self._history.get(generation)
-        if (history is None or history[1] != int(stamp_ns)
+        if (history is not None and history[1] != int(stamp_ns)
                 or now - float(received_monotonic) < 0
                 or now - float(received_monotonic) > self.max_selection_age_s
                 or self._last_pose is None):
             self.reason = "stale_frame"
             return False
-        pose = history[0]
+        if history is not None:
+            pose = history[0]
+        else:
+            try:
+                pose = _matrix4(pose_override)
+            except ValueError:
+                self.reason = "goal_frame_unavailable"
+                return False
         self.goal_corners_local = transform_points(np.linalg.inv(pose), corners)
         self._last_valid_goal = corners.copy()
         self.reason = "goal_selected"
         return True
 
     def update(self, stamp_ns, feature_ids: Iterable, observed_points_root, *,
-               generation, received_monotonic, now_monotonic=None):
+               generation, received_monotonic, now_monotonic=None,
+               continuous_history_verified=False):
         now = float(received_monotonic if now_monotonic is None else now_monotonic)
         stamp_ns = int(stamp_ns)
         generation = str(generation)
@@ -564,7 +574,8 @@ class PlacementRegionTracker:
             return self.snapshot(now)
         age = now - float(received_monotonic)
         gap = (stamp_ns - self._last_stamp_ns) / 1e9
-        if age < 0 or age > self.max_age_s or gap > self.max_frame_gap_s:
+        if (age < 0 or age > self.max_age_s
+                or (gap > self.max_frame_gap_s and not continuous_history_verified)):
             self.reason = "stale_frame"
             self._last_stamp_ns = stamp_ns
             self._last_received = float(received_monotonic)
@@ -666,6 +677,8 @@ class SparseRGBDAnchor:
     def _gray8(image):
         import cv2
         pixels = np.asarray(image)
+        if pixels.ndim == 2 and pixels.dtype == np.uint8:
+            return pixels
         if pixels.ndim != 3 or pixels.shape[2] != 3 or pixels.dtype != np.uint8:
             raise ValueError("RGB uint8 image with shape HxWx3 required")
         return cv2.cvtColor(pixels, cv2.COLOR_RGB2GRAY)
@@ -830,6 +843,120 @@ class SparseRGBDAnchor:
             self._ids = candidate_ids[inliers].tolist()
             self._gray = gray
             self._reference_stamp_ns = int(stamp_ns)
+            self._camera_matrix = np.asarray(intrinsics, dtype=float).reshape(3, 3).copy()
+            self._root_from_camera = _matrix4(root_from_camera).copy()
+        return result
+
+    def replay_to_current(self, frames, depth_m, intrinsics, root_from_camera, *,
+                          frame_id, now_monotonic, max_history_s=30.):
+        """Replay adjacent grayscale frames from the pinned anchor to a fresh RGB-D frame.
+
+        ``frames`` contains ordered ``(stamp_ns, generation, received_monotonic,
+        rgb)`` acquisitions strictly after the pinned image. Only 2D KLT state is
+        carried through the history; depth is sampled once, from the final frame,
+        before the normal rigid 3D fit. Every link must be monotonic, same-camera,
+        and within ``max_frame_gap_s``. This is the only path allowed to bridge a
+        long human selection delay; a missing or weak link fails closed.
+        """
+        import cv2
+        now = float(now_monotonic)
+        replay_started = time.perf_counter()
+        maximum_history = float(max_history_s)
+        if (not np.isfinite(now) or not np.isfinite(maximum_history)
+                or maximum_history <= 0 or self._gray is None
+                or self._pixels is None or self._reference_stamp_ns is None):
+            return self.tracker.invalidate("broken_frame_history")
+        if str(frame_id).lstrip("/") != self.tracker.anchor_frame_id:
+            return self.tracker.invalidate("broken_frame_history")
+        iterator = iter(frames)
+        try:
+            first = next(iterator)
+        except StopIteration:
+            return self.tracker.snapshot(now)
+        previous_stamp = int(self._reference_stamp_ns)
+        previous_generation = self.tracker.anchor_generation
+        previous_received = self.tracker._last_received
+        previous_gray = self._gray
+        pixels = self._pixels.reshape(-1, 1, 2).astype(np.float32)
+        ids = np.asarray(self._ids, dtype=int)
+        h, w = previous_gray.shape
+        final_stamp = final_generation = final_received = None
+        for stamp, generation, received, image_rgb in chain((first,), iterator):
+            stamp, received = int(stamp), float(received)
+            current_gray = self._gray8(image_rgb)
+            gap = (stamp - previous_stamp) / 1e9
+            if (stamp <= previous_stamp or gap > self.tracker.max_frame_gap_s
+                    or not generation or str(generation) == previous_generation
+                    or received < float(previous_received)
+                    or (stamp - int(self._reference_stamp_ns)) / 1e9 > maximum_history
+                    or current_gray.shape != (h, w)
+                    or now - received < 0
+                    ):
+                return self.tracker.invalidate("broken_frame_history",
+                    generation=str(generation), stamp_ns=stamp,
+                    received_monotonic=received)
+            tracked, status, _ = cv2.calcOpticalFlowPyrLK(previous_gray, current_gray,
+                pixels, None, winSize=(21, 21), maxLevel=2,
+                criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 20, .03))
+            if tracked is None or status is None:
+                return self.tracker.invalidate("broken_frame_history",
+                    generation=str(generation), stamp_ns=stamp,
+                    received_monotonic=received)
+            backwards, back_status, _ = cv2.calcOpticalFlowPyrLK(current_gray,
+                previous_gray, tracked, None, winSize=(21, 21), maxLevel=2,
+                criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 20, .03))
+            if backwards is None or back_status is None:
+                return self.tracker.invalidate("broken_frame_history",
+                    generation=str(generation), stamp_ns=stamp,
+                    received_monotonic=received)
+            old = pixels.reshape(-1, 2)
+            new = tracked.reshape(-1, 2)
+            good = status.reshape(-1).astype(bool) & back_status.reshape(-1).astype(bool)
+            good &= np.linalg.norm(backwards.reshape(-1, 2) - old, axis=1) <= self.forward_backward_limit_px
+            good &= ((new[:, 0] >= 2) & (new[:, 1] >= 2)
+                     & (new[:, 0] < w - 2) & (new[:, 1] < h - 2))
+            pixels = new[good].reshape(-1, 1, 2).astype(np.float32)
+            ids = ids[good]
+            if len(ids) < self.tracker.minimum_features:
+                return self.tracker.invalidate("insufficient_features",
+                    generation=str(generation), stamp_ns=stamp,
+                    received_monotonic=received)
+            previous_gray = current_gray
+            previous_stamp = stamp
+            previous_generation = str(generation)
+            previous_received = received
+            final_stamp, final_generation, final_received = stamp, str(generation), received
+
+        if now - final_received > self.tracker.max_age_s:
+            return self.tracker.invalidate("stale_frame_history",
+                generation=final_generation, stamp_ns=final_stamp,
+                received_monotonic=final_received)
+        pixels_2d, depths, kept = self._sample_depths(depth_m, pixels.reshape(-1, 2))
+        ids = ids[kept]
+        if len(ids) < self.tracker.minimum_features:
+            return self.tracker.invalidate("insufficient_depth_features",
+                generation=str(final_generation), stamp_ns=int(final_stamp),
+                received_monotonic=float(final_received))
+        points_camera = deproject_pixels(pixels_2d, depths, intrinsics)
+        points_root = transform_points(root_from_camera, points_camera)
+        # The ROS executor is single-threaded. Include replay wall time in the
+        # freshness decision so a long catch-up never publishes old depth as a
+        # fresh target. Queued camera callbacks can then provide new observations.
+        completion_now = now + (time.perf_counter() - replay_started)
+        result = self.tracker.update(int(final_stamp), ids.tolist(), points_root,
+            generation=str(final_generation), received_monotonic=float(final_received),
+            now_monotonic=completion_now, continuous_history_verified=True)
+        if result.reason in {"tracked", "stale_frame"}:
+            # Even when the final depth acquisition aged out during catch-up,
+            # the entire 2D LK chain was verified. Advance only the optical-flow
+            # reference so a subsequent fresh RGB-D frame can be fit normally.
+            inliers = np.asarray(self.tracker._fit.inlier_indices, dtype=int)
+            if result.reason == "stale_frame" or not len(inliers):
+                inliers = np.arange(len(ids), dtype=int)
+            self._pixels = pixels_2d[inliers].astype(np.float32)
+            self._ids = ids[inliers].tolist()
+            self._gray = previous_gray
+            self._reference_stamp_ns = int(final_stamp)
             self._camera_matrix = np.asarray(intrinsics, dtype=float).reshape(3, 3).copy()
             self._root_from_camera = _matrix4(root_from_camera).copy()
         return result

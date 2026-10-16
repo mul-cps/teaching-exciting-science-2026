@@ -280,6 +280,141 @@ def test_goal_selection_requires_exact_retained_image_generation_and_freshness()
     assert tracker.reason == "goal_frame_unavailable"
 
 
+def test_pinned_goal_pose_survives_tracker_history_eviction_only_with_snapshot():
+    tracker = PlacementRegionTracker(history_size=2, max_selection_age_s=30.)
+    source = np.array([[x, y, 0.] for x, y in [(-.04, -.02), (-.02, .03),
+        (.01, -.04), (.035, .025), (.05, -.005), (-.055, .01), (.015, .045)]])
+    assert tracker.set_anchor(1_000_000_000, source, frame_id="camera",
+        generation="pin", received_monotonic=10.)
+    pinned_pose = tracker._history["pin"][0].copy()
+    for index in range(1, 5):
+        assert tracker.update(1_000_000_000 + index * 100_000_000,
+            range(len(source)), source + [index * .001, 0., 0.],
+            generation=f"move-{index}", received_monotonic=10. + index * .1).reason == "tracked"
+    polygon = np.array([[.02, -.02, 1.], [.08, -.02, 1.],
+                        [.08, .02, 1.], [.02, .02, 1.]])
+    assert "pin" not in tracker._history
+    assert not tracker.set_goal(1_000_000_000, polygon, generation="pin",
+        received_monotonic=10., now_monotonic=10.5)
+    assert tracker.set_goal(1_000_000_000, polygon, generation="pin",
+        received_monotonic=10., now_monotonic=10.5, pose_override=pinned_pose)
+
+
+def test_sparse_anchor_replays_bounded_adjacent_frames_after_human_selection_delay():
+    rng = np.random.default_rng(801)
+    image = np.zeros((160, 220, 3), dtype=np.uint8)
+    texture = rng.integers(10, 245, (90, 130), dtype=np.uint8)
+    image[35:125, 35:165] = np.repeat(texture[..., None], 3, axis=2)
+    depth = np.ones((160, 220), dtype=np.float32)
+    k = np.array([[300., 0., 110.], [0., 300., 80.], [0., 0., 1.]])
+    tracker = PlacementRegionTracker(minimum_features=6, max_frame_gap_s=.25)
+    frontend = SparseRGBDAnchor(tracker)
+    assert frontend.select_anchor(image, depth, k, np.eye(4), (30, 30, 170, 130),
+        stamp_ns=1_000_000_000, frame_id="camera", generation="pin",
+        received_monotonic=10.)
+    corners = np.array([[.02, -.02, 1.], [.08, -.02, 1.],
+                        [.08, .02, 1.], [.02, .02, 1.]])
+    assert tracker.set_goal(1_000_000_000, corners, generation="pin",
+                            received_monotonic=10.)
+
+    # A 3.0 s user selection delay exceeds the direct LK/3D update limit. Every
+    # intermediate image is retained, so replay must establish adjacent LK
+    # continuity before the current depth-backed rigid fit.
+    gray_frames = []
+    for index in range(1, 31):
+        dx = index
+        current = np.zeros_like(image)
+        current[35:125, 35 + dx:165 + dx] = image[35:125, 35:165]
+        gray_frames.append((1_000_000_000 + index * 100_000_000,
+                            f"f{index}", 10. + index * .1, current))
+    result = frontend.replay_to_current(gray_frames, depth, k, np.eye(4),
+        frame_id="camera", now_monotonic=13., max_history_s=30.)
+    assert result.valid, result.reason
+    assert result.selection_id == tracker.selection_id
+    assert result.stamp_ns == 4_000_000_000
+    assert result.root_from_anchor[0, 3] == pytest.approx(30. / 300., abs=.008)
+    assert frontend._reference_stamp_ns == 4_000_000_000
+
+
+@pytest.mark.parametrize("fault", ["gap", "nonmonotonic", "missing"])
+def test_sparse_anchor_replay_fails_closed_on_broken_history(fault):
+    rng = np.random.default_rng(802)
+    image = np.zeros((160, 220, 3), dtype=np.uint8)
+    texture = rng.integers(10, 245, (90, 130), dtype=np.uint8)
+    image[35:125, 35:165] = np.repeat(texture[..., None], 3, axis=2)
+    depth = np.ones((160, 220), dtype=np.float32)
+    k = np.array([[300., 0., 110.], [0., 300., 80.], [0., 0., 1.]])
+    frontend = SparseRGBDAnchor(PlacementRegionTracker(minimum_features=6,
+        max_frame_gap_s=.25))
+    assert frontend.select_anchor(image, depth, k, np.eye(4), (30, 30, 170, 130),
+        stamp_ns=1_000_000_000, frame_id="camera", generation="pin",
+        received_monotonic=10.)
+    frames = []
+    for index in range(1, 6):
+        if fault == "missing" and index in {3, 4}:
+            continue
+        stamp_index = index
+        if fault == "gap" and index >= 3:
+            stamp_index += 5
+        if fault == "nonmonotonic" and index == 4:
+            stamp_index = 2
+        dx = index
+        current = np.zeros_like(image)
+        current[35:125, 35 + dx:165 + dx] = image[35:125, 35:165]
+        frames.append((1_000_000_000 + stamp_index * 100_000_000,
+                       f"f{index}", 10. + index * .1, current))
+    result = frontend.replay_to_current(frames, depth, k, np.eye(4),
+        frame_id="camera", now_monotonic=10.55, max_history_s=30.)
+    assert not result.valid
+    assert result.reason in {"broken_frame_history", "nonmonotonic_frame",
+                             "stale_frame", "stale_frame_history"}
+
+
+def test_sparse_anchor_replay_does_not_publish_fresh_after_executor_lag(monkeypatch):
+    import time
+    import cv2
+    rng = np.random.default_rng(803)
+    image = np.zeros((160, 220, 3), dtype=np.uint8)
+    texture = rng.integers(10, 245, (90, 130), dtype=np.uint8)
+    image[35:125, 35:165] = np.repeat(texture[..., None], 3, axis=2)
+    depth = np.ones((160, 220), dtype=np.float32)
+    k = np.array([[300., 0., 110.], [0., 300., 80.], [0., 0., 1.]])
+    frontend = SparseRGBDAnchor(PlacementRegionTracker(minimum_features=6))
+    assert frontend.select_anchor(image, depth, k, np.eye(4), (30, 30, 170, 130),
+        stamp_ns=1_000_000_000, frame_id="camera", generation="pin",
+        received_monotonic=10.)
+    assert frontend.tracker.set_goal(1_000_000_000,
+        np.array([[.02, -.02, 1.], [.08, -.02, 1.], [.08, .02, 1.], [.02, .02, 1.]]),
+        generation="pin", received_monotonic=10.)
+    original = cv2.calcOpticalFlowPyrLK
+    calls = 0
+
+    def slow_lk(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        time.sleep(.14)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(cv2, "calcOpticalFlowPyrLK", slow_lk)
+    shifted = np.zeros_like(image)
+    shifted[35:125, 36:166] = image[35:125, 35:165]
+    result = frontend.replay_to_current([(1_100_000_000, "current", 10.05, shifted)],
+        depth, k, np.eye(4), frame_id="camera", now_monotonic=10.05)
+    assert calls == 2
+    assert not result.valid
+    assert result.reason == "stale_frame"
+    assert result.goal_corners_root is None
+    assert frontend._reference_stamp_ns == 1_100_000_000
+    monkeypatch.setattr(cv2, "calcOpticalFlowPyrLK", original)
+    next_frame = np.zeros_like(image)
+    next_frame[35:125, 37:167] = image[35:125, 35:165]
+    recovered = frontend.update(next_frame, depth, k, np.eye(4),
+        stamp_ns=1_200_000_000, frame_id="camera", generation="fresh-next",
+        received_monotonic=10.2, now_monotonic=10.2)
+    assert recovered.valid
+    assert recovered.reason == "tracked"
+
+
 def test_selection_id_persists_and_resolver_rebuilds_fresh_target_from_trusted_config(tmp_path):
     import hashlib
     import json

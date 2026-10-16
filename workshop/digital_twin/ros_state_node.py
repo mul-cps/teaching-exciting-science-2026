@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import tempfile
@@ -56,6 +57,17 @@ class RosStatePublisher(Node):
         self.placement_directory.mkdir(parents=True, exist_ok=True)
         self.placement_request_path = Path(output).with_name("placement-region-request.json")
         self.placement_frames = deque(maxlen=16)
+        # Human selection can take several seconds. Keep only the already-encoded
+        # color JPEGs needed to prove adjacent LK continuity; depth is never
+        # historied and remains bound to the latest synchronized RGB-D frame.
+        self.placement_gray_history = deque(maxlen=500)
+        self.placement_history_seconds = 30.
+        self.placement_replay_executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="placement-history")
+        self.placement_replay_future = None
+        self.placement_replay_candidate = None
+        self.placement_replay_base = None
+        self.placement_replay_active = False
         self.placement_selection_timeout_s = float(placement_selection_timeout_s)
         if not np.isfinite(self.placement_selection_timeout_s) or self.placement_selection_timeout_s <= 0:
             raise ValueError("placement selection timeout must be positive and finite")
@@ -171,10 +183,11 @@ class RosStatePublisher(Node):
                 cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 82])
             if not encoded_ok:
                 raise ValueError("could not encode synchronized camera image")
+            encoded_bytes = encoded.tobytes()
             generation = f"{stamp_ns}-{uuid.uuid4().hex[:8]}"
             image_path = self.placement_directory / f"{generation}.jpg"
             temporary = image_path.with_suffix(".tmp.jpg")
-            temporary.write_bytes(encoded.tobytes())
+            temporary.write_bytes(encoded_bytes)
             os.replace(temporary, image_path)
             record = {"generation": generation, "stamp_ns": stamp_ns,
                 "received_monotonic": now, "frame_id": frame_id,
@@ -184,8 +197,24 @@ class RosStatePublisher(Node):
                 "camera_matrix": k, "rgb": rgb.copy(), "depth_m": depth_m.copy(),
                 "image_path": str(image_path), "image_shape": [h, w]}
             self.placement_frames.append(record)
+            if (self.placement_pinned_frame is not None
+                    and self.placement_pin_expires is not None
+                    and now > self.placement_pin_expires):
+                self.placement_pinned_frame = None
+                self.placement_pin_expires = None
+                self.placement_selection_request_id = None
+                self.placement_selection_mode = None
+                self.placement_gray_history.clear()
+            if self.placement_pinned_frame is not None or self.placement_replay_active:
+                self._append_placement_gray_frame(record, rgb)
             self.placement_frame = placement_camera_frame_summary(record)
-            if self.placement_frontend.tracker.anchor_points is not None:
+            if (self.placement_replay_active
+                    and self.placement_replay_candidate is not None):
+                # The isolated worker owns its candidate frontend. Keep receiving
+                # synchronized RGB-D and extending the bounded gray tail; the main
+                # thread will replay that tail and publish only a fresh result.
+                pass
+            elif self.placement_frontend.tracker.anchor_points is not None:
                 observation = self.placement_frontend.update(rgb, depth_m, k,
                     np.eye(4), stamp_ns=stamp_ns, frame_id=frame_id,
                     generation=generation, received_monotonic=now)
@@ -288,12 +317,18 @@ class RosStatePublisher(Node):
                 self.placement_pin_expires = None
                 self.placement_selection_request_id = None
                 self.placement_selection_mode = None
+                self.placement_gray_history.clear()
             self.placement_status = {"state": "selection_cancelled", "valid": False,
                 "reason": "selection_cancelled", "placement_motion_qualified": False}
             return
         if request.get("action") == "pin_latest_frame":
             mode = str(request.get("mode", ""))
             request_id = str(request.get("request_id", ""))
+            if self.placement_replay_active:
+                self.placement_status = {"state": "invalid", "valid": False,
+                    "reason": "selection_replay_in_progress",
+                    "placement_motion_qualified": False}
+                return
             if mode not in {"select_feeder_anchor", "select_placement_area"} or not request_id:
                 self.placement_status = {"state": "invalid", "valid": False,
                     "reason": "selection_pin_request_invalid",
@@ -315,10 +350,20 @@ class RosStatePublisher(Node):
                     "placement_motion_qualified": False}
                 return
             frame = max(fresh_frames, key=lambda item: int(item["stamp_ns"]))
+            if mode == "select_placement_area":
+                pose_record = self.placement_tracker._history.get(frame["generation"])
+                if pose_record is None or int(pose_record[1]) != int(frame["stamp_ns"]):
+                    self.placement_status = {"state": "invalid", "valid": False,
+                        "reason": "anchor_pose_unavailable_at_goal_pin",
+                        "placement_motion_qualified": False}
+                    return
+                frame = dict(frame, anchor_pose_at_pin=pose_record[0].copy())
             self.placement_pinned_frame = frame
             self.placement_pin_expires = now + self.placement_selection_timeout_s
             self.placement_selection_request_id = request_id
             self.placement_selection_mode = mode
+            self.placement_gray_history.clear()
+            self._append_placement_gray_frame(frame, frame["rgb"])
             self.placement_status = {"state": "selection_frame_pinned", "valid": False,
                 "reason": "selection_frame_pinned", "generation": frame["generation"],
                 "stamp_ns": int(frame["stamp_ns"]), "frame_id": frame["frame_id"],
@@ -328,6 +373,7 @@ class RosStatePublisher(Node):
             return
         generation = str(request.get("generation", ""))
         if request.get("action") == "clear_selection":
+            self._cancel_placement_replay()
             self.placement_tracker = PlacementRegionTracker(
                 max_selection_age_s=self.placement_selection_timeout_s)
             self.placement_frontend = SparseRGBDAnchor(self.placement_tracker)
@@ -336,6 +382,7 @@ class RosStatePublisher(Node):
             self.placement_pin_expires = None
             self.placement_selection_request_id = None
             self.placement_selection_mode = None
+            self.placement_gray_history.clear()
             self.placement_status = {"state": "selection_cleared", "valid": False,
                 "reason": "selection_cleared", "generation": generation,
                 "placement_motion_qualified": False,
@@ -351,15 +398,30 @@ class RosStatePublisher(Node):
             frame = next((item for item in self.placement_frames
                           if item["generation"] == generation), None)
         if request.get("action") == "pin_frame":
+            if self.placement_replay_active:
+                self.placement_status = {"state": "invalid", "valid": False,
+                    "reason": "selection_replay_in_progress",
+                    "placement_motion_qualified": False}
+                return
             if frame is None or time.monotonic() - frame["received_monotonic"] > .4:
                 self.placement_status = {"state": "invalid", "valid": False,
                     "reason": "selection_frame_stale_before_pin", "generation": generation,
                     "placement_motion_qualified": False}
                 return
+            if request.get("mode") == "select_placement_area":
+                pose_record = self.placement_tracker._history.get(frame["generation"])
+                if pose_record is None or int(pose_record[1]) != int(frame["stamp_ns"]):
+                    self.placement_status = {"state": "invalid", "valid": False,
+                        "reason": "anchor_pose_unavailable_at_goal_pin",
+                        "placement_motion_qualified": False}
+                    return
+                frame = dict(frame, anchor_pose_at_pin=pose_record[0].copy())
             self.placement_pinned_frame = frame
             self.placement_pin_expires = time.monotonic() + self.placement_selection_timeout_s
             self.placement_selection_request_id = str(request.get("request_id", ""))
             self.placement_selection_mode = str(request.get("mode", ""))
+            self.placement_gray_history.clear()
+            self._append_placement_gray_frame(frame, frame["rgb"])
             self.placement_status = {"state": "selection_frame_pinned", "valid": False,
                 "reason": "selection_frame_pinned", "generation": generation,
                 "selection_request_id": self.placement_selection_request_id,
@@ -373,6 +435,7 @@ class RosStatePublisher(Node):
                 self.placement_pin_expires = None
                 self.placement_selection_request_id = None
                 self.placement_selection_mode = None
+                self.placement_gray_history.clear()
             self.placement_status = {"state": "selection_cancelled", "valid": False,
                 "reason": "selection_cancelled", "generation": generation,
                 "placement_motion_qualified": False}
@@ -383,6 +446,7 @@ class RosStatePublisher(Node):
                 and time.monotonic() <= self.placement_pin_expires):
             frame = self.placement_pinned_frame
         if frame is None:
+            self.placement_gray_history.clear()
             self.placement_status = {"state": "invalid", "valid": False,
                 "reason": ("selection_frame_pin_expired" if self.placement_pinned_frame is not None
                            else "selection_frame_expired"), "generation": generation,
@@ -393,6 +457,7 @@ class RosStatePublisher(Node):
                      and self.placement_pin_expires is not None
                      and now <= self.placement_pin_expires)
         if not pin_valid and now - frame["received_monotonic"] > .4:
+            self.placement_gray_history.clear()
             self.placement_status = {"state": "invalid", "valid": False,
                 "reason": "selection_frame_stale", "generation": generation,
                 "placement_motion_qualified": False}
@@ -405,25 +470,73 @@ class RosStatePublisher(Node):
         try:
             rectangle = request["rect_xyxy"]
             if request.get("action") == "select_feeder_anchor":
-                okay = self.placement_frontend.select_anchor(frame["rgb"], frame["depth_m"],
+                if self.placement_replay_active:
+                    raise ValueError("placement history replay already active")
+                old = self.placement_tracker
+                candidate_tracker = PlacementRegionTracker(
+                    max_age_s=old.max_age_s, max_frame_gap_s=old.max_frame_gap_s,
+                    inlier_threshold_m=old.inlier_threshold_m,
+                    minimum_features=old.minimum_features,
+                    minimum_fraction=old.minimum_fraction,
+                    history_size=old.history_size,
+                    max_selection_age_s=self.placement_selection_timeout_s)
+                candidate = SparseRGBDAnchor(candidate_tracker,
+                    maximum_features=self.placement_frontend.maximum_features,
+                    minimum_depth_m=self.placement_frontend.minimum_depth_m,
+                    maximum_depth_m=self.placement_frontend.maximum_depth_m,
+                    forward_backward_limit_px=self.placement_frontend.forward_backward_limit_px)
+                okay = candidate.select_anchor(frame["rgb"], frame["depth_m"],
                     frame["camera_matrix"], np.eye(4), rectangle,
                     stamp_ns=frame["stamp_ns"], frame_id=frame["frame_id"],
                     generation=generation, received_monotonic=frame["received_monotonic"])
                 if not okay:
-                    raise ValueError(self.placement_tracker.reason)
+                    raise ValueError(candidate_tracker.reason)
                 self.placement_plane_metrics = None
-                self.placement_status = {"state": "anchor_selected", "valid": False,
-                    "reason": "placement_area_not_selected", "generation": generation,
-                    "stamp_ns": frame["stamp_ns"], "frame_id": frame["frame_id"],
-                    "feature_count": len(self.placement_tracker.anchor_points),
-                    "selection_id": self.placement_tracker.selection_id,
-                    "placement_motion_qualified": False}
+                latest = max(self.placement_frames,
+                             key=lambda item: int(item["stamp_ns"])) if self.placement_frames else frame
+                if int(latest["stamp_ns"]) > int(frame["stamp_ns"]):
+                    history = self._placement_replay_frames(frame, latest)
+                    if history is None:
+                        self.placement_status = {"state": "invalid", "valid": False,
+                            "reason": "selection_history_unavailable",
+                            "generation": latest["generation"],
+                            "placement_motion_qualified": False}
+                        return
+                    self.placement_replay_candidate = candidate
+                    self.placement_replay_base = {
+                        "generation": latest["generation"],
+                        "stamp_ns": int(latest["stamp_ns"])}
+                    self.placement_replay_active = True
+                    self.placement_replay_future = self.placement_replay_executor.submit(
+                        candidate.replay_to_current, history, latest["depth_m"],
+                        latest["camera_matrix"], np.eye(4), frame_id=latest["frame_id"],
+                        now_monotonic=time.monotonic(),
+                        max_history_s=self.placement_history_seconds)
+                    self.placement_status = {"state": "selection_replay_pending",
+                        "valid": False, "anchor_tracking_valid": False,
+                        "reason": "replaying_continuous_frame_history",
+                        "generation": latest["generation"], "stamp_ns": latest["stamp_ns"],
+                        "frame_id": latest["frame_id"],
+                        "selection_id": candidate_tracker.selection_id,
+                        "feature_count": len(candidate_tracker.anchor_points),
+                        "placement_motion_qualified": False,
+                        "physical_placement_admission": False}
+                else:
+                    self.placement_frontend = candidate
+                    self.placement_tracker = candidate_tracker
+                    self.placement_status = {"state": "anchor_selected", "valid": False,
+                        "reason": "placement_area_not_selected", "generation": generation,
+                        "stamp_ns": frame["stamp_ns"], "frame_id": frame["frame_id"],
+                        "feature_count": len(candidate_tracker.anchor_points),
+                        "selection_id": candidate_tracker.selection_id,
+                        "placement_motion_qualified": False}
             elif request.get("action") == "select_placement_area":
                 polygon, metrics = project_rectangle_to_plane(rectangle, frame["depth_m"],
                     frame["camera_matrix"], np.eye(4))
                 if not self.placement_tracker.set_goal(frame["stamp_ns"], polygon,
                         generation=generation, received_monotonic=frame["received_monotonic"],
-                        now_monotonic=now):
+                        now_monotonic=now,
+                        pose_override=frame.get("anchor_pose_at_pin")):
                     raise ValueError(self.placement_tracker.reason)
                 self.placement_status = {"state": "goal_selected", "valid": False,
                     "reason": "awaiting_fresh_anchor_update", "generation": generation,
@@ -443,6 +556,153 @@ class RosStatePublisher(Node):
             self.placement_status = {"state": "invalid", "valid": False,
                 "reason": f"selection_rejected:{error}", "generation": generation,
                 "placement_motion_qualified": False}
+        finally:
+            if not self.placement_replay_active:
+                self.placement_gray_history.clear()
+
+    def _placement_replay_frames(self, pinned_frame, latest_frame):
+        """Decode bounded compressed frames strictly between pin and latest RGB-D."""
+        import cv2
+        history = list(self.placement_gray_history)
+        generations = [item["generation"] for item in history]
+        try:
+            start = generations.index(str(pinned_frame["generation"]))
+        except ValueError:
+            return None
+        selected = [item for item in history[start + 1:]
+                    if int(item["stamp_ns"]) <= int(latest_frame["stamp_ns"])]
+        expected_frame = str(pinned_frame["frame_id"])
+        if (not selected or selected[-1]["generation"] != latest_frame["generation"]
+                or str(latest_frame["frame_id"]) != expected_frame
+                or any(str(item["frame_id"]) != expected_frame for item in selected)):
+            return None
+        def decoded_frames():
+            for item in selected:
+                image = cv2.imdecode(np.frombuffer(item["jpeg"], dtype=np.uint8),
+                                     cv2.IMREAD_GRAYSCALE)
+                if image is None:
+                    raise ValueError("invalid compressed placement history frame")
+                yield (item["stamp_ns"], item["generation"],
+                       item["received_monotonic"], image)
+        return decoded_frames()
+
+    def _append_placement_gray_frame(self, record, rgb):
+        """Append one bounded grayscale JPEG only during a pinned selection."""
+        gray = cv2.cvtColor(np.asarray(rgb, dtype=np.uint8), cv2.COLOR_RGB2GRAY)
+        okay, encoded = cv2.imencode(".jpg", gray, [cv2.IMWRITE_JPEG_QUALITY, 82])
+        if not okay:
+            raise ValueError("could not encode placement tracking frame")
+        self.placement_gray_history.append({
+            "stamp_ns": int(record["stamp_ns"]),
+            "generation": str(record["generation"]),
+            "frame_id": str(record["frame_id"]),
+            "received_monotonic": float(record["received_monotonic"]),
+            "jpeg": encoded.tobytes()})
+        cutoff = float(record["received_monotonic"]) - self.placement_history_seconds
+        while (self.placement_gray_history
+               and float(self.placement_gray_history[0]["received_monotonic"]) < cutoff):
+            self.placement_gray_history.popleft()
+
+    def _finish_placement_replay(self):
+        """Poll isolated LK replay and catch its candidate up on the ROS thread."""
+        if not self.placement_replay_active:
+            return
+        if self.placement_replay_future is not None:
+            if not self.placement_replay_future.done():
+                return
+            try:
+                result = self.placement_replay_future.result()
+            except Exception as error:
+                self._fail_placement_replay(f"history_replay_error:{error}")
+                return
+            self.placement_replay_future = None
+            if result.reason not in {"tracked", "stale_frame"}:
+                self._fail_placement_replay(f"history_replay_{result.reason}")
+                return
+
+        candidate = self.placement_replay_candidate
+        if candidate is None or self.placement_replay_base is None:
+            self._fail_placement_replay("history_replay_state_missing")
+            return
+        latest = (max(self.placement_frames, key=lambda item: int(item["stamp_ns"]))
+                  if self.placement_frames else None)
+        if latest is None:
+            self._fail_placement_replay("latest_rgbd_frame_unavailable")
+            return
+        base = self.placement_replay_base
+        if int(latest["stamp_ns"]) > int(base["stamp_ns"]):
+            history = self._placement_replay_frames({
+                "generation": base["generation"], "frame_id": latest["frame_id"]}, latest)
+            if history is None:
+                self._fail_placement_replay("history_tail_unavailable")
+                return
+            result = candidate.replay_to_current(history, latest["depth_m"],
+                latest["camera_matrix"], np.eye(4), frame_id=latest["frame_id"],
+                now_monotonic=time.monotonic(),
+                max_history_s=self.placement_history_seconds)
+            self.placement_replay_base = {"generation": latest["generation"],
+                                          "stamp_ns": int(latest["stamp_ns"])}
+            if result.reason not in {"tracked", "stale_frame"}:
+                self._fail_placement_replay(f"history_tail_{result.reason}")
+                return
+        snapshot = candidate.tracker.snapshot(time.monotonic())
+        if (snapshot.reason == "tracked" and snapshot.age_s is not None
+                and snapshot.age_s <= candidate.tracker.max_age_s
+                and candidate._reference_stamp_ns == int(latest["stamp_ns"])):
+            self.placement_frontend = candidate
+            self.placement_tracker = candidate.tracker
+            self.placement_status = self._placement_snapshot_dict(snapshot)
+            self.placement_status.update({
+                "camera_frame": latest["frame_id"],
+                "received_monotonic": latest["received_monotonic"],
+                "anchor_tracking_valid": True,
+                "camera_from_goal": None,
+                "plane_metrics": None,
+                "placement_motion_qualified": False,
+                "physical_placement_admission": False})
+            self.placement_replay_active = False
+            self.placement_replay_candidate = None
+            self.placement_replay_base = None
+            self.placement_gray_history.clear()
+        else:
+            self.placement_status = {
+                "state": "selection_replay_pending", "valid": False,
+                "anchor_tracking_valid": False,
+                "reason": "waiting_for_fresh_rgbd_after_history_replay",
+                "generation": latest["generation"], "stamp_ns": latest["stamp_ns"],
+                "frame_id": latest["frame_id"],
+                "selection_id": candidate.tracker.selection_id,
+                "feature_count": (0 if candidate.tracker.anchor_points is None
+                                  else len(candidate.tracker.anchor_points)),
+                "placement_motion_qualified": False,
+                "physical_placement_admission": False}
+
+    def _cancel_placement_replay(self):
+        if self.placement_replay_future is not None:
+            self.placement_replay_future.cancel()
+        self.placement_replay_future = None
+        self.placement_replay_candidate = None
+        self.placement_replay_base = None
+        self.placement_replay_active = False
+        self.placement_gray_history.clear()
+
+    def _fail_placement_replay(self, reason):
+        candidate = self.placement_replay_candidate
+        self.placement_status = {"state": "invalid", "valid": False,
+            "anchor_tracking_valid": False, "reason": str(reason),
+            "selection_id": (None if candidate is None
+                             else candidate.tracker.selection_id),
+            "placement_motion_qualified": False,
+            "physical_placement_admission": False}
+        self.placement_replay_future = None
+        self.placement_replay_candidate = None
+        self.placement_replay_base = None
+        self.placement_replay_active = False
+        self.placement_gray_history.clear()
+
+    def destroy_node(self):
+        self.placement_replay_executor.shutdown(wait=True, cancel_futures=True)
+        return super().destroy_node()
 
     def _placement_selection_service(self, request, response):
         modes = {"feeder": "select_feeder_anchor", "goal": "select_placement_area",
@@ -503,8 +763,11 @@ class RosStatePublisher(Node):
         if mode != "clear":
             command["rect_xyxy"] = list(request.pixel_rectangle)
         self._process_placement_request(command)
-        response.success = self.placement_status.get("state") in {
-            "anchor_selected", "goal_selected", "selection_cleared"}
+        response.success = (self.placement_status.get("state") in {
+            "anchor_selected", "goal_selected", "selection_cleared",
+            "selection_replay_pending"}
+            or (mode == "feeder" and
+                self.placement_status.get("anchor_tracking_valid") is True))
         response.message = str(self.placement_status.get("reason", ""))
         response.selection_id = str(self.placement_status.get("selection_id", ""))
         return response
@@ -600,6 +863,7 @@ class RosStatePublisher(Node):
 
     def _write(self):
         self._consume_placement_request()
+        self._finish_placement_replay()
         now = time.monotonic()
         if self.placement_tracker.anchor_points is not None:
             tracker_snapshot = self.placement_tracker.snapshot(now)
@@ -613,6 +877,7 @@ class RosStatePublisher(Node):
             self.placement_pin_expires = None
             self.placement_selection_request_id = None
             self.placement_selection_mode = None
+            self.placement_gray_history.clear()
         elif self.placement_status.get("state") in {"tracked", "anchor_tracked"}:
             age = now - float(self.placement_status.get("received_monotonic", now))
             if age > self.placement_tracker.max_age_s:

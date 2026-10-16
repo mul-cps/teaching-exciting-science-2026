@@ -1,9 +1,11 @@
 """Native ROS contract test for the camera placement selection service."""
 import time
 import json
+import threading
 
 import numpy as np
 import pytest
+import cv2
 
 
 pytest.importorskip("rclpy")
@@ -14,6 +16,7 @@ from rclpy.executors import SingleThreadedExecutor
 from so101_station_workflow.srv import SelectPlacementRegion
 
 from workshop.digital_twin.ros_state_node import RosStatePublisher
+from workshop.digital_twin.placement_region import SparseRGBDAnchor
 
 
 def test_ui_pins_latest_fresh_frame_and_publishes_exact_display_ack(tmp_path):
@@ -211,6 +214,132 @@ def test_native_pin_service_survives_human_delay_and_selects_exact_generation(tm
         assert cancelled.success, cancelled.message
         assert json.loads(cancelled.message)["state"] == "selection_cancelled"
         assert server.placement_pinned_frame is None
+    finally:
+        executor.remove_node(client_node)
+        executor.remove_node(server)
+        client_node.destroy_node()
+        server.destroy_node()
+        rclpy.try_shutdown()
+
+
+def test_native_pin_replays_bounded_camera_history_for_delayed_anchor_selection(
+        tmp_path, monkeypatch):
+    """Pin, wait like a human, then replay only bounded color history to fresh depth."""
+    if not rclpy.ok():
+        rclpy.init(args=None)
+    server = RosStatePublisher(str(tmp_path / "state.json"), root_frame="charuco_board",
+        placement_directory=str(tmp_path / "placement-camera"))
+    client_node = rclpy.create_node("placement_history_replay_contract_test")
+    executor = SingleThreadedExecutor()
+    executor.add_node(server)
+    executor.add_node(client_node)
+    client = client_node.create_client(SelectPlacementRegion, "/station/placement/select")
+
+    def call(mode, generation="", rectangle=(0, 0, 0, 0)):
+        request = SelectPlacementRegion.Request()
+        request.generation = generation
+        request.mode = mode
+        request.pixel_rectangle = list(rectangle)
+        assert client.wait_for_service(timeout_sec=2.)
+        future = client.call_async(request)
+        executor.spin_until_future_complete(future, timeout_sec=3.)
+        assert future.done(), f"service call timed out: {mode}"
+        return future.result()
+
+    try:
+        rng = np.random.default_rng(801)
+        image = np.zeros((160, 220, 3), dtype=np.uint8)
+        texture = rng.integers(10, 245, (90, 130), dtype=np.uint8)
+        image[35:125, 35:165] = np.repeat(texture[..., None], 3, axis=2)
+        depth = np.ones((160, 220), dtype=np.float32)
+        k = np.array([[300., 0., 110.], [0., 300., 80.], [0., 0., 1.]])
+        stamp = 5_100_000_000
+        generation = f"{stamp}-delayed-pin"
+        pin_received = time.monotonic()
+        first = {"generation": generation, "stamp_ns": stamp,
+            "received_monotonic": pin_received, "frame_id": "camera_color_optical_frame",
+            "root_frame": "charuco_board", "root_from_camera": None,
+            "base_from_camera": None, "camera_matrix": k, "rgb": image,
+            "depth_m": depth, "image_path": "", "image_shape": [160, 220]}
+        server.placement_frames.append(first)
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        ok, jpg = cv2.imencode(".jpg", gray, [cv2.IMWRITE_JPEG_QUALITY, 82])
+        assert ok
+        server.placement_gray_history.append({"stamp_ns": stamp,
+            "generation": generation, "frame_id": first["frame_id"],
+            "received_monotonic": pin_received, "jpeg": jpg.tobytes()})
+        pin = call("pin_feeder")
+        assert pin.success, pin.message
+        ack = json.loads(pin.message)
+        assert ack["generation"] == generation
+
+        # While the user chooses the rectangle, retain compressed gray only.
+        # Model live 20 Hz camera arrivals for longer than the tracker's direct
+        # 500 ms reference window.
+        for index in range(1, 16):
+            time.sleep(.05)
+            dx = index
+            current = np.zeros_like(image)
+            current[35:125, 35 + dx:165 + dx] = image[35:125, 35:165]
+            current_stamp = stamp + index * 50_000_000
+            current_generation = f"{current_stamp}-replay-{index}"
+            received = time.monotonic()
+            gray = cv2.cvtColor(current, cv2.COLOR_RGB2GRAY)
+            ok, jpg = cv2.imencode(".jpg", gray, [cv2.IMWRITE_JPEG_QUALITY, 82])
+            assert ok
+            server.placement_gray_history.append({"stamp_ns": current_stamp,
+                "generation": current_generation, "frame_id": first["frame_id"],
+                "received_monotonic": received, "jpeg": jpg.tobytes()})
+            server.placement_frames.append({**first, "generation": current_generation,
+                "stamp_ns": current_stamp, "received_monotonic": received,
+                "rgb": current})
+
+        assert (server.placement_frames[-1]["stamp_ns"] - stamp) / 1e9 > .5
+        assert len(server.placement_gray_history) == 16
+        assert all(set(item) == {"stamp_ns", "generation", "frame_id",
+                                  "received_monotonic", "jpeg"}
+                   for item in server.placement_gray_history)
+        monkeypatch.setattr(SparseRGBDAnchor, "_descriptor_observations",
+            lambda *args: (_ for _ in ()).throw(
+                AssertionError("anchor-history replay must not use descriptor reacquisition")))
+        replay_entered = threading.Event()
+        allow_replay = threading.Event()
+        original_replay = SparseRGBDAnchor.replay_to_current
+
+        def blocked_worker(self, *args, **kwargs):
+            replay_entered.set()
+            assert allow_replay.wait(2.)
+            return original_replay(self, *args, **kwargs)
+
+        monkeypatch.setattr(SparseRGBDAnchor, "replay_to_current", blocked_worker)
+        selected = call("feeder", ack["generation"], (30, 30, 170, 130))
+        assert selected.success, selected.message
+        assert selected.selection_id
+        assert server.placement_status["state"] == "selection_replay_pending"
+        assert replay_entered.wait(1.)
+        # A camera callback can append while the isolated replay is still busy.
+        dx = 16
+        tail_rgb = np.zeros_like(image)
+        tail_rgb[35:125, 35 + dx:165 + dx] = image[35:125, 35:165]
+        tail_stamp = stamp + 800_000_000
+        tail_generation = f"{tail_stamp}-replay-tail"
+        tail_record = {**first, "generation": tail_generation,
+            "stamp_ns": tail_stamp, "received_monotonic": time.monotonic(),
+            "rgb": tail_rgb}
+        server.placement_frames.append(tail_record)
+        server._append_placement_gray_frame(tail_record, tail_rgb)
+        allow_replay.set()
+        deadline = time.monotonic() + 2.
+        while server.placement_replay_active and time.monotonic() < deadline:
+            server._finish_placement_replay()
+            time.sleep(.005)
+        assert not server.placement_replay_active
+        assert server.placement_status["state"] == "anchor_tracked"
+        assert server.placement_status["anchor_tracking_valid"] is True
+        assert server.placement_status["generation"] == tail_generation
+        assert server.placement_status["stamp_ns"] == tail_stamp
+        assert server.placement_status["feature_count"] >= 6
+        assert len(server.placement_gray_history) == 0
     finally:
         executor.remove_node(client_node)
         executor.remove_node(server)
