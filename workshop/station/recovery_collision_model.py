@@ -78,6 +78,7 @@ class CollisionShape:
     extents_m: np.ndarray
     planes: np.ndarray | None = None
     vertices: np.ndarray | None = None
+    self_interior_qualified: bool = True
 
     @property
     def radius_bound_m(self):
@@ -146,6 +147,11 @@ class CollisionShape:
                 strict &= np.all(signed+support < -interior_margin-_GEOMETRY_EPS, axis=1)
                 if not np.any(occupied):
                     break
+        if not self.self_interior_qualified:
+            # A convex enclosure can fill cavities or gaps in the original CAD.
+            # Those spaces are obstacles for planning, not proven robot material
+            # that may safely be vacated after this acquisition.
+            strict[:] = False
         return indices[occupied], indices[strict]
 
 
@@ -241,7 +247,8 @@ class URDFCollisionModel:
                     shape_origin = _origin(collision.find('origin'))
                     shape_origin[:3, 3] += shape_origin[:3, :3] @ center
                     mesh_manifest.append((filename, hashlib.sha256(mesh_bytes).hexdigest(), scale.tolist()))
-                    self.shapes.append(CollisionShape(link.get('name'), 'convex', shape_origin, extents, planes, vertices))
+                    self.shapes.append(CollisionShape(link.get('name'), 'convex', shape_origin, extents, planes, vertices,
+                        bool(mesh.is_watertight and mesh.is_convex)))
                     continue
                 else:
                     raise ValueError(f'unsupported URDF collision geometry {kind}')

@@ -243,7 +243,9 @@ def test_checked_in_so101_collision_meshes_are_real_solids_and_contacts_fail_clo
     raw = {name: 2000 for name in JOINTS}
     occupied, interior = actual.voxel_volume(raw, voxel_size_m=.005, interior_margin_m=.001)
     assert sum(map(len, occupied.values())) > 10_000
-    assert 0 < sum(map(len, interior.values())) < sum(map(len, occupied.values()))
+    # Raw triangle-soup STL/concave CAD has no certified physical-material
+    # interior. Convex collision enclosures alone cannot supply that proof.
+    assert sum(map(len, interior.values())) == 0
     # Preload immutable model volumes before acquisition; this test deliberately
     # supplies no qualified self-contact exclusions or measured camera artifact.
     started = time.monotonic()
@@ -303,3 +305,32 @@ def test_real_so101_single_view_self_surface_leaves_backside_padding_unknown():
                   intrinsics={'fx': 380., 'fy': 380., 'ppx': 319.5, 'ppy': 239.5})
     assert value.minimum_clearance_m(raw) is None
     assert 'occluded' in value.last_rejection
+
+
+def test_convex_collision_enclosure_does_not_carve_empty_mesh_gaps_as_current_robot(tmp_path):
+    import trimesh
+    left = trimesh.creation.box(extents=[.01, .01, .01])
+    right = left.copy()
+    left.apply_translation([-.02, 0, 0])
+    right.apply_translation([.02, 0, 0])
+    path = tmp_path/'separated.stl'
+    trimesh.util.concatenate([left, right]).export(path)
+    xml = urdf().replace('<box size=".02 .02 .02"/>', f'<mesh filename="{path}"/>')
+    actual = model(xml)
+    assert not actual.shapes[0].self_interior_qualified
+    occupied, interior = actual.voxel_volume({name: 2000 for name in JOINTS}, voxel_size_m=.005,
+                                             interior_margin_m=.001)
+    assert len(occupied['link5']) > 0
+    assert len(interior['link5']) == 0
+
+
+def test_watertight_convex_mesh_can_supply_strict_physical_self_interior(tmp_path):
+    import trimesh
+    path = tmp_path/'solid.obj'
+    trimesh.creation.box(extents=[.04, .04, .04]).export(path)
+    xml = urdf().replace('<box size=".02 .02 .02"/>', f'<mesh filename="{path}"/>')
+    actual = model(xml)
+    assert actual.shapes[0].self_interior_qualified
+    occupied, interior = actual.voxel_volume({name: 2000 for name in JOINTS}, voxel_size_m=.005,
+                                             interior_margin_m=.001)
+    assert 0 < len(interior['link5']) < len(occupied['link5'])
