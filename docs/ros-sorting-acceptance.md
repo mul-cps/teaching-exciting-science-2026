@@ -8,8 +8,8 @@ records commands, limitations and decisions.
 
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
-| Software suite | System Python: 865 passed, 45 skipped | Software passed; skipped checks remain separate |
-| Native ROS checks | 84 passed across control, scene, objects, map, gripper, grasp and ownership tests | Passed with test owners; no physical execution |
+| Software suite | System Python: 880 passed, 45 skipped | Software passed; skipped checks remain separate |
+| Native ROS checks | 99 passed across control, scene, objects, map, gripper, grasp and ownership tests | Passed with test owners; no physical execution |
 | Clean package installation | All 17 packages built in a fresh integration prefix; separate startup worker verified a non-symlink install and installed plane-module import | Passed |
 | MoveIt planning | Mock start state valid, no collision; seven-point trajectory saved | Planning only; physical scene not qualified |
 | Single station startup | One camera launch and one resident follower owner; calibrated jaw path forwarded through both launch layers | Implemented; live cold starts pending |

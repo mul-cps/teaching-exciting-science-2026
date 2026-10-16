@@ -1,46 +1,57 @@
-# SO-ARM101 MoveIt grasp pose planning
+# SO-ARM101 MoveIt grasp planning and execution
 
-`tools/ros_plan_grasp.py` accepts a tracked detection ID or an explicit tool
-contact pose, then requests sequential MoveIt paths to pregrasp, contact, lift,
-and optionally place. For a tracked object, the tool uses the geometric contact
-candidate in `/so101/grasp_status`; `/so101/grasp_candidates` remains the
-existing 60 mm pregrasp stream. The planner uses the current resident MoveIt
-scene, `manipulator` (five arm joints), and `gripper_frame_link` by default.
+`tools/ros_plan_grasp.py` defaults to planning only. It selects a tracked
+geometric grasp or an explicit tool-link contact pose and requests sequential
+MoveIt plans. The default group is the five-joint `manipulator`, with
+`gripper_frame_link` as the commanded link.
 
-Example, with the station owner already running the camera, tracker, scene
-updater, and resident MoveIt stack:
+With one station owner already providing the camera, tracker, scene and MoveIt:
 
-```bash
+```sh
 ros2/conda/so101-conda.sh run python tools/ros_plan_grasp.py \
   --track-id red-0003 --output /tmp/red-0003-plan.json
 ```
 
-An explicit contact pose can be planned without an object tracker:
+Planning artifacts retain native response error codes, trajectories, and stage
+results. Start state must be complete and fresh; later stages use the previous
+planned endpoint. Tracking and localization must remain fresh. Planning alone
+does not establish calibration, physical clearance, pickup or release.
 
-```bash
+## Opt-in execution
+
+Execution requires a tracked target, a place **tool-link** pose, and independently
+qualified jaw, physical grasp-frame/TCP, camera-arm and effective-model records.
+See [gripper calibration](so101-gripper-registration.md) for their schemas and
+[the acceptance register](ros-sorting-acceptance.md) for remaining physical gates.
+No current calibration candidate is promoted merely by setting a flag.
+
+```sh
 ros2/conda/so101-conda.sh run python tools/ros_plan_grasp.py \
-  --frame charuco_board --pose 0.12 -0.04 0.03 0 0 0 1 \
-  --place-pose 0.20 0.02 0.10 0 0 0 1 \
-  --output /tmp/pose-plan.json
+  --execute --track-id red-0003 \
+  --execution-config /path/to/qualified-grasp-config.json \
+  --frame charuco_board --place-pose X Y Z QX QY QZ QW \
+  --return-joint-pose /path/to/commissioned-clear-joints.json \
+  --timeout 120 --output /path/to/new-grasp-result.json
 ```
 
-The output records every segment result and trajectory. A failed segment stops
-the sequence. The start state comes from a complete fresh
-`/follower/joint_states` sample; later segments start at the previous planned
-endpoint. Tracked status must remain recent while the service calls are in
-flight. MoveIt's pose goal uses a small positional region and tolerances on
-orientation because the arm has five joints and cannot generally satisfy an
-arbitrary six-axis pose exactly. A successful service response proves a path
-was planned in the current MoveIt scene; it does not establish that the
-camera target is calibrated, that a grasp will work, or that the retimed
-trajectory passes the resident controller's dense collision preflight.
+The CLI locks scene ownership before opening, plans and executes approach and
+contact, closes through the resident gripper action, provisionally attaches,
+lifts and checks distinct fresh RGB-D observations, then places, opens,
+detaches, retreats and verifies the object remains at its destination. The
+physical grasp-frame offset is composed into pickup targets; explicit place
+poses already refer to the tool link. The clear-joint file maps all five arm
+joint names to commissioned radians. Without that file, retreat uses the
+calibrated physical grasp frame.
 
-The contact path can correctly fail while a target brick remains a world
-collision object. Planning-scene attach/detach diff builders are available in
-`so101_station_scene.grasp_planner`, but the CLI does not apply them: the
-tracker and scene updater are live owners, and the station has no validated
-gripper contact links for an attachment transition. The control bridge accepts
-the five arm joints only. Its gripper joint is a visual proxy and is never
-commanded, so jaw-open, jaw-close, force/contact acknowledgement, attached-object
-planning, and physical pick/place are not implemented. No plan from this tool
-is executed.
+Arm trajectories use the resident collision preflight and dynamics checks.
+The gripper action shares that resident owner and moves its full calibrated
+range in bounded jaw-only chunks. Inferred jaw contact remains provisional;
+it is not measured force or confirmed pickup.
+
+Immediately before every action submission, the CLI checks localization and
+its execution deadline. Target movement or loss during planning prevents the
+pickup motion. Failure or cancellation stops further stages and waits for
+confirmed action termination. Uncertain attachment outcomes retain ownership
+for explicit scene reconciliation. Software/native tests pass with test
+owners; real calibration, contact, recovery and complete sorting are not yet
+physically accepted.

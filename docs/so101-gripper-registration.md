@@ -142,7 +142,15 @@ execution config must use `so101-grasp-execution-config-v1` with
 `robot_description`. `model_parameter_node` defaults to `/move_group`. The
 camera-arm file must carry qualified `camera-arm-calibration-v1` provenance;
 the TCP file must be qualified `so101-grasp-tcp-calibration-v1`, match the
-requested tip link, and provide the rigid `tcp_from_object` transform in SI.
+requested tip link, and provide two independently calibrated rigid transforms
+in SI: `tip_from_grasp` and `tcp_from_object`. It must declare
+`grasp_frame_convention: "x_closing_z_approach"`. The grasp origin is the physical
+jaw contact center, +X is the closing axis, and +Z points toward the object.
+The commanded tool-link pose is `world_from_grasp @ inverse(tip_from_grasp)`;
+pregrasp/lift move opposite the approach direction before this composition.
+`tcp_from_object` separately describes the held object's pose relative to the
+tool link and is used for pickup/release observation predictions. These frames
+must not be silently assumed identical.
 Motion also requires current `tracking`/`observation_valid` registration
 status in ROS time. Camera identity is supplied by the station launch's pinned
 camera serial and is not independently attested by the registration status

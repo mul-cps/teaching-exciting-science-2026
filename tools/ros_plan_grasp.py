@@ -16,7 +16,7 @@ sys.path.insert(0, str(REPOSITORY))
 sys.path.insert(0, str(REPOSITORY / "ros2/src/so101_station_scene"))
 
 from tools.ros_plan_current import ALL_JOINTS, ARM_JOINTS, _joint_state_map, _wait_future
-from tools.so101_grasp_plan import PoseTarget, candidate_for_track, staged_targets
+from tools.so101_grasp_plan import PoseTarget, candidate_for_track, staged_targets, transform_pose
 from so101_station_scene.scene_geometry import matrix_quaternion_xyzw, quaternion_matrix_xyzw
 
 
@@ -38,6 +38,13 @@ def load_execution_calibration(jaw_path, tcp_path, *, tip_link):
             not np.allclose(matrix[:3, :3].T @ matrix[:3, :3], np.eye(3), atol=1e-5) or
             np.linalg.det(matrix[:3, :3]) < 0.999):
         raise ValueError("tcp_from_object must be a proper finite SE(3) transform")
+    if tcp.get("grasp_frame_convention") != "x_closing_z_approach":
+        raise ValueError("TCP grasp_frame_convention must declare x_closing_z_approach")
+    try:
+        transform_pose(PoseTarget("calibration", (0., 0., 0.), (0., 0., 0., 1.)),
+                       tcp.get("tip_from_grasp"))
+    except (ValueError, TypeError) as error:
+        raise ValueError("tip_from_grasp must be a calibrated proper SE(3) transform") from error
     return jaw, tcp, matrix
 
 
@@ -528,14 +535,11 @@ def main(argv=None):
                     "orientation_xyzw": list(matrix_quaternion_xyzw(composed[:3, :3]))}
 
         def execute_tool_retreat(target):
-            # The retreat uses the already commissioned TCP tool axis and the
-            # same 6 cm approach offset used by staged_targets.
-            shifted = PoseTarget(target.frame_id,
-                tuple(p + 0.06*a for p, a in zip(target.position,
-                    (2*(target.orientation_xyzw[0]*target.orientation_xyzw[2] + target.orientation_xyzw[3]*target.orientation_xyzw[1]),
-                     2*(target.orientation_xyzw[1]*target.orientation_xyzw[2] - target.orientation_xyzw[3]*target.orientation_xyzw[0]),
-                     1 - 2*(target.orientation_xyzw[0]**2 + target.orientation_xyzw[1]**2)))),
-                target.orientation_xyzw)
+            # Retreat in the calibrated physical grasp frame, then convert
+            # back to the commanded link; tool-link Z can differ from grasp Z.
+            grasp_pose = transform_pose(target, tcp_calibration["tip_from_grasp"])
+            shifted = staged_targets(grasp_pose,
+                tip_from_grasp=tcp_calibration["tip_from_grasp"])[0][1]
             now_ros = node.get_clock().now().nanoseconds * 1e-9
             measured = _joint_state_map(node.joints, now_ros)
             req = MotionPlanRequest()
@@ -616,7 +620,8 @@ def main(argv=None):
                  if args.place_pose else None)
         if args.execute and node.status.get("frame_id") != place.frame_id:
             raise ValueError("execute place pose frame must match the live geometric status frame")
-        segments = staged_targets(contact, place=place)
+        segments = staged_targets(contact, place=place,
+            tip_from_grasp=tcp_calibration["tip_from_grasp"] if args.execute else None)
         result = {
             "schema": 1, "state": "planning", "execution_enabled": bool(args.execute),
             "source": "tracked geometric proposal" if args.track_id else "explicit pose",

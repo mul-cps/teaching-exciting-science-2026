@@ -53,6 +53,8 @@ def test_execution_requires_qualified_si_jaw_and_tcp_identity(tmp_path):
     tcp = {"schema": "so101-grasp-tcp-calibration-v1", "qualified": True,
            "tcp_link": "gripper_frame_link",
            "units": {"translation": "m", "rotation": "quaternion_xyzw"},
+           "grasp_frame_convention": "x_closing_z_approach",
+           "tip_from_grasp": np.eye(4).tolist(),
            "tcp_from_object": np.eye(4).tolist()}
     jaw_path = _write(tmp_path / "jaw.json", jaw)
     tcp_path = _write(tmp_path / "tcp.json", tcp)
@@ -63,6 +65,13 @@ def test_execution_requires_qualified_si_jaw_and_tcp_identity(tmp_path):
     np.testing.assert_allclose(matrix, np.eye(4))
     with pytest.raises(ValueError, match="match --tip-link"):
         load_execution_calibration(jaw_path, tcp_path, tip_link="other_link")
+    missing_grasp = {key: value for key, value in tcp.items() if key != "tip_from_grasp"}
+    with pytest.raises(ValueError, match="grasp"):
+        load_execution_calibration(jaw_path, _write(tmp_path / "missing-grasp.json", missing_grasp),
+                                   tip_link="gripper_frame_link")
+    with pytest.raises(ValueError, match="grasp"):
+        load_execution_calibration(jaw_path, _write(tmp_path / "wrong-frame.json", {
+            **tcp, "grasp_frame_convention": "unspecified"}), tip_link="gripper_frame_link")
 
 
 def test_pickup_evidence_requires_same_track_three_stable_elevated_samples():

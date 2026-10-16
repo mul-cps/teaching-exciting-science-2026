@@ -58,3 +58,11 @@ Ruling: do not infer successful recovery from encoder-only motion, stale images 
 - Sorting adapter forwards its operation deadline to the grasp child and writes the commissioned clear-joint map as an explicit evidence file.
 - User again authorized running the robot; root attempted a fresh resident connection. It exited with `arm persistent USB identity absent or ambiguous`. Both arm adapters and EV3 remained absent in current enumeration. No motion sent.
 - Goal remains active. Do not mark completion or claim physical validation.
+
+## Latest software checkpoint
+
+- Full suite after all current code changes:880passed45skipped in15.89s. Native control/scene/objects/map/gripper/grasp/geometry/ownership subset:99passed in1.91s.
+- Real native GripperCommand round trips now exercise real ArmSession with FakeBus, not an owner that accepts impossible legs. Full range previously failed the650-count per-leg budget. Dedicated `move_gripper` command now splits the range, holds all body joints, stops at first inferred contact and confirms cancellation; existing per-leg/per-frame/firmware limits remain. Commit60fbefd.
+- Corrected tracked grasp pose geometry: candidate +Z is approach toward the object, so pregrasp/lift move opposite that direction. Qualified `tip_from_grasp` in the declared `x_closing_z_approach` frame is inverted/composed into all pickup link targets; `tcp_from_object` remains separate. A rotated/nonzero-offset regression proves physical contact60mm pregrasp and80mm lift heights, and explicit tool-place poses remain unchanged. Missing/ambiguous grasp-frame calibration rejects execution.
+- Latest live connection attempt still failed `arm persistent USB identity absent or ambiguous`; EV3 SSH also timed out. Last read-only arm state and logs copied into the durable local evidence folder.
+- Remaining work: restore physical connections and repeat reliable RGB-D cold starts; qualify camera/base/jaw/TCP/model from held-out data; integrate and validate live camera-guided recovery; perform actual grasp/sort/recovery/twin/teleop/cold-start acceptance. All original gates remain required.

@@ -23,8 +23,12 @@ class PoseTarget:
 
 
 def staged_targets(contact: PoseTarget, *, approach_m=0.06, lift_m=0.08,
-                   place: PoseTarget | None = None):
-    """Return plan targets; tool +Z is assumed to point along approach direction."""
+                   place: PoseTarget | None = None, tip_from_grasp=None):
+    """Retreat opposite geometric grasp +Z, then solve the calibrated tip pose.
+
+    The grasp convention is X=closing and Z=approach toward the object. Place
+    is already an explicit tool-link pose and is preserved unchanged.
+    """
     for value, label in ((approach_m, "approach"), (lift_m, "lift")):
         if not math.isfinite(value) or value <= 0 or value > 0.30:
             raise ValueError(f"{label} distance must be in (0, 0.30] m")
@@ -36,14 +40,38 @@ def staged_targets(contact: PoseTarget, *, approach_m=0.06, lift_m=0.08,
 
     def shifted(distance):
         return PoseTarget(contact.frame_id,
-                          tuple(p + distance * a for p, a in zip(contact.position, approach)),
+                          tuple(p - distance * a for p, a in zip(contact.position, approach)),
                           (x, y, z, w))
 
     targets = [("pregrasp", shifted(approach_m)), ("contact", shifted(0.0)),
                ("lift", shifted(lift_m))]
+    if tip_from_grasp is not None:
+        import numpy as np
+        # Validate the declared direction before inversion, including rigidity.
+        transform_pose(contact, tip_from_grasp)
+        grasp_from_tip = np.linalg.inv(np.asarray(tip_from_grasp, dtype=float))
+        targets = [(name, transform_pose(target, grasp_from_tip)) for name, target in targets]
     if place is not None:
         targets.append(("place", place))
     return targets
+
+
+def transform_pose(target: PoseTarget, right_transform):
+    """Compose a pose with a declared rigid child-frame transform on the right."""
+    import numpy as np
+    from scipy.spatial.transform import Rotation
+    matrix = np.asarray(right_transform, dtype=float)
+    if (matrix.shape != (4, 4) or not np.isfinite(matrix).all()
+            or not np.allclose(matrix[3], [0, 0, 0, 1], rtol=0., atol=1e-8)
+            or not np.allclose(matrix[:3, :3].T @ matrix[:3, :3], np.eye(3), rtol=0., atol=1e-6)
+            or not np.isclose(np.linalg.det(matrix[:3, :3]), 1., rtol=0., atol=1e-6)):
+        raise ValueError("pose transform must be a proper finite SE(3) matrix")
+    world = np.eye(4)
+    world[:3, :3] = Rotation.from_quat(target.orientation_xyzw).as_matrix()
+    world[:3, 3] = target.position
+    composed = world @ matrix
+    return PoseTarget(target.frame_id, tuple(composed[:3, 3]),
+                      tuple(Rotation.from_matrix(composed[:3, :3]).as_quat()))
 
 
 def candidate_for_track(status, track_id):

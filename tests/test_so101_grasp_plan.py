@@ -6,13 +6,13 @@ from ros2.src.so101_station_scene.so101_station_scene.grasp_planner import (
 )
 
 
-def test_stages_follow_tool_positive_z_and_keep_orientation():
+def test_stages_retreat_opposite_approach_and_keep_orientation():
     contact = PoseTarget("base_link", (0.1, 0.2, 0.3), (0, 0, 0, 1))
     stages = staged_targets(contact, approach_m=0.06, lift_m=0.08)
     assert [name for name, _ in stages] == ["pregrasp", "contact", "lift"]
-    assert stages[0][1].position == pytest.approx((0.1, 0.2, 0.36))
+    assert stages[0][1].position == pytest.approx((0.1, 0.2, 0.24))
     assert stages[1][1].position == contact.position
-    assert stages[2][1].position == pytest.approx((0.1, 0.2, 0.38))
+    assert stages[2][1].position == pytest.approx((0.1, 0.2, 0.22))
     assert all(target.orientation_xyzw == contact.orientation_xyzw for _, target in stages)
 
 
@@ -21,7 +21,7 @@ def test_stages_normalize_quaternion_and_accept_explicit_place():
     place = PoseTarget("board", (1, 2, 3), (0, 0, 0, 1))
     stages = staged_targets(contact, place=place)
     assert stages[-1] == ("place", place)
-    assert stages[0][1].position == pytest.approx((0, 0, 1.06))
+    assert stages[0][1].position == pytest.approx((0, 0, .94))
     assert stages[0][1].orientation_xyzw == (0, 0, 0, 1)
 
 
@@ -45,6 +45,30 @@ def test_candidate_is_selected_by_stable_track_and_stays_geometric():
     assert target.orientation_xyzw == pytest.approx((0, 0, 0, 1))
     with pytest.raises(ValueError, match="no geometric"):
         candidate_for_track(status, "blue-0002")
+
+
+def test_top_down_candidate_retreats_above_contact_and_composes_calibrated_tip():
+    import numpy as np
+    from scipy.spatial.transform import Rotation
+    # Physical grasp +Z points down; its origin is the brick contact center.
+    contact = PoseTarget("board", (.1, .2, .03), (1., 0., 0., 0.))
+    tip_from_grasp = np.eye(4)
+    tip_from_grasp[:3, :3] = Rotation.from_euler("y", 90, degrees=True).as_matrix()
+    tip_from_grasp[:3, 3] = [.02, .0, .05]
+    place = PoseTarget("board", (.3, .2, .1), (0., 0., 0., 1.))
+    targets = staged_targets(contact, tip_from_grasp=tip_from_grasp, place=place)
+    for (name, tip), expected_z in zip(targets[:3], (.09, .03, .11)):
+        world_from_tip = np.eye(4)
+        world_from_tip[:3, :3] = Rotation.from_quat(tip.orientation_xyzw).as_matrix()
+        world_from_tip[:3, 3] = tip.position
+        world_from_grasp = world_from_tip @ tip_from_grasp
+        assert world_from_grasp[:3, 3] == pytest.approx([.1, .2, expected_z])
+        assert world_from_grasp[:3, :3] == pytest.approx(np.diag([1., -1., -1.]))
+    assert targets[-1] == ("place", place)
+    different_offset = tip_from_grasp.copy()
+    different_offset[0, 3] += .01
+    changed = staged_targets(contact, tip_from_grasp=different_offset)
+    assert changed[1][1].position != targets[1][1].position
 
 
 def test_attachment_diffs_require_explicit_gripper_touch_links():
