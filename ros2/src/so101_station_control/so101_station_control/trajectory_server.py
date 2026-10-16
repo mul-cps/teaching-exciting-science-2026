@@ -16,6 +16,7 @@ import uuid
 import rclpy
 from builtin_interfaces.msg import Duration
 from control_msgs.action import FollowJointTrajectory
+from control_msgs.action import GripperCommand
 from moveit_msgs.srv import GetStateValidity
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
@@ -29,6 +30,7 @@ from std_srvs.srv import SetBool, Trigger
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 from .leader_reader import JOINTS as TELEOP_JOINTS, matched_pose, validate_pose_packet
+from .gripper_action import gap_to_percent, percent_to_gap, validate_jaw_calibration
 
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 
@@ -173,6 +175,8 @@ class TrajectoryBridge(Node):
         self.declare_parameter("owner_idle_timeout_s", 300.0)
         self.declare_parameter("recover_sag", False)
         self.declare_parameter("action_name", "/follower/arm_trajectory_controller/follow_joint_trajectory")
+        self.declare_parameter("gripper_action_name", "/follower/gripper_controller/gripper_cmd")
+        self.declare_parameter("gripper_jaw_calibration", "")
         self.declare_parameter("state_validity_service", "/follower/check_state_validity")
         self.declare_parameter("planning_group", "manipulator")
         self.declare_parameter("state_freshness_s", 0.25)
@@ -225,6 +229,9 @@ class TrajectoryBridge(Node):
         self._saved_home_pose = None
         self._saved_home_tolerance = None
         self._state_file = self._resolve_state_file()
+        self._gripper_jaw = None
+        self._gripper_raw_limits = None
+        self._gripper_goal_cancelled = False
         self._external_state_only = bool(self.get_parameter("external_state_only").value)
         self._trajectory_helper = None
         self._state_validity = None
@@ -237,6 +244,13 @@ class TrajectoryBridge(Node):
             execute_callback=self._execute,
             goal_callback=self._goal_request,
             cancel_callback=self._cancel_request,
+            callback_group=self._action_group)
+        self._gripper_action = ActionServer(
+            self, GripperCommand,
+            str(self.get_parameter("gripper_action_name").value),
+            execute_callback=self._execute_gripper,
+            goal_callback=self._gripper_goal_request,
+            cancel_callback=self._gripper_cancel_request,
             callback_group=self._action_group)
         self._joint_state_pub = self.create_publisher(JointState, "/follower/joint_states", 10)
         self.create_timer(0.05, self._publish_joint_state)
@@ -351,6 +365,27 @@ class TrajectoryBridge(Node):
             raise RuntimeError("station_config has invalid arm identity or calibration SHA256")
         self._saved_home_pose, self._saved_home_tolerance = _load_measured_home(
             config_data, station_root, expected_arm_id, expected_calibration_sha256)
+        calibration_path = Path(config_data["arm"]["calibration"]["path"])
+        if not calibration_path.is_absolute():
+            calibration_path = station_root / calibration_path
+        try:
+            calibration_bytes = calibration_path.read_bytes()
+            if __import__("hashlib").sha256(calibration_bytes).hexdigest() != expected_calibration_sha256:
+                raise ValueError("station calibration file SHA256 does not match configured identity")
+            raw_calibration = json.loads(calibration_bytes)
+            gripper_cal = raw_calibration["gripper"]
+            low, high = int(gripper_cal["range_min"]), int(gripper_cal["range_max"])
+            if not 0 <= low < high <= 4095:
+                raise ValueError("calibrated gripper raw bounds are invalid")
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+            raise RuntimeError("cannot load identity-matched gripper raw calibration") from error
+        self._gripper_raw_limits = (low, high)
+        jaw_path_value = str(self.get_parameter("gripper_jaw_calibration").value).strip()
+        if jaw_path_value:
+            try:
+                self._gripper_jaw = validate_jaw_calibration(json.loads(Path(jaw_path_value).read_text()))
+            except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
+                raise RuntimeError("configured jaw-gap calibration is invalid") from error
         self._expected_arm_id = expected_arm_id
         self._expected_calibration_sha256 = expected_calibration_sha256
         logs = str(self.get_parameter("log_dir").value)
@@ -1106,6 +1141,115 @@ class TrajectoryBridge(Node):
                 return GoalResponse.REJECT
             self._active_goal = "pending"
         return GoalResponse.ACCEPT
+
+    def _gripper_goal_request(self, goal):
+        if (self._external_state_only or self._gripper_jaw is None or
+                self._gripper_raw_limits is None or self._owner_faulted or
+                self._process is None or self._process.poll() is not None):
+            self.get_logger().warning(
+                "Rejecting gripper goal: hardware owner or qualified jaw-gap calibration is unavailable")
+            return GoalResponse.REJECT
+        command = goal.command
+        try:
+            gap_to_percent(command.position, self._gripper_jaw)
+        except (TypeError, ValueError):
+            return GoalResponse.REJECT
+        # ArmSession has no calibrated force limit. Nonzero effort must not be
+        # silently interpreted as a force command.
+        if not math.isfinite(float(command.max_effort)) or command.max_effort != 0:
+            return GoalResponse.REJECT
+        with self._active_lock:
+            if self._active_goal is not None:
+                return GoalResponse.REJECT
+            self._active_goal = "gripper"
+            self._gripper_goal_cancelled = False
+        return GoalResponse.ACCEPT
+
+    def _gripper_cancel_request(self, _goal_handle):
+        with self._active_lock:
+            if self._active_goal != "gripper":
+                return CancelResponse.REJECT
+            self._gripper_goal_cancelled = True
+        try:
+            self._send({"command": "cancel_hold"})
+            return CancelResponse.ACCEPT
+        except (BrokenPipeError, OSError, RuntimeError):
+            return CancelResponse.REJECT
+
+    def _execute_gripper(self, goal_handle):
+        command = goal_handle.request.command
+        result = GripperCommand.Result()
+        try:
+            if self._external_state_only or self._gripper_jaw is None or self._gripper_raw_limits is None:
+                raise RuntimeError("qualified jaw-gap calibration and resident hardware owner are required")
+            if not math.isfinite(float(command.max_effort)) or command.max_effort != 0:
+                raise ValueError("max_effort is unsupported; this servo has no calibrated force limit")
+            state = self._read_state()
+            if state is None or state.get("event") not in {"sample", "connected"}:
+                raise RuntimeError("fresh resident state required for gripper command")
+            if state.get("arm_id") != self._expected_arm_id or state.get("calibration_sha256") != self._expected_calibration_sha256:
+                raise RuntimeError("resident state identity does not match configured calibration")
+            pose, raw = state.get("pose"), state.get("raw")
+            if not isinstance(pose, dict) or not isinstance(raw, dict) or set(raw) != set(TELEOP_JOINTS):
+                raise RuntimeError("resident state lacks a complete six-joint measured pose")
+            target_percent = gap_to_percent(command.position, self._gripper_jaw)
+            low, high = self._gripper_raw_limits
+            target_raw = dict(raw)
+            target_raw["gripper"] = int(round(low + target_percent * (high - low) / 100.0))
+            while True:
+                try:
+                    self._response_queue.get_nowait()
+                except queue.Empty:
+                    break
+            self._send({"command": "move_plan", "legs": [{"label": "gripper_command",
+                        "target_raw": target_raw, "grasp": target_percent < float(pose["gripper"])}]})
+            deadline = time.monotonic() + 8.0
+            response = None
+            while time.monotonic() < deadline:
+                with self._active_lock:
+                    cancelled = self._gripper_goal_cancelled
+                if cancelled:
+                    raise InterruptedError("gripper command cancelled; resident owner hold requested")
+                if self._process.poll() is not None:
+                    raise RuntimeError("resident owner stopped during gripper command")
+                try:
+                    response = self._response_queue.get(timeout=min(0.05, deadline-time.monotonic()))
+                    break
+                except queue.Empty:
+                    continue
+            if response is None:
+                self._send({"command": "cancel_hold"})
+                raise TimeoutError("resident gripper command did not complete within 8 seconds")
+            if not response.get("ok"):
+                raise RuntimeError(response.get("error", "resident rejected gripper command"))
+            final_state = response.get("state")
+            if not isinstance(final_state, dict) or final_state.get("event") != "plan_complete":
+                raise RuntimeError("resident acknowledgement did not confirm plan_complete")
+            final_percent = float(final_state["pose"]["gripper"])
+            result.position = percent_to_gap(final_percent, self._gripper_jaw)
+            result.effort = 0.0  # Not measured in force units.
+            tolerance_percent = 2.0
+            result.reached_goal = abs(final_percent - target_percent) <= tolerance_percent
+            result.stalled = not result.reached_goal
+            if not result.reached_goal:
+                raise RuntimeError("jaw stopped outside requested calibrated gap; pickup is unverified")
+            goal_handle.succeed()
+            return result
+        except InterruptedError as error:
+            goal_handle.canceled()
+            result.stalled = True
+            self.get_logger().warning(str(error))
+            return result
+        except (OSError, ValueError, RuntimeError, TimeoutError, TypeError, KeyError) as error:
+            result.stalled = True
+            result.reached_goal = False
+            self.get_logger().error(f"GripperCommand failed: {error}")
+            goal_handle.abort()
+            return result
+        finally:
+            with self._active_lock:
+                if self._active_goal == "gripper":
+                    self._active_goal = None
 
     @staticmethod
     def _has_nondefault_tolerance(goal_request):
