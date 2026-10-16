@@ -542,15 +542,24 @@ class Tests(unittest.TestCase):
         self.assertTrue(any(call[0] == 'beep' for call in self.brick.speaker.calls))
         self.assertEqual(len(timing), 10)
 
-    def test_default_home_keeps_peripherals_and_has_no_diagnostic_overhead(self):
+    def test_default_home_defers_peripherals_without_diagnostic_overhead(self):
         self.touch.override = False
         self.request('home_touch')
         self.tick(20)
         self.assertFalse(self.api.diagnostic_home_quiet)
         self.assertNotIn('timing_diagnostics', self.api.job)
+        self.assertEqual(self.api.color.reads, 0)
+        self.assertEqual(self.brick.screen.frames, 0)
+        self.assertEqual(self.brick.speaker.calls, [])
+        reads = sum(m.speed_reads for m in self.motors.values())
+        self.request('status')
+        self.assertEqual(sum(m.speed_reads for m in self.motors.values()), reads)
+        self.touch.override = True
+        self.tick(240)
+        self.assertIsNone(self.api.job)
+        self.assertNotIn('timing_diagnostics', self.api.last_job)
         self.assertGreater(self.api.color.reads, 0)
         self.assertGreater(self.brick.screen.frames, 0)
-        self.assertTrue(any(call[0] == 'beep' for call in self.brick.speaker.calls))
 
     def test_quiet_mode_does_not_suppress_other_motor_jobs(self):
         self.quiet_api()
@@ -567,6 +576,22 @@ class Tests(unittest.TestCase):
 
     def test_quiet_home_mutes_an_existing_beep_before_motor_dispatch(self):
         self.quiet_api()
+        self.touch.override = False
+        self.api.beep_active = True
+        self.api.next_beep = 100
+        original = self.motors['sorter'].run_target
+        def run_target(*args, **kwargs):
+            self.assertIn(('volume', 0, 'Beep'), self.brick.speaker.calls)
+            return original(*args, **kwargs)
+        self.motors['sorter'].run_target = run_target
+        self.request('home_touch')
+        self.assertFalse(self.api.beep_active)
+        calls_after_start = list(self.brick.speaker.calls)
+        self.tick(20)
+        self.assertEqual(self.brick.speaker.calls, calls_after_start)
+
+    def test_default_home_mutes_an_existing_beep_before_motor_dispatch(self):
+        self.assertFalse(self.api.diagnostic_home_quiet)
         self.touch.override = False
         self.api.beep_active = True
         self.api.next_beep = 100

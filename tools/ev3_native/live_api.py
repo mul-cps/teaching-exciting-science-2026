@@ -126,12 +126,14 @@ class LiveAPI:
         if job:
             self.record_timing(job, 'angle_read_ms', self.clock() - timing_started)
 
-    def diagnostic_home_job(self):
+    def home_job(self):
         job = self.job
-        if (self.diagnostic_home_quiet and job and
-                job.get('operation') == 'home_touch'):
+        if job and job.get('operation') == 'home_touch':
             return job
         return None
+
+    def diagnostic_home_job(self):
+        return self.home_job() if self.diagnostic_home_quiet else None
 
     def record_timing(self, job, name, duration=None, skipped=False):
         timing = job.get('timing_diagnostics') if job else None
@@ -227,7 +229,7 @@ class LiveAPI:
         motor_control = {}
         for name, motor in self.motors.items():
             if self.power_mode != 'power_save':
-                if diagnostic_job:
+                if self.home_job():
                     self.record_timing(diagnostic_job, 'status_speed_read_ms', skipped=True)
                 else:
                     self.speed_samples[name] = self.timed_call(
@@ -459,7 +461,7 @@ class LiveAPI:
     def start_job(self, request_id, operation, name, targets, speed, acceleration, actuation,
                   dispatch=True, limit_speed=None):
         now = self.clock()
-        if self.diagnostic_home_quiet and operation == 'home_touch' and self.beep_active:
+        if operation == 'home_touch' and self.beep_active:
             # A prior negative-duration beep remains on until its volume is
             # cleared. Mute it before dispatch so quiet mode never strands it.
             self.brick.speaker.set_volume(0, 'Beep')
@@ -836,7 +838,9 @@ class LiveAPI:
             else:
                 self.last_error = fault('telemetry_error', str(error))
         try:
-            peripheral_job = self.diagnostic_home_job()
+            # Keep expensive peripheral I/O out of every homing loop, not
+            # only diagnostic runs. Optional metrics do not select safety policy.
+            peripheral_job = self.home_job()
             if peripheral_job:
                 if now >= self.next_beep and (self.beep_active or self.beep_left):
                     self.record_timing(peripheral_job, 'beep_ms', skipped=True)

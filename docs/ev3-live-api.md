@@ -184,4 +184,18 @@ sleeping station leaves its power mode and idle timer unchanged. Generic
 close behavior. `sampled_ms` continues to report the last actual encoder read
 while asleep; entering power save does not rewrite cached sample timestamps.
 
-Live read-only validation: 50 persistent status requests through USB/SSH measured median 36.87 ms and p95 62.64 ms. This is host round-trip latency, not the motor control rate; native motion profiles run on the brick. Display and two beeps were verified. Native motion jobs are not yet physically verified through this new API.
+Live read-only validation: 50 persistent status requests through USB/SSH measured median 36.87 ms and p95 62.64 ms. This is host round-trip latency, not the motor control rate; native motion profiles run on the brick. Display and two beeps were verified. The bounded sorter home is now physically verified as recorded below; feeder/eject, other motion jobs and complete sorting remain unqualified.
+
+## Homing scheduling and native runtime check
+
+`home_touch` defers LCD updates, sound, color reads and status-triggered speed reads until the homing job completes or faults. Encoder and touch checks, heartbeat, motion guards, settling and stop remain active. This applies to normal startup as well as diagnostic mode. `--diagnostic-home-quiet` additionally records bounded timing metrics; it does not relax a motion limit. Other motor jobs retain their existing peripheral behavior and require separate physical qualification.
+
+On the lab EV3, a normal peripheral-active attempt faulted after51degrees: a49degree encoder step over249ms exceeded the unchanged80degree/second guard. After suppressing peripheral work, the instrumented attempt completed switch homing in1.859seconds, with maximum loop gap87ms, no fault and a confirmed sorter/home reference. This is one successful bounded home, not sorting acceptance or proof of which individual peripheral caused the delay. Feeder/eject remains unconfirmed and no dispense is authorized by sorter homing alone.
+
+Pybricks2.0 uses MicroPythonv1.11. Its VM corrupted the timing helper's locals when returning directly from a `try/finally`; moving the return after `finally` was verified under the actual runtime with fake clocks and fake motors. CPython unit tests alone did not reveal this failure. The hardware-free helper regression can be run beside `live_api.py` on an idle EV3:
+
+```sh
+brickrun -r -- pybricks-micropython probe_runtime_timing.py
+```
+
+Stop the persistent API before taking its graphics console. This probe constructs no physical motors and imports no actuator drivers. The ten-tick native fake-loop experiment and the native motion logs are retained under `evidence/2026-10-16-sorting/ev3-sorter-home*`. The physical API currently runs the explicitly enabled diagnostic timing profile; normal-home deferral is also covered by software regressions.
