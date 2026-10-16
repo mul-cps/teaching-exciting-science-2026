@@ -9,6 +9,7 @@ import mujoco
 import numpy as np
 
 _ROOT_BODY_BASELINES: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+_ROOT_GEOM_BASELINES: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
 
 
 def effective_urdf_to_mjcf_model(robot_description: str):
@@ -100,10 +101,20 @@ def apply_ros_state(model, data, snapshot, *, root_frame=None, require_fresh=Tru
     model.body_pos[direct] = local_pos @ base_from_root[:3, :3].T + base_from_root[:3, 3]
     model.body_quat[direct] = np.asarray([
         _quat_multiply(world_from_base_quat, quat) for quat in local_quat])
+    root_geoms = np.flatnonzero(model.geom_bodyid == 0)
+    if key not in _ROOT_GEOM_BASELINES:
+        _ROOT_GEOM_BASELINES[key] = (root_geoms.copy(), model.geom_pos[root_geoms].copy(),
+                                     model.geom_quat[root_geoms].copy())
+    root_geoms, local_geom_pos, local_geom_quat = _ROOT_GEOM_BASELINES[key]
+    model.geom_pos[root_geoms] = (local_geom_pos @ base_from_root[:3, :3].T
+                                  + base_from_root[:3, 3])
+    model.geom_quat[root_geoms] = np.asarray([
+        _quat_multiply(world_from_base_quat, quat) for quat in local_geom_quat])
     mujoco.mj_forward(model, data)
     return {"world_from_base": base_from_root,
             "joint_positions_rad": dict(joint_state["positions_rad"]),
-            "gripper_source": "measured ROS physical joint angle in radians",
+            "gripper_source": "reported ROS gripper joint radians; physical angle mapping unqualified",
+            "gripper_physical_mapping_qualified": False,
             "actuation": "none; passive MuJoCo pose update"}
 
 

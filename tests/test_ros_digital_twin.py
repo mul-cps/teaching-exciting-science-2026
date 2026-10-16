@@ -188,6 +188,13 @@ def test_effective_urdf_drives_measured_joint_radians_and_mount_offsets():
         tool_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "gripper_link")
     local_tool_position = data.xpos[tool_id].copy()
     local_tool_rotation = data.xmat[tool_id].reshape(3, 3).copy()
+    root_geom_ids = np.flatnonzero(model.geom_bodyid == 0)
+    local_root_geom_positions = data.geom_xpos[root_geom_ids].copy()
+    local_root_geom_rotations = data.geom_xmat[root_geom_ids].reshape(-1, 3, 3).copy()
+    local_link_poses = {
+        int(body_id): (data.xpos[body_id].copy(), data.xmat[body_id].reshape(3, 3).copy())
+        for body_id in range(1, model.nbody)
+    }
     world_from_base = transform_matrix((.4, -.3, .1),
         Rotation.from_euler("xyz", [8, -13, 41], degrees=True).as_quat())
     snapshot = {"root_frame": "charuco_board", "transforms": {
@@ -200,10 +207,24 @@ def test_effective_urdf_drives_measured_joint_radians_and_mount_offsets():
         joint = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, name)
         assert data.qpos[model.jnt_qposadr[joint]] == pytest.approx(value)
     assert np.allclose(result["world_from_base"], world_from_base)
+    assert result["gripper_physical_mapping_qualified"] is False
+    assert "mapping unqualified" in result["gripper_source"]
     expected_tool_position = world_from_base[:3, :3] @ local_tool_position + world_from_base[:3, 3]
     expected_tool_rotation = world_from_base[:3, :3] @ local_tool_rotation
     assert data.xpos[tool_id] == pytest.approx(expected_tool_position)
     assert data.xmat[tool_id].reshape(3, 3) == pytest.approx(expected_tool_rotation)
+    expected_root_geom_positions = (local_root_geom_positions @ world_from_base[:3, :3].T
+                                    + world_from_base[:3, 3])
+    assert data.geom_xpos[root_geom_ids] == pytest.approx(expected_root_geom_positions)
+    expected_root_geom_rotations = np.einsum(
+        "ij,njk->nik", world_from_base[:3, :3], local_root_geom_rotations)
+    assert data.geom_xmat[root_geom_ids].reshape(-1, 3, 3) == pytest.approx(
+        expected_root_geom_rotations)
+    for body_id, (local_position, local_rotation) in local_link_poses.items():
+        assert data.xpos[body_id] == pytest.approx(
+            world_from_base[:3, :3] @ local_position + world_from_base[:3, 3])
+        assert data.xmat[body_id].reshape(3, 3) == pytest.approx(
+            world_from_base[:3, :3] @ local_rotation)
     tool_pose = model_frame_pose(model, data, "gripper_frame_link", text)
     tool_quat = Rotation.from_matrix(tool_pose[:3, :3]).as_quat()
     snapshot["transforms"]["gripper_frame_link"] = _tf(

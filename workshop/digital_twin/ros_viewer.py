@@ -9,9 +9,85 @@ from pathlib import Path
 import mujoco
 import numpy as np
 import viser
+from scipy.spatial.transform import Rotation
 
 from .mujoco_ros import (apply_ros_state, effective_urdf_to_mjcf_model,
                          compare_tool_frame, ros_pose_to_viewer_xyz, transform_between)
+
+
+def _pose_matrix_in_root(snapshot, frame_id, local_pose=None):
+    """Compose a frame-local ROS pose into the configured twin root frame."""
+    root = snapshot.get("root_frame", "charuco_board")
+    root_from_frame = transform_between(snapshot["transforms"], root, frame_id,
+                                        snapshot.get("transform_fresh"))
+    if local_pose is None:
+        return root_from_frame
+    return root_from_frame @ np.asarray(local_pose, dtype=float).reshape(4, 4)
+
+
+def _scene_object_spec(name, item):
+    """Map supported ROS Marker/PoseArray records to faithful viewer geometry."""
+    source = item.get("source")
+    if source == "/so101/object_markers":
+        kind = item.get("kind")
+        if kind == 1:  # visualization_msgs/Marker.CUBE
+            dimensions = np.asarray(item.get("scale_m", ()), dtype=float)
+            rgba = np.asarray(item.get("color_rgba", ()), dtype=float)
+            if (dimensions.shape != (3,) or not np.isfinite(dimensions).all()
+                    or np.any(dimensions <= 0) or rgba.shape != (4,)
+                    or not np.isfinite(rgba).all()):
+                return None
+            rgb = tuple(int(round(value * 255)) for value in np.clip(rgba[:3], 0., 1.))
+            return {"kind": "box", "dimensions": tuple(map(float, dimensions)),
+                    "color": rgb, "opacity": float(np.clip(rgba[3], 0., 1.))}
+        if kind == 9:  # visualization_msgs/Marker.TEXT_VIEW_FACING
+            text = str(item.get("text", ""))
+            if not text:
+                return None
+            scale = np.asarray(item.get("scale_m", ()), dtype=float)
+            height = float(scale[2]) if scale.shape == (3,) and np.isfinite(scale[2]) else .015
+            return {"kind": "label", "text": text,
+                    "font_scene_height": max(.006, height)}
+        return None
+    if source == "/so101/grasp_contacts":
+        return {"kind": "point", "color": (255, 120, 30), "radius": .004}
+    if source == "/so101/grasp_candidates":
+        return {"kind": "point", "color": (40, 170, 255), "radius": .004}
+    return None
+
+
+def _upsert_scene_object(scene, handles, name, item, snapshot):
+    spec = _scene_object_spec(name, item)
+    if spec is None:
+        previous = handles.get(name)
+        if previous is not None:
+            previous["handle"].visible = False
+        return
+    pose = _pose_matrix_in_root(snapshot, item["frame_id"], item["matrix"])
+    position = pose[:3, 3]
+    wxyz = Rotation.from_matrix(pose[:3, :3]).as_quat()[[3, 0, 1, 2]]
+    previous = handles.get(name)
+    if previous is not None and previous["spec"] != spec:
+        previous["handle"].remove()
+        previous = None
+    if previous is None:
+        path = "/scene" + ("/" + name.lstrip("/") if name else "")
+        if spec["kind"] == "box":
+            handle = scene.add_box(path, dimensions=spec["dimensions"], color=spec["color"],
+                                  opacity=spec["opacity"], position=position, wxyz=wxyz)
+        elif spec["kind"] == "label":
+            handle = scene.add_label(path, spec["text"], position=position, wxyz=wxyz,
+                                     font_scene_height=spec["font_scene_height"], depth_test=True)
+        else:
+            handle = scene.add_icosphere(path, radius=spec["radius"], color=spec["color"],
+                                         position=position, wxyz=wxyz)
+        handles[name] = {"spec": spec, "handle": handle}
+    else:
+        handle = previous["handle"]
+        handle.position = position
+        if hasattr(handle, "wxyz"):
+            handle.wxyz = wxyz
+    handle.visible = True
 
 
 def _render(model, data, root_position, *, width=800, height=640):
@@ -142,14 +218,18 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                         if name in frame_handles:
                             frame_handles[name].visible = False
                         continue
-                    matrix = np.asarray(transform["matrix"], dtype=float)
+                    try:
+                        matrix = _pose_matrix_in_root(snapshot, name)
+                    except KeyError:
+                        if name in frame_handles:
+                            frame_handles[name].visible = False
+                        continue
                     handle = frame_handles.get(name)
                     if handle is None:
                         handle = server.scene.add_frame("/tf/" + name, axes_length=.055,
                                                         axes_radius=.002, origin_radius=.003)
                         frame_handles[name] = handle
                     handle.position = matrix[:3, 3]
-                    from scipy.spatial.transform import Rotation
                     handle.wxyz = Rotation.from_matrix(matrix[:3, :3]).as_quat()[[3, 0, 1, 2]]
                     handle.visible = True
                     frame_rows.append(name)
@@ -172,20 +252,13 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                 for name, item in objects.items():
                     if now - item.get("received_monotonic", now) > 0.5:
                         if name in object_handles:
-                            object_handles[name].visible = False
+                            object_handles[name]["handle"].visible = False
                         continue
-                    pose = np.asarray(item["matrix"], dtype=float)
                     try:
-                        xyz = ros_pose_to_viewer_xyz(pose[:3, 3], item["frame_id"], snapshot)
+                        _upsert_scene_object(server.scene, object_handles, name, item, snapshot)
                     except KeyError:
-                        continue
-                    handle = object_handles.get(name)
-                    if handle is None:
-                        handle = server.scene.add_icosphere("/scene" + name, radius=.012,
-                                                            color=(245, 160, 30))
-                        object_handles[name] = handle
-                    handle.position = xyz
-                    handle.visible = True
+                        if name in object_handles:
+                            object_handles[name]["handle"].visible = False
                 delta = diagnostic.get("joint_tf_delta_s")
                 sync_basis = diagnostic.get("joint_tf_sync_basis", "dynamic_base_stamp")
                 sync_text = (f"joint/arm TF delta: `{delta!s}` s; static base anchor"
@@ -212,8 +285,8 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                     "Cached TF and image are held; stale state is not presented as fresh.")
                 for handle in frame_handles.values():
                     handle.visible = False
-                for handle in object_handles.values():
-                    handle.visible = False
+                for record in object_handles.values():
+                    record["handle"].visible = False
                 if cloud_handle is not None:
                     cloud_handle.visible = False
             time.sleep(poll_s)
