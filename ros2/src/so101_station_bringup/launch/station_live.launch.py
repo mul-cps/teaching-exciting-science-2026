@@ -21,6 +21,8 @@ def generate_launch_description():
         'station_root': os.getcwd(),
         'station_python': str(station / 'venv/bin/python'),
         'station_config': str(station / 'station.json'),
+        'leader_port': '/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AB9068765-if00',
+        'calibration_dir': str(home / 'git/soarm101-highschool-demos/.calibration'),
         'state_file': str(runtime / 'arm-state.json'),
         'log_dir': str(runtime / 'arm-owner-logs'),
         'trajectory_log_dir': str(station / 'evidence/ros-control'),
@@ -62,9 +64,15 @@ def generate_launch_description():
         'evidence_folder': LaunchConfiguration('evidence_folder'),
         'rviz': 'false',
     }, condition=IfCondition(LaunchConfiguration('use_camera')))
+    leader = include('so101_station_control', 'leader_teleop.launch.py', {
+        'station_python': LaunchConfiguration('station_python'),
+        'station_root': LaunchConfiguration('station_root'),
+        'leader_port': LaunchConfiguration('leader_port'),
+        'calibration_dir': LaunchConfiguration('calibration_dir'),
+    })
     return LaunchDescription([
         *(DeclareLaunchArgument(k, default_value=v) for k, v in defaults.items()),
-        robot, perception,
+        robot, leader, perception,
         include('so101_station_bringup', 'ros_web_twin.launch.py', {
                     'host': LaunchConfiguration('web_twin_host'),
                     'port': LaunchConfiguration('web_twin_port'),

@@ -194,4 +194,46 @@ def test_help_lists_conda_environment_commands_without_creating_environment():
     result = run_wrapper("--help")
 
     assert result.returncode == 0
-    assert "create|fetch|build|rviz|servo|plan-smoke|inspect|packages|run|shell|real" in result.stdout
+    assert "create|fetch|build|clean-build|station-live|rviz|servo|plan-smoke|inspect|packages|run|shell|real" in result.stdout
+
+
+def test_station_live_uses_clean_conda_ros_environment_and_default_cyclone(tmp_path: Path):
+    fake_conda = tmp_path / "conda"
+    capture = tmp_path / "capture"
+    fake_conda.write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        "mkdir -p \"$(dirname \"$TEST_CONDA_ARGS\")\"\n"
+        "printf '%s\\n' \"$@\" > \"$TEST_CONDA_ARGS\"\n"
+        "env | sort > \"$TEST_CONDA_ENV\"\n"
+    )
+    fake_conda.chmod(0o755)
+    environment_prefix = tmp_path / "envs/ros"
+    (environment_prefix / "lib").mkdir(parents=True)
+    (environment_prefix / "lib/librmw_cyclonedds_cpp.so").touch()
+    env = {
+        "SO101_CONDA_EXE": str(fake_conda),
+        "SO101_CONDA_PREFIX": str(environment_prefix),
+        "TEST_CONDA_ARGS": str(capture / "args"),
+        "TEST_CONDA_ENV": str(capture / "environment"),
+        "ROS_DISTRO": "iron",
+        "PYTHONPATH": "/opt/ros/iron/lib/python3/site-packages",
+    }
+    result = run_wrapper("station-live", "rviz:=false", env=env)
+    assert result.returncode == 0, result.stderr
+    args = (capture / "args").read_text().splitlines()
+    assert "station_live.launch.py" in args
+    assert args[-1] == "rviz:=false"
+    clean_environment = dict(
+        line.split("=", 1)
+        for line in (capture / "environment").read_text().splitlines()
+        if "=" in line
+    )
+    assert clean_environment["RMW_IMPLEMENTATION"] == "rmw_cyclonedds_cpp"
+    assert "PYTHONPATH" not in clean_environment
+
+
+def test_clean_build_discards_only_ros_overlay_prefixes_before_rebuild():
+    source = WRAPPER.read_text(encoding="utf-8")
+    assert 'clean-build)' in source
+    assert 'rm -rf -- "$BUILD_BASE" "$INSTALL_BASE" "$LOG_BASE"' in source
+    assert 'exec "$0" build' in source

@@ -16,11 +16,13 @@ ACTION="${1:-help}"
 fail() { printf 'so101-conda.sh: %s\n' "$*" >&2; exit 2; }
 usage() {
   cat <<'EOF'
-Usage: ros2/conda/so101-conda.sh create|fetch|build|rviz|servo|plan-smoke|inspect|packages|run|shell|real
+Usage: ros2/conda/so101-conda.sh create|fetch|build|clean-build|station-live|rviz|servo|plan-smoke|inspect|packages|run|shell|real
 
   create      Create the dedicated RoboStack ROS 2 Jazzy environment
   fetch       Fetch the pinned upstream SO-ARM101 source and driver patch
   build       Build the pinned workspace in the Conda environment
+  clean-build Remove only this checkout's ROS overlay build/install/log prefixes, then rebuild
+  station-live Launch the integrated live station (one follower owner and one camera)
   rviz        Launch the explicitly mocked MoveIt/RViz stack
   servo       Launch MoveIt Servo with mock ros2_control
   plan-smoke  Run IK and planning only; never execute trajectories
@@ -105,6 +107,13 @@ case "$ACTION" in
       --build-base "$BUILD_BASE" \
       --install-base "$INSTALL_BASE" \
       --symlink-install
+    ;;
+  clean-build)
+    rm -rf -- "$BUILD_BASE" "$INSTALL_BASE" "$LOG_BASE"
+    exec "$0" build
+    ;;
+  station-live)
+    ros_run ros2 launch so101_station_bringup station_live.launch.py "$@"
     ;;
   rviz)
     ros_run ros2 launch so101_station_bringup mock_moveit.launch.py
