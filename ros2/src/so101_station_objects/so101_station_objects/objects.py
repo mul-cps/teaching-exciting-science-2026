@@ -30,6 +30,10 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tools.propose_rgbd_grasp import color_masks  # noqa: E402
+from so101_station_objects.colored_object_validation import (  # noqa: E402
+    split_depth_coherent_components,
+    validate_colored_component,
+)
 from workshop.digital_twin.grasp_geometry import fit_support_plane, footprint_grasps  # noqa: E402
 
 COLOR_NAMES = ("red", "green", "blue", "yellow")
@@ -396,6 +400,25 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
         plane = dict(support_plane, normal=normal, d=offset)
     masks = color_masks(rgb)
     objects = []
+    validation_diagnostics = {
+        "color_parent_components": 0, "depth_components": 0,
+        "depth_accepted_components": 0, "rejected_components": 0,
+        "rejection_reasons": {}, "rejected_samples": [],
+    }
+
+    def reject_component(color, reason, parent_pixels, component_pixels=0, metrics=None):
+        validation_diagnostics["rejected_components"] += 1
+        reasons = validation_diagnostics["rejection_reasons"]
+        reasons[reason] = reasons.get(reason, 0) + 1
+        samples = validation_diagnostics["rejected_samples"]
+        if len(samples) < 5:
+            sample = {"color": color, "reason": reason,
+                      "parent_pixels": int(parent_pixels),
+                      "component_pixels": int(component_pixels)}
+            if metrics:
+                sample["metrics"] = metrics
+            samples.append(sample)
+
     for color in COLOR_NAMES:
         mask = masks[color].astype(np.uint8)
         count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
@@ -403,71 +426,101 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
             area = int(stats[label, cv2.CC_STAT_AREA])
             if area < min_component_pixels:
                 continue
-            x0 = int(stats[label, cv2.CC_STAT_LEFT])
-            y0 = int(stats[label, cv2.CC_STAT_TOP])
-            box_width = int(stats[label, cv2.CC_STAT_WIDTH])
-            box_height = int(stats[label, cv2.CC_STAT_HEIGHT])
-            label_roi = labels[y0:y0 + box_height, x0:x0 + box_width]
-            yy_local, xx_local = np.nonzero(label_roi == label)
-            yy, xx = yy_local + y0, xx_local + x0
-            samples = depth_m[yy, xx]
-            valid = valid_depth[yy, xx]
-            if int(valid.sum()) < 8:
+            validation_diagnostics["color_parent_components"] += 1
+            parent_mask = labels == label
+            pieces = split_depth_coherent_components(
+                parent_mask, depth_m, min_pixels=max(24, min_component_pixels))
+            if not pieces:
+                reject_component(color, "no_depth_coherent_component", area)
                 continue
-            pixels = np.column_stack((xx[valid], yy[valid]))
-            camera = camera_points(pixels, samples[valid], intrinsics, distortion)
-            board = transform_points(camera, transform)
-            inside = _inside_roi(board, observation_roi)
-            if int(inside.sum()) < 8:
-                continue
-            # Tracking uses every valid visible surface point. Pickup geometry
-            # is computed separately below from support-plane-compatible points.
-            component = np.zeros((box_height, box_width), dtype=np.uint8)
-            component[pixels[inside, 1] - y0, pixels[inside, 0] - x0] = 1
-            component = cv2.morphologyEx(component, cv2.MORPH_CLOSE,
-                                         np.ones((3, 3), dtype=np.uint8))
-            contours, _ = cv2.findContours(component, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if not contours:
-                continue
-            # Split two same-color bricks joined by a narrow seam when the
-            # one-dimensional silhouette has a clear internal valley.
-            contours = _split_elongated_contours(contours)
-            for contour in contours:
-                contour_mask = np.zeros((box_height, box_width), dtype=np.uint8)
-                cv2.drawContours(contour_mask, [contour], -1, 1, thickness=cv2.FILLED)
-                selected = inside & (contour_mask[pixels[:, 1] - y0,
-                                                   pixels[:, 0] - x0] != 0)
-                if int(selected.sum()) < 8:
+            for piece in pieces:
+                validation_diagnostics["depth_components"] += 1
+                validation = validate_colored_component(
+                    rgb, depth_m, piece.mask, intrinsics, distortion,
+                    support_mask=piece.support_mask)
+                component_pixels = int(piece.mask.sum())
+                if not validation.accepted:
+                    reject_component(color, validation.reason, piece.parent_pixels,
+                                     component_pixels, validation.metrics)
                     continue
-                contour_global = contour.reshape(-1, 2).copy()
-                contour_global[:, 0] += x0
-                contour_global[:, 1] += y0
-                visible = _visible_component_geometry(
-                    pixels[selected], samples[valid][selected], intrinsics, distortion,
-                    transform, plane, color)
-                footprint = visible["dimensions_m"][:2]
-                if (float(np.max(footprint)) > MAX_OBJECT_EXTENT_M
-                        or float(np.min(footprint)) < MIN_OBJECT_EXTENT_M
-                        or float(np.max(footprint) / np.min(footprint))
-                        > MAX_OBJECT_ASPECT_RATIO):
+                validation_diagnostics["depth_accepted_components"] += 1
+                yy, xx = np.nonzero(piece.mask)
+                samples = depth_m[yy, xx]
+                pixels = np.column_stack((xx, yy))
+                x0, x1 = int(xx.min()), int(xx.max()) + 1
+                y0, y1 = int(yy.min()), int(yy.max()) + 1
+                box_width, box_height = x1 - x0, y1 - y0
+                camera = camera_points(pixels, samples, intrinsics, distortion)
+                board = transform_points(camera, transform)
+                inside = _inside_roi(board, observation_roi)
+                if int(inside.sum()) < 8:
+                    reject_component(color, "outside_observation_roi", piece.parent_pixels,
+                                     component_pixels, validation.metrics)
                     continue
-                # A supported estimate is available only when the component
-                # independently passes the historic pickup/support filters.
-                pickup = _component_geometry(
-                    contour_global, pixels[selected], samples[valid][selected],
-                    intrinsics, distortion, transform, plane, color, max_opening_m,
-                    pickup_roi, max_object_height_m)
-                if pickup is not None:
-                    pickup["surface_centroid"] = visible["surface_centroid"]
-                    pickup["surface_centroid_spread_m"] = visible[
-                        "surface_centroid_spread_m"]
-                    item = pickup
-                else:
-                    item = visible
-                item["pixel_area"] = int(selected.sum())
-                objects.append(item)
+                # Keep each depth-coherent piece isolated through contour
+                # extraction; morphology must never reconnect foreground and
+                # background surfaces separated by a depth discontinuity.
+                component = np.zeros((box_height, box_width), dtype=np.uint8)
+                component[pixels[inside, 1] - y0, pixels[inside, 0] - x0] = 1
+                component = cv2.morphologyEx(component, cv2.MORPH_CLOSE,
+                                             np.ones((3, 3), dtype=np.uint8))
+                contours, _ = cv2.findContours(component, cv2.RETR_EXTERNAL,
+                                                cv2.CHAIN_APPROX_SIMPLE)
+                if not contours:
+                    reject_component(color, "no_observation_contour", piece.parent_pixels,
+                                     component_pixels, validation.metrics)
+                    continue
+                # Split two same-color bricks joined by a narrow seam, but
+                # only inside this already depth-coherent component.
+                contours = _split_elongated_contours(contours)
+                for contour in contours:
+                    contour_mask = np.zeros((box_height, box_width), dtype=np.uint8)
+                    cv2.drawContours(contour_mask, [contour], -1, 1, thickness=cv2.FILLED)
+                    selected = inside & (contour_mask[pixels[:, 1] - y0,
+                                                       pixels[:, 0] - x0] != 0)
+                    if int(selected.sum()) < 8:
+                        reject_component(color, "insufficient_roi_depth_pixels",
+                                         piece.parent_pixels, int(selected.sum()),
+                                         validation.metrics)
+                        continue
+                    contour_global = contour.reshape(-1, 2).copy()
+                    contour_global[:, 0] += x0
+                    contour_global[:, 1] += y0
+                    visible = _visible_component_geometry(
+                        pixels[selected], samples[selected], intrinsics, distortion,
+                        transform, plane, color)
+                    footprint = visible["dimensions_m"][:2]
+                    if (float(np.max(footprint)) > MAX_OBJECT_EXTENT_M
+                            or float(np.min(footprint)) < MIN_OBJECT_EXTENT_M
+                            or float(np.max(footprint) / np.min(footprint))
+                            > MAX_OBJECT_ASPECT_RATIO):
+                        reject_component(color, "visible_geometry_out_of_range",
+                                         piece.parent_pixels, int(selected.sum()),
+                                         validation.metrics)
+                        continue
+                    # A supported estimate is available only when the complete
+                    # coherent component passes the support-height test.
+                    pickup = _component_geometry(
+                        contour_global, pixels[selected], samples[selected],
+                        intrinsics, distortion, transform, plane, color, max_opening_m,
+                        pickup_roi, max_object_height_m)
+                    if pickup is not None:
+                        pickup["surface_centroid"] = visible["surface_centroid"]
+                        pickup["surface_centroid_spread_m"] = visible[
+                            "surface_centroid_spread_m"]
+                        item = pickup
+                    else:
+                        item = visible
+                    item["pixel_area"] = int(selected.sum())
+                    item["depth_validation"] = {
+                        "accepted": True, "reason": validation.reason,
+                        "metrics": validation.metrics,
+                        "depth_cut_pixels": int(piece.depth_cut_pixels),
+                    }
+                    objects.append(item)
     return {"support_plane": plane, "objects": objects,
-            "qualified": False, "frame_id": "charuco_board"}
+            "qualified": False, "frame_id": "charuco_board",
+            "validation_diagnostics": validation_diagnostics}
 
 
 class StableObjectTracker:
@@ -1098,10 +1151,13 @@ class ColoredObjectsNode:
                         "dimensions_semantics": obj["dimensions_semantics"],
                         "dimension_uncertainty_m": obj["dimension_uncertainty_m"].tolist(),
                         "dimension_source": "robust visible RGB-D point extent; not CAD or full-object measurement",
+                        "depth_validation": obj["depth_validation"],
                         "depth_points": obj["depth_points"], "geometric_only": True,
                         "ik_validated": False, "collision_checked": False,
                     } for obj in report["objects"]],
                     "grasp_candidates": grasp_records,
+                    "validation_diagnostics": report.get(
+                        "validation_diagnostics", {}),
                     "expired_tracks": report.get("expired_tracks", []),
                 }
                 message = String()

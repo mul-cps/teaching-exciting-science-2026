@@ -113,6 +113,30 @@ def test_full_image_observation_has_no_fixed_board_z_bound_below_table():
     np.testing.assert_allclose(obj["surface_centroid"], [0.10, 0.07, -0.10], atol=0.015)
 
 
+def test_sparse_depth_color_patch_is_rejected_with_bounded_diagnostics():
+    rgb = np.full((480, 640, 3), 128, dtype=np.uint8)
+    depth = np.full((480, 640), 800, dtype=np.uint16)
+    rgb[190:290, 280:380] = [0, 0, 255]
+    depth[190:290, 280:380] = 0
+    # A small coherent depth island inside a much larger same-color patch used
+    # to survive valid-depth-first segmentation as a floating false object.
+    depth[220:260, 310:350] = 800
+    report = analyze_rgbd(
+        rgb, depth, INTRINSICS, DISTORTION, 0.001, BOARD_FROM_CAMERA,
+        support_plane=SUPPORT_PLANE,
+    )
+    assert report["objects"] == []
+    diagnostics = report["validation_diagnostics"]
+    assert diagnostics["color_parent_components"] == 1
+    assert diagnostics["depth_components"] == 1
+    assert diagnostics["depth_accepted_components"] == 0
+    assert diagnostics["rejection_reasons"] == {
+        "locally_unsupported_color_depth": 1}
+    assert len(diagnostics["rejected_samples"]) == 1
+    assert diagnostics["rejected_samples"][0]["metrics"][
+        "supported_fraction"] < 0.9
+
+
 def test_optional_commissioned_observation_roi_remains_configurable():
     rgb, depth = rgbd_with_red_brick((0.27, 0.19, 0.12))
     report = analyze_rgbd(
@@ -132,6 +156,8 @@ def test_pickup_roi_is_independent_and_restored_when_brick_returns():
     assert obj["object_center_qualified"] is False
     assert obj["dimensions_semantics"] == "support_plane_box_extent_estimate"
     assert obj["grasps"]
+    assert obj["depth_validation"]["accepted"] is True
+    assert 0.9 <= obj["depth_validation"]["metrics"]["supported_fraction"] <= 1.0
 
     # Use a small but well-resolved footprint with clear margin to the maximum
     # gripper opening; contour estimates differ slightly across OpenCV builds.
