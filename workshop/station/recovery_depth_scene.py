@@ -66,7 +66,8 @@ class DepthRecoveryScene:
                  arm_raw, arm_stamp_monotonic, model, clearance_m=.010,
                  voxel_size_m=.005, depth_uncertainty_m=.005,
                  geometry_uncertainty_m=.002, distortion_model='plumb_bob',
-                 support_planes=(), max_check_time_s=.45, min_depth_m=.05, max_depth_m=2.0):
+                 support_planes=(), max_check_time_s=.45, min_depth_m=.05, max_depth_m=2.0,
+                 acquisition_clock_provenance=None):
         if not isinstance(model, URDFCollisionModel):
             raise ValueError('effective calibrated URDF collision model required')
         if (registration_qualified is not True or base_frame != model.base_frame
@@ -103,6 +104,7 @@ class DepthRecoveryScene:
         self.camera_serial = camera_serial
         self.camera_frame = camera_frame
         self.base_frame = base_frame
+        self.acquisition_clock_provenance = MappingProxyType(dict(acquisition_clock_provenance or {}))
         self.stamp_monotonic = float(stamp_monotonic)
         self.arm_stamp_monotonic = float(arm_stamp_monotonic)
         self.arm_raw = MappingProxyType(dict(arm_raw))

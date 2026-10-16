@@ -9,7 +9,6 @@ the RAM profile that was present before this session's first motion.
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -26,11 +25,13 @@ from . import arm as arm_module
 from .config import JOINTS, load_config
 from .locking import station_lock, station_lock_path
 from .camera_recovery import plan_bound_reentry
+from .recovery_types import CameraRecoveryPolicy, owner_source_sha256
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
                              ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S,
                              path_digest, prepare_trajectory)
 
-RUNTIME_SOURCE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+RUNTIME_OWNER_SOURCE_SHA256 = owner_source_sha256(Path(__file__).parent)
+RUNTIME_SOURCE_SHA256 = RUNTIME_OWNER_SOURCE_SHA256["arm_session"]
 
 PERIOD_S = 0.05
 ROS_MAX_TRACK_ERROR_RAD = math.radians(10.0)
@@ -98,15 +99,6 @@ class ArmPlanPreflightError(ValueError):
     """A move plan rejected before any profile, goal, or torque write."""
 
 
-@dataclass(frozen=True)
-class CameraRecoveryPolicy:
-    """Trusted in-process identities; never populated from a motion command."""
-    model_sha256: str
-    calibration_sha256: str
-    camera_serial: str
-    arm_calibration_sha256: str
-
-
 class ArmSession:
     """One serialized owner of a connected follower bus.
 
@@ -121,8 +113,7 @@ class ArmSession:
                  camera_scene_provider=None, camera_recovery_policy=None, observe_only=False):
         self.arm = arm
         self._observe_only = bool(observe_only)
-        self._owner_source_sha256 = {"arm_session": RUNTIME_SOURCE_SHA256,
-                                     "arm": arm_module.RUNTIME_SOURCE_SHA256}
+        self._owner_source_sha256 = dict(RUNTIME_OWNER_SOURCE_SHA256)
         self.bus = arm.bus
         self.state_file = Path(state_file)
         self.logdir = Path(logdir)
@@ -628,12 +619,14 @@ class ArmSession:
         self.profile = ("teleop-8-uncapped-velocity-torque-700-250" if teleop else
                         "native-8-160-220-torque-700-250")
 
-    def _enable_current_goal(self, target, started, label):
+    def _enable_current_goal(self, target, started, label, *, on_goal_dispatch=None):
         if self._observe_only:
             raise ArmPlanPreflightError("observe-only owner prohibits goals and enabling torque")
         self._release_component_scope()
         # Install goals before enabling torque; verify broadcast write/readback.
         self._check_leg_deadline(started, label)
+        if on_goal_dispatch is not None:
+            on_goal_dispatch()  # intent before a write that may apply then time out
         self.bus.sync_write("Goal_Position", target, normalize=False, num_retry=0)
         self._check_leg_deadline(started, label)
         goals = self._read("Goal_Position")
@@ -1544,6 +1537,15 @@ class ArmSession:
         return {"ok": False, "state": held, "cancelled": cancelled,
                 "recovery": {"status": "cancelled" if cancelled else "held", "error": str(error)}}
 
+    def _camera_recovery_pre_dispatch_abort(self, error):
+        """Never create a hold goal before the first authorized goal attempt."""
+        self._shutdown_complete = False  # this explicit recovery abort needs fresh verification
+        self.shutdown(reason="camera_recovery_pre_dispatch_abort")
+        self._active_leg = None
+        if isinstance(error, ArmSessionCancelled) or not isinstance(error, Exception):
+            raise error
+        raise ArmPlanPreflightError(str(error)) from error
+
     def recover_camera(self):
         """Camera-checked ≤32-count soft-bound re-entry; no recovery-to-home.
 
@@ -1573,9 +1575,9 @@ class ArmSession:
             if target == start:
                 raise ValueError("camera re-entry requires a measured soft-bound excursion")
         except ArmSessionCancelled as error:
-            return self._camera_recovery_hold(error)
+            self._camera_recovery_pre_dispatch_abort(error)
         except Exception as error:
-            raise ArmPlanPreflightError(str(error)) from error
+            self._camera_recovery_pre_dispatch_abort(error)
         self._event("camera_recovery_start", start_raw=start, target_raw=target,
                     path_sha256=plan.path_sha256)
         self._active_leg = "camera_reentry"
@@ -1585,6 +1587,13 @@ class ArmSession:
         previous_stamp = stamp
         missed_total = 0
         quiet_samples = 0
+        dispatched = False
+        def mark_dispatch():
+            nonlocal dispatched
+            # The generic goal helper pumps queued status/cancel commands after
+            # our earlier proof. Revalidate after that last pump, before intent.
+            self._camera_recovery_match(current, stamp, checked.scene_stamp_monotonic, started)
+            dispatched = True
         try:
             self._ensure_profile()
             current = self._read("Present_Position")
@@ -1596,7 +1605,8 @@ class ArmSession:
             self._camera_recovery_match(current, stamp, checked.scene_stamp_monotonic, started)
             # Never enable torque against an old goal, including an old home
             # goal that would move this out-of-bounds arm without camera proof.
-            self._enable_current_goal(current, started, "camera_reentry")
+            self._enable_current_goal(current, started, "camera_reentry",
+                                      on_goal_dispatch=mark_dispatch)
             commanded = dict(current)
             previous_stamp = self.clock()
             while True:
@@ -1668,6 +1678,11 @@ class ArmSession:
                 previous_stamp = stamp
                 self.sleep(max(0., stamp + PERIOD_S - self.clock()))
         except BaseException as error:
+            if not dispatched:
+                # Cancel-hold writes goals and may itself energize a passive
+                # servo. Before the first admitted attempt only verified disarm
+                # and saved-RAM restoration are permitted cleanup.
+                self._camera_recovery_pre_dispatch_abort(error)
             if not isinstance(error, Exception):
                 self.shutdown(reason="camera_recovery_interrupted")
                 raise
@@ -2214,10 +2229,24 @@ def run_locked_session(config, state_file, logdir, *, lock_path,
                        lock_factory=station_lock, arm_factory=None,
                        session_factory=ArmSession):
     """Keep bus ownership locked through connect, serve, torque-off and RAM restore."""
+    from contextlib import ExitStack
+    from .recovery_runtime import create_recovery_runtime
     session = None
     failure = None
-    with lock_factory(lock_path):
+    with lock_factory(lock_path), ExitStack() as resources:
         try:
+            recovery_error = None
+            try:
+                recovery_runtime = create_recovery_runtime(config, state_file)
+            except (ValueError, OSError, KeyError, TypeError) as error:
+                if not observe_only:
+                    raise
+                # Optional recovery authority must not obstruct passive bus
+                # observation and explicitly requested disarm after a crash.
+                recovery_runtime = None
+                recovery_error = str(error)
+            if recovery_runtime is not None:
+                resources.callback(recovery_runtime.close)
             if arm_factory is None:
                 from .arm import LeRobotArm
                 arm_factory = LeRobotArm
@@ -2226,8 +2255,14 @@ def run_locked_session(config, state_file, logdir, *, lock_path,
                                       idle_timeout=idle_timeout,
                                       persistent_idle=persistent_idle,
                                       recover_sag=recover_sag,
-                                      **({"observe_only": True} if observe_only else {}))
+                                      **({"observe_only": True} if observe_only else {}),
+                                      **({"camera_scene_provider": recovery_runtime,
+                                          "camera_recovery_policy": recovery_runtime.policy}
+                                         if recovery_runtime is not None else {}))
             session.initialize()
+            if recovery_error is not None:
+                session._event("camera_recovery_disabled", reason=recovery_error,
+                               observe_only=True)
             return session.serve(fd=fd, emit=emit)
         except BaseException as error:
             failure = error

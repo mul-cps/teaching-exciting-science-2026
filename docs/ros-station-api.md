@@ -207,3 +207,75 @@ fault. After explicit stop/reset, all ordinary motion and physical qualification
 gates still apply. A direct commissioning failure can be recovered with
 `arm-connect` followed by an explicit `/follower/stop`; automatic station faults
 also require the coordinated station stop and explicit station fault reset.
+
+## Camera recovery runtime: stage 1 owner integration
+
+The production owner now has a server-configured factory for the existing
+`recover_camera` operation. Missing/disabled configuration installs no recovery
+authority. The actual rig remains disabled/unqualified. A later ROS bridge
+service/cache collector is a separate integration stage; no new recovery ROS
+endpoint is claimed here.
+
+Commissioning installs a hash-pinned `so101-camera-recovery-runtime-v1` manifest
+under `arm.camera_recovery` in the fixed server station configuration. Motion
+commands cannot supply a manifest path, target, policy, clearance or qualification
+flag. The manifest binds the effective URDF/material hash, qualified explicit
+joint mapping, physical arm calibration SHA, qualified base/camera registration,
+camera serial/frame, calibrated image dimensions/intrinsics/distortion, positive
+geometry/depth uncertainties and explicit contact/support declarations. Model
+and material preparation occurs once per runtime; no qualification is inferred
+from CAD, convex enclosures or offline diagnostics.
+
+The fixed RAM cache is `<owner-state-directory>/camera-recovery`. The trusted
+camera collector publishes an immutable `<generation>.npz` containing only
+`depth_m`, followed by atomic `latest.json`. The record uses schema
+`recovery-depth-acquisition-v1`, a 32-character hexadecimal generation, payload
+SHA, `depth_stamp_ns`, actual `depth_stamp_monotonic`, historically paired
+`acquisition_arm_raw` and `acquisition_arm_stamp_monotonic`, camera/arm identities
+and calibrated intrinsics/distortion. Cache payload size and decompressed array
+size are bounded. Missing, malformed, mismatched, stale or unknown observations
+cannot grant clearance. This component opens no camera SDK or second motor bus.
+
+Preparation builds `DepthRecoveryScene` outside the owner tick. Each prepared
+acquisition has its own mutable geometry LRU while sharing immutable model
+materials. Its depth timestamp, historical arm pose/stamp, support transforms
+and certified physical self-interior remain unchanged for its entire lifetime.
+`BoundRecoveryScene` adds a **current** actual owner raw pose/read timestamp;
+it does not replace either acquisition timestamp. Changing current poses are
+checked as candidate/swept volumes against the original scene. Only certified
+material at the acquisition pose can be excluded from depth obstacles; current
+pose geometry is never carved out of the image. Unknown, occluded and out-of-view
+space still rejects, including continuous remaining-path clearance below10mm.
+
+Provider lookup is nonblocking and rejects work exceeding50ms. The complete
+bound proof has a250ms budget; original acquisition age and the existing
+camera/encoder pairing limits remain independently enforced. New bindings do
+not extend an old scene's lifetime. The owner rechecks exact encoders, cancellation
+and proof/read clocks after the last queued-input pump before its first admitted
+goal attempt. Before that attempt, failures/cancellation use fresh verified
+disarm and RAM restoration with **zero goal writes**. A partially applied or
+unacknowledged attempted goal counts as dispatched; subsequent failure retains
+the existing measured-hold behavior. Failure to verify disarm is an error.
+
+Hardware-free tests cover factory→RAM cache→real depth oracle→owner→fake motor
+re-entry, changed current poses with immutable acquisition carving/timestamps,
+missing/unqualified/stale/mismatched/occluded inputs, over-budget checks and
+pre-dispatch cleanup. The worker may prewarm model-only voxel material once, with a separate2s cap
+and no scene authority. It drops the triggering cohort and requires a strictly
+new depth header after prewarm finishes. Each acquired scene gets a private LRU
+copy sharing only immutable geometry. A diagnostic with checked-in SO101 geometry
+measured cold preparation rejection at251ms, model-only prewarm478ms, then fresh
+warm preparation16ms; the synthetic pose still rejected unresolved self contact.
+These timings establish neither physical geometry qualification nor free space.
+
+The cache protocol accepts only `source_clock="system"` epoch-UTC image headers.
+A bracketed local wall/monotonic sample independently derives exposure monotonic
+time; future/older-than250ms headers, clock sampling over5ms, and declared mapping
+inconsistency over20ms reject. Original header, declared mapping and clock bracket
+uncertainty remain immutable provenance. The20ms consistency bound never makes an
+old/future exposure fresh. Simulated/non-epoch source clocks are unsupported.
+
+Normal startup fails on invalid optional recovery artifacts. Passive reconnect
+instead disables this authority with a logged reason while preserving exact arm
+identity/calibration checks, zero implicit writes and explicit verified stop.
+The recovery policy type is shared by imported and actual `python -m` owners.

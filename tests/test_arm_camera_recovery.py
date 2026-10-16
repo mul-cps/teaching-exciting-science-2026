@@ -4,7 +4,7 @@ import os
 import pytest
 
 from test_arm_session import FakeArm, FakeClock, JOINTS, make_session, target
-from workshop.station.arm_session import ArmPlanPreflightError, ArmSession, CameraRecoveryPolicy
+from workshop.station.arm_session import ArmPlanPreflightError, ArmSession, ArmSessionCancelled, CameraRecoveryPolicy
 
 
 class Scene:
@@ -108,7 +108,7 @@ def test_bad_initial_camera_proof_cannot_write_goals_or_profile(tmp_path, field,
     try:
         with pytest.raises(ArmPlanPreflightError):
             session.handle({"command": "recover_camera"})
-        assert arm.bus.writes == []
+        assert all(reg == "Torque_Enable" and value == 0 for reg, _, value in arm.bus.writes)
         assert arm.bus.goal_history == []
     finally:
         close(session)
@@ -187,11 +187,16 @@ def test_pose_changed_during_scene_proof_is_held_before_torque_or_next_goal(tmp_
         return scene
     session, arm, _, _ = recovery_session(tmp_path, provider=provider)
     try:
-        result = session.handle({"command": "recover_camera"})
-        assert not result["ok"]
-        assert [goal["elbow_flex"] for goal in arm.bus.goal_history] == (
-            [2994] if phase == "setup" else [2993, 2994])
-        assert set(arm.bus.data["Torque_Enable"].values()) == ({0} if phase == "setup" else {1})
+        if phase == "setup":
+            with pytest.raises(ArmPlanPreflightError):
+                session.handle({"command": "recover_camera"})
+            assert arm.bus.goal_history == []
+            assert set(arm.bus.data["Torque_Enable"].values()) == {0}
+        else:
+            result = session.handle({"command": "recover_camera"})
+            assert not result["ok"]
+            assert [goal["elbow_flex"] for goal in arm.bus.goal_history] == [2993, 2994]
+            assert set(arm.bus.data["Torque_Enable"].values()) == {1}
     finally:
         close(session)
 
@@ -214,11 +219,10 @@ def test_camera_recovery_cancel_before_setup_confirms_hold_without_arming(tmp_pa
     session, arm, _, _ = recovery_session(tmp_path)
     session._cancel("trajectory_cancel_hold")
     try:
-        result = session.handle({"command": "recover_camera"})
-        assert result["cancelled"]
-        assert result["state"]["event"] == "trajectory_cancel_hold"
-        assert arm.bus.goal_history == [target(elbow_flex=2993)]
-        assert arm.bus.writes == []
+        with pytest.raises(ArmSessionCancelled):
+            session.handle({"command": "recover_camera"})
+        assert arm.bus.goal_history == []
+        assert all(reg == "Torque_Enable" and value == 0 for reg, _, value in arm.bus.writes)
         assert set(arm.bus.data["Torque_Enable"].values()) == {0}
     finally:
         close(session)
@@ -294,6 +298,6 @@ def test_owner_rejects_bad_start_or_changed_firmware_and_arm_calibration(tmp_pat
         with pytest.raises(ArmPlanPreflightError):
             session.handle({"command": "recover_camera"})
         assert arm.bus.goal_history == []
-        assert arm.bus.writes == []
+        assert all(reg == "Torque_Enable" and value == 0 for reg, _, value in arm.bus.writes)
     finally:
         close(session)
