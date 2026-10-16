@@ -111,3 +111,24 @@ def test_bringup_package_matches_ament_cmake_build_files():
     assert "<buildtool_depend>ament_cmake</buildtool_depend>" in package
     assert "<build_type>ament_cmake</build_type>" in package
     assert "ament_package()" in cmake
+
+
+def test_live_bringup_declares_perception_runtime_dependency_and_installs_charuco_plane():
+    package = (ROOT / "ros2/src/so101_station_bringup/package.xml").read_text()
+    perception_cmake = (ROOT / "ros2/src/so101_station_perception/CMakeLists.txt").read_text()
+    launch = (ROOT / "ros2/src/so101_station_bringup/launch/station_live.launch.py").read_text()
+    assert "<exec_depend>so101_station_perception</exec_depend>" in package
+    assert "ament_python_install_package(${PROJECT_NAME})" in perception_cmake
+    assert 'include(\'so101_station_perception\', \'perception.launch.py\'' in launch
+    assert "include('so101_station_control', 'moveit_resident.launch.py'" in launch
+
+
+def test_live_station_keeps_measured_home_gate_and_single_camera_owner():
+    launch = (ROOT / "ros2/src/so101_station_bringup/launch/station_live.launch.py").read_text()
+    perception = (ROOT / "ros2/src/so101_station_perception/launch/perception.launch.py").read_text()
+    control = (ROOT / "ros2/src/so101_station_control/so101_station_control/trajectory_server.py").read_text()
+    assert launch.count("'perception.launch.py'") == 1
+    assert launch.count("'leader_teleop.launch.py'") == 1
+    assert '"camera_name": "camera"' in perception
+    assert "_home" in control and "_saved_home_pose" in control
+    assert "home_error" in control

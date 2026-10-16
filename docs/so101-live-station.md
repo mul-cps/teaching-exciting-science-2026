@@ -8,8 +8,26 @@ From the checkout root, build once:
 
 ```bash
 ros2/conda/so101-conda.sh create  # only if the dedicated environment is absent
-ros2/conda/so101-conda.sh build
+ros2/conda/so101-conda.sh clean-build
 ```
+
+`clean-build` recreates only this checkout's ROS `build`, `install`, and `log`
+prefixes. The pinned upstream checkout remains in the ignored source cache.
+The `so101_station_perception` runtime dependency installs its Python package,
+including `charuco_plane`, into this overlay. The station venv remains the
+resident follower owner's Python, the dedicated Conda prefix supplies ROS and
+perception, and `web_twin_python` selects the separate viewer Python
+environment. The wrapper removes inherited ROS and
+Python paths before every command, chooses CycloneDDS by default when available,
+and honors an explicit `RMW_IMPLEMENTATION` override.
+
+For the integrated startup, use `ros2/conda/so101-conda.sh station-live`.
+That launch includes one resident follower owner, one read-only leader
+publisher, and one RealSense camera owner. The leader publisher does not
+enable teleoperation. It does not authorize startup on the physical station;
+commission the saved measured home first. Teleop's resident service continues
+to reject a start unless fresh measured joint feedback is within the saved-home
+tolerance.
 
 For a temporary read-only mirror while an existing resident arm controller is running:
 
