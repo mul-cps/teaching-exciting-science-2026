@@ -31,7 +31,7 @@ def _depth_inputs(mask, depth_m):
     depth = np.asarray(depth_m)
     if mask.ndim != 2 or depth.shape != mask.shape or not np.issubdtype(depth.dtype, np.floating):
         raise ValueError('matching color mask and aligned metric floating depth required')
-    mask = mask.astype(bool)
+    mask = mask.astype(bool, copy=False)
     valid = np.isfinite(depth) & (depth >= .10) & (depth <= 2.)
     return mask, depth, valid
 
@@ -45,9 +45,21 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
     not impose its size/invalid ratio on the foreground component. Depth jumps
     cut one pixel on each side; this deliberately withholds uncertain edges.
     """
-    parent, depth, valid = _depth_inputs(parent_mask, depth_m)
+    parent = np.asarray(parent_mask)
+    depth = np.asarray(depth_m)
+    if parent.ndim != 2 or depth.shape != parent.shape or not np.issubdtype(depth.dtype, np.floating):
+        raise ValueError('matching color mask and aligned metric floating depth required')
     if not np.isfinite(max_neighbor_jump_m) or max_neighbor_jump_m <= 0 or type(min_pixels) is not int or min_pixels < 8:
         raise ValueError('positive depth continuity and component size required')
+    full_shape = parent.shape
+    # Component bounding boxes are an exact computational optimization. Every
+    # original color pixel participates, at its original calibrated coordinate.
+    x0, y0, width, height = cv2.boundingRect(parent.astype(np.uint8, copy=False))
+    if not width or not height:
+        return ()
+    crop = (slice(y0, y0+height), slice(x0, x0+width))
+    parent, depth, valid = _depth_inputs(parent[crop], depth[crop])
+    parent_pixels = int(parent.sum())
     candidate = parent & valid
     cut = np.zeros_like(candidate)
     for axis in (0, 1):
@@ -72,9 +84,13 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
         filled = np.zeros_like(parent, dtype=np.uint8)
         cv2.drawContours(filled, contours, -1, 1, cv2.FILLED)
         support |= parent & filled.astype(bool)
-        region.setflags(write=False)
-        support.setflags(write=False)
-        output.append(DepthComponent(region, support, int(parent.sum()), int((cut & nearby).sum())))
+        full_region = np.zeros(full_shape, dtype=bool)
+        full_support = np.zeros(full_shape, dtype=bool)
+        full_region[crop] = region
+        full_support[crop] = support
+        full_region.setflags(write=False)
+        full_support.setflags(write=False)
+        output.append(DepthComponent(full_region, full_support, parent_pixels, int((cut & nearby).sum())))
     return tuple(output)
 
 

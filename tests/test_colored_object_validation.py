@@ -129,3 +129,23 @@ def test_local_computation_crop_preserves_global_calibrated_geometry():
     assert shifted.accepted == reference.accepted
     assert shifted.metrics['centroid_camera_m'] == pytest.approx(reference.metrics['centroid_camera_m'])
     assert shifted.metrics['visible_extents_m'] == pytest.approx(reference.metrics['visible_extents_m'])
+
+
+def test_splitter_local_crop_restores_exact_global_mask_coordinates():
+    rgb, depth, mask = inputs()
+    reference = split_depth_coherent_components(mask, depth)
+    shifted = split_depth_coherent_components(np.roll(mask, 12, axis=1), np.roll(depth, 12, axis=1))
+    assert len(reference) == len(shifted) == 1
+    assert shifted[0].mask.shape == mask.shape
+    assert np.array_equal(np.roll(reference[0].mask, 12, axis=1), shifted[0].mask)
+    assert np.array_equal(np.roll(reference[0].support_mask, 12, axis=1), shifted[0].support_mask)
+    assert shifted[0].parent_pixels == reference[0].parent_pixels
+    assert shifted[0].depth_cut_pixels == reference[0].depth_cut_pixels
+
+
+def test_empty_splitter_input_still_validates_the_depth_gate_parameters():
+    _, depth, mask = inputs()
+    mask[:] = False
+    assert split_depth_coherent_components(mask, depth) == ()
+    with pytest.raises(ValueError):
+        split_depth_coherent_components(mask, depth, max_neighbor_jump_m=-1.)
