@@ -41,8 +41,12 @@ def main():
             topic, lambda message, name=name: buffers[name].append(message), qos_profile_sensor_data))
     def status(message):
         try:
-            statuses.append(json.loads(message.data))
-        except ValueError:
+            report = json.loads(message.data)
+            # Record acquisition-to-receipt latency with the same ROS clock,
+            # rather than inferring freshness from a later saved capture.
+            report['probe_age_s'] = node.get_clock().now().nanoseconds*1e-9-float(report['stamp'])
+            statuses.append(report)
+        except (ValueError, KeyError, TypeError):
             pass
     subscriptions.append(node.create_subscription(String, '/so101/grasp_status', status, 10))
     started, last_stamp = time.monotonic(), -float('inf')
