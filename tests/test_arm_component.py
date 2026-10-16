@@ -10,6 +10,11 @@ def setup(tmp_path):
     arm.bus.data['Present_Position']['elbow_flex'] = 3093
     arm.bus.data['Goal_Position']['elbow_flex'] = 3093
     arm.bus.writes.clear()
+    original_write = arm.bus.write
+    def goal_energizing_write(register, joint, value, **kwargs):
+        original_write(register, joint, value, **kwargs)
+        if register == 'Goal_Position': arm.bus.data['Torque_Enable'][joint] = 1
+    arm.bus.write = goal_energizing_write
     return session, arm.bus, clock
 
 
@@ -57,7 +62,7 @@ def test_component_failure_cleanup_is_jaw_only(tmp_path, fault):
     original_write = bus.write
     def write(reg, joint, value, **kwargs):
         original_write(reg, joint, value, **kwargs)
-        if reg == 'Torque_Enable' and value == 1:
+        if reg == 'Goal_Position':
             if fault == 'cancel': session._cancel('test_cancel')
             if fault == 'drift': bus.data['Present_Position']['wrist_roll'] += 3
             if fault == 'body_torque': bus.data['Torque_Enable']['wrist_roll'] = 1
@@ -160,7 +165,7 @@ def test_component_partial_each_command_write_remains_scoped(tmp_path, register)
             fired = True
             raise ConnectionError('partial '+register)
     bus.write = write
-    with pytest.raises(ConnectionError):
+    with pytest.raises((ConnectionError, RuntimeError)):
         session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})
     session.shutdown(reason='later_stop')
     jaw_only(bus)
@@ -191,15 +196,15 @@ def test_component_snapshot_cannot_stale_or_cancel_enable_admission(tmp_path, mo
     def publish(**kwargs):
         state = original(**kwargs)
         if (kwargs.get('event') == 'commission_gripper_sample' and
-                bus.data['Goal_Position']['gripper'] == 2008 and
-                bus.data['Torque_Enable']['gripper'] == 0):
+                bus.data['Goal_Position']['gripper'] == 2000 and
+                bus.data['Torque_Limit']['gripper'] == 50):
             if failure == 'slow_snapshot': clock.value += .101
             else: session._cancel('stop_during_snapshot')
         return state
     monkeypatch.setattr(session, 'publish_state', publish)
     with pytest.raises((RuntimeError, ArmSessionCancelled)):
         session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})
-    assert ('Torque_Enable', 'gripper', 1) not in bus.writes
+    assert not any(reg == 'Goal_Position' for reg, _, _ in bus.writes)
     jaw_only(bus)
 
 
@@ -212,6 +217,11 @@ def test_component_real_arm_close_semantics_never_escape_process_teardown(tmp_pa
     import os
     arm, clock = FakeArm(tmp_path), FakeClock()
     arm.bus.clock = clock
+    normal_write = arm.bus.write
+    def goal_energizing_write(register, joint, value, **kwargs):
+        normal_write(register, joint, value, **kwargs)
+        if register == 'Goal_Position': arm.bus.data['Torque_Enable'][joint] = 1
+    arm.bus.write = goal_energizing_write
     # Use actual production close/stop, not a permissive fake close.
     arm.close = lambda: LeRobotArm.close(arm)
     arm.stop = lambda: LeRobotArm.stop(arm)
@@ -293,14 +303,14 @@ def test_component_write_guards_encoder_age_including_torque_read_and_snapshot(t
     def publish(**kwargs):
         result = original_publish(**kwargs)
         if (kwargs.get('event') == 'commission_gripper_sample' and
-                bus.data['Goal_Position']['gripper'] == 2008 and
-                bus.data['Torque_Enable']['gripper'] == 0):
+                bus.data['Goal_Position']['gripper'] == 2000 and
+                bus.data['Torque_Limit']['gripper'] == 50):
             clock.value += .090
         return result
     monkeypatch.setattr(session, 'publish_state', publish)
     with pytest.raises(RuntimeError, match='write admission'):
         session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})
-    assert ('Torque_Enable', 'gripper', 1) not in bus.writes
+    assert not any(reg == 'Goal_Position' for reg, _, _ in bus.writes)
     jaw_only(bus)
 
 
@@ -311,14 +321,14 @@ def test_component_rejected_torque_sample_and_goal_write_survive_cleanup_log(tmp
     def write(register, joint, value, **kwargs):
         original_write(register, joint, value, **kwargs)
         # Synthetic unexpected state only; does not assert real firmware does it.
-        if register == 'Goal_Position': bus.data['Torque_Enable']['gripper'] = 1
+        if register == 'Goal_Position': bus.data['Torque_Enable']['gripper'] = 2
     bus.write = write
-    with pytest.raises(RuntimeError, match='expected=0 actual=1'):
+    with pytest.raises(RuntimeError, match='expected=1 actual=2'):
         session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})
     events = [json.loads(line) for line in session.log_path.read_text().splitlines()]
-    failed = [e for e in events if e['event'] == 'component_raw_observation' and e['torque']['gripper'] == 1]
+    failed = [e for e in events if e['event'] == 'component_raw_observation' and e['torque']['gripper'] == 2]
     assert len(failed) == 1
-    assert failed[0]['expected_gripper_torque'] == 0
+    assert failed[0]['expected_gripper_torque'] == 1
     assert set(failed[0]['raw']) == set(bus.motors)
     assert failed[0]['position_monotonic'] <= failed[0]['torque_monotonic']
     goal = [e for e in events if e['event'] == 'component_write_readback' and e['register'] == 'Goal_Position']
@@ -336,11 +346,49 @@ def test_component_new_write_diagnostics_cannot_bypass_admission(tmp_path, monke
     original = session._event
     def event(name, **fields):
         original(name, **fields)
-        if name == 'component_write_intent' and fields['register'] == 'Torque_Enable':
+        if name == 'component_write_intent' and fields['register'] == 'Goal_Position':
             if failure == 'slow': clock.value += .101
             else: session._cancel('cancel_during_write_diagnostic')
     monkeypatch.setattr(session, '_event', event)
     with pytest.raises((RuntimeError, ArmSessionCancelled)):
         session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})
+    assert not any(reg == 'Goal_Position' for reg, _, _ in bus.writes)
+    jaw_only(bus)
+
+
+def test_component_observed_goal_energization_requires_one_without_extra_enable(tmp_path):
+    import json
+    session, bus, _ = setup(tmp_path)
+    result = session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})['state']
+    assert result['raw']['gripper'] == 2008
+    assert [w for w in bus.writes if w[0] == 'Goal_Position'] == [('Goal_Position', 'gripper', 2008)]
     assert ('Torque_Enable', 'gripper', 1) not in bus.writes
+    records = [json.loads(line) for line in session.log_path.read_text().splitlines()]
+    active = [e for e in records if e['event'] == 'component_raw_observation' and e['expected_gripper_torque'] == 1]
+    assert active and all(e['torque']['gripper'] == 1 for e in active)
+    assert all(e['torque'][j] == 0 for e in active for j in bus.motors if j != 'gripper')
+    jaw_only(bus)
+
+
+@pytest.mark.parametrize('failure', ['jaw_remains_off', 'goal_readback', 'body_torque_before_goal', 'body_drift_before_goal'])
+def test_component_goal_energizing_ordering_fails_closed(tmp_path, failure):
+    session, bus, _ = setup(tmp_path)
+    original_write, original_read = bus.write, bus.read
+    def write(register, joint, value, **kwargs):
+        original_write(register, joint, value, **kwargs)
+        if failure == 'jaw_remains_off' and register == 'Goal_Position':
+            bus.data['Torque_Enable']['gripper'] = 0
+        if register == 'Torque_Limit' and value == 50:
+            if failure == 'body_torque_before_goal': bus.data['Torque_Enable']['wrist_roll'] = 1
+            if failure == 'body_drift_before_goal': bus.data['Present_Position']['wrist_roll'] += 3
+    def read(register, joint, **kwargs):
+        value = original_read(register, joint, **kwargs)
+        if failure == 'goal_readback' and register == 'Goal_Position': return value+1
+        return value
+    bus.write, bus.read = write, read
+    with pytest.raises(RuntimeError):
+        session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})
+    assert ('Torque_Enable', 'gripper', 1) not in bus.writes
+    assert bus.data['Torque_Enable']['gripper'] == 0
+    if failure.startswith('body_'): assert not any(w[0] == 'Goal_Position' for w in bus.writes)
     jaw_only(bus)

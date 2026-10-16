@@ -130,6 +130,15 @@ aborts. A passive body may be outside ordinary motion bounds only in this
 component operation. It receives no profile, goal or torque writes. Ordinary
 home, recovery, teleoperation and trajectory bounds are unchanged.
 
+On the observed rig, writing the bounded jaw goal changes measured jaw torque
+from 0 to 1 before a separate enable command. The audited Python driver chain
+contains no extra torque-enable write; this observation does not establish the
+firmware cause. The goal write is therefore the explicitly authorized energizing
+operation, after verified low-profile readback and fresh all-off body/jaw guards.
+Immediately after exact goal readback, the owner requires jaw torque 1 and body
+torque 0; a jaw that remains off fails closed. It sends no redundant enable and
+does not retry the goal.
+
 Only gripper RAM is written. Success, failure, `/follower/stop`, EOF and later
 idle/shutdown disable only the gripper. Saved jaw RAM is restored only after
 measured jaw torque-off; unknown/nonzero body torque prevents an all-off

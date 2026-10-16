@@ -1820,10 +1820,15 @@ class ArmSession:
                 raise RuntimeError("previous component cleanup remains incomplete")
             self._component_saved_ram = {reg: self.bus.read(reg, "gripper", normalize=False, num_retry=0)
                                          for reg in RAM_REGISTERS}
-            for register, value in (("Acceleration", 1), ("Goal_Velocity", 1), ("Torque_Limit", 50),
-                                    ("Goal_Position", target)):
+            for register, value in (("Acceleration", 1), ("Goal_Velocity", 1), ("Torque_Limit", 50)):
                 write(register, value)
-            write("Torque_Enable", 1)
+            # On this rig, goal writes were observed to energize the jaw even
+            # while Torque_Enable was previously zero. The driver chain emits
+            # no separate enable write. Treat the bounded goal as the explicit
+            # energizing operation, after all-off guards and low-profile proof.
+            # Require measured jaw=1/body=0 next; a jaw that remains off fails
+            # closed. Do not add a redundant enable or retry the goal.
+            write("Goal_Position", target)
             enabled = True
             self._component_command["status"] = "moving"
             quiet_since = None
