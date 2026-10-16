@@ -94,6 +94,24 @@ qualified jaw-gap calibration into the station owner's native gripper percent
 and then into the identity-matched raw encoder interval. It shares the existing
 ArmSession command owner and admission lock; it never starts a second bus owner.
 
+The bridge submits one resident JSON-lines command,
+`{"command":"move_gripper","target_raw":ENCODER_COUNT}`. The resident measures
+the starting pose and keeps all five body joints held while splitting the jaw
+travel into legs of at most 650 encoder counts. The existing 150-count feedback
+frame limit, native torque limits, and six-second deadline per leg still apply.
+The action reserves the owner across every leg and budgets
+`ceil(calibrated_raw_span / 636) * 6.4 + 2` seconds for the complete move; a
+1494-count calibrated span therefore has a 21.2-second action budget. The
+636-count progress allowance includes the ten-count arrival tolerance and the
+four-count dwell allowance.
+
+Closing stops at the first inferred contact, replaces the goal with the measured
+pose, verifies the hold, and issues no further closing legs. Cancellation before
+submission prevents motion. Cancellation during or between resident legs keeps
+the owner reserved until its measured hold is acknowledged, with a two-second
+acknowledgement deadline. A missing acknowledgement faults and reserves the
+owner. Generic `move_plan` sequences retain their existing behavior.
+
 The bridge requires the `gripper_jaw_calibration` parameter to name a JSON file
 with this schema:
 

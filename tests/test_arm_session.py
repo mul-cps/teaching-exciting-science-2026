@@ -631,6 +631,166 @@ def test_blocked_grasp_reports_contact_inference_and_keeps_pose_held(tmp_path):
     session.close_log()
 
 
+@pytest.mark.parametrize("start,end", [(1100, 2900), (2900, 1100)])
+def test_gripper_command_crosses_full_range_with_bounded_legs_and_body_hold(tmp_path, start, end):
+    session, arm, _ = make_session(tmp_path, initial=target(gripper=start))
+    session.initialize()
+    result = session.handle({"command": "move_gripper", "target_raw": end})["state"]
+    assert result["event"] == "plan_complete"
+    assert result["raw"]["gripper"] == end
+    assert len(result["legs"]) == 3
+    previous = start
+    for record in result["legs"]:
+        assert abs(record["target_raw"]["gripper"] - previous) <= 650
+        assert record["contact_inferred"] is False
+        previous = record["settled_raw"]["gripper"]
+    assert all(all(goal[j] == 2000 for j in JOINTS[:-1]) for goal in arm.bus.goal_history)
+    assert set(arm.bus.sync_read("Torque_Enable").values()) == {1}
+    session.shutdown()
+    session.close_log()
+
+
+def test_full_range_gripper_close_holds_first_contact_and_issues_no_later_chunk(tmp_path):
+    session, arm, _ = make_session(tmp_path, initial=target(gripper=2900))
+    session.initialize()
+    arm.bus.blocked_gripper = True
+    result = session.handle({"command": "move_gripper", "target_raw": 1100})["state"]
+    assert len(result["legs"]) == 1
+    assert result["legs"][0]["contact_inferred"] is True
+    assert result["raw"]["gripper"] == 2900
+    assert [goal["gripper"] for goal in arm.bus.goal_history] == [2250, 2900]
+    assert arm.bus.data["Goal_Position"] == target(gripper=2900)
+    assert set(arm.bus.sync_read("Torque_Enable").values()) == {1}
+    session.shutdown()
+    session.close_log()
+
+
+def test_generic_plan_continues_body_motion_after_grasp_contact(tmp_path):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    arm.bus.blocked_gripper = True
+    result = session.move_plan([
+        {"label": "grasp", "grasp": True, "target_raw": target(gripper=1500)},
+        {"label": "lift", "target_raw": target(shoulder_lift=2050)},
+    ])
+    assert result["completed_legs"] == ["grasp", "lift"]
+    assert result["legs"][0]["contact_inferred"] is True
+    assert result["raw"]["shoulder_lift"] == 2050
+    session.shutdown()
+    session.close_log()
+
+
+def test_full_range_gripper_budget_includes_allowed_dwell_lag(tmp_path):
+    session, arm, _ = make_session(tmp_path, initial=target(gripper=1100))
+    # A wider synthetic calibration exposes the four-leg boundary where
+    # accounting for arrival tolerance alone underestimates the chunk count.
+    arm._cal["gripper"]["range_max"] = 4000
+    calibration_path = Path(arm.settings["calibration"]["path"])
+    calibration_path.write_text(json.dumps(arm._cal, sort_keys=True))
+    digest = hashlib.sha256(calibration_path.read_bytes()).hexdigest()
+    arm.settings["calibration"]["sha256"] = digest
+    home_path = Path(arm.settings["home_file"])
+    home = json.loads(home_path.read_text())
+    home["calibration_sha256"] = digest
+    home_path.write_text(json.dumps(home))
+    arm.bus.data["Max_Position_Limit"]["gripper"] = 4000
+    session.initialize()
+
+    phase = [None]
+    publish = session.publish_state
+    def observe_phase(**kwargs):
+        phase[0] = kwargs.get("phase")
+        return publish(**kwargs)
+    session.publish_state = observe_phase
+    arm.bus.on_goal_write = lambda: phase.__setitem__(0, None)
+    def lag_at_arrival_and_dwell():
+        actual = arm.bus.data["Present_Position"]["gripper"]
+        goal = arm.bus.data["Goal_Position"]["gripper"]
+        if arm.bus.data["Torque_Enable"]["gripper"] and goal - actual <= 14:
+            arm.bus.data["Present_Position"]["gripper"] = goal - (
+                14 if phase[0] == "move_gripper_dwell" else 10)
+    arm.bus.on_present_read = lag_at_arrival_and_dwell
+    result = session.handle({"command": "move_gripper", "target_raw": 3660})["state"]
+    assert result["event"] == "plan_complete"
+    assert len(result["legs"]) == 5
+    assert result["legs"][-1]["target_raw"]["gripper"] == 3660
+    assert abs(result["raw"]["gripper"] - 3660) <= 14
+    arm.bus.on_present_read = None
+    arm.bus.on_goal_write = None
+    session.shutdown()
+    session.close_log()
+
+
+@pytest.mark.parametrize("when", ["before", "during", "between"])
+def test_full_range_gripper_cancel_confirms_hold_without_later_chunks(tmp_path, when):
+    session, arm, _ = make_session(tmp_path, initial=target(gripper=1100))
+    session.initialize()
+    if when == "before":
+        session._cancel("trajectory_cancel_hold")
+    elif when == "during":
+        def cancel_during_feedback():
+            if arm.bus.goal_history and set(arm.bus.data["Torque_Enable"].values()) == {1}:
+                arm.bus.on_present_read = None
+                session._cancel("trajectory_cancel_hold")
+        arm.bus.on_present_read = cancel_during_feedback
+    else:
+        original = session._run_leg
+        def cancel_after_first(*args, **kwargs):
+            record = original(*args, **kwargs)
+            session._cancel("trajectory_cancel_hold")
+            return record
+        session._run_leg = cancel_after_first
+    result = session.handle({"command": "move_gripper", "target_raw": 2900})["state"]
+    assert result["cancelled"] is True
+    assert result["event"] == "trajectory_cancel_hold"
+    assert len(arm.bus.goal_history) == (1 if when == "before" else 2)
+    assert arm.bus.data["Goal_Position"] == arm.bus.data["Present_Position"]
+    assert set(arm.bus.sync_read("Torque_Enable").values()) == ({0} if when == "before" else {1})
+    arm.bus.on_goal_write = None
+    session.shutdown()
+    session.close_log()
+
+
+def test_gripper_json_lines_command_pumps_cancel_and_keeps_resident_alive(tmp_path):
+    session, arm, _ = make_session(tmp_path, initial=target(gripper=1100))
+    session.initialize()
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, b'{"command":"move_gripper","target_raw":2900}\n')
+    def request_hold_during_feedback():
+        if session._motion_busy and arm.bus.goal_history and set(arm.bus.data["Torque_Enable"].values()) == {1}:
+            arm.bus.on_present_read = None
+            os.write(write_fd, b'{"command":"cancel_hold"}\n')
+    arm.bus.on_present_read = request_hold_during_feedback
+    responses = []
+    def emit(response):
+        responses.append(response)
+        if response.get("state", {}).get("cancelled"):
+            assert arm.bus.data["Goal_Position"] == arm.bus.data["Present_Position"]
+            assert set(arm.bus.data["Torque_Enable"].values()) == {1}
+            os.write(write_fd, b'{"command":"exit"}\n')
+    try:
+        assert session.serve(fd=read_fd, emit=emit) == 0
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+        session.close_log()
+    assert responses[0]["ok"]
+    assert responses[0]["state"]["event"] == "trajectory_cancel_hold"
+    assert responses[-1]["exit"] is True
+    assert len(arm.bus.goal_history) == 2
+
+
+@pytest.mark.parametrize("raw", [True, 999, 3001, "1500", None])
+def test_gripper_invalid_endpoint_is_rejected_before_profile_or_goal_write(tmp_path, raw):
+    session, arm, _ = make_session(tmp_path)
+    session.initialize()
+    with pytest.raises(ValueError):
+        session.handle({"command": "move_gripper", "target_raw": raw})
+    assert arm.bus.goal_history == []
+    assert arm.bus.writes == []
+    session.close_log()
+
+
 def test_near_empty_gripper_closure_does_not_infer_contact_from_transient_excess(tmp_path):
     session, arm, _ = make_session(tmp_path)
     session.initialize()

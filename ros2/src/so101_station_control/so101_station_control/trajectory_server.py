@@ -1195,7 +1195,7 @@ class TrajectoryBridge(Node):
 
     def _gripper_cancel_request(self, _goal_handle):
         with self._active_lock:
-            if self._active_goal != "gripper":
+            if self._active_goal != "gripper" or not getattr(_goal_handle, "is_active", True):
                 return CancelResponse.REJECT
             self._gripper_goal_cancelled = True
             if not self._gripper_command_submitted:
@@ -1242,17 +1242,21 @@ class TrajectoryBridge(Node):
                 raise RuntimeError("resident state lacks a complete six-joint measured pose")
             target_percent = gap_to_percent(command.position, self._gripper_jaw)
             low, high = self._gripper_raw_limits
-            target_raw = dict(raw)
-            target_raw["gripper"] = int(round(low + target_percent * (high - low) / 100.0))
-            submitted = self._submit_gripper_plan({"command": "move_plan", "legs": [{
-                "label": "gripper_command", "target_raw": target_raw,
-                "grasp": target_percent < float(pose["gripper"])}]})
+            target_raw = int(round(low + target_percent * (high - low) / 100.0))
+            # Match the resident's 650-count leg cap, 10-count arrival
+            # tolerance plus four-count dwell allowance, six-second leg
+            # deadline and 0.4-second dwell budget.
+            # Use the full calibrated span because the owner measures the
+            # actual start again when it admits this single command.
+            max_chunks = max(1, math.ceil((high - low) / (650 - 10 - 4)))
+            command_timeout_s = max_chunks * (6.0 + 0.4) + 2.0
+            deadline = time.monotonic() + command_timeout_s
+            submitted = self._submit_gripper_plan({"command": "move_gripper", "target_raw": target_raw})
             if not submitted:
                 goal_handle.canceled()
                 command_complete = True
                 return result
             command_sent = True
-            deadline = time.monotonic() + 8.0
             response = None
             cancel_deadline = None
             while time.monotonic() < deadline:
@@ -1266,6 +1270,8 @@ class TrajectoryBridge(Node):
                     raise RuntimeError("resident owner stopped during gripper command")
                 try:
                     candidate = self._response_queue.get(timeout=min(0.05, deadline-time.monotonic()))
+                    with self._active_lock:
+                        cancelled = self._gripper_goal_cancelled
                     if cancelled:
                         state = candidate.get("state") if isinstance(candidate, dict) else None
                         if not isinstance(state, dict) or state.get("event") != "trajectory_cancel_hold":
@@ -1288,7 +1294,7 @@ class TrajectoryBridge(Node):
                         break
                 if not stop_confirmed:
                     self._owner_faulted = True
-                raise TimeoutError("resident gripper command did not complete within 8 seconds")
+                raise TimeoutError(f"resident gripper command did not complete within {command_timeout_s:.1f} seconds")
             if not response.get("ok"):
                 raise RuntimeError(response.get("error", "resident rejected gripper command"))
             final_state = response.get("state")
@@ -1303,14 +1309,32 @@ class TrajectoryBridge(Node):
             tolerance_percent = 2.0
             result.reached_goal = abs(final_percent - target_percent) <= tolerance_percent
             legs = final_state.get("legs")
-            contact_inferred = (isinstance(legs, list) and len(legs) == 1 and
-                                legs[0].get("label") == "gripper_command" and
-                                legs[0].get("contact_inferred") is True)
+            contact_inferred = (isinstance(legs, list) and bool(legs) and
+                                all(leg.get("label") == "gripper_command" for leg in legs) and
+                                legs[-1].get("contact_inferred") is True)
             result.stalled = bool(contact_inferred)
             if not result.reached_goal and not contact_inferred:
                 raise RuntimeError("jaw stopped outside requested calibrated gap; pickup is unverified")
-            command_complete = True
-            goal_handle.succeed()
+            # Serialize terminal success against cancellation. If cancellation
+            # wins after the plan reply, keep the owner reserved until its
+            # measured hold acknowledgement arrives.
+            with self._active_lock:
+                cancelled = self._gripper_goal_cancelled
+                if not cancelled:
+                    command_complete = True
+                    goal_handle.succeed()
+            if cancelled:
+                cancel_deadline = time.monotonic() + 2.0
+                while time.monotonic() < cancel_deadline:
+                    try:
+                        held = self._response_queue.get(timeout=min(0.05, cancel_deadline-time.monotonic()))
+                    except queue.Empty:
+                        continue
+                    held_state = held.get("state") if isinstance(held, dict) else None
+                    if isinstance(held, dict) and held.get("ok") and isinstance(held_state, dict) and held_state.get("event") == "trajectory_cancel_hold":
+                        stop_confirmed = True
+                        raise InterruptedError("gripper cancellation confirmed by resident hold")
+                raise TimeoutError("cancel_hold acknowledgement missing; owner remains reserved")
             return result
         except InterruptedError as error:
             goal_handle.canceled()

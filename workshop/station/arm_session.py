@@ -596,7 +596,7 @@ class ArmSession:
                 raise RuntimeError("inactive joint drift exceeds 40 counts: " + joint)
 
     def _run_leg(self, label, target, start, *, allow_sag=False, phase="move_plan",
-                 grasp=False):
+                 grasp=False, hold_on_contact=False):
         self._poll_busy_input()
         recovery = self._validate_transition(start, target, label, allow_sag=allow_sag)
         active = {joint for joint in JOINTS if target[joint] != start[joint]}
@@ -684,6 +684,12 @@ class ArmSession:
                              gripper_quiet and body_ready)
             if normal_ready or contact_ready:
                 contact_inferred = bool(contact_ready)
+                if contact_inferred and hold_on_contact:
+                    # A jaw-only command must stop pressing toward the next
+                    # chunk as soon as contact is inferred. Generic plans
+                    # retain their existing grasp/hold semantics.
+                    held = self.cancel_hold()
+                    commanded = dict(held["raw"])
                 settled = True
             elif now >= next_trim:
                 revised = dict(commanded)
@@ -851,6 +857,67 @@ class ArmSession:
                                        label=prepared[-1][0])
             state["legs"] = records
             state["completed_legs"] = [label for label, _target, _grasp in prepared]
+            return state
+        except BaseException as error:
+            if isinstance(error, ArmSessionCancelled) and self._cancel_reason == "trajectory_cancel_hold":
+                state = self.cancel_hold()
+                self._cancel_requested = False
+                self._active_leg = None
+                return {**state, "cancelled": True}
+            self._event("plan_error", error=str(error), error_type=type(error).__name__)
+            try:
+                self.shutdown(reason="control_error")
+            except BaseException as cleanup_error:
+                error.add_note("arm session cleanup failed: " + str(cleanup_error))
+            raise
+
+    def move_gripper(self, target_raw):
+        """Move the full jaw range in bounded legs under one cancellable command."""
+        self._require_initialized()
+        start = self._read("Present_Position")
+        try:
+            if type(target_raw) is not int:
+                raise ValueError("move_gripper target_raw must be an integer")
+            final = self._validate_target({**start, "gripper": target_raw}, "gripper_command")
+            # Validate the held body/start without treating the complete jaw
+            # span as one leg. Every emitted chunk is checked by _run_leg.
+            self._validate_transition(start, start, "gripper_command")
+        except ValueError as error:
+            raise ArmPlanPreflightError(str(error)) from error
+        chunks = max(1, math.ceil(abs(target_raw - start["gripper"]) /
+                                  (GRIPPER_STEP - ARRIVAL_COUNTS - QUIET_COUNTS)))
+        deadline = self.clock() + chunks * (LEG_DEADLINE_S + DWELL_S) + 1.0
+        actual = start
+        records = []
+        self._completed_leg_records = records
+        self._event("plan_start", phase="move_gripper", max_legs=chunks)
+        try:
+            self._ensure_profile()
+            for _ in range(chunks):
+                self._poll_busy_input()
+                if self.clock() >= deadline:
+                    raise TimeoutError("move_gripper deadline exceeded")
+                remaining = target_raw - actual["gripper"]
+                target = dict(final)
+                target["gripper"] = actual["gripper"] + max(-GRIPPER_STEP, min(GRIPPER_STEP, remaining))
+                label = "gripper_command"
+                self._active_leg = label
+                record = self._run_leg(label, target, actual, phase="move_gripper",
+                                       grasp=remaining < 0, hold_on_contact=True)
+                records.append(record)
+                self._active_leg = None
+                actual = record["settled_raw"]
+                self._poll_busy_input()
+                if record["contact_inferred"] or target["gripper"] == target_raw:
+                    break
+            else:
+                raise RuntimeError("move_gripper exhausted bounded chunks without reaching target")
+            self.last_command = self.clock()
+            self._sag_recovery_available = False
+            self._event("plan_complete", phase="move_gripper", legs=len(records), final_raw=actual)
+            state = self.publish_state(event="plan_complete", phase="move_gripper", label=label)
+            state["legs"] = records
+            state["completed_legs"] = [record["label"] for record in records]
             return state
         except BaseException as error:
             if isinstance(error, ArmSessionCancelled) and self._cancel_reason == "trajectory_cancel_hold":
@@ -1369,7 +1436,7 @@ class ArmSession:
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
-        if self._teleop is not None and name in ("move_plan", "home", "execute_trajectory"):
+        if self._teleop is not None and name in ("move_plan", "move_gripper", "home", "execute_trajectory"):
             raise ArmPlanPreflightError("finite motion is unavailable during active teleop")
         if name == "read_state":
             if set(command) != {"command"}:
@@ -1379,6 +1446,10 @@ class ArmSession:
             if set(command) != {"command", "legs"}:
                 raise ValueError("move_plan requires exactly command and legs")
             return {"ok": True, "state": self.move_plan(command["legs"])}
+        if name == "move_gripper":
+            if set(command) != {"command", "target_raw"}:
+                raise ArmPlanPreflightError("move_gripper requires exactly command and target_raw")
+            return {"ok": True, "state": self.move_gripper(command["target_raw"])}
         if name == "execute_trajectory":
             required = {"command", "goal_id", "joint_names", "points", "path_sha256"}
             allowed = required | {"calibration_endpoint"}
@@ -1495,7 +1566,7 @@ class ArmSession:
                     command = json.loads(line)
                     name = command.get("command") if isinstance(command, dict) else None
                     previous_idle_handled = self._idle_handled
-                    if name in ("move_plan", "home", "execute_trajectory"):
+                    if name in ("move_plan", "move_gripper", "home", "execute_trajectory"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None
@@ -1543,7 +1614,7 @@ class ArmSession:
                         self._motion_busy = False
                     emit(result)
                     self.last_command = self.clock()
-                    if name in ("move_plan", "home", "execute_trajectory"):
+                    if name in ("move_plan", "move_gripper", "home", "execute_trajectory"):
                         self._idle_handled = False
                     elif name == "stop" and self.persistent_idle:
                         self._idle_handled = True
