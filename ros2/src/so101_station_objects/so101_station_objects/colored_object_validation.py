@@ -11,6 +11,22 @@ import cv2
 import numpy as np
 
 
+DEFAULT_MAX_OBSERVATION_DEPTH_M = 1.2
+MIN_OBSERVATION_DEPTH_M = .10
+
+
+def validate_observation_depth_limit(value):
+    if isinstance(value, (bool, np.bool_)):
+        raise ValueError('max_observation_depth_m must be finite and greater than .10 m')
+    try:
+        limit = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError('max_observation_depth_m must be finite and greater than .10 m') from error
+    if not np.isfinite(limit) or limit <= MIN_OBSERVATION_DEPTH_M:
+        raise ValueError('max_observation_depth_m must be finite and greater than .10 m')
+    return limit
+
+
 @dataclass(frozen=True)
 class DepthComponent:
     mask: np.ndarray
@@ -26,22 +42,24 @@ class ComponentValidation:
     metrics: dict
 
 
-def _depth_inputs(mask, depth_m):
+def _depth_inputs(mask, depth_m, max_observation_depth_m):
     mask = np.asarray(mask)
     depth = np.asarray(depth_m)
     if mask.ndim != 2 or depth.shape != mask.shape or not np.issubdtype(depth.dtype, np.floating):
         raise ValueError('matching color mask and aligned metric floating depth required')
     mask = mask.astype(bool, copy=False)
-    valid = np.isfinite(depth) & (depth >= .10) & (depth <= 2.)
+    limit = validate_observation_depth_limit(max_observation_depth_m)
+    valid = np.isfinite(depth) & (depth >= MIN_OBSERVATION_DEPTH_M) & (depth <= limit)
     return mask, depth, valid
 
 
 def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m=.012,
-                                    min_pixels=24):
+                                    min_pixels=24,
+                                    max_observation_depth_m=DEFAULT_MAX_OBSERVATION_DEPTH_M):
     """Separate depth leaks before color contour construction or silhouette fill.
 
-    Invalid depth remains part of local support accounting. A large invalid
-    background joined to a real foreground brick by a thin color bridge does
+    Invalid and out-of-range depth remain in original local color support.
+    A large invalid background joined to a real foreground brick by a thin color bridge does
     not impose its size/invalid ratio on the foreground component. Depth jumps
     cut one pixel on each side; this deliberately withholds uncertain edges.
     """
@@ -51,6 +69,7 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
         raise ValueError('matching color mask and aligned metric floating depth required')
     if not np.isfinite(max_neighbor_jump_m) or max_neighbor_jump_m <= 0 or type(min_pixels) is not int or min_pixels < 8:
         raise ValueError('positive depth continuity and component size required')
+    limit = validate_observation_depth_limit(max_observation_depth_m)
     full_shape = parent.shape
     # Component bounding boxes are an exact computational optimization. Every
     # original color pixel participates, at its original calibrated coordinate.
@@ -58,9 +77,11 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
     if not width or not height:
         return ()
     crop = (slice(y0, y0+height), slice(x0, x0+width))
-    parent, depth, valid = _depth_inputs(parent[crop], depth[crop])
+    parent, depth, valid = _depth_inputs(parent[crop], depth[crop], limit)
     parent_pixels = int(parent.sum())
     candidate = parent & valid
+    if not candidate.any():
+        return ()
     cut = np.zeros_like(candidate)
     for axis in (0, 1):
         left = (slice(None, -1), slice(None)) if axis == 0 else (slice(None), slice(None, -1))
@@ -97,7 +118,8 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
 def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distortion=None,
                                *, support_mask=None, min_supported_fraction=.90,
                                max_neighbor_jump_m=.012, max_jump_fraction=.10,
-                               max_depth_split_m=.020, min_split_fraction=.08):
+                               max_depth_split_m=.020, min_split_fraction=.08,
+                               max_observation_depth_m=DEFAULT_MAX_OBSERVATION_DEPTH_M):
     """Check local untrimmed support, discontinuities and disconnected depths.
 
     ``support_mask`` must contain the original color pixels local to this depth
@@ -105,7 +127,7 @@ def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distort
     It is never the table/pickup ROI. Plane/appearance/shape metrics are reported
     without pretending they establish semantic brick identity or rigidity.
     """
-    region, depth, valid = _depth_inputs(component_mask, depth_m)
+    region, depth, valid = _depth_inputs(component_mask, depth_m, max_observation_depth_m)
     rgb = np.asarray(rgb)
     if rgb.shape != (*depth.shape, 3) or rgb.dtype != np.uint8:
         raise ValueError('matching uint8 RGB and aligned metric depth required')

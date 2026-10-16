@@ -31,6 +31,9 @@ if str(_ROOT) not in sys.path:
 
 from tools.propose_rgbd_grasp import color_masks  # noqa: E402
 from so101_station_objects.colored_object_validation import (  # noqa: E402
+    DEFAULT_MAX_OBSERVATION_DEPTH_M,
+    MIN_OBSERVATION_DEPTH_M,
+    validate_observation_depth_limit,
     split_depth_coherent_components,
     validate_brick_silhouette,
     validate_colored_component,
@@ -362,7 +365,8 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                  max_opening_m=0.055, min_component_pixels=30,
                  max_object_height_m=DEFAULT_MAX_OBJECT_HEIGHT_M,
                  support_plane=None, *, observation_roi=None, pickup_roi=None,
-                 support_roi=None):
+                 support_roi=None,
+                 max_observation_depth_m=DEFAULT_MAX_OBSERVATION_DEPTH_M):
     """Track visible colored surfaces; propose grasps only in the pickup ROI.
 
     `world_roi` remains the compatibility default for support fitting and
@@ -386,8 +390,10 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
     _validate_roi(observation_roi, "observation ROI")
     if not np.isfinite(max_object_height_m) or max_object_height_m <= 0:
         raise ValueError("pickup maximum object height must be positive and finite")
+    max_observation_depth_m = validate_observation_depth_limit(max_observation_depth_m)
     depth_m = depth.astype(np.float32) * float(depth_scale_m)
-    valid_depth = np.isfinite(depth_m) & (depth_m >= 0.10) & (depth_m <= 2.0)
+    valid_depth = (np.isfinite(depth_m) & (depth_m >= MIN_OBSERVATION_DEPTH_M)
+                   & (depth_m <= max_observation_depth_m))
     if int(valid_depth.sum()) < 100:
         raise ValueError("insufficient valid depth in camera frame")
     if support_plane is None:
@@ -431,9 +437,19 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
             if area < min_component_pixels:
                 continue
             validation_diagnostics["color_parent_components"] += 1
+            # Reject wholly out-of-range parents from small existing 2D stats
+            # before full masks, connected-depth splitting or 3D geometry.
+            x, y, width, height = (int(stats[label, key]) for key in (
+                cv2.CC_STAT_LEFT, cv2.CC_STAT_TOP, cv2.CC_STAT_WIDTH, cv2.CC_STAT_HEIGHT))
+            crop = (slice(y, y+height), slice(x, x+width))
+            if not np.any(valid_depth[crop] & (labels[crop] == label)):
+                reject_component(color, "outside_observation_depth_range", area)
+                continue
+            # Keep original RGB support, including invalid/out-of-range holes.
             parent_mask = labels == label
             pieces = split_depth_coherent_components(
-                parent_mask, depth_m, min_pixels=max(24, min_component_pixels))
+                parent_mask, depth_m, min_pixels=max(24, min_component_pixels),
+                max_observation_depth_m=max_observation_depth_m)
             if not pieces:
                 reject_component(color, "no_depth_coherent_component", area)
                 continue
@@ -441,7 +457,8 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                 validation_diagnostics["depth_components"] += 1
                 validation = validate_colored_component(
                     rgb, depth_m, piece.mask, intrinsics, distortion,
-                    support_mask=piece.support_mask)
+                    support_mask=piece.support_mask,
+                    max_observation_depth_m=max_observation_depth_m)
                 component_pixels = int(piece.mask.sum())
                 if not validation.accepted:
                     reject_component(color, validation.reason, piece.parent_pixels,
@@ -544,6 +561,7 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                     objects.append(item)
     return {"support_plane": plane, "objects": objects,
             "qualified": False, "frame_id": "charuco_board",
+            "observation_depth_range_m": [MIN_OBSERVATION_DEPTH_M, max_observation_depth_m],
             "validation_diagnostics": validation_diagnostics}
 
 
@@ -919,6 +937,7 @@ class ColoredObjectsNode:
                     "registration_status_topic": "/so101_perception/charuco_world/status",
                     "require_registration_tracking": True,
                     "depth_scale_m": 0.001,
+                    "max_observation_depth_m": DEFAULT_MAX_OBSERVATION_DEPTH_M,
                     "world_roi_x_min": DEFAULT_TABLE_ROI[0], "world_roi_x_max": DEFAULT_TABLE_ROI[1],
                     "world_roi_y_min": DEFAULT_TABLE_ROI[2], "world_roi_y_max": DEFAULT_TABLE_ROI[3],
                     "world_roi_z_min": DEFAULT_TABLE_ROI[4], "world_roi_z_max": DEFAULT_TABLE_ROI[5],
@@ -942,6 +961,8 @@ class ColoredObjectsNode:
                     self.get_parameter("require_registration_tracking").value)
                 self.registration_last_tracking_stamp = None
                 self.depth_scale = float(self.get_parameter("depth_scale_m").value)
+                self.max_observation_depth = validate_observation_depth_limit(
+                    self.get_parameter("max_observation_depth_m").value)
                 self.support_roi = tuple(float(self.get_parameter(name).value) for name in (
                     "world_roi_x_min", "world_roi_x_max", "world_roi_y_min",
                     "world_roi_y_max", "world_roi_z_min", "world_roi_z_max"))
@@ -1074,7 +1095,9 @@ class ColoredObjectsNode:
                 message.data = json.dumps({
                     "schema": 1, "state": state, "frame_id": self.board_frame,
                     "stamp": stamp_seconds(stamp), "qualified": False,
-                    "reason": reason, "acquisition": self.tracker.acquisition_diagnostics(), **extra,
+                    "reason": reason, "acquisition": self.tracker.acquisition_diagnostics(),
+                    "observation_depth_range_m": [MIN_OBSERVATION_DEPTH_M, self.max_observation_depth],
+                    **extra,
                 }, sort_keys=True, allow_nan=False)
                 self.status_pub.publish(message)
 
@@ -1150,7 +1173,8 @@ class ColoredObjectsNode:
                         job["rgb"], job["depth"], job["intrinsics"], job["distortion"],
                         job["scale"], job["board_from_camera"], self.support_roi,
                         self.max_opening, max_object_height_m=self.max_object_height,
-                        observation_roi=self.observation_roi, pickup_roi=self.pickup_roi)
+                        observation_roi=self.observation_roi, pickup_roi=self.pickup_roi,
+                        max_observation_depth_m=self.max_observation_depth)
                 except SupportPlaneUnavailable:
                     cache = job["support_plane_cache"]
                     cache_age = None if cache is None else job["stamp"] - cache["stamp"]
@@ -1162,7 +1186,8 @@ class ColoredObjectsNode:
                         self.max_opening, max_object_height_m=self.max_object_height,
                         observation_roi=self.observation_roi, pickup_roi=self.pickup_roi,
                         support_plane={key: value for key, value in cache.items()
-                                       if key != "stamp"})
+                                       if key != "stamp"},
+                        max_observation_depth_m=self.max_observation_depth)
                     report["support_plane"]["plane_source"] = "cached_measured_support_plane"
                     report["support_plane"]["support_plane_age_s"] = float(cache_age)
                     return report
@@ -1326,6 +1351,7 @@ class ColoredObjectsNode:
                     "schema": 1, "state": "tracking", "frame_id": self.board_frame,
                     "stamp": report["stamp"], "qualified": False,
                     "support_plane": report["support_plane"],
+                    "observation_depth_range_m": report["observation_depth_range_m"],
                     "objects": [{
                         "track_id": obj["track_id"], "color": obj["color"],
                         "acquisition_state": obj["acquisition_state"],

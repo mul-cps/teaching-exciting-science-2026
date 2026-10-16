@@ -121,6 +121,8 @@ def test_ros_node_exposes_three_frame_default_and_bounded_pending_status():
         assert node.get_parameter('acquisition_min_frames').value == 3
         assert node.tracker.acquisition_min_frames == 3
         assert node.get_parameter('max_pending_tracks').value == 64
+        assert node.get_parameter('max_observation_depth_m').value == 1.2
+        assert node.max_observation_depth == 1.2
     finally:
         node.analysis_worker.close()
         node.destroy_node()
@@ -310,8 +312,10 @@ def test_recorded_wide_frames_keep_all_eight_real_bricks_and_withhold_clipped_bl
         rgb = cv2.cvtColor(cv2.imread(str(directory/'color.png')),cv2.COLOR_BGR2RGB)
         depth = np.load(directory/'depth_aligned.npy')
         k = metadata['k']
+        # Keep this independent sensor-boundary regression at its captured
+        # depth range; production far admission has separate tests.
         report = analyze_rgbd(rgb,depth,dict(fx=k[0],fy=k[4],ppx=k[2],ppy=k[5]),
-                              metadata['d'],.001,transform)
+                              metadata['d'],.001,transform,max_observation_depth_m=2.)
         real = []
         for item in report['objects']:
             camera = np.linalg.inv(transform) @ np.append(item['surface_centroid'],1.)
