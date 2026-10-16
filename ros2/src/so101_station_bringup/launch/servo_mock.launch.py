@@ -42,8 +42,17 @@ def generate_launch_description():
             "namespace": "follower",
             "joint_config_file": "",
             "use_cameras": "false",
-            "use_rviz": "true",
+            "use_rviz": "false",
         }.items(),
+    )
+    rviz_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare("so101_station_bringup"),
+                "launch", "guarded_moveit_rviz.launch.py",
+            ])
+        ),
+        launch_arguments={"namespace": "follower", "variant": "follower"}.items(),
     )
     servo_node = Node(
         package="moveit_servo",
@@ -59,4 +68,4 @@ def generate_launch_description():
             moveit_config.joint_limits,
         ],
     )
-    return LaunchDescription([moveit_launch, servo_node])
+    return LaunchDescription([moveit_launch, rviz_launch, servo_node])

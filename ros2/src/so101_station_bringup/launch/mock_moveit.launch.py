@@ -25,8 +25,17 @@ def generate_launch_description():
                     "namespace": "follower",
                     "joint_config_file": "",
                     "use_cameras": "false",
-                    "use_rviz": "true",
+                    "use_rviz": "false",
                 }.items(),
-            )
+            ),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution([
+                        FindPackageShare("so101_station_bringup"),
+                        "launch", "guarded_moveit_rviz.launch.py",
+                    ])
+                ),
+                launch_arguments={"namespace": "follower", "variant": "follower"}.items(),
+            ),
         ]
     )

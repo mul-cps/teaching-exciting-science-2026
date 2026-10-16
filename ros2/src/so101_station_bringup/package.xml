@@ -26,4 +26,5 @@
   <exec_depend>so101_station_scene</exec_depend>
   <exec_depend>so101_station_map</exec_depend>
   <exec_depend>so101_station_perception</exec_depend>
+  <exec_depend>so101_station_gpu</exec_depend>
 </package>

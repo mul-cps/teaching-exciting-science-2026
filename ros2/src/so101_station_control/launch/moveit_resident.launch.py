@@ -3,6 +3,7 @@ import os
 import yaml
 
 from so101_station_control.model_offsets import apply_gripper_mount_roll
+from so101_station_gpu.gpu_renderer import rviz_preload_value
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -43,12 +44,9 @@ def generate_launch_description():
     moveit_config.robot_description["robot_description"] = apply_gripper_mount_roll(
         moveit_config.robot_description["robot_description"],
         model_offsets["gripper_mount_roll_deg"])
-    # Fedora Mesa needs the host DRM ABI for this GPU; keep the override
-    # local to RViz so the arm backend and other ROS nodes remain isolated.
-    drm_libraries = ["/usr/lib64/libdrm.so.2", "/usr/lib64/libdrm_amdgpu.so.1"]
-    rviz_environment = {}
-    if all(os.path.isfile(path) for path in drm_libraries):
-        rviz_environment["LD_PRELOAD"] = os.environ.get("SO101_RVIZ_LD_PRELOAD", ":".join(drm_libraries))
+    # Keep the host DRM ABI override local to RViz. Its entrypoint probes GLX
+    # with this environment before executing the renderer.
+    rviz_environment = {"LD_PRELOAD": rviz_preload_value()}
     parameters = moveit_config.to_dict()
     parameters["moveit_controller_manager"] = "moveit_simple_controller_manager/MoveItSimpleControllerManager"
     parameters["moveit_simple_controller_manager"] = {
@@ -124,7 +122,8 @@ def generate_launch_description():
         Node(package="moveit_ros_move_group", executable="move_group",
              namespace="follower", name="move_group", parameters=[parameters],
              remappings=[("joint_states", "/follower/joint_states")], output="screen"),
-        Node(package="rviz2", executable="rviz2", namespace="follower", name="rviz2",
+        Node(package="so101_station_gpu", executable="rviz_gpu_guard",
+             namespace="follower", name="rviz2",
              condition=IfCondition(LaunchConfiguration("rviz")),
              additional_env=rviz_environment,
              arguments=["-d", LaunchConfiguration("rviz_config")],
