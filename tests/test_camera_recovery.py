@@ -29,6 +29,9 @@ class Scene:
         self.samples.append(dict(raw))
         return .001 if raw["elbow_flex"] == self.obstruction else .020
 
+    def minimum_segment_clearance_m(self, start, end):
+        return .020
+
 
 def plan(scene, **kwargs):
     return plan_bound_reentry(START, BOUNDS, FIRMWARE, scene=scene, now=10.1,
@@ -50,6 +53,34 @@ def test_small_soft_limit_excursion_gets_camera_checked_inward_path():
 def test_obstruction_between_safe_endpoints_rejects_whole_recovery():
     with pytest.raises(ValueError, match="clearance"):
         plan(Scene(obstruction=2983))
+
+
+def test_clear_sample_poses_do_not_prove_the_swept_robot_volume():
+    scene = Scene()
+    scene.minimum_segment_clearance_m = lambda start, end: None
+    with pytest.raises(ValueError, match="swept"):
+        plan(scene)
+
+
+def test_every_continuous_segment_requires_clearance_proof():
+    scene = Scene()
+    segments = []
+
+    def swept(start, end):
+        segments.append((dict(start), dict(end)))
+        return .012
+
+    scene.minimum_segment_clearance_m = swept
+    result = plan(scene)
+    assert segments == list(zip(result.samples_raw, result.samples_raw[1:]))
+    assert result.minimum_clearance_m == .012
+
+
+def test_pose_only_collision_adapter_cannot_admit_recovery():
+    scene = Scene()
+    scene.minimum_segment_clearance_m = None
+    with pytest.raises(ValueError, match="swept"):
+        plan(scene)
 
 
 @pytest.mark.parametrize("field,value", [("registration_qualified", False),

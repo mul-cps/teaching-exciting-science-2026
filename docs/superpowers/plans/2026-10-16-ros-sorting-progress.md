@@ -66,3 +66,10 @@ Ruling: do not infer successful recovery from encoder-only motion, stale images 
 - Corrected tracked grasp pose geometry: candidate +Z is approach toward the object, so pregrasp/lift move opposite that direction. Qualified `tip_from_grasp` in the declared `x_closing_z_approach` frame is inverted/composed into all pickup link targets; `tcp_from_object` remains separate. A rotated/nonzero-offset regression proves physical contact60mm pregrasp and80mm lift heights, and explicit tool-place poses remain unchanged. Missing/ambiguous grasp-frame calibration rejects execution.
 - Latest live connection attempt still failed `arm persistent USB identity absent or ambiguous`; EV3 SSH also timed out. Last read-only arm state and logs copied into the durable local evidence folder.
 - Remaining work: restore physical connections and repeat reliable RGB-D cold starts; qualify camera/base/jaw/TCP/model from held-out data; integrate and validate live camera-guided recovery; perform actual grasp/sort/recovery/twin/teleop/cold-start acceptance. All original gates remain required.
+
+## Continuous recovery collision proof
+
+- Recovery planning now requires a continuous swept-volume oracle for every adjacent sample, in addition to complete-robot pose clearance. Two-count encoder sampling alone does not prove geometric clearance between poses. Missing, unknown or insufficient swept-volume proof rejects the plan.
+- Focused planner regressions: `python -m pytest -q tests/test_camera_recovery.py` ->14 passed. Three new cases failed before the fix: a pose-only adapter, an unknown swept segment, and a segment oracle never being called. Every segment now contributes to the returned minimum clearance.
+- A real URDF/depth collision adapter and native grasp CLI subprocess harness are in progress. These tests do not qualify live recovery or physical sorting.
+- Latest user-authorized run preflight still found no `/dev/serial/by-id` and no EV3 USB device. D435i remains enumerated; no actuator commands were sent.

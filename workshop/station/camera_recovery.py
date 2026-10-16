@@ -39,6 +39,9 @@ def plan_bound_reentry(raw, admitted_bounds, firmware_bounds, *, scene, now,
     robot against observed obstacles, support surfaces and unknown/occluded
     space. It must exclude measured self geometry without clearing unseen
     space. Missing/unknown clearance must return None, causing rejection.
+    ``scene.minimum_segment_clearance_m(start, end)`` must also prove the
+    continuous swept volume between each pair of sampled poses. Sampling
+    encoder counts alone cannot bound the motion of the robot geometry.
     The scene is bound to the qualified camera registration and effective
     model hashes, and paired within 100 ms to the measured encoder sample.
     A scene adapter supplying this contract is required before live recovery.
@@ -91,12 +94,21 @@ def plan_bound_reentry(raw, admitted_bounds, firmware_bounds, *, scene, now,
                     for step in range(steps+1))
     started = time.monotonic()
     clearance = math.inf
-    for sample in samples:
+    swept_clearance = getattr(scene, "minimum_segment_clearance_m", None)
+    if not callable(swept_clearance):
+        raise ValueError("continuous swept-volume collision proof required")
+    for index, sample in enumerate(samples):
         observed = scene.minimum_clearance_m(dict(sample))
         if (type(observed) not in (int, float) or not math.isfinite(observed)
                 or observed < minimum_clearance_m):
             raise ValueError("recovery path clearance is unknown or insufficient")
         clearance = min(clearance, observed)
+        if index:
+            observed = swept_clearance(dict(samples[index-1]), dict(sample))
+            if (type(observed) not in (int, float) or not math.isfinite(observed)
+                    or observed < minimum_clearance_m):
+                raise ValueError("recovery swept-volume clearance is unknown or insufficient")
+            clearance = min(clearance, observed)
         if now + time.monotonic()-started - scene.stamp_monotonic > .5:
             raise ValueError("camera scene expired while checking recovery")
     payload = {"model_sha256": expected_model_sha256,
