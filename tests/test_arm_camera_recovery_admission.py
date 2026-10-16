@@ -105,3 +105,44 @@ def test_first_goal_final_input_pump_cannot_invalidate_proof(tmp_path,fault,monk
     assert not any(arm.bus.data['Torque_Enable'].values())
     assert session.saved_ram is None
     session.close_log()
+
+
+def test_camera_completion_keeps_actual_hold_read_stamps_across_slow_log(tmp_path):
+    session,arm,clock,_=recovery_session(tmp_path)
+    original_event=session._event
+    held=[]
+    original_hold=session.cancel_hold
+    def hold():
+        state=original_hold();held.append(state);return state
+    session.cancel_hold=hold
+    def event(name,**fields):
+        original_event(name,**fields)
+        if name=='trajectory_cancel_hold':clock.sleep(.200)
+    session._event=event
+    result=session.handle({'command':'recover_camera'})
+    state=result['state']
+    assert result['ok']
+    for field in ('monotonic','torque_monotonic','timestamp_utc','torque_timestamp_utc'):
+        assert state[field]==held[0][field]
+    assert clock.monotonic()-state['monotonic'] >= .200
+    assert clock.monotonic()-state['torque_monotonic'] >= .200
+    assert len(arm.bus.goal_history)==12  # original recovery/terminal hold only
+    session.shutdown();session.close_log()
+
+
+def test_cancel_hold_positions_not_restamped_after_goal_readback(tmp_path):
+    session,arm,clock,_=recovery_session(tmp_path)
+    read=session._read
+    stamps={}
+    def delayed(register):
+        if register=='Goal_Position':clock.sleep(.050)
+        value=read(register)
+        if register in {'Present_Position','Torque_Enable'}:stamps[register]=clock.monotonic()
+        return value
+    session._read=delayed
+    state=session.cancel_hold()
+    assert state['monotonic']==stamps['Present_Position']
+    assert state['torque_monotonic']==stamps['Torque_Enable']
+    assert state['torque_monotonic']-state['monotonic'] >= .050
+    assert len(arm.bus.goal_history)==1
+    session.shutdown();session.close_log()

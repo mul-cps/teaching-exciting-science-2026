@@ -1037,12 +1037,16 @@ class ArmSession:
             return self.publish_state(event="component_cancel_disarmed")
         self._teleop = None
         measured = self._read("Present_Position")
+        position_stamp, position_utc = self.clock(), self.wall_clock()
         self.bus.sync_write("Goal_Position", measured, normalize=False, num_retry=0)
         goals = self._read("Goal_Position")
         if any(abs(goals[joint] - measured[joint]) > 1 for joint in JOINTS):
             raise RuntimeError("cancel hold goal readback mismatch")
         torque = self._read("Torque_Enable")
-        state = self.publish_state(event="trajectory_cancel_hold", raw=measured, torque=torque)
+        torque_stamp, torque_utc = self.clock(), self.wall_clock()
+        state = self.publish_state(event="trajectory_cancel_hold", raw=measured, torque=torque,
+            position_monotonic=position_stamp, position_utc=position_utc,
+            torque_monotonic=torque_stamp, torque_utc=torque_utc)
         self.last_command = self.clock()
         self._event("trajectory_cancel_hold", raw=measured, torque=torque)
         return state
@@ -1656,7 +1660,11 @@ class ArmSession:
                     self._active_leg = None
                     self._sag_recovery_available = False
                     state = self.publish_state(event="camera_recovery_complete", raw=held["raw"],
-                        torque=held["torque"], phase="camera_recovery", label="camera_reentry")
+                        torque=held["torque"], phase="camera_recovery", label="camera_reentry",
+                        position_monotonic=held["monotonic"],
+                        position_utc=datetime.fromisoformat(held["timestamp_utc"]),
+                        torque_monotonic=held["torque_monotonic"],
+                        torque_utc=datetime.fromisoformat(held["torque_timestamp_utc"]))
                     self._event("camera_recovery_complete", raw=held["raw"], target_raw=target)
                     return {"ok": True, "state": state, "recovery": {"status": "completed",
                         "target_raw": target, "path_sha256": plan.path_sha256}}
