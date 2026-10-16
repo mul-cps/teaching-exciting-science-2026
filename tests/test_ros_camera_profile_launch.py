@@ -42,6 +42,9 @@ def test_perception_allows_wider_color_without_changing_depth_or_default():
     camera = next(action for action in actions if isinstance(action, IncludeLaunchDescription))
     config = arguments(camera, context)
     assert config["rgb_camera.color_profile"] == "848,480,15"
+    # Vendor rs_launch applies its YAML after launch arguments. A static
+    # 640-wide profile there silently overrides the explicit wider request.
+    assert config.get("config_file", "''") == "''"
     assert config["depth_module.depth_profile"] == "640,480,15"
     assert config["serial_no"] == "_243322071783"
     assert config["align_depth.enable"] == "true"

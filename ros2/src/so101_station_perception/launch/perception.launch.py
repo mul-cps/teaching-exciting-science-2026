@@ -46,8 +46,6 @@ def _launch_nodes(context):
             raise ValueError("evidence_folder must be a new or empty directory")
         if not resident_state_file or not Path(resident_state_file).is_file():
             raise ValueError("evidence sink requires an existing resident_state_file")
-    camera_config = PathJoinSubstitution([
-        FindPackageShare("so101_station_perception"), "config", "realsense.yaml"])
     realsense_launch = PathJoinSubstitution([
         FindPackageShare("realsense2_camera"), "launch", "rs_launch.py"])
     rviz_config = PathJoinSubstitution([
@@ -61,7 +59,10 @@ def _launch_nodes(context):
             # Keep the full vendor camera/depth/color TF in both modes. The
             # qualified base transform is attached at camera_link by composing
             # the official camera_link-to-optical edge.
-            "config_file": camera_config,
+            # rs_launch applies YAML after these arguments. Keep this complete
+            # explicit profile authoritative; static YAML would override a
+            # requested color_profile with its conservative 640-wide default.
+            "config_file": "''",
             "publish_tf": "true",
             "enable_color": "true",
             "rgb_camera.color_profile": LaunchConfiguration("color_profile"),
