@@ -8,7 +8,7 @@ records commands, limitations and decisions.
 
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
-| Software suite | System Python: 1164 passed, 74 skipped (24.45s, workflow/placement integration); trusted CGAL/mesh-audit subset44passed | Software passed; skipped checks remain separate |
+| Software suite | System Python: 1287 passed, 75 skipped, 6 subtests (23.99s, combined system/native-EV3 suite); trusted CGAL/mesh-audit subset44passed | Software passed; skipped checks remain separate |
 | Native ROS checks | Root camera/GPU/domain subset42passed in domain75; typed object-depth launch subset23passed; earlier tracking/validation/worker subset94passed and station-venv twin subset19passed | Passed with test owners; no physical execution |
 | Clean package installation | All 17 packages built in a fresh integration prefix; separate startup worker verified a non-symlink install and installed plane-module import | Passed |
 | MoveIt planning | Mock start state valid, no collision; seven-point trajectory saved | Planning only; physical scene not qualified |
@@ -22,10 +22,10 @@ records commands, limitations and decisions.
 | Failure recovery and reconnect | Software tests cover stop/ownership paths; transport failure observed while torque was last verified off | Physical behavior unqualified |
 | Camera-guided automatic arm recovery | Bounded planner, conservative depth adapter and owner admission/watchdog implemented and tested; production provider rejects without qualified geometry/registration | Live physical recovery pending |
 | ROS isolation and rendering | Full station and twin restarted on domain76; wrapper defaults76/rejects0; localhost discovery; actual RViz amdgpu counter increments | Live checked; rebuilt container image remains separate |
-| Native EV3 commissioning | Exact machine/port identity checked; one diagnostic sorter switch home completed1.859s/refhome0; baseline overspeed guard and MicroPython fault observed and recorded; feeder reference remainsNone | Sorter home once; feeder/ejection/othermoves/sorting pending |
-| ROS workflow and quick actions | Reviewed resident API, private one-use EV3 command admission, bounded cycles/cancel/stop; root combined native subset43passed; live typed status/diagnostics and sole EV3 connection work on domain76 | API running idle/connected; commissioning config absent; physical cycles pending |
+| Native EV3 commissioning | Exact identity and updated source hash checked; current-session switch reference established; target12 completed measured13 in723ms. Return0 completed natively646ms but ROS terminal telemetry freshness faulted; coordinated stop confirmed | Axis at0, host fault retained; feeder reference/ejection and broader qualification pending |
+| ROS workflow and quick actions | Reviewed resident API, private one-use EV3 command admission, bounded cycles/cancel/stop; root combined native subset43passed; live typed status/diagnostics and sole EV3 connection work on domain76 | API connected with explicit return telemetry fault and terminal stop acknowledged; commissioning config absent; physical cycles pending |
 | Acknowledged arm stop | New bridge/sole owner started; live `/follower/stop` succeeded with fresh six-servo torque-off readback, unchanged raw positions | Idle protocol checked; arm was already torque off, moving-stop qualification pending |
-| Interactive moving placement area | Browser8101 upright, frozen-frame selection and visible outline checked; native ROS pin/select tests pass. Earlier continuity sample selected the white arm link, not the LEGO feeder | Correct feeder anchor/depth support and dynamic tracking unqualified |
+| Interactive moving placement area | Browser8101 upright with matching pixel coordinates; asynchronous frozen-frame replay tested. Correct LEGO anchor retained across80outbound/53return frames; motion only~1pixel. A goal picked on the fixed belt must not be bound to that anchor | Correct moving feeder goal and calibrated dynamic placement remain unqualified |
 | ROS sorter-axis positioning | Typed guarded action/fake tests pass; actual12degree target faulted after reaching55degrees, with51degree encoder step over234ms and native braking | Not physically qualified; all-motion I/O deferral under controlled comparison |
 | Three successful cold starts | Three camera-only starts passed after reconnection; complete station cold-start gate not exercised | Pending |
 | Release artifacts and publication | Local camera/USB logs retained; implementation branch not a release | Pending |
