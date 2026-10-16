@@ -70,3 +70,31 @@ python -m pytest -q tests/test_recovery_cgal.py tests/test_recovery_mesh_audit.p
 Without an explicit trusted build pin or installed default executable, geometry fixture tests skip; wrapper failure tests still run. Explicitly supplying a missing `RECOVERY_CGAL_BINARY` fails verification.
 
 Primary API contracts: [EPECK](https://doc.cgal.org/latest/Kernel_23/classCGAL_1_1Exact__predicates__exact__constructions__kernel.html), [self intersections](https://doc.cgal.org/latest/Polygon_mesh_processing/group__PMP__intersection__grp.html), [volume orientation](https://doc.cgal.org/latest/PMP_Mesh_repair/group__PMP__orientation__grp.html), [mesh parity](https://doc.cgal.org/latest/Polygon_mesh_processing/classCGAL_1_1Side__of__triangle__mesh.html), [exact AABB distance](https://doc.cgal.org/latest/AABB_tree/classCGAL_1_1AABB__tree.html).
+
+## Material-cell feasibility at recovery resolution
+
+A subsequent offline audit used all13 frozen source meshes, the same trusted build pin, positive URDF scales1,1,1, and2mm boundary uncertainty. It tested every local axis-aligned cell center covering each mesh AABB at5mm (the current depth oracle default) and2.5mm. Per-mesh candidate counts stayed below100000. The exact backend checked each full uncertain cube; no center-only classification was promoted to a cell proof.
+
+| Mesh | Certified cells at 5 mm | At 2.5 mm |
+| --- | ---: | ---: |
+| `base_motor_holder_so101_v1.stl` | 0 | 0 |
+| `base_so101_v2.stl` | 4 | 390 |
+| `motor_holder_so101_base_v1.stl` | rejected | rejected |
+| `motor_holder_so101_wrist_v1.stl` | 0 | 0 |
+| `moving_jaw_so101_v1.stl` | 0 | 12 |
+| `rotation_pitch_so101_v1.stl` | 63 | 1057 |
+| `sts3215_03a_no_horn_v1.stl` | 48 | 738 |
+| `sts3215_03a_v1.stl` | 48 | 738 |
+| `under_arm_so101_v1.stl` | 126 | 1740 |
+| `upper_arm_so101_v1.stl` | 180 | 2272 |
+| `waveshare_mounting_plate_so101_v2.stl` | 0 | 0 |
+| `wrist_roll_follower_so101_v1.stl` | 12 | 312 |
+| `wrist_roll_pitch_so101_v2.stl` | 0 | 46 |
+
+At5mm there are481 certified cells across the13 unique meshes; at2.5mm there are7305. These counts are not volume coverage percentages, and reused mesh instances are not additional independent evidence. The moving jaw has no certified5mm cells and only12 at2.5mm. Four meshes still have no interior cells at2.5mm, including the topology-rejected motor holder. No mesh was repaired or substituted.
+
+Total sequential operation time was9.447s at5mm and35.646s at2.5mm. The live depth oracle allows at most0.45s computation and0.5s acquisition age. The offline totals cannot establish a live latency bound; they demonstrate that simply running the whole audit during each acquisition is unsuitable. A precomputed conservative representation and actual base-grid/pose coverage would need separate implementation and qualification. These local-grid results cannot be reused as certificates for a rotated or translated base-grid cell. The current collision model remains unchanged and refuses to carve convex-hull cavities.
+
+The audit changes the next recovery step: do not wire these offline results into the live owner as permissions. First obtain independent physical registration/jaw/TCP measurements; then evaluate current-pose and continuous-segment clearance with the actual camera view, including occluded/unknown space. Exact topology alone cannot provide that evidence. The stationary current elbow remains outside its configured range with torque disabled.
+
+Artifacts: `~/.local/share/exciting-science/station/evidence/2026-10-16/recovery-cgal/cell-feasibility/` contains the full command script,26 per-mesh/pitch results, summary and SHA manifest. Source scriptSHA256 `5180cca5a0285d14288085467e6f80cd40ef8d41ad8517f6f5e41346ca3e0a39`; summarySHA256 `cad999b41cda62be465fefbb4860d005aa4548ab530ba8838094865ad54a1e86`; artifact manifestSHA256 `b85180fefbd873ac00ac6d928913df453a1c6c055c955f0c9bc4c42ae5803780`. Repository source was95d4cd0. Root reran the explicit trusted CGAL and mesh-audit test suites:44passed. No ROS or actuator access was used.

@@ -178,3 +178,11 @@ Ruling: do not infer successful recovery from encoder-only motion, stale images 
 - Producer clip_distance1.2 and detector max_observation_depth_m1.2 are live. An8-second read-only sample received121pointclouds, maxZ1.197m, zero points beyond1.2m, and40tracking reports. Latest report contains9colored surfaces/3grasp previews, so near hardware semantics remain unresolved. This is transport/range validation, not automated-sort acceptance.
 
 - Domain defaults/guards6d93879 and isolated-test fix5626436 verified: actual unset-domain wrapper reports76/LOCALHOST; explicit0exits2 before invoking ROS. Root native camera/GPU/domain subset42passed. Root full system suite1140passed53skipped in23.80s (tests isolated on domain75). Five affected ROS packages rebuilt successfully. Container entrypoint/command tests pass; the revised image has not been rebuilt. `/follower/sorting_ready` remains false for the documented physical prerequisites.
+
+
+## Recovery cell feasibility and next physical gate
+
+- Root revalidated the live resident after domain migration: fresh sample, all6torque states0, elbow91.56degrees. Source/remote checkpoint95d4cd0 is the audited integration input. Previous turn classified as progress (GPU/domain implementation and live evidence).
+- Ran26 exact offline material-cell checks across13 frozen meshes at5mm and2.5mm,2mm boundary uncertainty, pinned build6c0fa659. Local-grid totals481/7305certified cells; moving jaw0/12. Whole-grid sequential times9.447/35.646s exceed the live0.45s computation budget. README records full counts, limitations and artifact hashes. This evidence rules out directly invoking the whole prototype during each live acquisition; it does not prove a production cache or clearance.
+- Trusted CGAL/mesh-audit regressions44passed. The standalone prototype plan is now complete with external evidence; physical recovery and the full station plan remain incomplete. No provider, collision model, calibration flags, limits or actuator state changed.
+- Ruling: retain recovery fail-closed and request independent jaw/TCP/camera-base measurements. Current files remain explicitly unqualified; fitting the same observations cannot replace an independent physical reference. Continue with actual-pose visibility/cache qualification only with evidence supporting the physical gates.

@@ -8,8 +8,8 @@ records commands, limitations and decisions.
 
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
-| Software suite | System Python: 1061 passed, 50 skipped (18.51s, after final tracker/twin integration) | Software passed; skipped checks remain separate |
-| Native ROS checks | Root tracking/validation/worker subset94passed in domain75; station-venv twin/EGL/dependency subset19passed | Passed with test owners; no physical execution |
+| Software suite | System Python: 1140 passed, 53 skipped (23.80s, at domain/GPU integration); trusted CGAL/mesh-audit subset44passed | Software passed; skipped checks remain separate |
+| Native ROS checks | Root camera/GPU/domain subset42passed in domain75; typed object-depth launch subset23passed; earlier tracking/validation/worker subset94passed and station-venv twin subset19passed | Passed with test owners; no physical execution |
 | Clean package installation | All 17 packages built in a fresh integration prefix; separate startup worker verified a non-symlink install and installed plane-module import | Passed |
 | MoveIt planning | Mock start state valid, no collision; seven-point trajectory saved | Planning only; physical scene not qualified |
 | Single station startup | One camera launch and one resident follower owner; calibrated jaw path forwarded through both launch layers | Implemented; live cold starts pending |
@@ -21,6 +21,7 @@ records commands, limitations and decisions.
 | Twenty consecutive physical sorting cycles, ≥5 per color | No physical sorting cycle executed | Pending |
 | Failure recovery and reconnect | Software tests cover stop/ownership paths; transport failure observed while torque was last verified off | Physical behavior unqualified |
 | Camera-guided automatic arm recovery | Bounded planner, conservative depth adapter and owner admission/watchdog implemented and tested; production provider rejects without qualified geometry/registration | Live physical recovery pending |
+| ROS isolation and rendering | Full station and twin restarted on domain76; wrapper defaults76/rejects0; localhost discovery; actual RViz amdgpu counter increments | Live checked; rebuilt container image remains separate |
 | Three successful cold starts | Three camera-only starts passed after reconnection; complete station cold-start gate not exercised | Pending |
 | Release artifacts and publication | Local camera/USB logs retained; implementation branch not a release | Pending |
 
@@ -42,9 +43,9 @@ Full-view color tracking now separates observation, support and pickup admission
 Contact/pregrasp previews outside pickup bounds do not authorize execution.
 Depth support, original per-child shape evidence and three-frame acquisition
 confirmation reject transient floating fragments without a fixed workspace
-exclusion. Latest30-second capture `tracking-confirmed-live/` preserved all eight
+exclusion. Earlier30-second capture `tracking-confirmed-live/` preserved all eight
 real bricks with zero extras in150/150tracking reports. Receipt age was below
-0.327seconds. This verifies the stationary reproduced scene; live dynamic,
+0.327seconds. The later domain76 sample has9colored surfaces, including near hardware; all ghosts are not eliminated. This verifies the earlier stationary reproduced scene; live dynamic,
 occlusion and semantic generalization remain unqualified.
 
 Evidence is under

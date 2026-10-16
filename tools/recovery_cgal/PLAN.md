@@ -11,7 +11,12 @@
 - [x] Implement a narrow EPECK helper: preserve exact triangles; validate nondegenerate valid closed mesh; prove no self intersections before volume queries; reject zero-volume components and invalid volume orientation; parity query entire mesh; require exact squared boundary distance strictly above a rational upper bound on the entire uncertain cell radius.
 - [x] Implement strict JSON CLI/wrapper with external process deadlines and resource limits; source/payload/helper/build/URDF-scale hashes in results. Unknown never certifies.
 - [x] Verify fixtures, benchmark moving jaw first. Notify parent before full13 run if jaw runtime is poor. Freeze13 input STLs and audit provenance externally; run each under bounded deadline.
-- [ ] Run focused and full tests, save reviewable external artifact and documentation. Commit owned files only after review.
+- [x] Run focused and full tests, save reviewable external artifact and documentation. Commit owned files only after review. Root trusted backend/mesh-audit suite44passed; full integration suite1140passed53skipped.
+- [x] Audit full uncertain material cells at5mm and2.5mm on the13 frozen meshes. Record zero-cell parts, deadlines, all result hashes, and the boundary between offline evidence and production permission.
+
+## Next gate
+
+The standalone prototype is complete. Production recovery is not qualified. The5mm local-grid audit certifies no moving-jaw cells, and whole-audit computation exceeds the live deadline. Do not integrate an assumed complete material cache or promote calibration flags. Independent physical reference measurements, an efficient conservative representation with actual-pose/base-grid coverage, camera visibility and continuous clearance remain required.
 
 ## Review focus
 
