@@ -86,12 +86,10 @@ with this schema:
 }
 ```
 
-The example values are illustrative and are not a station calibration. Do not
-enable this action with them. `max_effort` is only accepted as zero because the
-servo has no calibrated force limit. A successful result means the jaw reached
-the requested calibrated gap; it does not mean an object was grasped. Pickup
-verification requires separate scene evidence that the selected tracked object
-moved with the gripper during lift.
+`max_effort` must be zero because the servo has no calibrated force limit.
+Contact inferred by the resident owner is provisional; pickup requires three
+distinct, fresh geometric observations of the same object elevated with the
+gripper. The scene lock is acknowledged before opening.
 
 ## Sorting grasp execution
 
@@ -105,6 +103,10 @@ execution config must use `so101-grasp-execution-config-v1` with
 camera-arm file must carry qualified `camera-arm-calibration-v1` provenance;
 the TCP file must be qualified `so101-grasp-tcp-calibration-v1`, match the
 requested tip link, and provide the rigid `tcp_from_object` transform in SI.
+Motion also requires current `tracking`/`observation_valid` registration
+status in ROS time. Camera identity is supplied by the station launch's pinned
+camera serial and is not independently attested by the registration status
+message.
 The CLI checks those files, the current model digest, and all tool/contact link
 names before it commands the initial open.
 
@@ -113,8 +115,13 @@ matching request ID acknowledgements on `/so101_scene/attachment_status`. The
 scene updater owns the world-to-attached diff, limits temporary contact-matrix
 allowance to the selected brick and configured touch links, suppresses stale
 tracker updates and TTL removal while attached, and only releases ownership
-after a successful detach diff. After lift and after release, the CLI requires
-three stable geometric observations of the same track. A missing lift
-observation stops before place and leaves the object attached in the planning
-scene. `pick_place_complete` is emitted only when pickup, lift, and release
-evidence are all true.
+after a successful detach diff. After lift and release, the CLI requires three
+distinct, fresh geometric observations of the same track in the expected frame,
+with current Charuco registration observations. A missing lift observation
+stops before place and leaves the object attached in the planning scene. After
+opening and detaching, the CLI retreats with a collision-checked commissioned
+`--return-joint-pose` JSON map (five arm joint names to radians), or a
+collision-checked 60 mm move along the TCP tool axis. Release is checked only
+after that retreat. `pick_place_complete` is emitted only when pickup, lift,
+and release evidence are all true. Software tests do not validate physical
+calibration, contact, or hardware execution.

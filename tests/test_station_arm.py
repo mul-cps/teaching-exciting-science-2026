@@ -65,6 +65,35 @@ def test_constructor_does_not_connect_or_write(setup):
     assert not b.is_connected and not b.writes
 
 
+def test_gripper_move_plan_cancel_returns_confirmed_hold_without_fault_shutdown(monkeypatch, tmp_path):
+    from workshop.station.arm_session import ArmSession, ArmSessionCancelled
+
+    session = ArmSession.__new__(ArmSession)
+    session._require_initialized = lambda: None
+    session._read = lambda register: dict.fromkeys(JOINTS, 2000)
+    session._validate_target = lambda target, label: dict(target)
+    session._validate_transition = lambda *args, **kwargs: False
+    session.clock = lambda: 1.0
+    session._event = lambda *args, **kwargs: None
+    session._ensure_profile = lambda: None
+    session._sag_recovery_available = False
+    session._completed_leg_records = []
+    session._active_leg = "gripper_command"
+    session._motion_busy = False
+    session._input_fd = None
+    session._cancel_reason = "trajectory_cancel_hold"
+    session._cancel_requested = True
+    session._run_leg = lambda *args, **kwargs: (_ for _ in ()).throw(
+        ArmSessionCancelled("trajectory_cancel_hold"))
+    session.cancel_hold = lambda: {"event": "trajectory_cancel_hold", "pose": {}}
+    session.shutdown = lambda **kwargs: pytest.fail("confirmed hold cancellation must keep owner alive")
+    state = session.move_plan([{"label": "gripper_command",
+                                "target_raw": dict.fromkeys(JOINTS, 2000), "grasp": True}])
+    assert state["event"] == "trajectory_cancel_hold"
+    assert state["cancelled"] is True
+    assert session._cancel_requested is False
+
+
 @pytest.mark.parametrize('fault', ['hash', 'missing', 'drive_mode', 'id', 'range', 'invalid_home', 'missing_color', 'outside_pose'])
 def test_preflight_fault_never_arms(setup, fault):
     a, b, c = setup
