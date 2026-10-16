@@ -28,7 +28,7 @@ def main():
     from rclpy.node import Node
     from std_msgs.msg import String
     from std_srvs.srv import Trigger
-    from so101_station_workflow.srv import RunCycles, ConfirmReference, SelectDestination, EV3Command
+    from so101_station_workflow.srv import RunCycles, ConfirmReference, SelectDestination, EV3Command, SorterPosition
     from tools.ros_sort_station import ROSSortingDevices, load_settings
     from workshop.station.ros_sorting import run_sorting
 
@@ -111,7 +111,7 @@ def main():
                     cancel=workflow.cancel, stop_pending=stop_state['pending'])
             if active and request.job_id != workflow.job_id and operation != 'stop':
                 raise RuntimeError('EV3 reserved by active station job')
-            if operation not in {'status', 'stop', 'eject', 'home_touch', 'wake', 'power_save', 'confirm_reference'}:
+            if operation not in {'status', 'stop', 'eject', 'home_touch', 'wake', 'power_save', 'confirm_reference', 'motor_target'}:
                 raise ValueError('operation is not admitted by ROS station API')
             if operation not in {'status', 'stop'} and (not active or request.job_id != workflow.job_id):
                 raise RuntimeError('EV3 motion/power command requires admitted station job')
@@ -271,6 +271,80 @@ def main():
                     time.sleep(.05)
             return result
         return worker_task(operation, work)
+
+    def sorter_position(request, response):
+        from workshop.station.sorter_position import (validate_target, stationary_snapshot,
+            position_arguments, PHASE_DEADLINE_S, motion_progress, terminal_position, control_diagnostics)
+        def admit():
+            validate_target(request.target_deg)
+            def move(worker, proxy, cancel):
+                def check(deadline):
+                    if cancel.is_set():
+                        raise InterruptedError('sorter position cancelled')
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError('sorter position deadline exceeded')
+                def status(deadline):
+                    check(deadline)
+                    before = time.monotonic()
+                    result = proxy.call('status')
+                    if time.monotonic()-before > .75:
+                        raise TimeoutError('sorter telemetry receipt too slow for admission')
+                    check(deadline)
+                    return result
+                try:
+                    admission_deadline = time.monotonic()+2.
+                    first = status(admission_deadline)
+                    initial_angle, initial_stamp = stationary_snapshot(first, session=proxy.session)
+                    while True:
+                        time.sleep(.05)
+                        current = status(admission_deadline)
+                        angle, stamp = stationary_snapshot(current, session=proxy.session)
+                        if stamp > initial_stamp:
+                            if stamp-initial_stamp > 1500 or abs(angle-initial_angle) > 1.:
+                                raise ValueError('sorter telemetry changed unexpectedly during admission')
+                            break
+                    arguments = position_arguments(current, session=proxy.session, target=request.target_deg)
+                    check(admission_deadline)
+                    # The one native target phase also has its own six-second watchdog.
+                    deadline = time.monotonic()+PHASE_DEADLINE_S
+                    accepted = proxy.call('motor_target', arguments)
+                    job = accepted.get('job', {})
+                    if accepted.get('accepted') is not True or type(job.get('id')) is not int:
+                        raise RuntimeError('sorter target did not return a unique native job')
+                    diagnostics = control_diagnostics(current)
+                    record(dict(event='sorter_position_started', target_deg=request.target_deg,
+                                native_job_id=job['id'], profile=arguments,
+                                diagnostics=diagnostics, native_job=job))
+                    last_sample, last_progress = stamp, time.monotonic()
+                    while True:
+                        observed = status(deadline)
+                        last_sample, last_progress = motion_progress(observed, session=proxy.session,
+                            previous_stamp=last_sample, progress_time=last_progress, now=time.monotonic())
+                        if observed.get('busy') is False:
+                            final_angle = terminal_position(observed, session=proxy.session,
+                                job_id=job['id'], target=request.target_deg, after_stamp=stamp)
+                            result = dict(target_deg=request.target_deg, measured_deg=final_angle,
+                                session=proxy.session, native_job_id=job['id'],
+                                diagnostics_before=diagnostics, diagnostics_after=control_diagnostics(observed),
+                                native_job=observed['last_job'], angles=observed['angles'])
+                            record(dict(event='sorter_position_complete', **result))
+                            return result
+                        active = observed.get('job') or {}
+                        if active.get('id') != job['id'] or active.get('operation') != 'motor_target':
+                            raise RuntimeError('sorter native active job identity changed')
+                        time.sleep(.05)
+                except BaseException as error:
+                    try:
+                        reply = proxy.call('stop')
+                        if reply.get('stopped') is not True:
+                            raise RuntimeError('EV3 stop acknowledgement missing')
+                    except BaseException as stop_error:
+                        error.add_note('sorter cleanup stop failed: '+str(stop_error))
+                        stop_state['pending'] = True
+                    raise
+            return worker_task('sorter_position', move)
+        return reply(response, admit)
+    node.create_service(SorterPosition, '/station/ev3/sorter_position', sorter_position)
 
     def confirm(request, response):
         def action():

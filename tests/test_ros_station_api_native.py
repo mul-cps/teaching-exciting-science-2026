@@ -13,7 +13,7 @@ rclpy = pytest.importorskip('rclpy')
 from rclpy.node import Node
 from std_srvs.srv import Trigger
 interfaces = pytest.importorskip('so101_station_workflow.srv')
-from so101_station_workflow.srv import ConfirmReference, EV3Command, RunCycles
+from so101_station_workflow.srv import ConfirmReference, EV3Command, RunCycles, SorterPosition
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,6 +29,8 @@ def test_resident_one_connection_reference_status_fault_and_cancel(tmp_path):
     halt = threading.Event()
     connections, operations = [], []
     refs = {'sorter': None, 'feeder': None}
+    axis = {'angle': 0., 'job': None, 'last_job': None, 'hold': False}
+    axis_arguments = []
     def serve():
         while not halt.is_set():
             try:
@@ -45,11 +47,28 @@ def test_resident_one_connection_reference_status_fault_and_cancel(tmp_path):
                     req = json.loads(raw)
                     op = req['operation']
                     operations.append(op)
-                    status = {'session': 'fake-session', 'busy': False, 'references': refs.copy()}
+                    if axis['job'] and not axis['hold'] and time.monotonic() >= axis['job']['complete_at']:
+                        axis['angle'] = axis['job']['target']
+                        axis['last_job'] = dict(axis['job'], state='complete')
+                        axis['job'] = None
+                    sampled = int(time.monotonic()*1000)
+                    status = dict(session='fake-session', connected=True, busy=axis['job'] is not None,
+                        references=refs.copy(), power_mode='awake', last_error=None, sampled_ms=sampled,
+                        angles={'sorter': axis['angle'], 'feeder': 0.}, job=axis['job'], last_job=axis['last_job'],
+                        motor_control={'sorter': {'angle_sample_ms': sampled, 'angle_read_ms': 1,
+                            'speed_sample': {'speed_dps': 0., 'sampled_ms': sampled, 'duration_ms': 1}}})
                     if op == 'status':
                         result = status
                     elif op == 'stop':
+                        if axis['job']:
+                            axis['last_job'] = dict(axis['job'], state='aborted')
+                            axis['job'] = None
                         result = {'stopped': True, 'status': status}
+                    elif op == 'motor_target':
+                        axis_arguments.append(req['args'])
+                        axis['job'] = dict(id=req['id'], operation=op, motor='sorter', target=req['args']['target'],
+                                           state='running', complete_at=time.monotonic()+.15)
+                        result = {'accepted': True, 'job': axis['job']}
                     elif op == 'confirm_reference':
                         refs[req['args']['name']] = req['args']['reference']
                         result = {'confirmed': True}
@@ -59,7 +78,7 @@ def test_resident_one_connection_reference_status_fault_and_cancel(tmp_path):
                     stream.flush()
     server = threading.Thread(target=serve, daemon=True)
     server.start()
-    env = dict(os.environ, SO101_STATION_ROOT=str(ROOT))
+    env = dict(os.environ, SO101_STATION_ROOT=str(ROOT), XDG_STATE_HOME=str(tmp_path/'state'))
     # Simulated perception/arm adapter preserves the real cycle core and ROS
     # EV3 proxy, while no hardware executable can be reached by this test.
     fake_adapter = """
@@ -113,7 +132,10 @@ main()
         lambda req, res: _success(res, 'all six torque bits zero'))
     def call(type_, name, request=None):
         client = node.create_client(type_, '/station/'+name)
-        assert client.wait_for_service(timeout_sec=8), process.poll()
+        if not client.wait_for_service(timeout_sec=8):
+            if process.poll() is not None:
+                raise AssertionError(process.communicate(timeout=2)[0].decode())
+            raise AssertionError('station API service unavailable')
         future = client.call_async(request or type_.Request())
         until = time.monotonic()+5
         while not future.done() and time.monotonic() < until:
@@ -153,7 +175,7 @@ main()
         while not (tmp_path/'readiness-entered').exists() and time.monotonic() < until:
             rclpy.spin_once(node, timeout_sec=.02)
         assert (tmp_path/'readiness-entered').exists()
-        before_readiness = {op: operations.count(op) for op in ('eject', 'home_touch', 'wake', 'power_save')}
+        before_readiness = {op: operations.count(op) for op in ('eject', 'home_touch', 'wake', 'power_save', 'motor_target')}
         for operation in before_readiness:
             rejected = call(EV3Command, 'ev3/command', EV3Command.Request(operation=operation,
                 arguments_json='{}', job_id=readonly_job))
@@ -194,7 +216,7 @@ main()
         assert not rejected.success and 'private single-use' in rejected.message
         assert operations.count('eject') == before_injection
         assert call(Trigger, 'cancel').success
-        mutations_after_stop = {op: operations.count(op) for op in ('eject', 'home_touch', 'wake', 'power_save')}
+        mutations_after_stop = {op: operations.count(op) for op in ('eject', 'home_touch', 'wake', 'power_save', 'motor_target')}
         for operation in mutations_after_stop:
             rejected = call(EV3Command, 'ev3/command', EV3Command.Request(operation=operation,
                 arguments_json='{}', job_id=cancelled_job_id))
@@ -218,6 +240,45 @@ main()
         assert (tmp_path/cancelled_job_id/'proxy-cancelled').read_text() == 'blocked before RPC'
         assert all(operations.count(op) == count for op, count in mutations_after_stop.items())
         assert not call(RunCycles, 'run_cycles', RunCycles.Request(cycles=1)).success
+        assert len(connections) == 1
+        def terminal(expected):
+            until = time.monotonic()+4
+            while time.monotonic() < until:
+                state = json.loads(call(Trigger, 'status').message)['workflow']
+                if state['state'] == expected:
+                    return state
+                time.sleep(.02)
+            raise AssertionError(state)
+        assert call(Trigger, 'reset_fault').success
+        # No home reference: accepted bounded job fails before motor dispatch.
+        assert call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=20.)).success
+        assert 'home reference' in terminal('fault')['fault']
+        assert not axis_arguments
+        assert call(Trigger, 'reset_fault').success
+        assert call(ConfirmReference, 'ev3/confirm_reference',
+                    ConfirmReference.Request(name='sorter', reference='home', physically_verified=True)).success
+        assert not call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=551.)).success
+        assert not axis_arguments
+        assert call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=550.)).success
+        assert 'six-second' in terminal('fault')['fault']
+        assert not axis_arguments
+        assert call(Trigger, 'reset_fault').success
+        assert call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=20.)).success
+        result = terminal('idle')['result']
+        assert result['measured_deg'] == 20.
+        assert axis_arguments == [dict(name='sorter', target=20., speed=50., acceleration=400., actuation=30.)]
+        axis['hold'] = True
+        assert call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=40.)).success
+        until = time.monotonic()+3
+        while not axis['job'] and time.monotonic() < until:
+            rclpy.spin_once(node, timeout_sec=.02)
+        assert axis['job'] is not None
+        assert call(Trigger, 'cancel').success
+        assert terminal('fault')['result'] is None
+        assert axis['job'] is None
+        assert len(axis_arguments) == 2
+        assert operations.count('eject') == 2
+        assert refs == {'sorter': 'home', 'feeder': 'eject'}
         assert len(connections) == 1
     finally:
         process.terminate()

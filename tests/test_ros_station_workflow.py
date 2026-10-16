@@ -74,7 +74,7 @@ def test_private_ticket_is_exact_single_use_and_stop_revokes_queued_mutations():
         consume({'private': ticket}, arguments_json='{"cycles":100}')
     with pytest.raises(RuntimeError, match='single-use'):
         consume({'private': ticket}, job_id='other-job')
-    for operation in ('eject', 'home_touch', 'wake', 'power_save'):
+    for operation in ('eject', 'home_touch', 'wake', 'power_save', 'motor_target'):
         queued = ('job', operation, '{}')
         cancel.set()
         with pytest.raises(InterruptedError):

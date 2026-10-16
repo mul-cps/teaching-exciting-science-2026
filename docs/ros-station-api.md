@@ -18,6 +18,7 @@ ros2/scripts/station-action.sh diagnostics
 ros2/scripts/station-action.sh status
 ros2/scripts/station-action.sh wake
 ros2/scripts/station-action.sh ev3-home
+ros2/scripts/station-action.sh sorter-position 200
 # Only after physically checking the indicated reference:
 ros2/scripts/station-action.sh confirm-reference feeder --physically-verified
 ros2/scripts/station-action.sh arm-home
@@ -36,9 +37,28 @@ ros2/scripts/station-action.sh sleep
 
 Every accepted long operation returns a UUID job ID. Follow `/station/status` (`std_msgs/String` JSON) or call the status service for completion, result, latched fault and the last 100 events. Evidence is appended under `sorting_evidence_dir`; each sorting UUID has a `cycles.jsonl` and grasp artifacts. An interrupted or failed job latches a fault and never admits another brick. Inspect the evidence, establish a known physical state, then call explicit reset. An accepted service request is not completion evidence.
 
+## Bounded sorter-axis commissioning
+
+`sorter-position TARGET_DEGREES` positions only the sorter/vertical feeder axis. Its typed request has no speed or motor selector. It uses the existing native `motor_target` path with fixed **50 degrees/second, 400 degrees/second² acceleration and 30% actuation**. Targets are absolute within native **0..550 degrees**; this does not reset or confirm any reference, dispense a brick, wake the device or move the follower arm.
+
+Each job requires the connected session's exact sorter `home` reference, awake/idle/no-fault status, stationary measured speed, finite encoder telemetry, bounded receipt latency and two advancing native encoder samples. Run `wake` and measured `ev3-home` explicitly when needed. A trapezoid travel estimate plus one second of settling/latency reserve must fit the native six-second phase watchdog. At the fixed profile a 0→550 request is rejected before dispatch; traverse the axis with separate bounded absolute requests such as **0→200→400→550**, waiting for each terminal result. Reverse similarly in bounded steps. A high speed must not be inferred from this API or substituted to make a long step fit.
+
+Fresh session/reference/encoder observations, exact native job identity, clean completion and measured endpoint within three degrees are required for success. Evidence records native control and target tolerances before/after motion, the accepted/terminal native job and measured encoders. A native controller position tolerance above three degrees (or unavailable tolerance telemetry) is explicitly flagged as exceeding the terminal gate; it never relaxes the three-degree acceptance check and may cause a legitimate job fault. The fixed profile and exact fake endpoints do not qualify native controller timing or physical accuracy. Cancellation, timeout, stale telemetry or native failure brakes the EV3 and latches a workflow fault. No new sorter or sorting job is admitted until explicit reset and any coordinated stop/disarm acknowledgements complete. This is a manual commissioning API; it does not qualify physical tracking, collision clearance or automatic sorting. Establish a clear supervised workspace before the operator requests movement.
+
 ## Moving placement selection
 
-Select a region using the passive twin's camera interface, or use the equivalent typed ROS API. Read the exact current camera `generation` from the twin/placement observation; stale generations are rejected:
+Select a region using the passive twin's camera interface, or use the equivalent typed ROS API. Pin a frame for human selection first. `pin-anchor` and `pin-area` accept an optional exact generation; omitting it requests the current frame. The returned `message` JSON contains the pinned `generation`, selection mode and expiry (30 seconds). Use that generation in the next rectangle command; expired or unrelated frames are rejected:
+
+```sh
+ros2/scripts/station-action.sh pin-anchor
+# Read generation from the response, then choose feeder pixels:
+ros2/scripts/station-action.sh select-anchor GENERATION X0 Y0 X1 Y1
+ros2/scripts/station-action.sh pin-area
+# Read the new pinned generation, then choose usable-area pixels:
+ros2/scripts/station-action.sh select-area GENERATION X0 Y0 X1 Y1
+```
+
+The selection commands are:
 
 ```sh
 ros2/scripts/station-action.sh select-anchor GENERATION X0 Y0 X1 Y1
@@ -66,8 +86,9 @@ Bindings stay fixed throughout a running job. The executor resolves the selected
 | `/station/ev3/connect` | `std_srvs/srv/Trigger` | Explicit connect/reconnect; no automatic retry of unknown delivery |
 | `/station/wake`, `/station/sleep`, `/station/ev3/home` | `std_srvs/srv/Trigger` | Bounded EV3 lifecycle jobs |
 | `/station/arm/home` | `std_srvs/srv/Trigger` | Qualified resident measured home/recovery |
+| `/station/ev3/sorter_position` | `so101_station_workflow/srv/SorterPosition` | Absolute `target_deg`, fixed conservative profile; returns bounded job UUID |
 | `/station/ev3/confirm_reference` | `so101_station_workflow/srv/ConfirmReference` | `name`, `reference`, `physically_verified` |
-| `/station/placement/select` | `so101_station_workflow/srv/SelectPlacementRegion` | Exact `generation`, `mode` feeder/goal/clear, four integer pixel coordinates; returns selection UUID |
+| `/station/placement/select` | `so101_station_workflow/srv/SelectPlacementRegion` | Exact `generation`, `mode` pin_feeder/pin_goal/feeder/goal/clear, four integer pixel coordinates; returns selection UUID |
 | `/station/select_destination` | `so101_station_workflow/srv/SelectDestination` | `color`, `selection_id`; idle only |
 | `/station/ev3/command` | `so101_station_workflow/srv/EV3Command` | Internal serialized bridge; exact private single-use capability and active-job UUID required for changes; public UUID never grants eject |
 
