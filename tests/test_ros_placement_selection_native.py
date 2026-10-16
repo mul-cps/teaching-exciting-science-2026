@@ -10,6 +10,7 @@ pytest.importorskip("rclpy")
 pytest.importorskip("so101_station_workflow")
 
 import rclpy
+from rclpy.executors import SingleThreadedExecutor
 from so101_station_workflow.srv import SelectPlacementRegion
 
 from workshop.digital_twin.ros_state_node import RosStatePublisher
@@ -105,4 +106,114 @@ def test_selection_service_uses_pinned_rgbd_frame_and_returns_identity(tmp_path)
         assert node.placement_tracker.anchor_points is None
     finally:
         node.destroy_node()
+        rclpy.try_shutdown()
+
+
+def test_native_pin_service_survives_human_delay_and_selects_exact_generation(tmp_path):
+    """Exercise ROS client/server transport, not only the Python callback."""
+    if not rclpy.ok():
+        rclpy.init(args=None)
+    server = RosStatePublisher(str(tmp_path / "state.json"), root_frame="charuco_board",
+        placement_directory=str(tmp_path / "placement-camera"))
+    client_node = rclpy.create_node("placement_pin_contract_test")
+    executor = SingleThreadedExecutor()
+    executor.add_node(server)
+    executor.add_node(client_node)
+    client = client_node.create_client(SelectPlacementRegion, "/station/placement/select")
+
+    def call(mode, generation="", rectangle=(0, 0, 0, 0)):
+        request = SelectPlacementRegion.Request()
+        request.generation = generation
+        request.mode = mode
+        request.pixel_rectangle = list(rectangle)
+        assert client.wait_for_service(timeout_sec=2.)
+        future = client.call_async(request)
+        executor.spin_until_future_complete(future, timeout_sec=3.)
+        assert future.done(), f"service call timed out: {mode}"
+        return future.result()
+
+    try:
+        rng = np.random.default_rng(716)
+        image = np.zeros((160, 200, 3), dtype=np.uint8)
+        image[25:135, 25:175] = rng.integers(10, 245, (110, 150, 3), dtype=np.uint8)
+        k = np.array([[300., 0., 100.], [0., 300., 80.], [0., 0., 1.]])
+        stamp = 3_100_000_000
+        generation = f"{stamp}-ros-service-pin"
+        server.placement_frames.append({"generation": generation, "stamp_ns": stamp,
+            "received_monotonic": time.monotonic(), "frame_id": "camera_color_optical_frame",
+            "root_frame": "charuco_board", "root_from_camera": None,
+            "base_from_camera": None, "camera_matrix": k, "rgb": image,
+            "depth_m": np.ones((160, 200), dtype=np.float32),
+            "image_path": "", "image_shape": [160, 200]})
+
+        pinned = call("pin_feeder")
+        assert pinned.success, pinned.message
+        ack = json.loads(pinned.message)
+        assert ack["state"] == "selection_frame_pinned"
+        assert ack["mode"] == "pin_feeder"
+        assert ack["generation"] == generation
+        assert ack["expires_in_s"] == 30.
+        assert ack["request_id"]
+
+        # The live RGB-D frame ages out of the ordinary selection window while
+        # the user drags the rectangle. The server must use the acknowledged
+        # pinned generation, never a newer image with old screen coordinates.
+        time.sleep(.60)
+        selected = call("feeder", ack["generation"], (20, 20, 180, 140))
+        assert selected.success, selected.message
+        assert selected.selection_id
+        assert server.placement_status["generation"] == generation
+        assert server.placement_status["state"] == "anchor_selected"
+
+        # Goal pinning is gated by a tracked feeder anchor. Model one fresh
+        # tracker update and a newly received camera frame, then verify the
+        # second human selection also remains bound to its acknowledged frame.
+        server.placement_status["anchor_tracking_valid"] = True
+        goal_stamp = stamp + 100_000_000
+        goal_generation = f"{goal_stamp}-ros-service-goal-pin"
+        server.placement_frames.append({"generation": goal_generation,
+            "stamp_ns": goal_stamp, "received_monotonic": time.monotonic(),
+            "frame_id": "camera_color_optical_frame", "root_frame": "charuco_board",
+            "root_from_camera": None, "base_from_camera": None,
+            "camera_matrix": k, "rgb": image,
+            "depth_m": np.ones((160, 200), dtype=np.float32),
+            "image_path": "", "image_shape": [160, 200]})
+        tracked = server.placement_frontend.update(image, np.ones((160, 200), dtype=np.float32),
+            k, np.eye(4), stamp_ns=goal_stamp, frame_id="camera_color_optical_frame",
+            generation=goal_generation, received_monotonic=time.monotonic())
+        assert tracked.reason == "tracked", tracked.reason
+        goal_pin = call("pin_goal")
+        assert goal_pin.success, goal_pin.message
+        goal_ack = json.loads(goal_pin.message)
+        assert goal_ack["state"] == "selection_frame_pinned"
+        assert goal_ack["mode"] == "pin_goal"
+        assert goal_ack["generation"] == goal_generation
+        assert goal_ack["expires_in_s"] == 30.
+        time.sleep(.60)
+        goal = call("goal", goal_ack["generation"], (70, 55, 130, 105))
+        assert goal.success, goal.message
+        assert goal.selection_id == selected.selection_id
+        assert server.placement_status["generation"] == goal_generation
+        assert server.placement_status["state"] == "goal_selected"
+
+        cancel_generation = f"{goal_stamp + 100_000_000}-cancel-pin"
+        server.placement_frames.append({"generation": cancel_generation,
+            "stamp_ns": goal_stamp + 100_000_000, "received_monotonic": time.monotonic(),
+            "frame_id": "camera_color_optical_frame", "root_frame": "charuco_board",
+            "root_from_camera": None, "base_from_camera": None,
+            "camera_matrix": k, "rgb": image,
+            "depth_m": np.ones((160, 200), dtype=np.float32),
+            "image_path": "", "image_shape": [160, 200]})
+        cancellable = call("pin_feeder", cancel_generation)
+        assert cancellable.success, cancellable.message
+        cancel_ack = json.loads(cancellable.message)
+        cancelled = call("cancel_pin", cancel_ack["generation"])
+        assert cancelled.success, cancelled.message
+        assert json.loads(cancelled.message)["state"] == "selection_cancelled"
+        assert server.placement_pinned_frame is None
+    finally:
+        executor.remove_node(client_node)
+        executor.remove_node(server)
+        client_node.destroy_node()
+        server.destroy_node()
         rclpy.try_shutdown()

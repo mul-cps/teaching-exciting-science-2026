@@ -448,9 +448,54 @@ class RosStatePublisher(Node):
         modes = {"feeder": "select_feeder_anchor", "goal": "select_placement_area",
                  "clear": "clear_selection"}
         mode = str(request.mode)
+        request_id = uuid.uuid4().hex
+        if mode in {"pin_feeder", "pin_goal"}:
+            selection_mode = ("select_feeder_anchor" if mode == "pin_feeder"
+                              else "select_placement_area")
+            generation = str(request.generation)
+            command = {"request_id": request_id,
+                       "mode": selection_mode,
+                       "generation": generation}
+            if generation:
+                command["action"] = "pin_frame"
+            else:
+                command["action"] = "pin_latest_frame"
+            self._process_placement_request(command)
+            pinned = self.placement_status.get("state") == "selection_frame_pinned"
+            payload = {
+                "state": self.placement_status.get("state", "invalid"),
+                "reason": self.placement_status.get("reason", ""),
+                "mode": mode,
+                "generation": self.placement_status.get("generation", ""),
+                "request_id": request_id if pinned else "",
+                "expires_in_s": (self.placement_status.get("selection_expires_in_s", 0.)
+                                 if pinned else 0.),
+            }
+            response.success = bool(pinned)
+            response.message = json.dumps(payload, sort_keys=True)
+            response.selection_id = str(self.placement_status.get("selection_id", ""))
+            return response
+        if mode == "cancel_pin":
+            generation = str(request.generation)
+            active = self.placement_pinned_frame
+            matches = (active is not None and
+                       (not generation or active.get("generation") == generation))
+            if matches:
+                self._process_placement_request({
+                    "request_id": request_id, "action": "cancel_pin",
+                    "pin_request_id": self.placement_selection_request_id})
+            payload = {
+                "state": self.placement_status.get("state", "invalid"),
+                "reason": self.placement_status.get("reason", ""),
+                "generation": generation,
+            }
+            response.success = bool(matches)
+            response.message = json.dumps(payload, sort_keys=True)
+            response.selection_id = str(self.placement_status.get("selection_id", ""))
+            return response
         if mode not in modes:
             response.success = False
-            response.message = "mode must be feeder, goal, or clear"
+            response.message = "mode must be feeder, goal, clear, pin_feeder, pin_goal, or cancel_pin"
             response.selection_id = ""
             return response
         command = {"request_id": uuid.uuid4().hex, "action": modes[mode],
