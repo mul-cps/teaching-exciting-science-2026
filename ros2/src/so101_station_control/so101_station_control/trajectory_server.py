@@ -512,33 +512,51 @@ class TrajectoryBridge(Node):
                                   "error": "owner stopped; torque disabled"})
         return True
 
-    def _write_stop(self, command, deadline):
-        """Bound pipe backpressure while retaining fake in-memory owner support."""
-        line = json.dumps(command) + "\n"
-        stream = self._process.stdin
+    def _write_owner_command(self, command, deadline):
+        """Write one JSON line in atomic pipe chunks under the writer lock.
+
+        A timeout before any bytes leaves framing intact. Once a line has
+        started, any failure poisons the stream: no later command can complete
+        that partial JSON and accidentally replay movement.
+        """
         if getattr(self, "_writer_faulted", False):
             raise RuntimeError("previous owner write failed; command stream integrity is unknown")
+        pending = (json.dumps(command, allow_nan=False) + "\n").encode("utf-8")
+        if len(pending) > 1_048_576:
+            raise RuntimeError("owner JSON command exceeds 1 MiB")
+        stream = self._process.stdin
         if not hasattr(stream, "fileno"):
-            raise RuntimeError("owner stop requires a writable stdin file descriptor")
+            raise RuntimeError("owner commands require a writable stdin file descriptor")
         descriptor = stream.fileno()
+        chunk_size = os.fpathconf(descriptor, "PC_PIPE_BUF")
+        if chunk_size <= 0:
+            raise RuntimeError("owner command pipe has no atomic write bound")
         blocking = os.get_blocking(descriptor)
+        offset = 0
         os.set_blocking(descriptor, False)
         try:
-            pending = line.encode("utf-8")
-            while pending:
+            while offset < len(pending):
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise TimeoutError("owner stop command pipe timed out; stop remains latched")
+                    raise TimeoutError("owner command pipe timed out")
+                chunk = pending[offset:offset + chunk_size]
                 try:
-                    written = os.write(descriptor, pending)
-                    if written != len(pending):
+                    written = os.write(descriptor, chunk)
+                    if written != len(chunk):
                         self._writer_faulted = True
-                        raise RuntimeError("partial owner stop write; command stream integrity is unknown")
-                    pending = b""
+                        raise RuntimeError("partial owner command write; command stream integrity is unknown")
+                    offset += written
                 except BlockingIOError:
                     select.select([], [descriptor], [], remaining)
+        except BaseException:
+            if offset:
+                self._writer_faulted = True
+            raise
         finally:
             os.set_blocking(descriptor, blocking)
+
+    def _write_stop(self, command, deadline):
+        self._write_owner_command(command, deadline)
 
     def _stop(self, _request, response):
         """Disarm the owner; success requires correlated fresh torque readback."""
@@ -1223,16 +1241,22 @@ class TrajectoryBridge(Node):
     def _send(self, command):
         if self._process is None or self._process.poll() is not None:
             raise RuntimeError("ArmSession owner is not running")
-        with self._write_lock:
+        # Leave most of the stop budget available for stop delivery/readback,
+        # including when a trajectory exceeds the pipe's available capacity.
+        stop_timeout = float(self.get_parameter("stop_timeout_s").value)
+        timeout = min(.5, stop_timeout / 4) if math.isfinite(stop_timeout) and stop_timeout > 0 else .1
+        deadline = time.monotonic() + timeout
+        if not self._write_lock.acquire(timeout=timeout):
+            raise TimeoutError("owner command writer did not become available")
+        try:
             if getattr(self, "_stop_latched", False) and command.get("command") not in {"stop", "exit"}:
                 raise RuntimeError("owner stop barrier rejects motion commands")
-            try:
-                self._process.stdin.write(json.dumps(command, allow_nan=False) + "\n")
-                self._process.stdin.flush()
-            except (OSError, RuntimeError, ValueError):
-                self._writer_faulted = True
-                self._owner_faulted = True
-                raise
+            self._write_owner_command(command, deadline)
+        except (OSError, RuntimeError, ValueError):
+            self._owner_faulted = True
+            raise
+        finally:
+            self._write_lock.release()
 
     def _get_validity(self, positions, jaw_position, deadline):
         request = GetStateValidity.Request()

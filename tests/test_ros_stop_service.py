@@ -47,13 +47,13 @@ def bridge(monkeypatch, tmp_path):
     process = Process()
     process.stdin = process
     node._process = process
-    real_write_stop = node._write_stop
+    real_write_stop = node._write_owner_command
     def fake_write_stop(command, deadline):
         if process.stdin is process:
             process.stdin.write(json.dumps(command) + "\n")
         else:
             real_write_stop(command, deadline)
-    monkeypatch.setattr(node, '_write_stop', fake_write_stop)
+    monkeypatch.setattr(node, '_write_owner_command', fake_write_stop)
     node._read_state = lambda **kw: snapshot()
     yield node, process
     node._process = None
@@ -290,15 +290,15 @@ def test_stop_broken_reader_fails_closed(bridge):
         process.stdin = original
 
 
-def test_stop_rejects_previous_write_failure(bridge):
+def test_stop_rejects_previous_write_failure(bridge, monkeypatch):
     node, process = bridge
-    class FailingStream:
-        def write(self, line): raise BrokenPipeError('synthetic failure')
-        def fileno(self): raise AssertionError('must reject damaged stream before fd access')
+    read_fd, write_fd = os.pipe()
     original = process.stdin
-    process.stdin = FailingStream()
+    stream = os.fdopen(write_fd, 'w')
+    process.stdin = stream
+    monkeypatch.setattr(os, 'write', lambda descriptor, data: len(data) - 1)
     try:
-        with pytest.raises(BrokenPipeError):
+        with pytest.raises(RuntimeError, match='partial'):
             node._send({'command': 'home'})
         assert node._writer_faulted
         response = stop(node)
@@ -306,7 +306,9 @@ def test_stop_rejects_previous_write_failure(bridge):
         assert 'previous owner write failed' in response.message
         assert node._stop_latched
     finally:
+        stream.close()
         process.stdin = original
+        os.close(read_fd)
 
 
 def test_stop_missing_fd_and_partial_write_fail_closed(bridge, monkeypatch):
@@ -328,3 +330,120 @@ def test_stop_missing_fd_and_partial_write_fail_closed(bridge, monkeypatch):
         stream.close()
         process.stdin = original
         os.close(read_fd)
+
+
+def test_normal_large_command_delivery_uses_bounded_atomic_chunks(bridge):
+    node, process = bridge
+    read_fd, write_fd = os.pipe()
+    original = process.stdin
+    stream = os.fdopen(write_fd, 'w')
+    process.stdin = stream
+    received = []
+    def read():
+        with os.fdopen(read_fd, 'rb') as reader:
+            received.append(json.loads(reader.readline()))
+    reader = threading.Thread(target=read)
+    reader.start()
+    command = {'command': 'execute_trajectory', 'points': [{'positions': [0.] * 5}] * 1000}
+    try:
+        node._send(command)
+        reader.join(1)
+        assert not reader.is_alive() and received == [command]
+        assert not node._writer_faulted
+        assert os.get_blocking(write_fd)  # original file status restored
+    finally:
+        stream.close()
+        process.stdin = original
+        reader.join(1)
+
+
+def test_saturated_normal_write_releases_writer_for_parallel_stop(bridge):
+    node, process = bridge
+    read_fd, write_fd = os.pipe()
+    stream = os.fdopen(write_fd, 'w')
+    original = process.stdin
+    os.set_blocking(write_fd, False)
+    filled = 0
+    while True:
+        try:
+            filled += os.write(write_fd, b'x' * 4096)
+        except BlockingIOError:
+            break
+    os.set_blocking(write_fd, True)
+    process.stdin = stream
+    errors = []
+    done = threading.Event()
+    def normal_write():
+        try:
+            node._send({'command': 'execute_trajectory', 'points': [0.] * 10000})
+        except TimeoutError as error:
+            errors.append(error)
+        finally:
+            done.set()
+    worker = threading.Thread(target=normal_write)
+    worker.start()
+    deadline = time.monotonic() + 1
+    while not node._write_lock.locked() and time.monotonic() < deadline:
+        time.sleep(.001)
+    assert node._write_lock.locked()
+    def drain_and_ack():
+        assert done.wait(1)
+        with os.fdopen(read_fd, 'rb') as reader:
+            assert reader.read(filled) == b'x' * filled
+            command = json.loads(reader.readline())
+            node._route_stop_response({'ok': True, 'stopped': True,
+                'request_id': command['request_id'], 'state': snapshot()})
+    reader = threading.Thread(target=drain_and_ack)
+    reader.start()
+    try:
+        started = time.monotonic()
+        assert stop(node).success
+        assert time.monotonic() - started < .35
+        worker.join(1)
+        reader.join(1)
+        assert errors and not worker.is_alive() and not reader.is_alive()
+        assert not node._writer_faulted
+    finally:
+        stream.close()
+        process.stdin = original
+
+
+def test_incomplete_large_line_prohibits_future_writes(bridge):
+    node, process = bridge
+    read_fd, write_fd = os.pipe()
+    stream = os.fdopen(write_fd, 'w')
+    original = process.stdin
+    process.stdin = stream
+    try:
+        with pytest.raises(TimeoutError):
+            node._send({'command': 'execute_trajectory', 'points': [0.] * 100000})
+        assert node._writer_faulted
+        response = stop(node)
+        assert not response.success and 'stream integrity' in response.message
+    finally:
+        stream.close()
+        process.stdin = original
+        os.close(read_fd)
+
+
+def test_normal_write_broken_reader_and_missing_fd_never_use_textio(bridge):
+    node, process = bridge
+    class NoFD:
+        def write(self, value): raise AssertionError('blocking TextIO write forbidden')
+        def flush(self): raise AssertionError('blocking TextIO flush forbidden')
+    original = process.stdin
+    process.stdin = NoFD()
+    with pytest.raises(RuntimeError, match='file descriptor'):
+        node._send({'command': 'home'})
+    read_fd, write_fd = os.pipe()
+    os.close(read_fd)
+    stream = os.fdopen(write_fd, 'w')
+    process.stdin = stream
+    try:
+        started = time.monotonic()
+        with pytest.raises(BrokenPipeError):
+            node._send({'command': 'home'})
+        assert time.monotonic() - started < .2
+    finally:
+        stream.close()
+        process.stdin = original
