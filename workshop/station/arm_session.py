@@ -144,6 +144,7 @@ class ArmSession:
         self._motion_busy = False
         self._cancel_requested = False
         self._cancel_reason = None
+        self._cancel_request_id = None
         self._exit_requested = False
         self._input_fd = None
         self._input_buffer = bytearray()
@@ -254,6 +255,16 @@ class ArmSession:
             raise RuntimeError("arm feedback freshness exceeded bounded period budget: " + label)
         return gap, missed, missed_total
 
+    @staticmethod
+    def _stop_request_id(command):
+        if set(command) not in ({"command"}, {"command", "request_id"}):
+            raise ValueError("stop accepts only optional request_id")
+        request_id = command.get("request_id")
+        if "request_id" in command and (not isinstance(request_id, str) or
+                len(request_id) != 32 or any(c not in "0123456789abcdef" for c in request_id)):
+            raise ValueError("stop request_id must be 32 lowercase hexadecimal characters")
+        return request_id
+
     def _cancel(self, reason, *, exiting=False):
         self._cancel_requested = True
         self._cancel_reason = reason
@@ -284,9 +295,14 @@ class ArmSession:
             self._cancel("trajectory_cancel_hold")
             self._check_cancel()
         if name in ("stop", "exit"):
-            if set(command) != {"command"}:
+            try:
+                request_id = self._stop_request_id(command) if name == "stop" else None
+                if name == "exit" and set(command) != {"command"}:
+                    raise ValueError("exit accepts no extra fields")
+            except ValueError:
                 self._cancel("malformed_busy_command")
                 self._check_cancel()
+            self._cancel_request_id = request_id
             self._cancel("busy_" + name, exiting=name == "exit")
             self._check_cancel()
         if self._emit is not None:
@@ -1704,11 +1720,15 @@ class ArmSession:
                 raise ValueError("home accepts no extra fields")
             return {"ok": True, "state": self.home()}
         if name == "stop":
-            if set(command) != {"command"}:
-                raise ValueError("stop accepts no extra fields")
+            request_id = self._stop_request_id(command)
             self.shutdown(reason="command_stop")
+            self._teleop = None
+            if request_id is not None:
+                self.publish_state(event="torque_off")
             self.last_command = self.clock()
-            return {"ok": True, "stopped": True, "state": self._latest_state(),
+            return {"ok": True, "stopped": True,
+                    **({"request_id": request_id} if request_id is not None else {}),
+                    "state": self._latest_state(),
                     "completed_legs": [record["label"] for record in self._completed_leg_records]}
         if name == "exit":
             if set(command) != {"command"}:
@@ -1788,6 +1808,7 @@ class ArmSession:
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None
+                        self._cancel_request_id = None
                         self._exit_requested = False
                     previous_last_command = self.last_command
                     self.last_command = self.clock()
@@ -1811,12 +1832,15 @@ class ArmSession:
                         reason = self._cancel_reason or str(error)
                         self._motion_busy = False
                         self.shutdown(reason=reason)
+                        self._teleop = None
                         try:
                             final_state = json.loads(self.state_file.read_text())
                         except BaseException:
                             final_state = None
                         malformed = reason.startswith("malformed_") or reason.startswith("oversized_")
                         emit({"ok": not malformed, "stopped": True, "reason": reason,
+                              **({"request_id": self._cancel_request_id}
+                                 if self._cancel_request_id is not None else {}),
                               "final_state": final_state,
                               "completed_legs": [record["label"] for record in self._completed_leg_records],
                               "interrupted_leg": self._active_leg})
@@ -1836,6 +1860,7 @@ class ArmSession:
                         self._idle_handled = False
                     elif name == "stop" and self.persistent_idle:
                         self._idle_handled = True
+                        self._input_buffer.clear()
                     if isinstance(result, dict) and result.get("exit"):
                         return 0
                 except BaseException as error:

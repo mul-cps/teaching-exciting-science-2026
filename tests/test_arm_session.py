@@ -1514,3 +1514,49 @@ def test_teleop_removes_servo_velocity_cap_and_home_restores_native_profile(tmp_
     assert arm.bus.data["Goal_Velocity"] == PROFILE["Goal_Velocity"]
     session.shutdown(reason="test_cleanup")
     session.close_log()
+
+
+@pytest.mark.parametrize('request_id', ['a' * 32, None])
+def test_stop_idle_optional_correlation_preserves_legacy(tmp_path, request_id):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    session.handle({'command': 'stop'})
+    clock.value += .1
+    command = {'command': 'stop'}
+    if request_id is not None:
+        command['request_id'] = request_id
+    result = session.handle(command)
+    assert result['stopped'] is True
+    assert result.get('request_id') == request_id
+    assert ('request_id' in result) == (request_id is not None)
+    assert set(result['state']['torque'].values()) == {0}
+    if request_id:
+        assert result['state']['monotonic'] == clock.value
+    session.close_log()
+
+
+@pytest.mark.parametrize('request_id', ['', 'A' * 32, 'a' * 31, None, 12, True])
+def test_stop_rejects_invalid_correlation_idle_and_busy(tmp_path, request_id):
+    from workshop.station.arm_session import ArmSessionCancelled
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    command = {'command': 'stop', 'request_id': request_id}
+    with pytest.raises(ValueError, match='request_id'):
+        session.handle(command)
+    with pytest.raises(ArmSessionCancelled, match='malformed_busy_command'):
+        session._busy_line(json.dumps(command))
+    assert session._cancel_request_id is None
+    session.shutdown()
+    session.close_log()
+
+
+def test_stop_busy_correlates_after_cleanup_and_discards_queued_motion(tmp_path):
+    def inject(fd):
+        os.write(fd, (json.dumps({'command': 'stop', 'request_id': 'b' * 32}) + '\n' +
+                      json.dumps({'command': 'home'}) + '\n').encode())
+    session, arm, results = _serve_motion_with_injected_busy_input(tmp_path, inject)
+    ack = next(result for result in results if result.get('request_id') == 'b' * 32)
+    assert ack['ok'] and ack['stopped']
+    assert set(ack['final_state']['torque'].values()) == {0}
+    assert len(arm.bus.goal_history) == 1
+    session.close_log()

@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import json
+import functools
 import importlib.util
 import math
 import os
 from pathlib import Path
 import queue
+import select
 import subprocess
 import sys
 import threading
@@ -159,6 +161,42 @@ def _duration(seconds):
     return Duration(sec=sec, nanosec=int((seconds - sec) * 1e9))
 
 
+def _control_callback(callback):
+    """Keep the stop barrier until every previously admitted callback exits."""
+    @functools.wraps(callback)
+    def tracked(self, *args, **kwargs):
+        condition = getattr(self, "_stop_condition", None)
+        if condition is None:  # lightweight offline harnesses
+            return callback(self, *args, **kwargs)
+        with condition:
+            if self._stop_latched:
+                if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
+                    return GoalResponse.REJECT
+                if callback.__name__ in {"_home", "_calibration_ready", "_set_teleop_enabled"}:
+                    response = args[1]
+                    response.success, response.message = False, "owner stop remains latched"
+                    return response
+                if callback.__name__ == "_teleop_tick":
+                    return None
+                # Accepted action goals must reach a terminal state even if
+                # their execute callback had not started when stop arrived.
+                with self._active_lock:
+                    self._active_goal = None
+                args[0].abort()
+                if callback.__name__ == "_execute_gripper":
+                    return GripperCommand.Result()
+                return self._result(FollowJointTrajectory.Result.GOAL_TOLERANCE_VIOLATED,
+                                    "owner stopped before trajectory submission; torque disabled")
+            self._control_callbacks += 1
+        try:
+            return callback(self, *args, **kwargs)
+        finally:
+            with condition:
+                self._control_callbacks -= 1
+                condition.notify_all()
+    return tracked
+
+
 class TrajectoryBridge(Node):
     def __init__(self, *, parameter_overrides=None):
         super().__init__("so101_trajectory_bridge", parameter_overrides=parameter_overrides)
@@ -188,6 +226,8 @@ class TrajectoryBridge(Node):
         self.declare_parameter("teleop_enable_service", "/follower/teleop_enable")
         self.declare_parameter("teleop_pose_stale_s", 0.15)
         self.declare_parameter("teleop_owner_timeout_s", 2.0)
+        self.declare_parameter("stop_service", "/follower/stop")
+        self.declare_parameter("stop_timeout_s", 5.0)
         self.declare_parameter("home_service", "/follower/home")
         self.declare_parameter("home_timeout_s", 90.0)
         self.declare_parameter("calibration_ready_service", "/follower/calibration_ready")
@@ -197,6 +237,13 @@ class TrajectoryBridge(Node):
         self._active_goal = None
         self._cancel_before_start = False
         self._write_lock = threading.Lock()
+        self._stop_condition = threading.Condition()
+        self._stop_lock = threading.Lock()
+        self._stop_latched = False
+        self._writer_faulted = False
+        self._stop_pending = None
+        self._stop_ack = None
+        self._control_callbacks = 0
         self._action_group = ReentrantCallbackGroup()
         self._response_queue = queue.Queue()
         self._teleop_condition = threading.Condition()
@@ -275,6 +322,10 @@ class TrajectoryBridge(Node):
         self._teleop_service = self.create_service(
             SetBool, str(self.get_parameter("teleop_enable_service").value),
             self._set_teleop_enabled, callback_group=self._teleop_service_group)
+        self._stop_group = MutuallyExclusiveCallbackGroup()
+        self._stop_service = self.create_service(
+            Trigger, str(self.get_parameter("stop_service").value),
+            self._stop, callback_group=self._stop_group)
         self._home_service = self.create_service(
             Trigger, str(self.get_parameter("home_service").value),
             self._home, callback_group=self._teleop_service_group)
@@ -440,10 +491,133 @@ class TrajectoryBridge(Node):
         for line in self._process.stdout:
             try:
                 response = json.loads(line)
+                if self._route_stop_response(response):
+                    continue
                 if not self._route_teleop_response(response):
                     self._response_queue.put(response)
             except json.JSONDecodeError:
                 self.get_logger().error("ArmSession emitted invalid JSON on stdout")
+
+    def _route_stop_response(self, response):
+        if not response.get("stopped"):
+            return False
+        with self._stop_condition:
+            if (response.get("request_id") == self._stop_pending and
+                    self._stop_pending is not None):
+                self._stop_ack = response
+                self._stop_condition.notify_all()
+        # The active worker still needs to terminate, but must never interpret
+        # an owner stop as successful trajectory/plan completion.
+        self._response_queue.put({**response, "ok": False, "cancelled": True,
+                                  "error": "owner stopped; torque disabled"})
+        return True
+
+    def _write_stop(self, command, deadline):
+        """Bound pipe backpressure while retaining fake in-memory owner support."""
+        line = json.dumps(command) + "\n"
+        stream = self._process.stdin
+        if getattr(self, "_writer_faulted", False):
+            raise RuntimeError("previous owner write failed; command stream integrity is unknown")
+        if not hasattr(stream, "fileno"):
+            raise RuntimeError("owner stop requires a writable stdin file descriptor")
+        descriptor = stream.fileno()
+        blocking = os.get_blocking(descriptor)
+        os.set_blocking(descriptor, False)
+        try:
+            pending = line.encode("utf-8")
+            while pending:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("owner stop command pipe timed out; stop remains latched")
+                try:
+                    written = os.write(descriptor, pending)
+                    if written != len(pending):
+                        self._writer_faulted = True
+                        raise RuntimeError("partial owner stop write; command stream integrity is unknown")
+                    pending = b""
+                except BlockingIOError:
+                    select.select([], [descriptor], [], remaining)
+        finally:
+            os.set_blocking(descriptor, blocking)
+
+    def _stop(self, _request, response):
+        """Disarm the owner; success requires correlated fresh torque readback."""
+        response.success = False
+        timeout = float(self.get_parameter("stop_timeout_s").value)
+        if not math.isfinite(timeout) or not 0 < timeout <= 10:
+            response.message = "stop_timeout_s must be in (0, 10] seconds"
+            return response
+        deadline = time.monotonic() + timeout
+        if not self._stop_lock.acquire(blocking=False):
+            response.message = "another stop request is pending"
+            return response
+        try:
+            if self._external_state_only or self._process is None or self._process.poll() is not None:
+                raise RuntimeError("resident ArmSession owner is unavailable or read only")
+            request_id = uuid.uuid4().hex
+            # This lock is also the final admission check for every owner write.
+            # Release it before taking _active_lock (execute uses the reverse order).
+            self._stop_latched = True
+            self._owner_faulted = True
+            if not self._write_lock.acquire(timeout=max(0., deadline - time.monotonic())):
+                raise TimeoutError("owner command writer did not quiesce; stop remains latched")
+            try:
+                with self._stop_condition:
+                    self._stop_pending = request_id
+                    self._stop_ack = None
+                requested = time.monotonic()
+                self._write_stop({"command": "stop", "request_id": request_id}, deadline)
+            finally:
+                self._write_lock.release()
+            with self._active_lock:
+                self._cancel_before_start = True
+                self._gripper_goal_cancelled = True
+                self._home_completed_owner_started = None
+            self._clear_teleop()
+            self._teleop_step_done.set()
+            with self._teleop_condition:
+                self._teleop_condition.notify_all()
+            with self._stop_condition:
+                while self._stop_ack is None or self._control_callbacks:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError("stop acknowledgement or callback quiescence timed out; stop remains latched")
+                    if self._process.poll() is not None:
+                        raise RuntimeError("owner exited before stop confirmation")
+                    self._stop_condition.wait(min(.02, remaining))
+                ack = self._stop_ack
+            with self._active_lock:
+                if self._active_goal is not None:
+                    raise RuntimeError("pending owner operation has not quiesced; stop remains latched")
+            state = ack.get("state", ack.get("final_state"))
+            if not ack.get("ok") or ack.get("stopped") is not True or not isinstance(state, dict):
+                raise RuntimeError("owner did not confirm stop")
+            stamp = state.get("monotonic")
+            raw, torque = state.get("raw"), state.get("torque")
+            if (type(stamp) not in (int, float) or not math.isfinite(stamp) or
+                    not requested <= stamp <= time.monotonic() or
+                    time.monotonic() - stamp > float(self.get_parameter("state_freshness_s").value) or
+                    state.get("arm_id") != self._expected_arm_id or
+                    state.get("calibration_sha256") != self._expected_calibration_sha256 or
+                    not isinstance(raw, dict) or set(raw) != set(TELEOP_JOINTS) or
+                    any(type(v) is not int or not 0 <= v <= 4095 for v in raw.values()) or
+                    not isinstance(torque, dict) or set(torque) != set(TELEOP_JOINTS) or
+                    any(type(v) is not int or v != 0 for v in torque.values()) or
+                    self._process.poll() is not None):
+                raise RuntimeError("stop lacks fresh identity-bound six-joint torque-off readback")
+            with self._write_lock:
+                self._stop_latched = False
+                self._owner_faulted = False
+                self._cancel_before_start = False
+            response.success = True
+            response.message = "owner stopped; all six servos verified torque off (disarmed)"
+        except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as error:
+            response.message = str(error)
+        finally:
+            with self._stop_condition:
+                self._stop_pending = None
+            self._stop_lock.release()
+        return response
 
     def _route_teleop_response(self, response):
         command = response.get("command")
@@ -571,6 +745,8 @@ class TrajectoryBridge(Node):
         deadline = time.monotonic() + float(self.get_parameter("teleop_owner_timeout_s").value)
         with self._teleop_condition:
             while key not in self._teleop_acknowledgements:
+                if getattr(self, "_stop_latched", False):
+                    return {"ok": False, "error": "owner stop requested; torque disabled"}
                 if self._process is None or self._process.poll() is not None:
                     raise RuntimeError("ArmSession stopped before acknowledging teleop command")
                 remaining = deadline - time.monotonic()
@@ -617,6 +793,7 @@ class TrajectoryBridge(Node):
             self._teleop_latest = {"stamp_s": float(packet["stamp_s"]),
                                    "sequence": int(packet["sequence"]), "pose": pose}
 
+    @_control_callback
     def _set_teleop_enabled(self, request, response):
         if self._external_state_only or self._process is None:
             response.success = False
@@ -784,6 +961,7 @@ class TrajectoryBridge(Node):
             response.message = str(error)
         return response
 
+    @_control_callback
     def _home(self, _request, response):
         """Run the existing measured-home operation through the resident owner."""
         process = self._process
@@ -873,6 +1051,7 @@ class TrajectoryBridge(Node):
                             "qualified jaw calibration, idle trajectory and disabled teleoperation")
         return response
 
+    @_control_callback
     def _calibration_ready(self, _request, response):
         """Move from the measured current pose to an explicit observation pose."""
         if not bool(self.get_parameter("calibration_endpoint_mode").value):
@@ -963,6 +1142,7 @@ class TrajectoryBridge(Node):
                     self._active_goal = None
         return response
 
+    @_control_callback
     def _teleop_tick(self):
         with self._active_lock:
             if self._teleop_state != "active" or self._teleop_inflight:
@@ -1044,8 +1224,15 @@ class TrajectoryBridge(Node):
         if self._process is None or self._process.poll() is not None:
             raise RuntimeError("ArmSession owner is not running")
         with self._write_lock:
-            self._process.stdin.write(json.dumps(command, allow_nan=False) + "\n")
-            self._process.stdin.flush()
+            if getattr(self, "_stop_latched", False) and command.get("command") not in {"stop", "exit"}:
+                raise RuntimeError("owner stop barrier rejects motion commands")
+            try:
+                self._process.stdin.write(json.dumps(command, allow_nan=False) + "\n")
+                self._process.stdin.flush()
+            except (OSError, RuntimeError, ValueError):
+                self._writer_faulted = True
+                self._owner_faulted = True
+                raise
 
     def _get_validity(self, positions, jaw_position, deadline):
         request = GetStateValidity.Request()
@@ -1151,6 +1338,7 @@ class TrajectoryBridge(Node):
             os.close(dir_fd)
         return path
 
+    @_control_callback
     def _goal_request(self, goal_request):
         if self._external_state_only:
             self.get_logger().warning("Rejecting trajectory goal: external_state_only mode is read-only")
@@ -1169,6 +1357,7 @@ class TrajectoryBridge(Node):
             self._active_goal = "pending"
         return GoalResponse.ACCEPT
 
+    @_control_callback
     def _gripper_goal_request(self, goal):
         if (self._external_state_only or self._gripper_jaw is None or
                 self._gripper_raw_limits is None or self._owner_faulted or
@@ -1186,7 +1375,7 @@ class TrajectoryBridge(Node):
         if not math.isfinite(float(command.max_effort)) or command.max_effort != 0:
             return GoalResponse.REJECT
         with self._active_lock:
-            if self._active_goal is not None:
+            if self._active_goal is not None or self._owner_faulted:
                 return GoalResponse.REJECT
             self._active_goal = "gripper"
             self._gripper_goal_cancelled = False
@@ -1221,6 +1410,7 @@ class TrajectoryBridge(Node):
             self._gripper_command_submitted = True
             return True
 
+    @_control_callback
     def _execute_gripper(self, goal_handle):
         command = goal_handle.request.command
         result = GripperCommand.Result()
@@ -1272,6 +1462,8 @@ class TrajectoryBridge(Node):
                     candidate = self._response_queue.get(timeout=min(0.05, deadline-time.monotonic()))
                     with self._active_lock:
                         cancelled = self._gripper_goal_cancelled
+                    if candidate.get("stopped"):
+                        raise InterruptedError("owner stopped; gripper torque disabled")
                     if cancelled:
                         state = candidate.get("state") if isinstance(candidate, dict) else None
                         if not isinstance(state, dict) or state.get("event") != "trajectory_cancel_hold":
@@ -1351,7 +1543,7 @@ class TrajectoryBridge(Node):
             return result
         finally:
             with self._active_lock:
-                if self._active_goal == "gripper" and not self._owner_faulted:
+                if self._active_goal == "gripper" and (not self._owner_faulted or getattr(self, "_stop_latched", False)):
                     self._active_goal = None
                 self._gripper_command_submitted = False
 
@@ -1421,6 +1613,7 @@ class TrajectoryBridge(Node):
                 return [a + (b - a) * ratio for a, b in zip(left.positions, right.positions)]
         return list(points[-1].positions)
 
+    @_control_callback
     def _execute(self, goal_handle):
         trajectory = goal_handle.request.trajectory
         with self._active_lock:
@@ -1558,6 +1751,13 @@ class TrajectoryBridge(Node):
         with self._active_lock:
             cancelled = goal_handle.is_cancel_requested or (result_payload and result_payload.get("cancelled"))
             self._active_goal = None
+        if (result_payload and result_payload.get("stopped")) or getattr(self, "_stop_latched", False):
+            artifact["status"] = "stopped_torque_off" if result_payload and result_payload.get("stopped") else "stop_requested"
+            artifact["result"] = result_payload
+            self._write_artifact(artifact)
+            goal_handle.abort()
+            return self._result(FollowJointTrajectory.Result.GOAL_TOLERANCE_VIOLATED,
+                                "owner stop interrupted trajectory; torque-off confirmation is provided by the stop service")
         if cancelled:
             artifact["status"] = "cancelled"
             artifact["result"] = result_payload
@@ -1608,7 +1808,7 @@ def main(args=None):
     node = None
     try:
         node = TrajectoryBridge()
-        executor = MultiThreadedExecutor(num_threads=3)
+        executor = MultiThreadedExecutor(num_threads=4)
         executor.add_node(node)
         executor.spin()
     except Exception as error:
