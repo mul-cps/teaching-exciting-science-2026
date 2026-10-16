@@ -50,3 +50,60 @@ Default release target: the attached rig using RealSense and EV3dev. Preserve st
 Do not mark the goal complete until the physical sorting and live twin gates pass. Record unavailable or failed checks explicitly and continue from the remaining gate.
 
 Source: Codex session `01a12fe0-e9e3-7462-8979-aec0d147bee3`, assistant plan recorded `2026-10-16T07:36:55.248Z` (09:36 Vienna).
+
+
+## Recovery replanning: stationary camera recapture
+
+The native external-producer test demonstrated that continuous encoder motion
+cannot supply identical-raw samples bracketing each camera exposure. The current
+original-scene expiry therefore stops recovery before the normal-range target.
+Implement explicit stationary recapture between certified movement segments:
+
+1. Certify at most a two-count waypoint using the existing immutable acquisition,
+   reach it, and verify its exact commanded hold before that proof expires.
+2. Enter a separate stationary-only wait, at most 500 ms and within the unchanged
+   six-second operation deadline. Issue no Goal, torque-enable or profile writes.
+   Continue actual fresh encoder/torque reads, exact held-pose checks and immediate
+   stop/cancel handling. This phase grants no movement authority after proof expiry.
+   Retain its original immutable hold context through candidate proof and final
+   settled verification; a normal same-generation identity renewal may resume
+   only that same verified hold within its original deadline. Never reset the
+   wait, carry old quiet-sample authority, or retry a motor write.
+3. Require typed cached producer health. Only explicitly transitional bracket
+   unavailability may permit waiting. Missing/stale/malformed health, identity or
+   generation changes, stream loss, unknown geometry and proof faults abort.
+   Filesystem and geometry preparation stay outside the owner critical path.
+4. Continue only from a strictly post-hold original camera exposure with identical
+   held-raw bracketing, matching identities and a fresh full clearance proof.
+   Preserve the 100 ms pairing, 50 ms current binding and 250 ms acquisition/proof
+   bounds. Never refresh old timestamps or reuse an expired motion proof.
+5. Verify the complete original synthetic trajectory and stop, cancellation,
+   camera loss, pose drift, identity change and timeout cases independently.
+   This software gate does not qualify real calibration or physical recovery.
+
+The original physical acceptance gates above remain required.
+
+
+## Confirmed remaining ROS orchestration gap
+
+The resident API currently exposes recovery and measured home as separate ROS
+operations; sorting run does not compose them. After the staged recovery package
+passes its software gates, implement one serialized arm-preparation sequence
+shared by an explicit arm preparation API and authorized sorting-run preflight:
+
+- Hold one follower reservation across recovery, measured home and readiness;
+  direct motion/reconnect clients must not interleave, and stop retains priority.
+  Use cached owner-computed typed bounds classification rather than duplicate
+  calibration math in the station coordinator.
+- Read fresh owner status and enforce trusted configuration, calibration,
+  identity, fault, stop and observe-only admission gates.
+- For a qualified bounded soft excursion, request recovery once and verify its
+  fresh held success and invalid home state. Do not reset faults or retry.
+- Request measured home once, then verify fresh sorting readiness before any
+  dispense. Already-ready arms should not repeat preparation motion.
+- Cancellation and stop use the existing coordinated stop path. Report phase
+  and failure through cached ROS status. Keep EV3 references and feeder
+  qualification as separate mandatory station gates.
+
+This closes an actual missing composition; API availability alone does not prove
+an autonomous startup or sorting workflow.

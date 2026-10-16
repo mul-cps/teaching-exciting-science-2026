@@ -15,12 +15,13 @@ import re
 import threading
 import zipfile
 import time
+import uuid
 from types import MappingProxyType
 
 import numpy as np
 
 from .config import JOINTS
-from .recovery_collision_model import URDFCollisionModel, validate_transform
+from .recovery_collision_model import URDFCollisionModel
 from .recovery_depth_scene import DepthRecoveryScene
 
 PROVIDER_BUDGET_S = .050
@@ -37,21 +38,6 @@ def _raw(value):
 
 def _fresh(stamp, now, maximum):
     return type(stamp) in (int, float) and math.isfinite(stamp) and 0 <= now-stamp <= maximum
-
-
-def _pinned(entry, directory, maximum=16*1024*1024):
-    if not isinstance(entry, dict) or set(entry) != {'path', 'sha256'}:
-        raise ValueError('server artifact requires exact path/SHA256 binding')
-    path = Path(entry['path'])
-    if not path.is_absolute():
-        path = directory/path
-    if path.stat().st_size > maximum:
-        raise ValueError("recovery artifact exceeds bounded size")
-    with path.open("rb") as stream:
-        data = stream.read(maximum+1)
-    if len(data) > maximum or hashlib.sha256(data).hexdigest() != entry['sha256']:
-        raise ValueError('recovery artifact size/hash mismatch')
-    return data, path.resolve()
 
 
 @dataclass(frozen=True)
@@ -83,13 +69,21 @@ class BoundRecoveryScene:
     @property
     def camera_serial(self): return self.acquisition.camera_serial
 
+    @property
+    def valid_until_monotonic(self):
+        identity=self.acquisition.acquisition_clock_provenance['camera_identity']
+        return min(self.stamp_monotonic+ACQUISITION_MAX_AGE_S,
+                   self.acquisition_arm_stamp_monotonic+ACQUISITION_MAX_AGE_S,
+                   identity['request_started_monotonic']+1.,
+                   self.proof_started_monotonic+PROOF_BUDGET_S)
+
     def _check(self, method, *args):
         # Original acquisition expiry is also independently checked by the
         # delegated oracle, including cached successful proofs.
-        if time.monotonic()-self.proof_started_monotonic > PROOF_BUDGET_S:
+        if time.monotonic()>self.valid_until_monotonic:
             return None
         result = method(*args)
-        return result if time.monotonic()-self.proof_started_monotonic <= PROOF_BUDGET_S else None
+        return result if time.monotonic()<=self.valid_until_monotonic else None
 
     def minimum_clearance_m(self, raw):
         return self._check(self.acquisition.minimum_clearance_m, raw)
@@ -107,18 +101,29 @@ class RecoveryRuntime:
     """
     def __init__(self, *, model, registration, policy, settings, cache_root, start_worker=True):
         self.model, self.registration, self.policy = model, registration, policy
-        self.settings, self.cache_root = settings, Path(cache_root)
+        self.settings = dict(settings)
+        self.cache_generation = uuid.uuid4().hex
+        self.cache_root = Path(cache_root)/self.cache_generation
+        self.runtime_started_monotonic = time.monotonic()
+        if 'owner_source_sha256' not in self.settings:
+            from .recovery_types import owner_source_sha256
+            self.settings['owner_source_sha256'] = owner_source_sha256(Path(__file__).parent)
         self._lock = threading.Lock()
         self._prepare_lock = threading.Lock()
         self._latest = None
         self._stop = threading.Event()
         self._worker = None
+        self._health = None
+        self._runtime_preparation_fault = False
         self.last_error = 'no prepared acquisition'
         self.prepare_duration_s = None
         self.prewarm_duration_s = None
         self._prewarm_attempted = False
         self._prewarm_finished_header_ns = None
         if start_worker:
+            # Every owner generation must acquire a new producer cohort. A
+            # prior crashed process's still-fresh pointer carries no authority.
+            (self.cache_root/'latest.json').unlink(missing_ok=True)
             self._worker = threading.Thread(target=self._collect, name='recovery-scene-cache', daemon=True)
             self._worker.start()
 
@@ -129,6 +134,7 @@ class RecoveryRuntime:
         try:
             return self._prepare(record, depth_m)
         except (ValueError, KeyError, TypeError, ArithmeticError):
+            self._runtime_preparation_fault = True
             with self._lock:
                 self._latest = None
             raise
@@ -157,12 +163,27 @@ class RecoveryRuntime:
                 not math.isfinite(claimed_stamp) or
                 abs(derived_stamp-claimed_stamp) > .020):
             raise ValueError('actual SYSTEM depth header age/monotonic mapping invalid')
+        identity=record.get('camera_identity')
+        if (not isinstance(identity,dict) or identity.get('schema')!='realsense-camera-identity-v1' or
+                identity.get('serial_number')!=self.policy.camera_serial or
+                identity.get('serial_no_parameter')!=self.policy.camera_serial or
+                not isinstance(identity.get('generation'),str) or
+                not re.fullmatch('[a-f0-9]{64}',identity['generation']) or
+                not _fresh(identity.get('request_started_monotonic'),now,1.) or
+                not _fresh(identity.get('confirmed_monotonic'),now,1.) or
+                not identity['request_started_monotonic']<=identity['confirmed_monotonic']<derived_stamp):
+            raise ValueError('fresh actually observed camera serial/parameter/generation required')
         r = self.registration
         if (record.get('schema') != 'recovery-depth-acquisition-v1' or
                 record.get('camera_serial') != self.policy.camera_serial or
                 record.get('camera_frame') != r['camera_frame'] or
                 record.get('arm_id') != self.settings['arm_id'] or
                 record.get('arm_calibration_sha256') != self.policy.arm_calibration_sha256 or
+                record.get('acquisition_owner_source_sha256') != self.settings['owner_source_sha256'] or
+                not _fresh(record.get('acquisition_owner_started_monotonic'), now, float('inf')) or
+                record['acquisition_owner_started_monotonic'] > self.runtime_started_monotonic or
+                type(record.get('acquisition_arm_stamp_monotonic')) not in (int,float) or
+                record['acquisition_arm_stamp_monotonic'] < self.runtime_started_monotonic or
                 type(record.get('depth_stamp_ns')) is not int or record['depth_stamp_ns'] <= 0 or
                 not _fresh(record.get('depth_stamp_monotonic'), now, ACQUISITION_MAX_AGE_S) or
                 not _fresh(record.get('acquisition_arm_stamp_monotonic'), now, ACQUISITION_MAX_AGE_S)):
@@ -200,7 +221,10 @@ class RecoveryRuntime:
             support_planes=self.settings['support_planes'], max_check_time_s=PROOF_BUDGET_S,
             acquisition_clock_provenance=dict(source_clock='system', depth_stamp_ns=header_ns,
                 declared_depth_stamp_monotonic=claimed_stamp,
-                source_clock_uncertainty_s=clock_uncertainty))
+                source_clock_uncertainty_s=clock_uncertainty, camera_identity=MappingProxyType(dict(identity)),
+                acquisition_owner_source_sha256=MappingProxyType(dict(record['acquisition_owner_source_sha256'])),
+                acquisition_owner_started_monotonic=record['acquisition_owner_started_monotonic'],
+                runtime_started_monotonic=self.runtime_started_monotonic))
         duration = time.monotonic()-started
         if duration > PROOF_BUDGET_S:
             raise ValueError('acquisition preparation exceeded 250 ms')
@@ -210,6 +234,7 @@ class RecoveryRuntime:
         with self._lock:
             self._latest = scene
         self.prepare_duration_s, self.last_error = duration, None
+        self._runtime_preparation_fault = False
         return scene
 
     def __call__(self, raw, stamp):
@@ -225,7 +250,8 @@ class RecoveryRuntime:
                 for s in (scene.stamp_monotonic, scene.arm_stamp_monotonic))):
             return None
         binding = BoundRecoveryScene(scene, MappingProxyType(raw), stamp, started)
-        return binding if time.monotonic()-started <= PROVIDER_BUDGET_S else None
+        now=time.monotonic()
+        return binding if now-started<=PROVIDER_BUDGET_S and now<=binding.valid_until_monotonic else None
 
     def prewarm_model(self, raw):
         """Once-only worker preparation; no scene/proof authority or depth reuse."""
@@ -243,9 +269,80 @@ class RecoveryRuntime:
             with self._lock:
                 self._latest = None
 
+    def _read_health(self):
+        # Background-only bounded validation; owner access below is cached.
+        path=self.cache_root/'health.json'
+        if path.stat().st_size>65536:raise ValueError('oversized recovery health')
+        value=json.loads(path.read_bytes());now=time.monotonic()
+        if (not isinstance(value,dict) or not isinstance(value.get('camera_identity'),dict) or
+                not isinstance(value.get('streams'),dict) or
+                any(not isinstance(value['streams'].get(k),dict) for k in ('depth','info'))):
+            raise ValueError('malformed stationary recapture health')
+        identity=value['camera_identity']
+        clocks=('runtime_started_monotonic','owner_started_monotonic','observed_monotonic')
+        if (value.get('schema')!='recovery-depth-health-v1' or
+                value.get('cache_generation')!=self.cache_generation or
+                value.get('runtime_started_monotonic')!=self.runtime_started_monotonic or
+                value.get('owner_source_sha256')!=self.settings['owner_source_sha256'] or
+                value.get('arm_id')!=self.settings['arm_id'] or
+                value.get('arm_calibration_sha256')!=self.policy.arm_calibration_sha256 or
+                any(type(value.get(k)) not in (int,float) or not math.isfinite(value[k]) for k in clocks) or
+                not 0<=value['owner_started_monotonic']<=self.runtime_started_monotonic or
+                not 0<=now-value['observed_monotonic']<=.050 or
+                value.get('state') not in {'ready','pending_future_bracket','nonstationary_bracket','awaiting_post_confirmation_exposure'} or
+                identity.get('schema')!='realsense-camera-identity-v1' or
+                identity.get('serial_number')!=self.policy.camera_serial or
+                identity.get('serial_no_parameter')!=self.policy.camera_serial or
+                not isinstance(identity.get('generation'),str) or
+                not re.fullmatch('[a-f0-9]{64}',identity['generation'])):
+            raise ValueError('invalid stationary recapture health identity/state')
+        requested,confirmed=identity.get('request_started_monotonic'),identity.get('confirmed_monotonic')
+        if (any(type(v) not in (int,float) or not math.isfinite(v) for v in (requested,confirmed)) or
+                not requested<=confirmed<=now or not 0<=now-requested<=1.):
+            raise ValueError('stationary recapture camera identity expired')
+        if (value['state']=='awaiting_post_confirmation_exposure' and
+                value.get('same_generation_refresh_request_started_monotonic')!=requested):
+            raise ValueError('same-context refresh transition provenance required')
+        deadline=min(value['observed_monotonic']+.050,requested+1.)
+        for kind in ('depth','info'):
+            stream=value.get('streams',{}).get(kind,{})
+            header,received=stream.get('header_ns'),stream.get('received_monotonic')
+            before=time.monotonic();wall=time.time_ns();after=time.monotonic()
+            age=(wall-header)/1e9 if type(header) is int else float('inf')
+            if (after-before>.005 or not 0<=age<=.250 or
+                    type(received) not in (int,float) or not math.isfinite(received) or
+                    not 0<=now-received<=.250):
+                raise ValueError('stationary recapture stream expired')
+            deadline=min(deadline,before-age+.250,received+.250)
+        self._health=MappingProxyType(dict(camera_generation=identity['generation'],
+            state=value['state'],valid_until_monotonic=deadline,
+            identity_confirmed_monotonic=confirmed,
+            same_generation_refresh_request_started_monotonic=value.get('same_generation_refresh_request_started_monotonic'),
+            identity_request_started_monotonic=requested))
+
+    def recapture_health(self, camera_generation):
+        value=self._health
+        if (self._runtime_preparation_fault or value is None or value['camera_generation']!=camera_generation
+                or time.monotonic()>value['valid_until_monotonic']):
+            return None
+        # A producer-ready pointer and its prepared oracle arrive separately.
+        # Readiness must not expose the preceding cohort under a new lease.
+        scene=self._latest
+        confirmed=value.get('identity_confirmed_monotonic')
+        if (confirmed is not None and (scene is None or
+                min(scene.stamp_monotonic,scene.acquisition_clock_provenance['declared_depth_stamp_monotonic'])<=confirmed)):
+            marker=value.get('same_generation_refresh_request_started_monotonic')
+            if marker is not None and marker==value.get('identity_request_started_monotonic'):
+                return MappingProxyType(dict(value,state='awaiting_post_confirmation_exposure'))
+            if value['state']=='ready':
+                return None
+        return value
+
     def _collect(self):
         generation = None
         while not self._stop.is_set():
+            try:self._read_health()
+            except (OSError,ValueError,KeyError,TypeError):self._health=None
             try:
                 path = self.cache_root/'latest.json'
                 if path.stat().st_size > 65536:
@@ -283,6 +380,18 @@ class RecoveryRuntime:
                     generation = current
             except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile, EOFError) as error:
                 self.last_error = str(error)
+                missing_pointer=(isinstance(error,FileNotFoundError) and
+                    error.filename is not None and Path(error.filename)==self.cache_root/'latest.json')
+                if missing_pointer:
+                    # The producer commits typed transition health BEFORE
+                    # revoking its pointer. Reread here, outside owner control,
+                    # instead of classifying against an earlier ready snapshot.
+                    try:self._read_health()
+                    except (OSError,ValueError,KeyError,TypeError):self._health=None
+                health=self.recapture_health(self._health['camera_generation']) if self._health is not None else None
+                if not (missing_pointer and health is not None and
+                        health['state'] in {'pending_future_bracket','nonstationary_bracket','awaiting_post_confirmation_exposure'}):
+                    self._runtime_preparation_fault = True
                 with self._lock:
                     self._latest = None
             self._stop.wait(.020)
@@ -293,65 +402,26 @@ class RecoveryRuntime:
             self._worker.join(timeout=2.1)
 
 
-def create_recovery_runtime(config, state_file):
+def create_recovery_runtime(config, state_file, *, expected_owner_sources=None):
     """Server-configured authority only. Missing/disabled stays unqualified."""
-    option = config.get('arm', {}).get('camera_recovery')
-    if not option or option.get('enabled') is not True:
+    from .recovery_runtime_config import load_recovery_runtime_config
+    trusted = load_recovery_runtime_config(config, state_file)
+    if trusted is None:
         return None
-    manifest_bytes, manifest_path = _pinned(option['manifest'], Path(state_file).parent)
-    manifest = json.loads(manifest_bytes)
-    arm = config['arm']
-    if (manifest.get('schema') != 'so101-camera-recovery-runtime-v1' or
-            manifest.get('qualified') is not True or manifest.get('arm_id') != arm['id'] or
-            manifest.get('arm_calibration_sha256') != arm['calibration']['sha256']):
-        raise ValueError('qualified identity-matched recovery runtime manifest required')
-    mapping_bytes, _ = _pinned(manifest['joint_mapping'], manifest_path.parent)
-    mapping = json.loads(mapping_bytes)
-    if (mapping.get('schema') != 'recovery-joint-mapping-v1' or
-            mapping.get('qualified') is not True or mapping.get('arm_id') != arm['id'] or
-            mapping.get('arm_calibration_sha256') != arm['calibration']['sha256']):
-        raise ValueError('qualified physical-arm-matched joint mapping required')
-    urdf, _ = _pinned(manifest['effective_urdf'], manifest_path.parent)
+    manifest, mapping, urdf, registration, arm = (trusted[name] for name in
+        ('manifest','mapping','urdf','registration','arm'))
     model = URDFCollisionModel(urdf.decode(), joint_calibration=mapping['joints'],
         calibration_qualified=True, base_frame=manifest['base_frame'],
         package_paths=manifest.get('package_paths', {}),
         allowed_self_contacts=manifest['allowed_self_contacts'])
     if model.model_sha256 != manifest['model_sha256']:
         raise ValueError('effective collision model hash mismatch')
-    registration_bytes, _ = _pinned(manifest['registration'], manifest_path.parent)
-    registration = json.loads(registration_bytes)
-    if (registration.get('schema') != 'camera-arm-calibration-v1' or
-            registration.get('qualified') is not True or
-            registration.get('arm_calibration_sha256') != arm['calibration']['sha256'] or
-            registration.get('model_sha256') != model.model_sha256 or
-            registration.get('base_frame') != model.base_frame or
-            not isinstance(registration.get('camera_serial'), str) or not registration['camera_serial'] or
-            not isinstance(registration.get('camera_frame'), str) or not registration['camera_frame']):
-        raise ValueError('qualified model/arm/camera-matched base registration required')
-    registration['base_from_camera'] = validate_transform(registration['base_from_camera'])
-    for dimension in ('image_width', 'image_height'):
-        if type(registration.get(dimension)) is not int or not 0 < registration[dimension] <= 4096:
-            raise ValueError('qualified image dimensions required')
-    if registration['image_width']*registration['image_height'] > 4_194_304:
-        raise ValueError('qualified image exceeds bounded resolution')
-    intrinsics = registration.get('intrinsics')
-    if (not isinstance(intrinsics, dict) or set(intrinsics) != {'fx','fy','ppx','ppy'} or
-            any(type(v) not in (int,float) or not math.isfinite(v) for v in intrinsics.values()) or
-            min(intrinsics['fx'],intrinsics['fy']) <= 0):
-        raise ValueError('qualified finite pinhole intrinsics required')
-    distortion = registration.get('distortion')
-    if (registration.get('distortion_model') != 'plumb_bob' or
-            not isinstance(distortion,list) or len(distortion) not in (4,5) or
-            any(type(v) not in (int,float) or not math.isfinite(v) for v in distortion)):
-        raise ValueError('qualified Brown-Conrady distortion required')
-    for name in ('depth_uncertainty_m', 'geometry_uncertainty_m'):
-        value = manifest.get(name)
-        if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
-            raise ValueError('positive commissioned uncertainty required: '+name)
     from .recovery_types import CameraRecoveryPolicy
     policy = CameraRecoveryPolicy(model.model_sha256, model.calibration_sha256,
         registration['camera_serial'], arm['calibration']['sha256'])
     settings = dict(arm_id=arm['id'], depth_uncertainty_m=manifest['depth_uncertainty_m'],
         geometry_uncertainty_m=manifest['geometry_uncertainty_m'], support_planes=manifest['support_planes'])
+    if expected_owner_sources is not None:
+        settings['owner_source_sha256'] = dict(expected_owner_sources)
     return RecoveryRuntime(model=model, registration=registration, policy=policy,
         settings=settings, cache_root=Path(state_file).parent/'camera-recovery')

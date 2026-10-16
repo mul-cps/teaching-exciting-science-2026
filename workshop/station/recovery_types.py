@@ -12,7 +12,7 @@ class CameraRecoveryPolicy:
 
 
 
-OWNER_SOURCE_MODULES = ('arm', 'arm_session', 'recovery_runtime', 'recovery_types')
+OWNER_SOURCE_MODULES = ('arm', 'arm_session', 'recovery_runtime', 'recovery_types', 'recovery_runtime_config', 'camera_recovery')
 
 
 def owner_source_sha256(station_dir):

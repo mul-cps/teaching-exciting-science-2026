@@ -130,3 +130,15 @@ def test_scene_must_belong_to_identified_camera_and_exact_encoder_sample(field, 
     with pytest.raises(ValueError):
         plan(scene)
     assert not scene.samples
+
+
+def test_generic_adapter_cannot_assert_alternative_acquisition_clock():
+    scene=Scene()
+    scene.stamp_monotonic=10.
+    scene.arm_stamp_monotonic=10.120
+    scene.acquisition_arm_stamp_monotonic=10.
+    with pytest.raises(ValueError,match='synchronized'):
+        plan_bound_reentry(START,BOUNDS,FIRMWARE,scene=scene,now=10.120,
+            expected_model_sha256=scene.model_sha256,
+            expected_calibration_sha256=scene.calibration_sha256,
+            expected_camera_serial=scene.camera_serial)

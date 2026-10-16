@@ -27,7 +27,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import (QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile,
                        QoSReliabilityPolicy)
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import CameraInfo, Image, JointState
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
 from so101_station_workflow.srv import CommissionGripperStep
@@ -64,6 +64,16 @@ def _load_owner_source_hashes(station_root):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module.owner_source_sha256(directory)
+
+
+def _load_recovery_cache_config(station_root, config, state_file):
+    """Load the shared lightweight authority parser only during owner startup."""
+    source = Path(station_root) / "workshop/station/recovery_runtime_config.py"
+    spec = importlib.util.spec_from_file_location("so101_recovery_runtime_config", source)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.load_recovery_runtime_config(config, state_file)
 
 
 def _owner_state_is_ready(state, *, arm_id, calibration_sha256, owner_started):
@@ -255,6 +265,8 @@ class TrajectoryBridge(Node):
         self.declare_parameter("collision_check_timeout_s", 30.0)
         self.declare_parameter("max_jerk_rad_s3", 2.0)
         self.declare_parameter("calibration_endpoint_mode", False)
+        self.declare_parameter("recovery_depth_topic", "/camera/aligned_depth_to_color/image_raw")
+        self.declare_parameter("recovery_camera_info_topic", "/camera/color/camera_info")
         self.declare_parameter("teleop_pose_topic", "/leader/teleop_pose")
         self.declare_parameter("teleop_status_topic", "/follower/teleop_status")
         self.declare_parameter("teleop_enable_service", "/follower/teleop_enable")
@@ -320,6 +332,12 @@ class TrajectoryBridge(Node):
         self._cached_owner_state = None
         self._cached_owner_generation = None
         self._cached_owner_reason = "cached_state_missing"
+        self._recovery_depth_cache = None
+        self._recovery_camera_identity = None
+        self._recovery_collector_context = None
+        self._recovery_depth_subscriptions = []
+        self._recovery_cache_config = None
+        self._recovery_cache_error = None
         self._state_file = self._resolve_state_file()
         self._gripper_jaw = None
         self._gripper_raw_limits = None
@@ -411,6 +429,8 @@ class TrajectoryBridge(Node):
             self.get_logger().warning(
                 "Gripper radians are unqualified; the published gripper joint is a visual-only normalized-percent-to-URDF-range estimate and is never commanded")
 
+        self._configure_recovery_depth_cache()
+
     def _publish_joint_state(self):
         state = self._read_state()
         if state is None:
@@ -459,6 +479,13 @@ class TrajectoryBridge(Node):
             raise RuntimeError("external_state_only mode must never start an ArmSession owner")
         if not bool(self.get_parameter("enable_hardware").value):
             raise RuntimeError("hardware action bridge requires enable_hardware:=true")
+        # Retire the old producer before spawning a separately scoped runtime.
+        if not self._close_recovery_depth_cache():
+            raise RuntimeError("old recovery depth producer did not retire before owner spawn")
+        with self._state_cache_lock:
+            self._recovery_collector_context = None
+        self._recovery_cache_config = None
+        self._recovery_cache_error = None
         station_python = str(self.get_parameter("station_python").value)
         station_root = Path(str(self.get_parameter("station_root").value)).resolve()
         config = str(self.get_parameter("station_config").value)
@@ -478,6 +505,14 @@ class TrajectoryBridge(Node):
         if (not expected_arm_id or len(expected_calibration_sha256) != 64 or
                 any(character not in "0123456789abcdef" for character in expected_calibration_sha256)):
             raise RuntimeError("station_config has invalid arm identity or calibration SHA256")
+        option = config_data.get("arm", {}).get("camera_recovery")
+        if isinstance(option, dict) and option.get("enabled") is True:
+            try:
+                self._recovery_cache_config = _load_recovery_cache_config(
+                    station_root, config_data, self._state_file)
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError) as error:
+                self._recovery_cache_error = str(error)
+                self.get_logger().warning(f"Recovery depth producer disabled: {error}")
         self._saved_home_pose, self._saved_home_tolerance = _load_measured_home(
             config_data, station_root, expected_arm_id, expected_calibration_sha256)
         calibration_path = Path(config_data["arm"]["calibration"]["path"])
@@ -681,6 +716,7 @@ class TrajectoryBridge(Node):
             state = self._start_owner(observe_only=True)
             if self._closed:
                 raise RuntimeError("bridge closed during reconnect startup")
+            self._configure_recovery_depth_cache()
             if any(state["torque"].values()):
                 response.message = "observe-only owner connected; torque is on, explicit stop required"
                 return response
@@ -1335,6 +1371,7 @@ class TrajectoryBridge(Node):
             value = state.get(key)
             return value if type(value) in (int, float) and math.isfinite(value) else None
         position, torque_stamp = stamp("monotonic"), stamp("torque_monotonic")
+        runtime_started = stamp("camera_recovery_runtime_started_monotonic")
         reason = None
         if type(generation) not in (int, float) or not math.isfinite(generation) or generation <= 0:
             reason = "owner_generation_unconfirmed"
@@ -1344,10 +1381,15 @@ class TrajectoryBridge(Node):
             reason = "torque_sample_precedes_owner_or_invalid"
         retained = {key: state.get(key) if isinstance(state.get(key), str) and
                     len(state[key]) <= 128 else None
-                    for key in ("event", "arm_id", "calibration_sha256")}
+                    for key in ("event", "arm_id", "calibration_sha256",
+                                "timestamp_utc", "torque_timestamp_utc")}
         retained.update(monotonic=position, torque_monotonic=torque_stamp,
                         observe_only=state.get("observe_only") if
-                        type(state.get("observe_only")) is bool else None)
+                        type(state.get("observe_only")) is bool else None,
+                        camera_recovery_runtime_started_monotonic=runtime_started)
+        nonce = state.get("camera_recovery_cache_generation")
+        retained["camera_recovery_cache_generation"] = (nonce if isinstance(nonce, str) and
+            len(nonce) == 32 and all(char in "0123456789abcdef" for char in nonce) else None)
         for key in ("raw", "pose", "torque"):
             values = state.get(key)
             valid = isinstance(values, dict) and set(values) == set(TELEOP_JOINTS)
@@ -1358,17 +1400,185 @@ class TrajectoryBridge(Node):
                 upper = 4095 if key == "raw" else 1
                 valid = all(type(value) is int and 0 <= value <= upper for value in values.values())
             retained[key] = dict(values) if valid else None
+        phase_keys = ("camera_recovery_phase", "camera_recovery_held_raw",
+                      "camera_recovery_hold_stamp_monotonic",
+                      "camera_recovery_wait_deadline_monotonic")
+        phase = state.get("camera_recovery_phase")
+        held = state.get("camera_recovery_held_raw")
+        hold_stamp = stamp("camera_recovery_hold_stamp_monotonic")
+        wait_deadline = stamp("camera_recovery_wait_deadline_monotonic")
+        supported = all(key in state for key in phase_keys)
+        inactive = (phase is None and held is None and
+                    state.get(phase_keys[2]) is None and state.get(phase_keys[3]) is None)
+        valid_wait = (phase == "stationary_recapture" and isinstance(held, dict) and
+                      set(held) == set(TELEOP_JOINTS) and
+                      all(type(value) is int and 0 <= value <= 4095 for value in held.values()) and
+                      hold_stamp is not None and wait_deadline is not None and
+                      type(generation) in (int, float) and math.isfinite(generation) and
+                      generation <= hold_stamp <= wait_deadline)
+        retained["camera_recovery_observation"] = {
+            "supported": supported, "phase": phase if valid_wait else None,
+            "held_raw": dict(held) if valid_wait else None,
+            "hold_stamp_monotonic": hold_stamp if valid_wait else None,
+            "wait_deadline_monotonic": wait_deadline if valid_wait else None,
+            "reason": ("unsupported_by_owner" if not supported else
+                       None if inactive or valid_wait else "invalid_owner_observation")}
         sources = state.get("owner_source_sha256")
         expected_sources = self._owner_source_expected
         retained["owner_source_sha256"] = (dict(sources) if
             isinstance(sources, dict) and isinstance(expected_sources, dict) and
-            0 < len(expected_sources) <= 4 and set(sources) == set(expected_sources) and
+            0 < len(expected_sources) <= 6 and set(sources) == set(expected_sources) and
             all(isinstance(value, str) and len(value) == 64 for value in sources.values()) else None)
+        collector = None
         with self._state_cache_lock:
             if self._owner_started == generation and self._process is process:
                 self._cached_owner_state = retained if reason is None else None
                 self._cached_owner_generation = generation
                 self._cached_owner_reason = reason
+                collector = self._recovery_depth_cache
+        if collector is not None:
+            now = time.monotonic()
+            admitted = (reason is None and not self._closed and process is not None and
+                process.poll() is None and retained["raw"] is not None and
+                retained["torque"] is not None and type(retained["observe_only"]) is bool and
+                position <= now and torque_stamp <= now and
+                retained["arm_id"] == self._expected_arm_id and
+                retained["calibration_sha256"] == self._expected_calibration_sha256 and
+                retained["owner_source_sha256"] == expected_sources and
+                self._recovery_runtime_context(retained, generation) ==
+                (collector.cache_generation, collector.runtime_started_monotonic))
+            if admitted:
+                collector.observe_owner_sample(retained, (process, generation))
+            else:
+                collector.invalidate_generation(None)
+
+    def _recovery_runtime_context(self, state, generation):
+        """Read only the nonce authority already admitted from this owner snapshot."""
+        if not isinstance(state, dict):
+            return None
+        nonce = state.get("camera_recovery_cache_generation")
+        started = state.get("camera_recovery_runtime_started_monotonic")
+        acquired = state.get("monotonic")
+        if (not isinstance(nonce, str) or len(nonce) != 32 or
+                any(char not in "0123456789abcdef" for char in nonce) or
+                type(generation) not in (int, float) or not math.isfinite(generation) or generation <= 0 or
+                type(started) not in (int, float) or not math.isfinite(started) or
+                type(acquired) not in (int, float) or not math.isfinite(acquired) or
+                not generation <= started <= acquired <= time.monotonic() or
+                state.get("arm_id") != self._expected_arm_id or
+                state.get("calibration_sha256") != self._expected_calibration_sha256 or
+                state.get("owner_source_sha256") != self._owner_source_expected or
+                state.get("raw") is None or state.get("torque") is None):
+            return None
+        return nonce, started
+
+    def _close_recovery_depth_cache(self):
+        identity = self._recovery_camera_identity
+        if identity is not None:
+            identity.set_collector(None)
+        with self._state_cache_lock:
+            collector, self._recovery_depth_cache = self._recovery_depth_cache, None
+        if collector is not None:
+            try:
+                collector.close()
+            except (OSError, RuntimeError) as error:
+                self._recovery_cache_error = str(error)
+                self.get_logger().warning(f"Recovery depth producer close failed: {error}")
+                return False
+        return True
+
+    def _configure_recovery_depth_cache(self):
+        """Start only a manifest-authorized observation producer, outside control ticks."""
+        if (self._closed or self._external_state_only or self._recovery_cache_config is None or
+                self._process is None or self._process.poll() is not None):
+            return
+        process, generation = self._process, self._owner_started
+        with self._state_cache_lock:
+            state, cached_generation = self._cached_owner_state, self._cached_owner_generation
+            current = self._recovery_depth_cache
+        context = self._recovery_runtime_context(state, generation)
+        if context is None or cached_generation != generation:
+            self._recovery_cache_error = "current owner recovery runtime nonce is unavailable"
+            return
+        if current is not None:
+            if (current.cache_generation, current.runtime_started_monotonic) == context:
+                return  # One collector owns this nonce for its whole owner lifetime.
+            self._recovery_cache_error = "recovery runtime changed within an owner generation"
+            current.invalidate_generation(None)
+            return
+        collector_context = (process, generation, *context)
+        with self._state_cache_lock:
+            if self._recovery_collector_context is not None:
+                self._recovery_cache_error = "collector already created for this owner runtime"
+                return
+            self._recovery_collector_context = collector_context
+        collector = None
+        try:
+            from .recovery_depth_cache import RecoveryDepthCache
+            collector = RecoveryDepthCache(None, trusted_config=self._recovery_cache_config,
+                expected_owner_sources=self._owner_source_expected, state_file=self._state_file,
+                cache_generation=context[0], runtime_started_monotonic=context[1],
+                depth_topic=str(self.get_parameter("recovery_depth_topic").value),
+                camera_info_topic=str(self.get_parameter("recovery_camera_info_topic").value))
+            collector.invalidate_generation((process, generation))
+            if self._recovery_camera_identity is None:
+                from .recovery_camera_identity import RecoveryCameraIdentity
+                self._recovery_camera_identity = RecoveryCameraIdentity(self,
+                    depth_topic=str(self.get_parameter("recovery_depth_topic").value),
+                    camera_info_topic=str(self.get_parameter("recovery_camera_info_topic").value))
+            self._ensure_recovery_depth_subscriptions()
+            with self._state_cache_lock:
+                attach = (not self._closed and self._process is process and
+                          self._owner_started == generation)
+                if attach:
+                    self._recovery_depth_cache = collector
+                state = self._cached_owner_state
+                cached_generation = self._cached_owner_generation
+            if not attach:
+                collector.close()
+                return
+            self._recovery_camera_identity.set_collector(collector)
+            if state is not None:
+                self._cache_owner_state(state, generation=cached_generation, process=process)
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, ImportError) as error:
+            if collector is not None:
+                with self._state_cache_lock:
+                    if self._recovery_depth_cache is collector:
+                        self._recovery_depth_cache = None
+                collector.close()
+            self._recovery_cache_error = str(error)
+            self.get_logger().warning(f"Recovery depth producer disabled: {error}")
+
+    def _ensure_recovery_depth_subscriptions(self):
+        """One bounded subscription pair survives collector/owner replacement."""
+        if len(self._recovery_depth_subscriptions) == 2:
+            return
+        if not self._recovery_depth_subscriptions:
+            self._recovery_depth_group = MutuallyExclusiveCallbackGroup()
+        qos = QoSProfile(depth=1, history=QoSHistoryPolicy.KEEP_LAST,
+                         reliability=QoSReliabilityPolicy.BEST_EFFORT)
+        if not self._recovery_depth_subscriptions:
+            self._recovery_depth_subscriptions.append(self.create_subscription(
+                Image, str(self.get_parameter("recovery_depth_topic").value),
+                self._recovery_depth_received, qos, callback_group=self._recovery_depth_group))
+        if len(self._recovery_depth_subscriptions) == 1:
+            self._recovery_depth_subscriptions.append(self.create_subscription(
+                CameraInfo, str(self.get_parameter("recovery_camera_info_topic").value),
+                self._recovery_info_received, qos, callback_group=self._recovery_depth_group))
+
+    def _recovery_depth_received(self, message, message_info):
+        collector, identity = self._recovery_depth_cache, self._recovery_camera_identity
+        if not self._closed and collector is not None and identity is not None:
+            generation = identity.accept('depth', message, message_info, collector=collector)
+            if generation is not None:
+                collector._on_depth(message, camera_generation=generation)
+
+    def _recovery_info_received(self, message, message_info):
+        collector, identity = self._recovery_depth_cache, self._recovery_camera_identity
+        if not self._closed and collector is not None and identity is not None:
+            generation = identity.accept('info', message, message_info, collector=collector)
+            if generation is not None:
+                collector._on_info(message, camera_generation=generation)
 
     def _status(self, _request, response):
         """Observe cached telemetry without I/O; this is not motion admission."""
@@ -1377,6 +1587,7 @@ class TrajectoryBridge(Node):
             state = self._cached_owner_state
             cached_generation = self._cached_owner_generation
             cache_reason = self._cached_owner_reason
+            collector = self._recovery_depth_cache
         with self._active_lock:
             process, generation = self._process, self._owner_started
             faulted, barrier = self._owner_faulted, self._stop_latched
@@ -1457,6 +1668,15 @@ class TrajectoryBridge(Node):
             "calibration_sha256": state.get("calibration_sha256"),
             "owner_source_sha256": actual_sources,
             "expected_owner_source_sha256": expected_sources if isinstance(expected_sources, dict) else None,
+            "camera_recovery": (state.get("camera_recovery_observation") if trusted else
+                {"supported": False, "phase": None, "held_raw": None,
+                 "hold_stamp_monotonic": None, "wait_deadline_monotonic": None,
+                 "reason": "owner_unconfirmed"}),
+            "camera_identity": (self._recovery_camera_identity.snapshot()
+                                if self._recovery_camera_identity is not None else None),
+            "recovery_depth_cache": (collector.snapshot()
+                if collector is not None else
+                {"enabled": False, "reason": self._recovery_cache_error or "not_configured"}),
             "reasons": reasons}
         response.success = True
         response.message = json.dumps(payload, allow_nan=False)
@@ -1755,6 +1975,11 @@ class TrajectoryBridge(Node):
                     self._cached_owner_state = None
                     self._cached_owner_generation = generation
                     self._cached_owner_reason = "state_read_failed"
+                    collector = self._recovery_depth_cache
+                else:
+                    collector = None
+            if collector is not None:
+                collector.invalidate_generation(None)
             return None
 
     def _send(self, command):
@@ -2342,6 +2567,9 @@ class TrajectoryBridge(Node):
         # lifecycle lock prevents a replacement from surviving node destruction.
         with self._teleop_wakeup_lock:
             self._closed = True
+        self._close_recovery_depth_cache()
+        if self._recovery_camera_identity is not None:
+            self._recovery_camera_identity.close()
         with self._stop_lock:
             if self._process is not None and self._process.poll() is None:
                 process = self._process

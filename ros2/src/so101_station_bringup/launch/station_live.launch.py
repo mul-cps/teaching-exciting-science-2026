@@ -32,6 +32,8 @@ def generate_launch_description():
         'station_lock': '',
         'rviz': 'true',
         'use_camera': 'true',
+        'recovery_depth_topic': '/camera/aligned_depth_to_color/image_raw',
+        'recovery_camera_info_topic': '/camera/color/camera_info',
         'color_profile': '640,480,15',
         'far_depth_m': '1.2',
         'use_objects': 'true',
@@ -78,7 +80,8 @@ def generate_launch_description():
     robot_keys = ['external_state_only', 'enable_hardware', 'station_root',
                   'station_python', 'station_config', 'state_file', 'log_dir',
                   'station_lock', 'rviz', 'trajectory_log_dir',
-                  'gripper_action_name', 'gripper_jaw_calibration']
+                  'gripper_action_name', 'gripper_jaw_calibration',
+                  'recovery_depth_topic', 'recovery_camera_info_topic']
     robot = include('so101_station_control', 'moveit_resident.launch.py',
                     {k: LaunchConfiguration(k) for k in robot_keys})
     perception = include('so101_station_perception', 'perception.launch.py', {

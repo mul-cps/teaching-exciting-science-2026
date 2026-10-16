@@ -53,11 +53,20 @@ def plan_bound_reentry(raw, admitted_bounds, firmware_bounds, *, scene, now,
             or not isinstance(expected_camera_serial, str) or not expected_camera_serial
             or scene.camera_serial != expected_camera_serial):
         raise ValueError("identity-matched qualified camera registration and model required")
-    stamps = (now, scene.stamp_monotonic, scene.arm_stamp_monotonic)
+    # Only the trusted concrete wrapper separates acquisition and current
+    # owner observations. Generic adapters retain the original strict contract.
+    from .recovery_runtime import BoundRecoveryScene
+    bound = isinstance(scene, BoundRecoveryScene)
+    pair_stamp = scene.acquisition_arm_stamp_monotonic if bound else scene.arm_stamp_monotonic
+    if bound and (dict(scene.arm_raw) != raw or
+                  not 0 <= now-scene.arm_stamp_monotonic <= .050 or
+                  now > scene.valid_until_monotonic):
+        raise ValueError("fresh exact current owner binding required")
+    stamps = (now, scene.stamp_monotonic, scene.arm_stamp_monotonic, pair_stamp)
     if (any(type(v) not in (int, float) or not math.isfinite(v) for v in stamps)
             or not 0 <= now-scene.stamp_monotonic <= .5
             or not 0 <= now-scene.arm_stamp_monotonic <= .5
-            or abs(scene.stamp_monotonic-scene.arm_stamp_monotonic) > .100):
+            or abs(scene.stamp_monotonic-pair_stamp) > .100):
         raise ValueError("fresh synchronized RGB-D and encoder observations required")
     if (type(minimum_clearance_m) not in (int, float)
             or not math.isfinite(minimum_clearance_m) or minimum_clearance_m < .010):

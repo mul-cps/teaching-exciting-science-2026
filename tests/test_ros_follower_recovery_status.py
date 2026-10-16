@@ -26,7 +26,8 @@ def ready(bridge):
     node, process = bridge
     node._owner_started = time.monotonic() - .01
     node._owner_source_expected = {'arm': 'a'*64, 'arm_session': 'b'*64,
-        'recovery_runtime': 'c'*64, 'recovery_types': 'd'*64}
+        'recovery_runtime': 'c'*64, 'recovery_types': 'd'*64,
+        'recovery_runtime_config': 'e'*64, 'camera_recovery': 'f'*64}
     node._read_state = lambda **kwargs: state(node)
     node._cache_owner_state(state(node))
     yield node, process
@@ -210,6 +211,40 @@ def test_cache_is_pruned_owned_and_rejects_late_reader_generation(ready):
     node._process = process
 
 
+def test_status_reports_bounded_recapture_observation_without_owner_commands(ready):
+    node, process = ready
+    assert status(node)['camera_recovery']['reason'] == 'unsupported_by_owner'
+    stamp = time.monotonic()
+    held = snapshot()['raw']
+    node._cache_owner_state(state(node, camera_recovery_phase='stationary_recapture',
+        camera_recovery_held_raw=held, camera_recovery_hold_stamp_monotonic=stamp,
+        camera_recovery_wait_deadline_monotonic=stamp+.5))
+    held['gripper'] = 9999
+    observed = status(node)['camera_recovery']
+    assert observed['supported'] and observed['phase'] == 'stationary_recapture'
+    assert observed['held_raw']['gripper'] != 9999
+    assert observed['hold_stamp_monotonic'] == stamp
+    assert observed['wait_deadline_monotonic'] == stamp+.5
+    assert observed['reason'] is None and process.commands == []
+    node._cache_owner_state(state(node, camera_recovery_phase=None,
+        camera_recovery_held_raw=None, camera_recovery_hold_stamp_monotonic=None,
+        camera_recovery_wait_deadline_monotonic=None))
+    observed = status(node)['camera_recovery']
+    assert observed['supported'] and observed['phase'] is None and observed['reason'] is None
+
+
+@pytest.mark.parametrize('bad', [math.nan, math.inf, 'invalid', True])
+def test_status_recapture_invalid_timestamp_is_unknown(ready, bad):
+    node, process = ready
+    node._cache_owner_state(state(node, camera_recovery_phase='stationary_recapture',
+        camera_recovery_held_raw=snapshot()['raw'], camera_recovery_hold_stamp_monotonic=bad,
+        camera_recovery_wait_deadline_monotonic=time.monotonic()+.5))
+    observed = status(node)['camera_recovery']
+    assert observed['phase'] is None and observed['held_raw'] is None
+    assert observed['hold_stamp_monotonic'] is None
+    assert observed['reason'] == 'invalid_owner_observation' and process.commands == []
+
+
 def test_status_reports_reconnect_stop_home_provenance(ready):
     node, process = ready
     node._owner_faulted = True
@@ -381,21 +416,23 @@ def test_cache_and_control_hot_paths_static_guard():
     assert 'response.get("command") != "teleop_step"' in reader
 
 
-def test_bridge_owner_source_map_uses_shared_four_module_contract():
+def test_bridge_owner_source_map_uses_shared_six_module_contract():
     from so101_station_control.trajectory_server import _load_owner_source_hashes
     from workshop.station.recovery_types import OWNER_SOURCE_MODULES, owner_source_sha256
     root = Path(__file__).resolve().parents[1]
     expected = owner_source_sha256(root/'workshop/station')
     assert set(expected) == set(OWNER_SOURCE_MODULES)
-    assert set(expected) == {'arm', 'arm_session', 'recovery_runtime', 'recovery_types'}
+    assert set(expected) == {'arm', 'arm_session', 'recovery_runtime', 'recovery_types',
+                             'recovery_runtime_config', 'camera_recovery'}
     assert _load_owner_source_hashes(root) == expected
 
 
-@pytest.mark.parametrize('module', ['arm', 'arm_session', 'recovery_runtime', 'recovery_types'])
+@pytest.mark.parametrize('module', ['arm', 'arm_session', 'recovery_runtime', 'recovery_types',
+                                    'recovery_runtime_config', 'camera_recovery'])
 def test_status_and_recovery_reject_each_source_pin_mismatch(ready, module):
     node, process = ready
     observed = state(node)
-    observed['owner_source_sha256'][module] = 'e'*64
+    observed['owner_source_sha256'][module] = '0'*64
     node._cache_owner_state(observed)
     data = status(node)
     assert not data['fresh'] and data['raw'] is None

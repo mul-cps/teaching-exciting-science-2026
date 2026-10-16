@@ -18,6 +18,7 @@ from pathlib import Path
 import select
 import sys
 import time
+from types import MappingProxyType
 import uuid
 
 from workshop.safe_home import load_home
@@ -93,6 +94,12 @@ def _atomic_snapshot_json(path, data):
 
 class ArmSessionCancelled(RuntimeError):
     """Internal signal used to unwind motion into verified torque-off cleanup."""
+
+
+class _CameraRefreshWait(RuntimeError):
+    """Internal, typed same-context transition; never a geometry failure."""
+    def __init__(self,message,encoder_stamp):
+        super().__init__(message);self.encoder_stamp=encoder_stamp
 
 
 class ArmPlanPreflightError(ValueError):
@@ -486,6 +493,7 @@ class ArmSession:
                 violations.append({"joint": joint, "kind": "firmware_range",
                                    "raw": value, "min": self.firmware_min[joint],
                                    "max": self.firmware_max[joint]})
+        torque_has_actual_clock = torque is None or torque_monotonic is not None
         torque = self._read("Torque_Enable") if torque is None else torque
         if torque_monotonic is None:
             torque_monotonic = self.clock()
@@ -496,6 +504,12 @@ class ArmSession:
                      calibration_sha256=self.calibration_digest,
                      observe_only=self._observe_only,
                      owner_source_sha256=self._owner_source_sha256,
+                     camera_recovery_cache_generation=getattr(self.camera_scene_provider, 'cache_generation', None),
+                     camera_recovery_runtime_started_monotonic=getattr(self.camera_scene_provider, 'runtime_started_monotonic', None),
+                     camera_recovery_phase=('stationary_recapture' if getattr(self, '_camera_recovery_wait_active', False) else None),
+                     camera_recovery_hold_stamp_monotonic=(getattr(self, '_camera_recovery_hold_stamp', None) if getattr(self, '_camera_recovery_wait_active', False) else None),
+                     camera_recovery_wait_deadline_monotonic=(getattr(self, '_camera_recovery_wait_deadline', None) if getattr(self, '_camera_recovery_wait_active', False) else None),
+                     camera_recovery_held_raw=(dict(self._camera_recovery_stationary_wait) if getattr(self, '_camera_recovery_wait_active', False) and getattr(self, '_camera_recovery_stationary_wait', None) is not None else None),
                      timestamp_utc=position_utc.isoformat(),
                      monotonic=position_monotonic, raw=raw, pose=pose, torque=torque,
                      torque_timestamp_utc=torque_utc.isoformat(),
@@ -513,6 +527,8 @@ class ArmSession:
                      trajectory_time=trajectory_time,
                      trajectory_desired=trajectory_desired,
                      bus_read_diagnostics=dict(self._read_diagnostics))
+        if torque_has_actual_clock:
+            self._last_published_torque = (MappingProxyType(dict(torque)), torque_monotonic, torque_utc)
         snapshot_started = self.clock()
         _atomic_snapshot_json(self.state_file, state)
         if feedback_timing is not None:
@@ -1481,12 +1497,32 @@ class ArmSession:
         policy = self.camera_recovery_policy
         self._poll_busy_input()
         acquired = self.clock()
+        if self._camera_refresh_pending():
+            raise _CameraRefreshWait('same-context camera refresh requires stationary recapture',stamp)
         scene = self.camera_scene_provider(dict(raw), stamp)
+        if scene is None and self._camera_refresh_pending():
+            raise _CameraRefreshWait('same-context camera refresh awaiting new acquisition',stamp)
         self._poll_busy_input()
         if self.clock() - acquired > PERIOD_S:
             raise ValueError("camera scene provider exceeded nonblocking access budget")
         if scene is None or getattr(scene, "arm_stamp_monotonic", None) != stamp:
             raise ValueError("camera scene must match the exact owner encoder observation stamp")
+        from .recovery_runtime import RecoveryRuntime, BoundRecoveryScene
+        from .recovery_depth_scene import DepthRecoveryScene
+        if isinstance(self.camera_scene_provider, RecoveryRuntime) and (not isinstance(scene, BoundRecoveryScene) or type(scene.acquisition) is not DepthRecoveryScene):
+            raise ValueError("exact concrete full-envelope recovery acquisition required")
+        command_generation=getattr(self, '_camera_recovery_command_generation', None)
+        required=getattr(self, '_camera_recovery_required_acquisition', None)
+        if command_generation is not None:
+            from .recovery_runtime import BoundRecoveryScene
+            from .recovery_depth_scene import DepthRecoveryScene
+            if (not isinstance(scene, BoundRecoveryScene) or type(scene.acquisition) is not DepthRecoveryScene or
+                    scene.acquisition.acquisition_clock_provenance['camera_identity']['generation']!=command_generation):
+                raise ValueError("camera recovery command generation changed")
+            if required is not None and (scene.stamp_monotonic<=required[0] or
+                                        scene.acquisition.acquisition_clock_provenance['declared_depth_stamp_monotonic']<=required[0] or
+                                        dict(scene.acquisition_arm_raw)!=required[1]):
+                raise ValueError("strictly post-hold exact-pose acquisition required")
         bounds = {j: (self.admitted_min[j], self.admitted_max[j]) for j in JOINTS}
         firmware = {j: (self.firmware_min[j], self.firmware_max[j]) for j in JOINTS}
         plan = plan_bound_reentry(raw, bounds, firmware, scene=scene, now=self.clock(),
@@ -1501,12 +1537,16 @@ class ArmSession:
                               scene.minimum_segment_clearance_m(dict(raw), dict(target))):
                 if type(clearance) not in (int, float) or not math.isfinite(clearance) or clearance < .010:
                     raise ValueError("remaining camera recovery segment clearance is unknown or insufficient")
+        valid_until = getattr(scene, "valid_until_monotonic",
+                              min(scene.stamp_monotonic, scene.arm_stamp_monotonic)+.250)
         self._poll_busy_input()
         now = self.clock()
-        if (now - stamp > MAX_FEEDBACK_GAP_S or now - acquired > MAX_FEEDBACK_GAP_S
+        if (now > valid_until or now - stamp > MAX_FEEDBACK_GAP_S or now - acquired > MAX_FEEDBACK_GAP_S
                 or not 0 <= now - scene.stamp_monotonic <= .5
                 or not 0 <= now - scene.arm_stamp_monotonic <= .5):
             raise ValueError("camera recovery vision or encoder feedback expired while checking geometry")
+        self._camera_recovery_valid_until_monotonic = valid_until
+        self._camera_recovery_scene = scene
         return plan
 
     def _camera_recovery_match(self, raw, stamp, scene_stamp, started):
@@ -1515,8 +1555,31 @@ class ArmSession:
         if self._read("Present_Position") != raw:
             raise RuntimeError("camera recovery measured pose changed during scene proof")
         self._check_cancel()
+        context=getattr(self, '_camera_recovery_hold_context', None)
+        if context is not None:
+            if self.clock()>=context['deadline']:
+                raise TimeoutError('retained camera hold original deadline expired before goal update')
+            if not 0<=self.clock()-stamp<=.050:
+                self._cancel('camera_recovery_retained_feedback_fault')
+                self.shutdown(reason='camera_recovery_retained_feedback_fault')
+                raise ArmSessionCancelled('retained camera hold proof/read interval expired')
+        generation=getattr(self, '_camera_recovery_command_generation', None)
+        if generation is not None:
+            health=self.camera_scene_provider.recapture_health(generation)
+            scene=getattr(self, '_camera_recovery_scene', None)
+            confirmed=health.get('identity_confirmed_monotonic') if health is not None else None
+            older_proof=(confirmed is not None and scene is not None and
+                min(scene.stamp_monotonic,scene.acquisition.acquisition_clock_provenance['declared_depth_stamp_monotonic'])<=confirmed)
+            if (health is not None and (health['state']=='awaiting_post_confirmation_exposure' or (older_proof and
+                     health.get('same_generation_refresh_request_started_monotonic') is not None and
+                     health.get('same_generation_refresh_request_started_monotonic')==health.get('identity_request_started_monotonic')))
+                    and getattr(self, '_camera_recovery_hold_context', None) is not None):
+                raise _CameraRefreshWait('same-context camera refresh before goal update',stamp)
+            if health is None or health['state']=='awaiting_post_confirmation_exposure' or older_proof:
+                raise RuntimeError("camera recovery health revoked before goal update")
         now = self.clock()
-        if (now - stamp > MAX_FEEDBACK_GAP_S or not 0 <= now - scene_stamp <= .5):
+        if (now - stamp > MAX_FEEDBACK_GAP_S or not 0 <= now - scene_stamp <= .250 or
+                now > getattr(self, "_camera_recovery_valid_until_monotonic", float('inf'))):
             raise RuntimeError("camera recovery observation expired before goal update")
         if now - started >= LEG_DEADLINE_S:
             raise TimeoutError("camera recovery six-second operation deadline expired")
@@ -1526,7 +1589,23 @@ class ArmSession:
             self.shutdown(reason=self._cancel_reason or "camera_recovery_cancelled")
             raise error
         try:
-            held = self.cancel_hold()
+            wait = getattr(self, '_camera_recovery_stationary_wait', None)
+            if wait is None:
+                held = self.cancel_hold()
+            else:
+                raw=self._read("Present_Position");stamp,utc=self.clock(),self.wall_clock()
+                torque=self._read("Torque_Enable");tstamp,tutc=self.clock(),self.wall_clock()
+                self._poll_busy_input();self._check_cancel()
+                if raw!=wait or any(v!=1 for v in torque.values()) or self._read("Goal_Position")!=wait:
+                    raise RuntimeError("stationary recovery hold no longer verified")
+                self._poll_busy_input();self._check_cancel()
+                if not 0<=self.clock()-min(stamp,tstamp)<=.050:
+                    raise RuntimeError("stationary hold verification expired")
+                held=self._publish_camera_observation(raw,stamp,utc,
+                    torque_observation=(torque,tstamp,tutc))
+                self._poll_busy_input();self._check_cancel()
+                if not 0<=self.clock()-min(stamp,tstamp)<=.050:
+                    raise RuntimeError("stationary hold publication expired")
         except BaseException as hold_error:
             try:
                 self.shutdown(reason="camera_recovery_hold_error")
@@ -1550,6 +1629,119 @@ class ArmSession:
             raise error
         raise ArmPlanPreflightError(str(error)) from error
 
+    def _publish_camera_observation(self, raw, stamp, stamp_utc, *,
+                                    torque_observation=None, feedback_timing=None):
+        # Observational only: reuse actual reads, including the original cached
+        # torque clock before the first in-operation torque acquisition.
+        torque, torque_stamp, torque_utc = (torque_observation if torque_observation is not None
+                                          else self._last_published_torque)
+        if (type(torque_stamp) not in (int, float) or not math.isfinite(torque_stamp)
+                or torque_stamp < 0 or not isinstance(torque_utc, datetime)):
+            raise ValueError("actual torque observation timestamps required")
+        return self.publish_state(event="camera_recovery_observation", raw=raw, torque=dict(torque),
+            phase="camera_recovery", label="camera_reentry", position_monotonic=stamp,
+            position_utc=stamp_utc, torque_monotonic=torque_stamp, torque_utc=torque_utc,
+            feedback_timing=feedback_timing)
+
+    def _camera_refresh_pending(self):
+        context=getattr(self, '_camera_recovery_hold_context', None)
+        if context is None:return False
+        health=self.camera_scene_provider.recapture_health(context['generation'])
+        return health is not None and health['state']=='awaiting_post_confirmation_exposure'
+
+    def _resume_camera_refresh(self, started, previous_stamp):
+        context=self._camera_recovery_hold_context
+        self._poll_busy_input();self._check_cancel()
+        raw=self._read('Present_Position');stamp,utc=self.clock(),self.wall_clock()
+        torque=self._read('Torque_Enable');tstamp,tutc=self.clock(),self.wall_clock()
+        goal=self._read('Goal_Position')
+        self._poll_busy_input();self._check_cancel()
+        if (raw!=context['raw'] or goal!=context['raw'] or any(v!=1 for v in torque.values()) or
+                not 0<=stamp-previous_stamp<=.050 or
+                not 0<=self.clock()-min(stamp,tstamp)<=.050):
+            self._cancel('camera_refresh_hold_fault');self.shutdown(reason='camera_refresh_hold_fault')
+            raise ArmSessionCancelled('retained camera hold no longer verified')
+        return self._wait_camera_recapture(dict(context['raw']),context['entered'],
+            (raw,stamp,utc,torque,tstamp,tutc),started,context['generation'])
+
+    def _check_camera_waypoint(self, actual, waypoint_start, commanded):
+        if any(not min(waypoint_start[j],commanded[j])<=actual[j]<=max(waypoint_start[j],commanded[j]) for j in JOINTS):
+            self._cancel('camera_recovery_waypoint_path_fault')
+            self.shutdown(reason='camera_recovery_waypoint_path_fault')
+            raise ArmSessionCancelled('camera recovery escaped exact certified waypoint interval')
+
+    def _wait_camera_recapture(self, held_raw, hold_stamp, initial, started, camera_generation):
+        context=getattr(self, '_camera_recovery_hold_context', None)
+        if context is None:
+            context=MappingProxyType(dict(raw=MappingProxyType(dict(held_raw)),entered=hold_stamp,
+                deadline=min(hold_stamp+.500,started+LEG_DEADLINE_S),generation=camera_generation))
+            self._camera_recovery_hold_context=context
+        elif (context['raw']!=held_raw or context['entered']!=hold_stamp or context['generation']!=camera_generation):
+            raise RuntimeError('retained camera hold context changed')
+        self._camera_recovery_wait_active=True
+        self._camera_recovery_hold_stamp=context['entered']
+        self._camera_recovery_wait_deadline=context['deadline']
+        try:
+            return self._wait_camera_recapture_loop(held_raw,hold_stamp,initial,started,camera_generation)
+        finally:
+            self._camera_recovery_wait_active=False
+
+    def _wait_camera_recapture_loop(self, held_raw, hold_stamp, initial, started, camera_generation):
+        """Already-commanded exact hold only; zero writes until new proof."""
+        deadline=min(hold_stamp+.500,started+LEG_DEADLINE_S)
+        self._camera_recovery_stationary_wait=dict(held_raw)
+        self._camera_recovery_required_acquisition=(hold_stamp,dict(held_raw))
+        raw,stamp,utc,torque,tstamp,tutc=initial
+        previous_stamp=stamp
+        while True:
+            self._poll_busy_input();self._check_cancel()
+            now=self.clock()
+            if (raw!=held_raw or any(v!=1 for v in torque.values()) or
+                    not 0<=now-stamp<=.050 or not 0<=now-tstamp<=.050 or
+                    any(not self.firmware_min[j]<=raw[j]<=self.firmware_max[j] for j in JOINTS)):
+                self._cancel('camera_recapture_hold_fault')
+                self.shutdown(reason='camera_recapture_hold_fault')
+                raise ArmSessionCancelled('camera recapture hold observation changed or expired')
+            if now>=deadline:raise TimeoutError('stationary camera recapture deadline expired')
+            health=self.camera_scene_provider.recapture_health(camera_generation)
+            if health is None:
+                raise ValueError('stationary camera recapture health unavailable or invalid')
+            candidate=(None if health['state']=='awaiting_post_confirmation_exposure'
+                       else self.camera_scene_provider(dict(raw),stamp))
+            self._poll_busy_input();self._check_cancel()
+            current_health=self.camera_scene_provider.recapture_health(camera_generation)
+            if current_health is None:
+                raise ValueError('stationary camera recapture health revoked during provider access')
+            if current_health['state']=='awaiting_post_confirmation_exposure':candidate=None
+            if self.clock()>=deadline:
+                raise TimeoutError('stationary camera recapture deadline expired during provider access')
+            if not 0<=self.clock()-min(stamp,tstamp)<=.050:
+                self._cancel('camera_recapture_provider_stale')
+                self.shutdown(reason='camera_recapture_provider_stale')
+                raise ArmSessionCancelled('stationary recovery observation expired during provider access')
+            if (candidate is not None and candidate.stamp_monotonic>hold_stamp and
+                    candidate.acquisition.acquisition_clock_provenance['declared_depth_stamp_monotonic']>hold_stamp):
+                if (dict(candidate.acquisition_arm_raw)!=held_raw or
+                        candidate.acquisition.acquisition_clock_provenance['camera_identity']['generation']!=camera_generation):
+                    raise ValueError('stationary recapture acquisition pose or camera generation changed')
+                return raw,stamp,utc,torque,tstamp,tutc
+            # Reserve the full20ms bounded read budget plus5ms jitter.
+            # This deliberate≤40Hz hold-only cadence keeps actual reads≤50ms.
+            self.sleep(max(0.,stamp+PERIOD_S-SYNC_READ_DEADLINE_S-.005-self.clock()))
+            self._poll_busy_input();self._check_cancel()
+            raw=self._read('Present_Position');stamp,utc=self.clock(),self.wall_clock()
+            torque=self._read('Torque_Enable');tstamp,tutc=self.clock(),self.wall_clock()
+            if stamp-previous_stamp>.050:
+                self._cancel('camera_recapture_feedback_fault')
+                self.shutdown(reason='camera_recapture_feedback_fault')
+                raise ArmSessionCancelled('stationary recovery feedback cadence exceeded')
+            previous_stamp=stamp
+            self._publish_camera_observation(raw,stamp,utc,torque_observation=(torque,tstamp,tutc))
+            if self._read('Goal_Position')!=held_raw:
+                self._cancel('camera_recapture_goal_fault')
+                self.shutdown(reason='camera_recapture_goal_fault')
+                raise ArmSessionCancelled('stationary recovery held goal changed')
+
     def recover_camera(self):
         """Camera-checked ≤32-count soft-bound re-entry; no recovery-to-home.
 
@@ -1565,6 +1757,9 @@ class ArmSession:
         if self._teleop is not None:
             raise ArmPlanPreflightError("camera recovery is unavailable during active teleop")
         started = self.clock()
+        self._camera_recovery_command_generation=None
+        self._camera_recovery_required_acquisition=None
+        self._camera_recovery_hold_context=None
         try:
             if policy.arm_calibration_sha256 != self.calibration_digest:
                 raise ValueError("camera recovery policy does not match resident arm calibration")
@@ -1573,8 +1768,12 @@ class ArmSession:
                     or self._read("Max_Position_Limit") != self.firmware_max):
                 raise ValueError("firmware limits changed since owner admission")
             start = self._read("Present_Position")
-            stamp = self.clock()
+            stamp, stamp_utc = self.clock(), self.wall_clock()
+            self._publish_camera_observation(start, stamp, stamp_utc)
             plan = self._camera_recovery_check(start, stamp)
+            from .recovery_runtime import BoundRecoveryScene
+            if isinstance(self._camera_recovery_scene, BoundRecoveryScene):
+                self._camera_recovery_command_generation=self._camera_recovery_scene.acquisition.acquisition_clock_provenance['camera_identity']['generation']
             target = self._validate_target(plan.target_raw, "camera_reentry")
             if target == start:
                 raise ValueError("camera re-entry requires a measured soft-bound excursion")
@@ -1585,6 +1784,7 @@ class ArmSession:
         self._event("camera_recovery_start", start_raw=start, target_raw=target,
                     path_sha256=plan.path_sha256)
         self._active_leg = "camera_reentry"
+        self._camera_recovery_stationary_wait = None
         self._completed_leg_records = []
         active = {j for j in JOINTS if start[j] != target[j]}
         previous = dict(start)
@@ -1598,10 +1798,13 @@ class ArmSession:
             # our earlier proof. Revalidate after that last pump, before intent.
             self._camera_recovery_match(current, stamp, checked.scene_stamp_monotonic, started)
             dispatched = True
+        from .recovery_runtime import RecoveryRuntime
+        staged = isinstance(self.camera_scene_provider, RecoveryRuntime)
         try:
             self._ensure_profile()
             current = self._read("Present_Position")
-            stamp = self.clock()
+            stamp, stamp_utc = self.clock(), self.wall_clock()
+            self._publish_camera_observation(current, stamp, stamp_utc)
             if current != start:
                 raise RuntimeError("measured camera recovery start changed during setup")
             checked = self._camera_recovery_check(current, stamp, target)
@@ -1612,79 +1815,148 @@ class ArmSession:
             self._enable_current_goal(current, started, "camera_reentry",
                                       on_goal_dispatch=mark_dispatch)
             commanded = dict(current)
+            waypoint_start = dict(current)
+            waypoint_in_flight = False
+            camera_generation = (self._camera_recovery_scene.acquisition.acquisition_clock_provenance["camera_identity"]["generation"]
+                                 if staged else None)
+            motion_valid_until = self._camera_recovery_valid_until_monotonic
             previous_stamp = self.clock()
             while True:
-                self._check_leg_deadline(started, "camera_reentry")
-                read_started = self.clock()
-                actual = self._read("Present_Position")
-                stamp = self.clock()
-                self._poll_busy_input()
-                gap, missed, missed_total = self._check_feedback_freshness(
-                    label="camera_reentry", phase="camera_recovery", previous_read_at=previous_stamp,
-                    read_started=read_started, read_ended=stamp, total_missed=missed_total,
-                    previous_tick_timing=None)
-                for joint in JOINTS:
-                    value = actual[joint]
-                    if not self.firmware_min[joint] <= value <= self.firmware_max[joint]:
-                        raise RuntimeError("camera recovery observation outside firmware limits: " + joint)
-                    frame_limit = FRAME_GRIPPER_COUNTS if joint == "gripper" else FRAME_BODY_COUNTS
-                    if abs(value - previous[joint]) > frame_limit:
-                        raise RuntimeError("camera recovery per-frame movement exceeded: " + joint)
-                    if joint in active:
-                        direction = 1 if target[joint] > start[joint] else -1
-                        if (value - previous[joint]) * direction < 0:
-                            raise RuntimeError("camera recovery observed outward movement: " + joint)
-                        if abs(value - start[joint]) > 32 or (value - target[joint]) * direction > 2:
-                            raise RuntimeError("camera recovery exceeded bounded inward path: " + joint)
-                    elif abs(value - start[joint]) > QUIET_COUNTS:
-                        raise RuntimeError("camera recovery held joint drift: " + joint)
-                self._poll_busy_input()
-                if self._read("Goal_Position") != commanded:
-                    raise RuntimeError("camera recovery goal changed or was clamped")
-                torque = self._read("Torque_Enable")
-                if any(value != 1 for value in torque.values()):
-                    raise RuntimeError("camera recovery torque state changed")
-                checked = self._camera_recovery_check(actual, stamp, target)
-                self._check_leg_deadline(started, "camera_reentry")
-                self.publish_state(event="sample", raw=actual, torque=torque,
-                    phase="camera_recovery", label="camera_reentry", position_monotonic=stamp,
-                    position_utc=self.wall_clock(), feedback_timing={"feedback_gap_s": gap,
-                        "missed_ticks": missed, "missed_ticks_total": missed_total})
-                arrived = all(actual[j] == target[j] for j in active)
-                quiet_samples = quiet_samples + 1 if arrived else 0
-                if quiet_samples >= 3:
-                    self._camera_recovery_match(actual, stamp, checked.scene_stamp_monotonic, started)
-                    held = self.cancel_hold()
-                    if held["raw"] != target:
-                        raise RuntimeError("camera recovery measured terminal pose changed before hold")
-                    self._active_leg = None
-                    self._sag_recovery_available = False
-                    state = self.publish_state(event="camera_recovery_complete", raw=held["raw"],
-                        torque=held["torque"], phase="camera_recovery", label="camera_reentry",
-                        position_monotonic=held["monotonic"],
-                        position_utc=datetime.fromisoformat(held["timestamp_utc"]),
-                        torque_monotonic=held["torque_monotonic"],
-                        torque_utc=datetime.fromisoformat(held["torque_timestamp_utc"]))
-                    self._event("camera_recovery_complete", raw=held["raw"], target_raw=target)
-                    return {"ok": True, "state": state, "recovery": {"status": "completed",
-                        "target_raw": target, "path_sha256": plan.path_sha256}}
-                revised = dict(start)
-                for joint in active:
-                    delta = target[joint] - actual[joint]
-                    revised[joint] = actual[joint] + max(-2, min(2, delta))
-                # The provider and every remaining continuous segment have
-                # been rechecked against this exact measured pose. Recheck
-                # freshness once more immediately before the bounded write.
-                self._camera_recovery_match(actual, stamp, checked.scene_stamp_monotonic, started)
-                if revised != commanded:
-                    self.bus.sync_write("Goal_Position", revised, normalize=False, num_retry=0)
+                try:
+                    self._check_leg_deadline(started, "camera_reentry")
+                    read_started = self.clock()
+                    actual = self._read("Present_Position")
+                    stamp, stamp_utc = self.clock(), self.wall_clock()
+                    retained=getattr(self, '_camera_recovery_hold_context', None)
+                    if retained is not None:
+                        if actual!=retained['raw'] or stamp-previous_stamp>.050:
+                            self._cancel('camera_recovery_retained_feedback_fault')
+                            self.shutdown(reason='camera_recovery_retained_feedback_fault')
+                            raise ArmSessionCancelled('retained camera hold pose or feedback cadence changed')
+                        if self.clock()>=retained['deadline']:
+                            raise TimeoutError('retained camera hold original deadline expired')
                     self._poll_busy_input()
-                    if self._read("Goal_Position") != revised:
-                        raise RuntimeError("camera recovery goal readback mismatch")
-                    commanded = revised
-                previous = actual
-                previous_stamp = stamp
-                self.sleep(max(0., stamp + PERIOD_S - self.clock()))
+                    gap, missed, missed_total = self._check_feedback_freshness(
+                        label="camera_reentry", phase="camera_recovery", previous_read_at=previous_stamp,
+                        read_started=read_started, read_ended=stamp, total_missed=missed_total,
+                        previous_tick_timing=None)
+                    for joint in JOINTS:
+                        value = actual[joint]
+                        if not self.firmware_min[joint] <= value <= self.firmware_max[joint]:
+                            raise RuntimeError("camera recovery observation outside firmware limits: " + joint)
+                        frame_limit = FRAME_GRIPPER_COUNTS if joint == "gripper" else FRAME_BODY_COUNTS
+                        if abs(value - previous[joint]) > frame_limit:
+                            raise RuntimeError("camera recovery per-frame movement exceeded: " + joint)
+                        if joint in active:
+                            direction = 1 if target[joint] > start[joint] else -1
+                            if (value - previous[joint]) * direction < 0:
+                                raise RuntimeError("camera recovery observed outward movement: " + joint)
+                            if abs(value - start[joint]) > 32 or (value - target[joint]) * direction > 2:
+                                raise RuntimeError("camera recovery exceeded bounded inward path: " + joint)
+                        elif abs(value - start[joint]) > QUIET_COUNTS:
+                            raise RuntimeError("camera recovery held joint drift: " + joint)
+                    self._poll_busy_input()
+                    if self._read("Goal_Position") != commanded:
+                        raise RuntimeError("camera recovery goal changed or was clamped")
+                    torque = self._read("Torque_Enable")
+                    torque_stamp, torque_utc = self.clock(), self.wall_clock()
+                    self._publish_camera_observation(actual, stamp, stamp_utc,
+                        torque_observation=(torque, torque_stamp, torque_utc),
+                        feedback_timing={"feedback_gap_s": gap, "missed_ticks": missed,
+                                         "missed_ticks_total": missed_total})
+                    if any(value != 1 for value in torque.values()):
+                        raise RuntimeError("camera recovery torque state changed")
+                    if staged and waypoint_in_flight:
+                        self._check_camera_waypoint(actual,waypoint_start,commanded)
+                        if self.clock()>motion_valid_until:
+                            self._cancel('camera_recovery_waypoint_expired')
+                            self.shutdown(reason='camera_recovery_waypoint_expired')
+                            raise ArmSessionCancelled('certified camera waypoint expired before verified hold')
+                        if actual!=commanded:
+                            previous=actual;previous_stamp=stamp
+                            self.sleep(max(0.,stamp+PERIOD_S-self.clock()))
+                            continue  # retain only the already-certified bounded goal
+                        actual,stamp,stamp_utc,torque,torque_stamp,torque_utc=self._wait_camera_recapture(
+                            commanded,self.clock(),(actual,stamp,stamp_utc,torque,torque_stamp,torque_utc),
+                            started,camera_generation)
+                        waypoint_in_flight=False
+                    checked = self._camera_recovery_check(actual, stamp, target)
+                    self._check_leg_deadline(started, "camera_reentry")
+                    arrived = all(actual[j] == target[j] for j in active)
+                    quiet_samples = quiet_samples + 1 if arrived else 0
+                    if quiet_samples >= 3:
+                        self._camera_recovery_match(actual, stamp, checked.scene_stamp_monotonic, started)
+                        if staged:
+                            # The last certified waypoint is already the exact
+                            # verified hold. Completion must not install another
+                            # measured Goal or lose its original recapture budget.
+                            if (actual != target or any(value != 1 for value in torque.values()) or
+                                    self._read("Goal_Position") != target):
+                                self._cancel("camera_recovery_terminal_hold_fault")
+                                self.shutdown(reason="camera_recovery_terminal_hold_fault")
+                                raise ArmSessionCancelled("camera recovery terminal hold changed")
+                            self._poll_busy_input(); self._check_cancel()
+                            if not 0 <= self.clock()-min(stamp, torque_stamp) <= .050:
+                                self._cancel("camera_recovery_terminal_feedback_fault")
+                                self.shutdown(reason="camera_recovery_terminal_feedback_fault")
+                                raise ArmSessionCancelled("camera recovery terminal feedback expired")
+                            held = {"raw": actual, "torque": torque,
+                                "monotonic": stamp, "timestamp_utc": stamp_utc.isoformat(),
+                                "torque_monotonic": torque_stamp,
+                                "torque_timestamp_utc": torque_utc.isoformat()}
+                        else:
+                            held = self.cancel_hold()
+                            if held["raw"] != target:
+                                raise RuntimeError("camera recovery measured terminal pose changed before hold")
+                        state = self.publish_state(event="camera_recovery_complete", raw=held["raw"],
+                            torque=held["torque"], phase="camera_recovery", label="camera_reentry",
+                            position_monotonic=held["monotonic"],
+                            position_utc=datetime.fromisoformat(held["timestamp_utc"]),
+                            torque_monotonic=held["torque_monotonic"],
+                            torque_utc=datetime.fromisoformat(held["torque_timestamp_utc"]))
+                        self._event("camera_recovery_complete", raw=held["raw"], target_raw=target)
+                        if staged:
+                            # Logging/publication can consume the remaining
+                            # authority or observe a normal identity renewal.
+                            self._camera_recovery_match(actual, stamp, checked.scene_stamp_monotonic, started)
+                            if not 0 <= self.clock()-torque_stamp <= .050:
+                                self._cancel("camera_recovery_terminal_feedback_fault")
+                                self.shutdown(reason="camera_recovery_terminal_feedback_fault")
+                                raise ArmSessionCancelled("camera recovery terminal torque feedback expired")
+                            self._camera_recovery_hold_context = None
+                            self._camera_recovery_stationary_wait = None
+                        self._active_leg = None
+                        self._sag_recovery_available = False
+                        return {"ok": True, "state": state, "recovery": {"status": "completed",
+                            "target_raw": target, "path_sha256": plan.path_sha256}}
+                    revised = dict(start)
+                    for joint in active:
+                        delta = target[joint] - actual[joint]
+                        revised[joint] = actual[joint] + max(-2, min(2, delta))
+                    # The provider and every remaining continuous segment have
+                    # been rechecked against this exact measured pose. Recheck
+                    # freshness once more immediately before the bounded write.
+                    self._camera_recovery_match(actual, stamp, checked.scene_stamp_monotonic, started)
+                    if revised != commanded:
+                        waypoint_start = dict(actual)
+                        self._camera_recovery_hold_context=None
+                        self._camera_recovery_stationary_wait=None
+                        self.bus.sync_write("Goal_Position", revised, normalize=False, num_retry=0)
+                        self._poll_busy_input()
+                        if self._read("Goal_Position") != revised:
+                            raise RuntimeError("camera recovery goal readback mismatch")
+                        commanded = revised
+                        waypoint_in_flight = staged
+                        motion_valid_until = self._camera_recovery_valid_until_monotonic
+                        self._camera_recovery_stationary_wait = None
+                    previous = actual
+                    previous_stamp = stamp
+                    reserve=(SYNC_READ_DEADLINE_S+.005 if getattr(self, '_camera_recovery_hold_context', None) is not None else 0.)
+                    self.sleep(max(0., stamp + PERIOD_S - reserve - self.clock()))
+                except _CameraRefreshWait as transition:
+                    actual,stamp,stamp_utc,torque,torque_stamp,torque_utc=self._resume_camera_refresh(started,transition.encoder_stamp)
+                    previous=dict(actual);previous_stamp=stamp;quiet_samples=0
+                    continue
         except BaseException as error:
             if not dispatched:
                 # Cancel-hold writes goals and may itself energize a passive
@@ -1693,6 +1965,11 @@ class ArmSession:
                 self._camera_recovery_pre_dispatch_abort(error)
             if not isinstance(error, Exception):
                 self.shutdown(reason="camera_recovery_interrupted")
+                raise
+            if staged and getattr(self, '_camera_recovery_stationary_wait', None) is None:
+                # Outside a verified exact stationary hold, an uncertain pose,
+                # torque, transport or proof cannot authorize a new hold goal.
+                self.shutdown(reason="camera_recovery_unverified_hold")
                 raise
             return self._camera_recovery_hold(error)
 
@@ -2245,7 +2522,7 @@ def run_locked_session(config, state_file, logdir, *, lock_path,
         try:
             recovery_error = None
             try:
-                recovery_runtime = create_recovery_runtime(config, state_file)
+                recovery_runtime = create_recovery_runtime(config, state_file, expected_owner_sources=RUNTIME_OWNER_SOURCE_SHA256)
             except (ValueError, OSError, KeyError, TypeError) as error:
                 if not observe_only:
                     raise

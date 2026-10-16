@@ -212,9 +212,10 @@ also require the coordinated station stop and explicit station fault reset.
 
 The production owner now has a server-configured factory for the existing
 `recover_camera` operation. Missing/disabled configuration installs no recovery
-authority. The actual rig remains disabled/unqualified. A later ROS bridge
-service/cache collector is a separate integration stage; no new recovery ROS
-endpoint is claimed here.
+authority. The actual rig remains disabled/unqualified. `/follower/recover_camera`
+is an explicit Trigger operation; successful recovery preserves the measured
+six-joint torque-on hold and leaves ordinary home invalid. `/follower/status`
+reports cached acquisition timestamps and source/generation identity.
 
 Commissioning installs a hash-pinned `so101-camera-recovery-runtime-v1` manifest
 under `arm.camera_recovery` in the fixed server station configuration. Motion
@@ -226,13 +227,24 @@ geometry/depth uncertainties and explicit contact/support declarations. Model
 and material preparation occurs once per runtime; no qualification is inferred
 from CAD, convex enclosures or offline diagnostics.
 
-The fixed RAM cache is `<owner-state-directory>/camera-recovery`. The trusted
-camera collector publishes an immutable `<generation>.npz` containing only
+Each owner runtime generates a private random32hex nonce once and publishes
+`camera_recovery_cache_generation` and its distinct
+`camera_recovery_runtime_started_monotonic` in source-bound owner telemetry.
+The fixed RAM cache is
+`<owner-state-directory>/camera-recovery/<runtime-nonce>`. A replacement runtime
+reads only its new directory. The trusted camera collector publishes an immutable `<generation>.npz` containing only
 `depth_m`, followed by atomic `latest.json`. The record uses schema
 `recovery-depth-acquisition-v1`, a 32-character hexadecimal generation, payload
 SHA, `depth_stamp_ns`, actual `depth_stamp_monotonic`, historically paired
-`acquisition_arm_raw` and `acquisition_arm_stamp_monotonic`, camera/arm identities
-and calibrated intrinsics/distortion. Cache payload size and decompressed array
+`acquisition_arm_raw` and `acquisition_arm_stamp_monotonic`, original
+`acquisition_owner_started_monotonic`, exact `acquisition_owner_source_sha256`,
+camera/arm identities and calibrated intrinsics/distortion. The owner's original
+bridge Popen/start stamp and later runtime-construction stamp are distinct;
+acquisition reads must not predate this runtime. Source pins cover `arm.py`,
+`arm_session.py`, `recovery_types.py`, `recovery_runtime.py`,
+`camera_recovery.py` and the lightweight shared `recovery_runtime_config.py`
+loader, computed only at startup. This is a selected source scope, not the whole
+transitive dependency graph. Cache payload size and decompressed array
 size are bounded. Missing, malformed, mismatched, stale or unknown observations
 cannot grant clearance. This component opens no camera SDK or second motor bus.
 
@@ -279,3 +291,160 @@ Normal startup fails on invalid optional recovery artifacts. Passive reconnect
 instead disables this authority with a logged reason while preserving exact arm
 identity/calibration checks, zero implicit writes and explicit verified stop.
 The recovery policy type is shared by imported and actual `python -m` owners.
+
+
+### ROS depth cache producer and stationary recapture
+
+The bridge owns one permanent subscription pair for existing
+`/camera/aligned_depth_to_color/image_raw` and `/camera/color/camera_info`.
+It opens no camera SDK and forwards only admitted current-owner cached samples.
+The collector keeps at most8 immutable samples/400ms and one pending depth cohort;
+callbacks do no filesystem access, hashing, conversion or blocking lock waits.
+One worker converts/serializes/hash-checks metric depth and publishes the pointer
+atomically. Camera frame, dimensions, intrinsics and distortion must exactly
+match the pinned registration; depth/CameraInfo headers must differ by at most40ms.
+
+`16UC1` uses0.001 meters per count because the installed RealSense ROS4.58.4
+publisher explicitly normalizes depth to millimeters before publishing (see
+[matching driver source](https://github.com/realsenseai/realsense-ros/blob/4.58.4/realsense2_camera/src/base_realsense_node.cpp)).
+`32FC1` is metric float depth. Row stride and endianness are honored. Other
+encodings reject; zero, NaN and other invalid depths remain unknown to the oracle.
+
+Both actual owner read clocks must bracket the independently derived image
+exposure, agree with the original UTC bracket, and lie within100ms of exposure.
+All six raw encoders must be identical in both acquisitions. No interpolation,
+receipt-time pose, caller-provided qualification or moving-pose approximation
+is permitted. The resident recovery now uses an explicit stationary-recapture
+phase: certify and command one waypoint of at most2 counts per active joint,
+verify the exact already-commanded pose with all six torques1 before the original
+motion certificate expires, then hold that existing goal while acquiring a new
+stationary cohort. No Goal, torque-enable or profile writes occur during wait.
+The original motion proof may expire only in this verified hold; it is never
+reused to authorize the next movement. A new cohort must retain its original
+exposure strictly after hold entry, exact held acquisition raw and the same
+camera/owner/runtime generation, then pass a fresh full proof and final
+raw/cancel/health check. Staged authority accepts only the concrete full-volume
+per-joint displacement-envelope oracle, not a caller capability flag.
+
+Same-nonce typed health is serialized by the collector worker and validated by
+the runtime background preparer; owner queries use only the cached result.
+Only explicit future-bracket/moving-bracket transitions, same-context identity
+refresh awaiting a genuinely post-confirmation exposure, or evaluation of a ready
+cohort may sustain stationary waiting. Missing/stale/malformed health, unknown
+clearance, preparation faults, identity changes or a depth/info stream gap over
+250ms abort. Runtime geometry faults override producer-ready status. Wait is
+capped at500ms and the whole operation at6s. Pose, torque or hold-verification
+failure disarms; camera/timeout failure may retain only the verified stationary
+hold and latches failure. Stop/disarm takes precedence. There are no automatic
+recovery retries or fault resets.
+
+A successful wait retains its immutable exact held pose, entry and original
+500ms deadline through proof and terminal settling. A known same-generation
+identity refresh may resume only this same verified hold, with fresh exact raw,
+all-six torque-on and Goal readback; it resets quiet-sample authority, never the
+deadline. No Goal/enable/profile is written by the continuation. Unknown or real
+geometry/proof failures remain fatal even if refresh happens concurrently.
+New motion and terminal success require a genuinely post-confirmation,
+post-hold cohort and fresh full proof. Cached ready health cannot promote an
+older prepared oracle while preparation catches up. Already submitted immutable
+cohorts retain their own original live lease; newly received delayed exposures
+cannot borrow a newer confirmation. The final exact commanded waypoint needs no
+redundant terminal Goal: success verifies its original actual position/torque
+clocks, Goal readback, proof, health and cancellation after logging too.
+
+Wait polls are deliberately scheduled at up to40Hz, with20ms read-budget and5ms
+scheduler reserve, to enforce the unchanged50ms actual-acquisition interval and
+sample-age limits. Each poll reads six-position, torque and current Goal
+(up to120 read operations/s; about60 per500ms wait, plus cleanup reads).
+This is additional phase-specific bus work; the observational publication helper
+itself adds no bus reads. See the [reviewed phase contract](superpowers/plans/2026-10-16-stationary-recapture.md).
+The full synthetic2993→2973 external ROS fixture also completed with15Hz
+acquisitions and measured80ms transport delay:11 Goals (one initial hold and ten
+certified waypoints), with no writes in ten stationary waits. This verifies the
+software continuation path; no redundant terminal hold Goal is required.
+Native ROS/fake-bus completion proves software integration, not physical
+recovery. Actual station calibration/contact qualification remains disabled,
+and preparation at new physical poses is not yet qualified.
+
+Close/invalidate are nonblocking with zero filesystem I/O or joins. Old callbacks
+become inert. Late writes/deletes remain confined to their old runtime nonce;
+replacement owners never consume them. At most two writer threads may exist per
+bridge process; if both are stuck, further acquisition is unavailable. Successful
+publication retains at most3 immutable cohorts and cleans failed-publication
+orphans. Worker-side best-effort cleanup keeps two prior validated nonce
+directories; a stalled old writer can recreate stale non-authoritative data, so
+this is not an instantaneous global disk-count guarantee. Unrelated names are
+preserved, and old-file races fail closed.
+
+The supported camera identity path is RealSense-specific. The bridge asynchronously
+observes the fixed trusted camera node's `DeviceInfo.serial_number` and
+`serial_no` parameter; both must match the pinned registration. Both depth and
+CameraInfo must have exactly one publisher on that node, with pinned publisher
+GIDs. The1s identity lease starts when requests are sent and refreshes every0.5s;
+response arrival cannot mint a new observation time. Records retain actual and
+configured serials, explicit device/stream generation, request-start and actual
+confirmation timestamps. Frames must be acquired strictly after their identity
+confirmation. GID changes, parameter serial mismatch, header rollback or a stream
+gap over250ms revoke identity/history and require fresh queries and a new cohort.
+Missing or stale identity never falls back to copying the expected serial into
+an asserted observation. Simulation/standalone configurations remain usable with
+recovery disabled; they do not gain RealSense qualification by supplying a flag.
+
+### Isolated native publisher identity support
+
+The pinned Conda rclpy7.1.12 omits publisher GIDs from Python message metadata;
+Cyclone RMW2.2.4 additionally reports a publication handle instead of its RTPS
+GUID. The reproducible isolated builds are:
+
+```bash
+ROS_DOMAIN_ID=75 ros2/conda/build-rclpy-publisher-gid.sh
+ROS_DOMAIN_ID=75 ros2/conda/build-rmw-cyclonedds-publisher-gid.sh
+```
+
+They pin upstream revisions and patch bytes, build into separate `ros2/.cache`
+prefixes, and verify that installed Conda binaries remain unchanged. The wrapper
+validates both provenance markers before prepending the isolated Python/native
+paths after environment/workspace activation. The patched backend has the
+explicit filename and implementation identifier `rmw_cyclonedds_cpp_so101_gid`;
+this avoids Conda RPATH resolving the identically named stock backend first.
+CDR, introspection type support and Cyclone DDS wire behavior remain unchanged.
+An explicit non-Cyclone implementation selection is preserved. Existing live
+processes are unchanged by building an overlay.
+
+The native patch looks up the actual matched publication GUID and frees the
+returned endpoint metadata. Missing/disappeared endpoint metadata yields an
+unavailable zero GID, never a handle or graph attribution fallback. Tests cover
+typed/serialized messages, recreated publishers, and stock↔patched processes;
+`/proc/self/maps` proves the loaded binary paths. This transport proof does not
+qualify camera registration, geometry contacts, or continuous recovery.
+
+The selected owner source map now pins six modules: `arm`, `arm_session`,
+`recovery_runtime`, `recovery_types`, `recovery_runtime_config`, and
+`camera_recovery`. This is an explicit selected source scope, not a claim to
+pin every transitive dependency. Hashes are cached once per owner generation.
+The trusted bound scene keeps original acquisition-pair synchronization≤100ms
+separate from the exact current owner observation≤50ms; original depth/paired
+pose250ms and identity-request1s expiry remain unchanged. Generic adapters
+cannot assert alternate acquisition timestamps to bypass synchronization.
+Active recovery publishes observational samples from existing position/torque
+reads before proof; initial/setup samples retain cached torque's original clocks.
+This observational publication adds no bus reads or goal/enable writes and does
+not imply motion admission; the separate recapture phase polling budget is
+documented above.
+
+During wait, cached owner telemetry exposes `camera_recovery_phase`
+(`stationary_recapture`), `camera_recovery_held_raw`, the original
+`camera_recovery_hold_stamp_monotonic`, and
+`camera_recovery_wait_deadline_monotonic`. These are observational fields, not
+motion permission. An older owner without these fields reports phase support as
+unavailable rather than fabricating progress.
+
+A successful same-generation refresh of a still-valid actual camera lease may
+report `awaiting_post_confirmation_exposure`. This permits stationary waiting
+only: an older delayed frame remains ineligible as a scene, and cached old scenes
+cannot authorize a new Goal while this health state is known. The refresh marker
+is tied to the new request start and clears on every context invalidation. New
+motion requires a genuinely post-confirmation/post-hold acquisition; neither the
+1s request lease nor any image/pose250ms deadline is extended. A refresh arriving
+after proof but before dispatch rejects that write and conservatively fails held;
+there is no generic retry or reset of the original500ms/6s deadlines.

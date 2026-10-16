@@ -17,6 +17,11 @@ from workshop.station.recovery_runtime import create_recovery_runtime, BoundReco
 
 def fixture(tmp_path):
     arm=FakeArm(tmp_path, initial=target(elbow_flex=2993))
+    arm.bus._recovery_capture_lock=threading.Lock()
+    original_read=arm.bus.sync_read
+    def synchronized_read(*args,**kwargs):
+        with arm.bus._recovery_capture_lock:return original_read(*args,**kwargs)
+    arm.bus.sync_read=synchronized_read
     arm.settings['limits']['elbow_flex']['max']=(2975.1-2027.5)*360/4095
     config={'arm':arm.settings}
     mapping=calibration(elbow_flex={'urdf_joint':'elbow_flex_joint','raw_reference':2993,
@@ -48,7 +53,14 @@ def record(runtime,raw=None,age=0.):
     return dict(schema='recovery-depth-acquisition-v1',camera_serial='synthetic-qualified',camera_frame='camera_optical_frame',
         arm_id='rig',arm_calibration_sha256=runtime.policy.arm_calibration_sha256,source_clock='system',
         depth_stamp_ns=time.time_ns()-int(age*1e9),
-        depth_stamp_monotonic=now,acquisition_arm_stamp_monotonic=now,acquisition_arm_raw=raw or target(elbow_flex=2993),
+        depth_stamp_monotonic=now,
+        camera_identity=dict(schema='realsense-camera-identity-v1',serial_number='synthetic-qualified',
+            serial_no_parameter='synthetic-qualified',generation='a'*64,
+            request_started_monotonic=runtime.runtime_started_monotonic-.002,
+            confirmed_monotonic=runtime.runtime_started_monotonic-.001),
+        acquisition_owner_source_sha256=runtime.settings['owner_source_sha256'],
+        acquisition_owner_started_monotonic=runtime.runtime_started_monotonic-.001,
+        acquisition_arm_stamp_monotonic=now,acquisition_arm_raw=raw or target(elbow_flex=2993),
         intrinsics=dict(fx=100.,fy=100.,ppx=49.5,ppy=49.5),distortion=[0.]*5,distortion_model='plumb_bob')
 
 
@@ -59,13 +71,49 @@ def runtime(tmp_path):
     return value,config,arm
 
 
-def write_frame(provider,raw):
-    provider.cache_root.mkdir(exist_ok=True)
+def write_arm_frame(provider,arm):
+    # Snapshot and original clock atomically against fake-bus position updates.
+    # Serialization happens after releasing the fake transport lock.
+    with arm.bus._recovery_capture_lock:
+        acquired=(dict(arm.bus.data['Present_Position']),time.monotonic(),time.time_ns())
+    write_frame(provider,acquired[0],acquisition=acquired[1:])
+
+
+def write_frame(provider,raw,*,acquisition=None):
+    provider.cache_root.mkdir(parents=True,exist_ok=True)
     generation=uuid.uuid4().hex
     buffer=io.BytesIO();np.savez(buffer,depth_m=np.ones((100,100),np.float32))
     payload=buffer.getvalue()
     (provider.cache_root/(generation+'.npz')).write_bytes(payload)
     metadata=record(provider,raw)
+    now=time.monotonic()
+    if acquisition is not None:
+        original_mono,original_ns=acquisition
+        metadata.update(depth_stamp_monotonic=original_mono,depth_stamp_ns=original_ns,
+                        acquisition_arm_stamp_monotonic=original_mono)
+    else:original_mono=metadata['depth_stamp_monotonic']
+    # Model an actual query lease, not a new confirmation for every frame.
+    identity=getattr(provider,'_fixture_identity',None)
+    refreshed=False
+    if identity is None:
+        identity=dict(metadata['camera_identity'])
+        provider._fixture_identity=identity
+    elif original_mono-identity['request_started_monotonic']>=.500:
+        identity=dict(metadata['camera_identity'],request_started_monotonic=original_mono-.003,
+                      confirmed_monotonic=original_mono-.002)
+        provider._fixture_identity=identity
+        provider._fixture_refresh_request=identity['request_started_monotonic']
+    metadata['camera_identity']=dict(identity)
+    health=dict(schema='recovery-depth-health-v1',cache_generation=provider.cache_generation,
+        runtime_started_monotonic=provider.runtime_started_monotonic,
+        owner_started_monotonic=provider.runtime_started_monotonic-.001,
+        owner_source_sha256=provider.settings['owner_source_sha256'],arm_id='rig',
+        arm_calibration_sha256=provider.policy.arm_calibration_sha256,
+        camera_identity=metadata['camera_identity'],observed_monotonic=now,state='ready',
+        streams={k:dict(header_ns=metadata['depth_stamp_ns'],received_monotonic=now) for k in ('depth','info')},
+        same_generation_refresh_request_started_monotonic=getattr(provider,'_fixture_refresh_request',None))
+    healthtmp=provider.cache_root/'health.tmp';healthtmp.write_text(json.dumps(health))
+    healthtmp.replace(provider.cache_root/'health.json')
     metadata.update(generation=generation,depth_sha256=hashlib.sha256(payload).hexdigest())
     temporary=provider.cache_root/'latest.tmp'
     temporary.write_text(json.dumps(metadata))
@@ -142,7 +190,7 @@ def test_run_locked_session_factory_to_prepared_provider_to_real_proof(tmp_path)
             stop=threading.Event()
             def camera():
                 while not stop.is_set():
-                    write_frame(provider,dict(arm.bus.data['Present_Position']))
+                    write_arm_frame(provider,arm)
                     stop.wait(.025)
             worker=threading.Thread(target=camera)
             worker.start()
@@ -324,7 +372,7 @@ def test_actual_module_entrypoint_factory_uses_shared_policy(tmp_path):
     hook.write_text('''
 import os,sys,threading,time
 from pathlib import Path
-from test_recovery_runtime import fixture,write_frame
+from test_recovery_runtime import fixture,write_frame,write_arm_frame
 folder=Path(os.environ['RECOVERY_FIXTURE'])
 config,arm,_,_=fixture(folder)
 def trace(frame,event,arg):
@@ -340,18 +388,18 @@ def trace(frame,event,arg):
                 assert isinstance(provider.policy,g['CameraRecoveryPolicy'])
                 from workshop.station.recovery_types import owner_source_sha256
                 assert self._owner_source_sha256 == owner_source_sha256(Path(g['__file__']).parent)
-                assert set(self._owner_source_sha256) == {'arm','arm_session','recovery_runtime','recovery_types'}
+                assert set(self._owner_source_sha256) == {'arm','arm_session','recovery_runtime','recovery_types','recovery_runtime_config','camera_recovery'}
                 stop=threading.Event()
                 def collect():
                     while not stop.is_set():
-                        write_frame(provider,dict(arm.bus.data['Present_Position']))
+                        write_arm_frame(provider,arm)
                         stop.wait(.025)
                 worker=threading.Thread(target=collect);worker.start()
                 try:
                     until=time.monotonic()+1
                     while provider._latest is None and time.monotonic()<until:time.sleep(.005)
                     result=self.handle({'command':'recover_camera'})
-                    assert result['ok'] and arm.bus.goal_history
+                    assert result['ok'] and arm.bus.goal_history, result
                     print('REAL_MODULE_FACTORY_PROOF_OK',flush=True)
                     return 0
                 finally:stop.set();worker.join(1)
@@ -374,9 +422,391 @@ def test_clock_bracket_uncertainty_cannot_extend_depth_lifetime(tmp_path, monkey
     frame['depth_stamp_ns']=wall-247_000_000
     frame['depth_stamp_monotonic']=99.753
     frame['acquisition_arm_stamp_monotonic']=99.800
+    value.runtime_started_monotonic=99.700
+    frame['acquisition_owner_started_monotonic']=99.600
+    frame['camera_identity']['request_started_monotonic']=99.600
+    frame['camera_identity']['confirmed_monotonic']=99.700
     clocks=iter([100.,100.,100.004])
     monkeypatch.setattr(time,'monotonic',lambda:next(clocks,100.004))
     monkeypatch.setattr(time,'time_ns',lambda:wall)
     with pytest.raises(ValueError,match='expired'):
         value.prepare(frame,np.ones((100,100),np.float32))
     assert value._latest is None
+
+
+@pytest.mark.parametrize('fault',['source','old_owner','future_owner','nan_owner','prior_runtime_read'])
+def test_acquisition_owner_generation_provenance_rejects(tmp_path,fault):
+    value,_,_=runtime(tmp_path)
+    frame=record(value)
+    if fault=='source':frame['acquisition_owner_source_sha256']={}
+    if fault=='old_owner':frame['acquisition_owner_started_monotonic']=value.runtime_started_monotonic+.000001
+    if fault=='future_owner':frame['acquisition_owner_started_monotonic']=time.monotonic()+1
+    if fault=='nan_owner':frame['acquisition_owner_started_monotonic']=float('nan')
+    if fault=='prior_runtime_read':frame['acquisition_arm_stamp_monotonic']=value.runtime_started_monotonic-.001
+    with pytest.raises(ValueError,match='identity-matched'):
+        value.prepare(frame,np.ones((100,100),np.float32))
+    assert value._latest is None
+
+
+def test_new_runtime_synchronously_revokes_previous_generation_pointer(tmp_path):
+    config,_,_,_=fixture(tmp_path)
+    directory=tmp_path/'camera-recovery'/('f'*32);directory.mkdir(parents=True)
+    pointer=directory/'latest.json';pointer.write_text('{"generation":"old"}')
+    value=create_recovery_runtime(config,tmp_path/'state')
+    try:
+        assert value.cache_root!=directory and not (value.cache_root/'latest.json').exists()
+        assert pointer.exists()  # stale isolated data grants no authority
+    finally:value.close()
+
+
+@pytest.mark.parametrize('fault',['missing','actual_serial','parameter_serial','stale','future','nan','unconfirmed_exposure','generation'])
+def test_runtime_requires_actual_camera_identity_provenance(tmp_path,fault):
+    value,_,_=runtime(tmp_path);frame=record(value)
+    identity=frame['camera_identity']
+    if fault=='missing':del frame['camera_identity']
+    if fault=='actual_serial':identity['serial_number']='other'
+    if fault=='parameter_serial':identity['serial_no_parameter']='other'
+    if fault=='stale':identity['request_started_monotonic']=time.monotonic()-1.01
+    if fault=='future':identity['confirmed_monotonic']=time.monotonic()+1
+    if fault=='nan':identity['request_started_monotonic']=float('nan')
+    if fault=='unconfirmed_exposure':identity['confirmed_monotonic']=time.monotonic()
+    if fault=='generation':identity['generation']='bad'
+    with pytest.raises(ValueError,match='actually observed camera'):
+        value.prepare(frame,np.ones((100,100),np.float32))
+    assert value._latest is None
+
+
+def test_identity_lease_expiry_after_prepare_cannot_rebind(tmp_path,monkeypatch):
+    value,_,_=runtime(tmp_path);frame=record(value)
+    frame['camera_identity']['request_started_monotonic']=time.monotonic()-.900
+    value.prepare(frame,np.ones((100,100),np.float32))
+    monkeypatch.setattr(time,'monotonic',lambda:frame['camera_identity']['request_started_monotonic']+1.001)
+    assert value(target(elbow_flex=2993),time.monotonic()) is None
+
+
+@pytest.mark.parametrize('expiry',['acquisition','identity'])
+def test_bound_proof_cannot_cross_original_expiry(tmp_path,monkeypatch,expiry):
+    value,_,_=runtime(tmp_path);frame=record(value)
+    if expiry=='identity':frame['camera_identity']['request_started_monotonic']=time.monotonic()-.900
+    scene=value.prepare(frame,np.ones((100,100),np.float32))
+    bound=value(dict(scene.arm_raw),time.monotonic())
+    assert bound is not None
+    from workshop.station.recovery_depth_scene import DepthRecoveryScene
+    def slow(self,raw):
+        monkeypatch.setattr(time,'monotonic',lambda:bound.valid_until_monotonic+.001)
+        return .010
+    monkeypatch.setattr(DepthRecoveryScene,'minimum_clearance_m',slow)
+    assert bound.minimum_clearance_m(dict(scene.arm_raw)) is None
+
+
+def test_retained_acquisition_binding_expires_without_timestamp_refresh(tmp_path,monkeypatch):
+    value,_,_=runtime(tmp_path);frame=record(value)
+    scene=value.prepare(frame,np.ones((100,100),np.float32))
+    original=(scene.stamp_monotonic,scene.arm_stamp_monotonic)
+    deadline=min(original)+.250
+    monkeypatch.setattr(time,'monotonic',lambda:deadline-.000001)
+    assert value(dict(scene.arm_raw),time.monotonic()) is not None
+    monkeypatch.setattr(time,'monotonic',lambda:deadline+.000001)
+    assert value(dict(scene.arm_raw),time.monotonic()) is None
+    assert (scene.stamp_monotonic,scene.arm_stamp_monotonic)==original
+
+
+@pytest.mark.parametrize('fault',[None,'pair100','current50','depth250','raw'])
+def test_trusted_binding_separates_acquisition_sync_from_current_read(tmp_path,monkeypatch,fault):
+    from workshop.station.camera_recovery import plan_bound_reentry
+    from workshop.station.recovery_runtime import BoundRecoveryScene
+    value,_,_=runtime(tmp_path)
+    scene=value.prepare(record(value),np.ones((100,100),np.float32))
+    now=scene.stamp_monotonic+.120  #80ms receipt +two20ms proof/setup stages
+    current=dict(scene.arm_raw)
+    stamp=now-(.050001 if fault=='current50' else 0.)
+    if fault=='pair100':object.__setattr__(scene,'arm_stamp_monotonic',scene.stamp_monotonic-.100001)  #corruptedfixture
+    if fault=='depth250':now=scene.stamp_monotonic+.250001;stamp=now
+    if fault=='raw':current['wrist_roll']+=1
+    bound=BoundRecoveryScene(scene,dict(scene.arm_raw),stamp,now)
+    original=(scene.stamp_monotonic,scene.arm_stamp_monotonic,dict(scene.arm_raw))
+    monkeypatch.setattr(time,'monotonic',lambda:now)
+    bounds={j:(1000,3000) for j in current};bounds['elbow_flex']=(1000,2975)
+    firmware=dict.fromkeys(current,(500,3500))
+    call=lambda:plan_bound_reentry(current,bounds,firmware,scene=bound,now=now,
+        expected_model_sha256=value.model.model_sha256,
+        expected_calibration_sha256=value.model.calibration_sha256,
+        expected_camera_serial=scene.camera_serial)
+    if fault:
+        with pytest.raises(ValueError):call()
+    else:assert call().target_raw['elbow_flex']<current['elbow_flex']
+    assert original==(scene.stamp_monotonic,scene.arm_stamp_monotonic,dict(scene.arm_raw))
+
+
+def test_actual_owner_initial_and_setup_proofs_after_80ms_receipt(tmp_path,monkeypatch):
+    from workshop.station.arm_session import ArmSession,ArmPlanPreflightError
+    value,_,_=runtime(tmp_path)
+    scene=value.prepare(record(value),np.ones((100,100),np.float32))
+    original=(scene.stamp_monotonic,scene.arm_stamp_monotonic,dict(scene.arm_raw),scene._current_interior.copy())
+    config,arm,_,_=fixture(tmp_path)
+    # Same fixture identity/model/calibration; fake clock controls receipt plus
+    # two actual owner proof stages, not a single planner call with a comment.
+    now=[scene.stamp_monotonic+.080]
+    monkeypatch.setattr(time,'monotonic',lambda:now[0])
+    checks=[]
+    class Session(ArmSession):
+        def _camera_recovery_check(self,raw,stamp,target=None):
+            result=super()._camera_recovery_check(raw,stamp,target)
+            checks.append((stamp,result.scene_stamp_monotonic))
+            now[0]+=.020
+            return result
+    session=Session(arm,tmp_path/'owner.json',tmp_path/'ownerlogs',
+        clock=lambda:now[0],camera_scene_provider=value,camera_recovery_policy=value.policy)
+    session.initialize()
+    monkeypatch.setattr(value,'recapture_health',lambda _: {'state':'ready'})
+    def admission_reached(*args,**kwargs):
+        assert len(checks)==2
+        assert checks[1][0]-scene.stamp_monotonic==pytest.approx(.100)
+        raise ValueError('test stops before authorized goal')
+    monkeypatch.setattr(session,'_enable_current_goal',admission_reached)
+    with pytest.raises(ArmPlanPreflightError,match='test stops'):
+        session.handle({'command':'recover_camera'})
+    assert len(checks)==2 and arm.bus.goal_history==[]
+    assert original[:3]==(scene.stamp_monotonic,scene.arm_stamp_monotonic,dict(scene.arm_raw))
+    assert np.array_equal(original[3],scene._current_interior)
+    session.close_log()
+
+
+@pytest.mark.parametrize('shape',[[],{'camera_identity':'x'},{'streams':[]},{'streams':{'depth':'x','info':{}}}])
+def test_malformed_health_is_typed_unavailable_then_valid_can_recover(tmp_path,shape):
+    value,_,_=runtime(tmp_path);value.prepare(record(value),np.ones((100,100),np.float32));write_frame(value,target(elbow_flex=2993))
+    path=value.cache_root/'health.json';valid=path.read_bytes()
+    path.write_text(json.dumps(shape))
+    with pytest.raises(ValueError):value._read_health()
+    path.write_bytes(valid);value._read_health()
+    assert value.recapture_health('a'*64) is not None
+
+
+@pytest.mark.parametrize('state',['ready','awaiting_post_confirmation_exposure'])
+def test_runtime_geometry_fault_overrides_ready_health_until_new_success(tmp_path,state):
+    value,_,_=runtime(tmp_path);value.prepare(record(value),np.ones((100,100),np.float32));write_frame(value,target(elbow_flex=2993));value._read_health()
+    healthpath=value.cache_root/'health.json';health=json.loads(healthpath.read_text())
+    health.update(state=state,same_generation_refresh_request_started_monotonic=health['camera_identity']['request_started_monotonic'])
+    healthpath.write_text(json.dumps(health));value._read_health()
+    assert value.recapture_health('a'*64) is not None
+    bad=record(value);bad['camera_serial']='wrong'
+    with pytest.raises(ValueError):value.prepare(bad,np.ones((100,100),np.float32))
+    value._read_health()  #producerready cannot override runtimefault
+    assert value.recapture_health('a'*64) is None
+    value.prepare(record(value),np.ones((100,100),np.float32))
+    assert value.recapture_health('a'*64) is not None
+
+
+def test_recapture_health_accessor_has_no_filesystem_io(tmp_path,monkeypatch):
+    value,_,_=runtime(tmp_path);value.prepare(record(value),np.ones((100,100),np.float32));write_frame(value,target(elbow_flex=2993));value._read_health()
+    monkeypatch.setattr(Path,'read_bytes',lambda *_:pytest.fail('critical-path file read'))
+    assert value.recapture_health('a'*64) is not None
+    assert value.recapture_health('b'*64) is None
+
+
+@pytest.mark.parametrize('fault',['generation','old','declared_old','pose'])
+def test_actual_postwait_proof_rejects_scene_substitution(tmp_path,monkeypatch,fault):
+    import copy
+    from dataclasses import replace
+    from workshop.station.arm_session import ArmSession
+    value,_,_=runtime(tmp_path)
+    scene=value.prepare(record(value),np.ones((100,100),np.float32))
+    config,arm,_,_=fixture(tmp_path)
+    session=ArmSession(arm,tmp_path/'owner.json',tmp_path/'logs',
+        camera_scene_provider=value,camera_recovery_policy=value.policy)
+    session.initialize();session._camera_recovery_command_generation='a'*64
+    arm.bus.data['Torque_Enable']=dict.fromkeys(arm.bus.motors,1)
+    hold=min(scene.stamp_monotonic,scene.acquisition_clock_provenance['declared_depth_stamp_monotonic'])-.001
+    raw=dict(scene.arm_raw);stamp=time.monotonic();utc=session.wall_clock()
+    monkeypatch.setattr(value,'recapture_health',lambda _: {'state':'ready'})
+    count=[0]
+    def provide(self,raw,stamp):
+        count[0]+=1
+        acquired=scene
+        if count[0]>1:
+            acquired=copy.copy(scene)
+            provenance=dict(scene.acquisition_clock_provenance)
+            if fault=='generation':provenance['camera_identity']=dict(provenance['camera_identity'],generation='b'*64)
+            if fault=='old':object.__setattr__(acquired,'stamp_monotonic',hold-.001)
+            if fault=='declared_old':provenance['declared_depth_stamp_monotonic']=hold-.001
+            if fault=='pose':object.__setattr__(acquired,'arm_raw',dict(raw,wrist_roll=raw['wrist_roll']+1))
+            object.__setattr__(acquired,'acquisition_clock_provenance',provenance)
+        return BoundRecoveryScene(acquired,dict(raw),stamp,time.monotonic())
+    monkeypatch.setattr(type(value),'__call__',provide)
+    result=session._wait_camera_recapture(raw,hold,(raw,stamp,utc,dict.fromkeys(raw,1),stamp,utc),stamp,'a'*64)
+    with pytest.raises(ValueError):session._camera_recovery_check(result[0],result[1])
+    assert count[0]==2 and arm.bus.goal_history==[]
+    session.close_log()
+
+
+def test_delayed_fixture_writer_preserves_original_atomic_pose_and_time(tmp_path,monkeypatch):
+    import sys
+    value,_,arm=runtime(tmp_path)
+    original=write_frame;captured=[]
+    def delayed(provider,raw,*,acquisition=None):
+        captured.append((dict(raw),acquisition))
+        arm.bus.data['Present_Position']['elbow_flex']-=2
+        time.sleep(.260)
+        return original(provider,raw,acquisition=acquisition)
+    monkeypatch.setattr(sys.modules[__name__],'write_frame',delayed)
+    write_arm_frame(value,arm)
+    data=json.loads((value.cache_root/'latest.json').read_text())
+    assert data['acquisition_arm_raw']==captured[0][0]
+    assert data['depth_stamp_monotonic']==captured[0][1][0]
+    assert data['depth_stamp_ns']==captured[0][1][1]
+    assert data['acquisition_arm_raw']!=arm.bus.data['Present_Position']
+    with pytest.raises(ValueError):value.prepare(data,np.ones((100,100),np.float32))
+
+
+@pytest.mark.parametrize('fault',['generation','runtime_preparation','awaiting_confirmation'])
+def test_final_goal_match_rechecks_cached_health_without_extra_goal(tmp_path,monkeypatch,fault):
+    from types import MappingProxyType
+    from workshop.station.arm_session import ArmSession
+    value,_,_=runtime(tmp_path)
+    scene=value.prepare(record(value),np.ones((100,100),np.float32))
+    write_frame(value,dict(scene.arm_raw));value._read_health()
+    config,arm,_,_=fixture(tmp_path)
+    session=ArmSession(arm,tmp_path/'owner.json',tmp_path/'logs',
+        camera_scene_provider=value,camera_recovery_policy=value.policy)
+    session.initialize();session._camera_recovery_command_generation='a'*64
+    stamp=time.monotonic();raw=dict(scene.arm_raw)
+    plan=session._camera_recovery_check(raw,stamp)
+    if fault=='generation':value._health=MappingProxyType(dict(value._health,camera_generation='b'*64))
+    elif fault=='runtime_preparation':value._runtime_preparation_fault=True
+    else:value._health=MappingProxyType(dict(value._health,state='awaiting_post_confirmation_exposure'))
+    with pytest.raises(RuntimeError,match='health revoked'):
+        session._enable_current_goal(raw,time.monotonic(),'camera_reentry',
+            on_goal_dispatch=lambda:session._camera_recovery_match(raw,stamp,plan.scene_stamp_monotonic,time.monotonic()))
+    assert arm.bus.goal_history==[]
+    session.close_log()
+
+
+def test_real_oracle_full_joint_envelope_covers_asymmetric_clamped_waypoint(tmp_path):
+    value,_,_=runtime(tmp_path)
+    acquired=value.prepare(record(value),np.ones((100,100),np.float32))
+    start=dict(acquired.arm_raw)
+    destination=dict(start,elbow_flex=start['elbow_flex']-20,shoulder_pan=start['shoulder_pan']-4)
+    waypoint=dict(start,elbow_flex=start['elbow_flex']-2,shoulder_pan=start['shoulder_pan']-2)
+    full=value.model.maximum_displacement_m(start,destination)
+    step=value.model.maximum_displacement_m(start,waypoint)
+    assert 0<step<=full
+    # This is the real whole-volume envelope oracle, not a line-only mock.
+    assert acquired.minimum_segment_clearance_m(start,destination)==.010
+    assert acquired.minimum_clearance_m(waypoint)==.010
+    assert acquired.minimum_segment_clearance_m(start,waypoint)==.010
+
+
+def test_staged_actual_proof_rejects_alternative_oracle_subclass(tmp_path,monkeypatch):
+    import copy
+    from workshop.station.arm_session import ArmSession
+    from workshop.station.recovery_depth_scene import DepthRecoveryScene
+    value,_,_=runtime(tmp_path)
+    acquired=value.prepare(record(value),np.ones((100,100),np.float32))
+    class Alternative(DepthRecoveryScene):pass
+    alternate=copy.copy(acquired);object.__setattr__(alternate,'__class__',Alternative)
+    config,arm,_,_=fixture(tmp_path)
+    session=ArmSession(arm,tmp_path/'owner.json',tmp_path/'logs',
+        camera_scene_provider=value,camera_recovery_policy=value.policy)
+    session.initialize();session._camera_recovery_command_generation='a'*64
+    monkeypatch.setattr(type(value),'__call__',lambda self,raw,stamp:BoundRecoveryScene(alternate,dict(raw),stamp,time.monotonic()))
+    with pytest.raises(ValueError,match='full-envelope'):
+        session._camera_recovery_check(dict(acquired.arm_raw),time.monotonic())
+    assert arm.bus.goal_history==[]
+    session.close_log()
+
+
+@pytest.mark.parametrize('refresh',[False,True])
+@pytest.mark.parametrize('missing',[False,True])
+def test_ready_health_cannot_promote_old_prepared_cohort_after_confirmation(tmp_path,refresh,missing):
+    from types import MappingProxyType
+    value,_,_=runtime(tmp_path)
+    scene=value.prepare(record(value),np.ones((100,100),np.float32))
+    now=time.monotonic()
+    request=scene.stamp_monotonic-.001
+    value._health=MappingProxyType(dict(camera_generation='a'*64,state='ready',
+        valid_until_monotonic=now+.050,identity_confirmed_monotonic=scene.stamp_monotonic+.001,
+        identity_request_started_monotonic=request,
+        same_generation_refresh_request_started_monotonic=request if refresh else None))
+    if missing:value._latest=None
+    result=value.recapture_health('a'*64)
+    assert (result is not None and result['state']=='awaiting_post_confirmation_exposure') if refresh else result is None
+    assert value._latest is (None if missing else scene) and scene.stamp_monotonic<now
+
+
+@pytest.mark.parametrize('state',['pending_future_bracket','nonstationary_bracket','awaiting_post_confirmation_exposure'])
+def test_live_hold_only_health_needs_no_prepared_scene_or_refresh_for_bracket(tmp_path,state):
+    from types import MappingProxyType
+    value,_,_=runtime(tmp_path)
+    value._latest=None;value._runtime_preparation_fault=False
+    now=time.monotonic()
+    value._health=MappingProxyType(dict(camera_generation='a'*64,state=state,
+        valid_until_monotonic=now+.050,identity_confirmed_monotonic=now-.100,
+        identity_request_started_monotonic=now-.200,
+        same_generation_refresh_request_started_monotonic=now-.200 if state=='awaiting_post_confirmation_exposure' else None))
+    result=value.recapture_health('a'*64)
+    assert dict(result)==dict(value._health) and result['state']==state
+    assert value(target(elbow_flex=2993),time.monotonic()) is None
+    assert value.recapture_health('b'*64) is None
+    value._health=MappingProxyType(dict(value._health,valid_until_monotonic=now-.001))
+    assert value.recapture_health('a'*64) is None
+    value._health=MappingProxyType(dict(value._health,valid_until_monotonic=now+.050))
+    value._runtime_preparation_fault=True
+    assert value.recapture_health('a'*64) is None
+
+
+@pytest.mark.parametrize('case',['nonstationary_bracket','awaiting_post_confirmation_exposure','ready','expired','wrong_generation','prior_fault','missing_payload'])
+def test_missing_pointer_rereads_committed_transition_health_without_minting_authority(tmp_path,monkeypatch,case):
+    value,_,_=runtime(tmp_path)
+    value.prepare(record(value),np.ones((100,100),np.float32))
+    write_frame(value,target(elbow_flex=2993));value._read_health()
+    assert value._health['state']=='ready'
+    value._runtime_preparation_fault=case=='prior_fault'
+    healthpath=value.cache_root/'health.json';pointer=value.cache_root/'latest.json'
+    original_stat=Path.stat;interleaved=[False]
+    def stat(path,*args,**kwargs):
+        if path==pointer and not interleaved[0]:
+            interleaved[0]=True
+            health=json.loads(healthpath.read_text())
+            health['state']=case if case in {'ready','nonstationary_bracket','awaiting_post_confirmation_exposure'} else 'nonstationary_bracket'
+            if case=='awaiting_post_confirmation_exposure':health['same_generation_refresh_request_started_monotonic']=health['camera_identity']['request_started_monotonic']
+            if case=='expired':health['observed_monotonic']-=1.
+            if case=='wrong_generation':health['cache_generation']='f'*32
+            healthpath.write_text(json.dumps(health))  # typed commit FIRST
+            if case=='missing_payload':
+                metadata=json.loads(pointer.read_text())
+                (value.cache_root/(metadata['generation']+'.npz')).unlink()
+                value._prewarm_attempted=True;value._prewarm_finished_header_ns=0
+            else:pointer.unlink()  # old ready snapshot now sees ENOENT
+        return original_stat(path,*args,**kwargs)
+    monkeypatch.setattr(Path,'stat',stat)
+    value._stop.clear()
+    monkeypatch.setattr(value._stop,'wait',lambda *_:value._stop.set())
+    value._collect()
+    assert interleaved[0] and value._latest is None
+    allowed=case in {'nonstationary_bracket','awaiting_post_confirmation_exposure'}
+    assert value._runtime_preparation_fault is (not allowed)
+    assert (value.recapture_health('a'*64) is not None) is allowed
+    assert value(target(elbow_flex=2993),time.monotonic()) is None
+
+
+@pytest.mark.parametrize('marker',[False,True])
+@pytest.mark.parametrize('state',['ready','pending_future_bracket','nonstationary_bracket'])
+@pytest.mark.parametrize('cohort',['old','missing','fresh'])
+def test_refresh_marker_precedes_hold_state_without_promoting_scene_authority(tmp_path,marker,state,cohort):
+    from types import MappingProxyType
+    value,_,_=runtime(tmp_path)
+    scene=value.prepare(record(value),np.ones((100,100),np.float32))
+    now=time.monotonic();request=scene.stamp_monotonic-.002
+    confirmed=scene.stamp_monotonic+(.001 if cohort in {'old','missing'} else -.001)
+    value._health=MappingProxyType(dict(camera_generation='a'*64,state=state,
+        valid_until_monotonic=now+.050,identity_confirmed_monotonic=confirmed,
+        identity_request_started_monotonic=request,
+        same_generation_refresh_request_started_monotonic=request if marker else None))
+    if cohort=='missing':value._latest=None
+    result=value.recapture_health('a'*64)
+    if cohort!='fresh' and marker:
+        assert result['state']=='awaiting_post_confirmation_exposure'
+    elif cohort!='fresh' and state=='ready':assert result is None
+    else:assert result['state']==state
+    assert value._latest is (None if cohort=='missing' else scene)
+    if cohort=='missing':assert value(target(elbow_flex=2993),time.monotonic()) is None
