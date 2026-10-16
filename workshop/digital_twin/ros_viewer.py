@@ -125,19 +125,27 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                     handle.position = xyz
                     handle.visible = True
                 delta = diagnostic.get("joint_tf_delta_s")
+                sync_basis = diagnostic.get("joint_tf_sync_basis", "dynamic_base_stamp")
+                sync_text = (f"joint/arm TF delta: `{delta!s}` s; static base anchor"
+                             if sync_basis == "dynamic_arm_tf_stamps_with_static_base" else
+                             f"joint/arm TF delta: `{delta!s}` s")
                 status.content = (
                     "**ROS passive MuJoCo twin · FRESH**\n"
                     "Inputs: `/follower/robot_description`, `/follower/joint_states`, `/tf`, `/tf_static`; "
                     "scene: `/camera/depth/color/points`, `/so101/object_markers`, grasp topics.\n"
-                    f"Joint/`base_link` TF delta: `{delta!s}` s · measured joints: `{len(joint.get('positions_rad', {}))}` · "
+                    f"{sync_text} · measured joints: `{len(joint.get('positions_rad', {}))}` · "
                     f"fresh TF frames: `{len(frame_rows)}` · {parity_line} · "
                     f"point cloud: `{cloud.get('source') if cloud else 'waiting'}`\n"
                     "Passive pose display; MuJoCo never publishes joint states or commands hardware.")
             else:
                 reason = diagnostic.get("freshness", "waiting_for_ros_inputs")
+                sync_basis = diagnostic.get("joint_tf_sync_basis", "dynamic_base_stamp")
+                sync_text = (f"joint/arm TF delta: `{diagnostic.get('joint_tf_delta_s')}` s; static base anchor"
+                             if sync_basis == "dynamic_arm_tf_stamps_with_static_base" else
+                             f"joint/arm TF delta: `{diagnostic.get('joint_tf_delta_s')}` s")
                 status.content = ("**ROS passive MuJoCo twin · STALE / WAITING**\n"
                     f"State: `{reason}` · joint age: `{diagnostic.get('joint_state_age_s')}` s · "
-                    f"joint/`base_link` TF delta: `{diagnostic.get('joint_tf_delta_s')}` s · "
+                    f"{sync_text} · "
                     f"bridge snapshot age: `{snapshot_age:.3f}` s.\n"
                     "Cached TF and image are held; stale state is not presented as fresh.")
                 for handle in frame_handles.values():

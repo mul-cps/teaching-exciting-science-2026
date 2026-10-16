@@ -11,7 +11,9 @@ from workshop.digital_twin.mujoco_ros import (
     apply_ros_state, compare_tool_frame, effective_urdf_to_mjcf_model,
     model_frame_pose, transform_between,
 )
-from workshop.digital_twin.ros_state import RosTwinState, transform_matrix
+from workshop.digital_twin.ros_state import (
+    RosTwinState, resolve_package_mesh_uris, transform_matrix,
+)
 
 sys.path.insert(0, str(Path("ros2/src/so101_station_control").resolve()))
 from so101_station_control.model_offsets import apply_gripper_mount_roll
@@ -35,6 +37,82 @@ def test_ros_state_rejects_out_of_order_and_marks_stale_inputs():
     stale = state.snapshot(11.)
     assert stale["diagnostics"]["held"]
     assert stale["transform_fresh"]["base_link"] is False
+
+
+def test_twin_snapshot_stores_marker_and_grasp_objects_as_stamped_values():
+    state = RosTwinState()
+    marker = {"frame_id": "charuco_board", "stamp_ns": 1_000_000_000,
+              "matrix": np.eye(4).tolist(), "source": "/so101/object_markers"}
+    assert state.update_object("/so101/object_markers/colored_objects/0",
+                               1_000_000_000, 10.0, marker)
+    assert not state.update_object("/so101/object_markers/colored_objects/0",
+                                   900_000_000, 10.1, {"source": "older"})
+    snapshot = state.snapshot(10.1)
+    assert snapshot["objects"]["/so101/object_markers/colored_objects/0"] == marker
+    assert snapshot["object_fresh"]["/so101/object_markers/colored_objects/0"] is True
+    assert snapshot["object_age_s"]["/so101/object_markers/colored_objects/0"] == pytest.approx(.1)
+    stale = state.snapshot(10.6)
+    assert stale["object_fresh"]["/so101/object_markers/colored_objects/0"] is False
+
+
+def test_static_world_base_anchor_does_not_fail_joint_tf_synchrony():
+    state = RosTwinState(max_age_s=.5, max_joint_tf_delta_s=.1)
+    # A static registration transform is timeless, even if its message stamp
+    # predates current arm state by an hour.
+    assert state.update_transform("charuco_board", "base_link", 1_000_000_000,
+                                  10., np.eye(4), static=True)
+    assert state.update_transform("base_link", "shoulder_link", 3_600_000_000_000,
+                                  20., np.eye(4))
+    assert state.update_joints(3_600_000_000_000, 20., ["shoulder_pan"], [.3])
+    snapshot = state.snapshot(20.05)
+    assert snapshot["diagnostics"]["freshness"] == "fresh"
+    assert snapshot["diagnostics"]["joint_tf_delta_s"] == pytest.approx(0.)
+    assert snapshot["diagnostics"]["joint_tf_sync_basis"] == "dynamic_arm_tf_stamps_with_static_base"
+    assert snapshot["transforms"]["base_link"]["stamp_ns"] == 1_000_000_000
+    assert snapshot["transforms"]["shoulder_link"]["stamp_ns"] == 3_600_000_000_000
+
+
+def test_dynamic_base_transform_must_remain_synchronized_with_joints():
+    state = RosTwinState(max_age_s=.5, max_joint_tf_delta_s=.1)
+    assert state.update_transform("charuco_board", "base_link", 1_000_000_000,
+                                  10., np.eye(4))
+    assert state.update_joints(1_300_000_000, 10., ["shoulder_pan"], [.3])
+    snapshot = state.snapshot(10.1)
+    assert snapshot["diagnostics"]["freshness"] == "stale_or_unsynchronized"
+    assert snapshot["diagnostics"]["joint_tf_delta_s"] == pytest.approx(.3)
+
+
+def test_fresh_but_old_arm_tf_stamp_is_not_joint_synchronized():
+    state = RosTwinState(max_age_s=.5, max_joint_tf_delta_s=.1)
+    assert state.update_transform("charuco_board", "base_link", 10_000_000_000,
+                                  10., np.eye(4), static=True)
+    assert state.update_transform("base_link", "shoulder_link", 9_000_000_000,
+                                  10.05, np.eye(4))
+    assert state.update_joints(10_000_000_000, 10.05, ["shoulder_pan"], [.3])
+    snapshot = state.snapshot(10.1)
+    assert snapshot["transform_fresh"]["shoulder_link"] is True
+    assert snapshot["diagnostics"]["freshness"] == "stale_or_unsynchronized"
+    assert snapshot["diagnostics"]["joint_tf_delta_s"] == pytest.approx(1.)
+
+
+def test_package_mesh_resolution_preserves_separator_and_exact_asset_path():
+    description = ('<robot><mesh filename="package://so101_description/'
+                   'meshes/base.stl"/><mesh filename="package://other/meshes/tool.dae"/>'
+                   '</robot>')
+    resolved = resolve_package_mesh_uris(
+        description, lambda package: f"/opt/ros/share/{package}")
+    assert 'filename="/opt/ros/share/so101_description/meshes/base.stl"' in resolved
+    assert 'filename="/opt/ros/share/other/meshes/tool.dae"' in resolved
+
+
+@pytest.mark.parametrize("uri", [
+    "package://so101_description/../outside.stl",
+    "package://so101_description//outside.stl",
+])
+def test_package_mesh_resolution_rejects_paths_outside_package_share(uri):
+    with pytest.raises(ValueError, match="escapes package share"):
+        resolve_package_mesh_uris(f'<mesh filename="{uri}"/>',
+                                  lambda package: "/opt/ros/share/" + package)
 
 
 def test_tf_graph_composes_nonidentity_base_camera_tool_and_object():

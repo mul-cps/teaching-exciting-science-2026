@@ -7,7 +7,6 @@ import os
 import tempfile
 import time
 from pathlib import Path
-import re
 
 import numpy as np
 import rclpy
@@ -19,7 +18,7 @@ from std_msgs.msg import String
 from tf2_msgs.msg import TFMessage
 from visualization_msgs.msg import MarkerArray
 
-from .ros_state import RosTwinState, transform_matrix
+from .ros_state import RosTwinState, resolve_package_mesh_uris, transform_matrix
 
 
 def _stamp_ns(stamp):
@@ -61,10 +60,8 @@ class RosStatePublisher(Node):
             description = message.data
             try:
                 from ament_index_python.packages import get_package_share_directory
-                description = re.sub(
-                    r"package://([^/]+)/",
-                    lambda match: str(Path(get_package_share_directory(match.group(1)))),
-                    description)
+                description = resolve_package_mesh_uris(
+                    description, get_package_share_directory)
             except Exception as error:
                 self.get_logger().warning(f"Could not resolve URDF package meshes: {error}")
             self.state.robot_description = description
@@ -113,14 +110,14 @@ class RosStatePublisher(Node):
             matrix = transform_matrix((pose.position.x, pose.position.y, pose.position.z),
                                       (pose.orientation.x, pose.orientation.y,
                                        pose.orientation.z, pose.orientation.w))
-            self.state.objects[name] = {
+            self.state.update_object(name, _stamp_ns(marker.header.stamp), received, {
                 "frame_id": marker.header.frame_id.lstrip("/"),
                 "stamp_ns": _stamp_ns(marker.header.stamp), "matrix": matrix.tolist(),
                 "scale_m": [marker.scale.x, marker.scale.y, marker.scale.z],
                 "color_rgba": [marker.color.r, marker.color.g, marker.color.b, marker.color.a],
                 "kind": int(marker.type), "text": marker.text,
                 "source": "/so101/object_markers", "received_monotonic": received,
-            }
+            })
 
     def _poses(self, message, topic):
         stamp = _stamp_ns(message.header.stamp)
@@ -131,9 +128,9 @@ class RosStatePublisher(Node):
             matrix = transform_matrix((pose.position.x, pose.position.y, pose.position.z),
                                       (pose.orientation.x, pose.orientation.y,
                                        pose.orientation.z, pose.orientation.w))
-            self.state.objects[name] = {"frame_id": frame, "stamp_ns": stamp,
+            self.state.update_object(name, stamp, received, {"frame_id": frame, "stamp_ns": stamp,
                 "matrix": matrix.tolist(), "source": topic,
-                "received_monotonic": received}
+                "received_monotonic": received})
 
     def _contacts(self, message):
         self._poses(message, "/so101/grasp_contacts")
