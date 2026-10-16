@@ -45,3 +45,29 @@ servo has no calibrated force limit. A successful result means the jaw reached
 the requested calibrated gap; it does not mean an object was grasped. Pickup
 verification requires separate scene evidence that the selected tracked object
 moved with the gripper during lift.
+
+## Sorting grasp execution
+
+The opt-in CLI is `tools/ros_plan_grasp.py --execute --track-id ID
+--place-pose X Y Z QX QY QZ QW --execution-config PATH --output PATH`. The
+execution config must use `so101-grasp-execution-config-v1` with
+`qualified: true`, and name relative or absolute `jaw_calibration`,
+`tcp_calibration`, and `camera_arm_calibration` files, explicit `touch_links`,
+`open_gap_m`, `close_gap_m`, and the lowercase SHA256 of the effective
+`robot_description`. `model_parameter_node` defaults to `/move_group`. The
+camera-arm file must carry qualified `camera-arm-calibration-v1` provenance;
+the TCP file must be qualified `so101-grasp-tcp-calibration-v1`, match the
+requested tip link, and provide the rigid `tcp_from_object` transform in SI.
+The CLI checks those files, the current model digest, and all tool/contact link
+names before it commands the initial open.
+
+Scene ownership uses JSON requests on `/so101_scene/attachment_request` and
+matching request ID acknowledgements on `/so101_scene/attachment_status`. The
+scene updater owns the world-to-attached diff, limits temporary contact-matrix
+allowance to the selected brick and configured touch links, suppresses stale
+tracker updates and TTL removal while attached, and only releases ownership
+after a successful detach diff. After lift and after release, the CLI requires
+three stable geometric observations of the same track. A missing lift
+observation stops before place and leaves the object attached in the planning
+scene. `pick_place_complete` is emitted only when pickup, lift, and release
+evidence are all true.

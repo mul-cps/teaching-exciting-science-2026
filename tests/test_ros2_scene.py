@@ -75,6 +75,27 @@ def test_registry_replaces_track_and_expires_only_its_owned_collision_ids():
     assert registry.expire(now_mono_s=2.0) == []
 
 
+def test_attached_track_is_not_recreated_or_expired_until_acknowledged_detach():
+    registry = LiveObjectRegistry(ttl_s=0.75, min_extent_m=0.002, max_extent_m=0.30)
+    registry.update("red-0003", (0, 0, 0.1), (0.04, 0.03, 0.02),
+                    (0, 0, 0, 1), now_mono_s=1.0)
+    registry.attach("red-0003", link_name="gripper_frame_link",
+                    touch_links=["moving_jaw_so101_v1_link"],
+                    link_pose={"position": (0, 0, 0.02),
+                               "orientation_xyzw": (0, 0, 0, 1)})
+    assert registry.is_attached("red-0003")
+    assert registry.expire(now_mono_s=100.0) == []
+    with pytest.raises(ValueError, match="attached"):
+        registry.update("red-0003", (0, 0, 0.2), (0.04, 0.03, 0.02),
+                        (0, 0, 0, 1), now_mono_s=100.0)
+    registry.detach("red-0003", world_pose={"position": (0, 0, 0.2),
+                                            "orientation_xyzw": (0, 0, 0, 1)},
+                    now_mono_s=100.0)
+    assert not registry.is_attached("red-0003")
+    assert registry.update("red-0003", (0, 0, 0.2), (0.04, 0.03, 0.02),
+                           (0, 0, 0, 1), now_mono_s=100.1).center_m == (0, 0, 0.2)
+
+
 def test_detection_freshness_rejects_zero_and_old_stamps():
     from so101_station_scene.scene_geometry import stamp_is_fresh
 
@@ -103,13 +124,17 @@ def test_grasp_validation_is_plan_only_by_contract():
     assert "ik_validated" in source
 
 
-def test_scene_updater_uses_incremental_world_diff_and_never_edits_attachments():
+def test_scene_updater_uses_incremental_diffs_and_explicit_attachment_ownership():
     source = (PACKAGE_SOURCE / "so101_station_scene" / "scene_updater.py").read_text()
     assert "request.scene.is_diff = True" in source
     assert "request.scene.robot_state.is_diff = True" in source
     assert "request.scene.world.collision_objects = queued" in source
     assert "CollisionObject.REMOVE" in source
-    assert "AttachedCollisionObject" not in source
+    assert "AttachedCollisionObject" in source
+    assert "attachment_request_topic" in source
+    assert "attachment_status_topic" in source
+    assert "registry.is_attached(detection.id)" in source
+    assert '"attached" if action == "attach"' in source
     assert "registry.expire" in source
 
 
