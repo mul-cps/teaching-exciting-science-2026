@@ -49,6 +49,14 @@ def test_perception_allows_wider_color_without_changing_depth_or_default():
     assert config["serial_no"] == "_243322071783"
     assert config["align_depth.enable"] == "true"
     assert config["clip_distance"] == "1.2"
+    # Disabling the redundant file must retain every conservative station
+    # setting, with only the explicitly requested RGB profile overridden.
+    import yaml
+    baseline = yaml.safe_load((ROOT / "ros2/config/realsense.yaml").read_text())
+    for key, value in baseline.items():
+        expected = "848,480,15" if key == "rgb_camera.color_profile" else (
+            str(value).lower() if isinstance(value, bool) else str(value))
+        assert config[key] == expected, key
 
 
 def test_station_forwards_explicit_color_profile_to_its_single_perception_launch():
