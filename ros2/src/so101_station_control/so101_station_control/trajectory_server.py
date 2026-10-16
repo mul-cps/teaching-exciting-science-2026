@@ -279,6 +279,7 @@ class TrajectoryBridge(Node):
         self._teleop_owner_sequence = -1
         self._teleop_inflight_sequence = None
         self._teleop_inflight = False
+        self._teleop_waiting_ack = None
         self._teleop_stop_sent = False
         self._teleop_stop_reason = None
         self._teleop_step_done = threading.Event()
@@ -291,6 +292,8 @@ class TrajectoryBridge(Node):
         self._teleop_stale_packet_count = 0
         self._teleop_sequence_gap_total = 0
         self._closed = False
+        self._teleop_wakeup_lock = threading.Lock()
+        self._teleop_ack_guard = None
         self._process = None
         self._owner_started = 0.0
         self._owner_readers = []
@@ -366,8 +369,12 @@ class TrajectoryBridge(Node):
         self._calibration_ready_service = self.create_service(
             Trigger, str(self.get_parameter("calibration_ready_service").value),
             self._calibration_ready, callback_group=self._teleop_service_group)
+        # Owner replies only signal the executor; control stays in the same
+        # mutually exclusive group as the timer and latest-pose subscription.
+        self._teleop_ack_guard = self.create_guard_condition(
+            self._teleop_tick, callback_group=self._teleop_control_group)
         self._teleop_tick_timer = self.create_timer(
-            1.0 / 125.0, self._teleop_tick,
+            1.0 / 125.0, self._teleop_timer_tick,
             callback_group=self._teleop_control_group)
         self.create_timer(1.0, self._publish_teleop_monitor)
         if not self._external_state_only:
@@ -764,9 +771,12 @@ class TrajectoryBridge(Node):
         with self._active_lock:
             session_matches = bool(session_id) and session_id == self._teleop_session
             current_state = self._teleop_state
+            reply_sequence = response.get("sequence")
             inflight_matches = (self._teleop_inflight and
-                                (type(response.get("sequence")) is not int or
-                                 response.get("sequence") == self._teleop_inflight_sequence))
+                                (response.get("ok") is True or response.get("ok") is False) and
+                                ((type(reply_sequence) is int and
+                                  reply_sequence == self._teleop_inflight_sequence) or
+                                 (response.get("ok") is False and type(reply_sequence) is not int)))
 
         # Responses for an expired or superseded session are still owner replies, but
         # they must not mutate the current teleop state or the action response queue.
@@ -783,6 +793,7 @@ class TrajectoryBridge(Node):
                 self._teleop_follower_start = None
                 self._teleop_inflight = False
                 self._teleop_inflight_sequence = None
+                self._teleop_waiting_ack = None
                 self._teleop_stop_sent = False
                 self._teleop_stop_reason = None
             self._teleop_step_done.set()
@@ -800,8 +811,17 @@ class TrajectoryBridge(Node):
             if not inflight_matches or current_state not in {"active", "stopping"}:
                 return True
             with self._active_lock:
-                if not self._teleop_inflight or self._teleop_session != session_id:
+                if (not self._teleop_inflight or self._teleop_session != session_id or
+                        (type(reply_sequence) is int and
+                         reply_sequence != self._teleop_inflight_sequence)):
                     return True
+                wakeup = (response.get("ok") is True and
+                          self._teleop_state == "active" and
+                          type(response.get("sequence")) is int and
+                          response["sequence"] == self._teleop_inflight_sequence and
+                          getattr(self, "_teleop_waiting_ack", None) ==
+                          (session_id, response["sequence"]))
+                self._teleop_waiting_ack = None
                 self._teleop_inflight = False
                 self._teleop_inflight_sequence = None
                 if not response.get("ok") and self._teleop_state == "active":
@@ -810,7 +830,9 @@ class TrajectoryBridge(Node):
                     self._teleop_stop_reason = "owner_rejected_step"
                     self._publish_teleop_status("stopping", self._teleop_stop_reason,
                                                 error=response.get("error", "unknown"))
-            self._teleop_step_done.set()
+                self._teleop_step_done.set()
+            if wakeup:
+                self._wake_teleop_executor()
             if not response.get("ok"):
                 self.get_logger().error(
                     f"ArmSession rejected teleop step: {response.get('error', 'unknown error')}")
@@ -830,6 +852,21 @@ class TrajectoryBridge(Node):
             self._teleop_condition.notify_all()
         return True
 
+    def _wake_teleop_executor(self):
+        """Coalesce successful ACKs without executing control on the reader thread."""
+        lock = getattr(self, "_teleop_wakeup_lock", None)
+        if lock is None:  # offline harnesses do not own ROS entities
+            return
+        with lock:
+            if self._closed or self._teleop_ack_guard is None:
+                return
+            try:
+                self._teleop_ack_guard.trigger()
+            except RuntimeError:
+                # Context shutdown may invalidate the handle before destroy_node.
+                # The periodic timer must never be replaced by an inline retry.
+                return
+
     def _clear_teleop(self):
         reason = self._teleop_stop_reason or "teleoperation_disabled"
         with self._active_lock:
@@ -841,6 +878,7 @@ class TrajectoryBridge(Node):
             self._teleop_follower_start = None
             self._teleop_inflight = False
             self._teleop_inflight_sequence = None
+            self._teleop_waiting_ack = None
             self._teleop_stop_sent = False
             self._teleop_stop_reason = None
         self._publish_teleop_status("disabled", reason)
@@ -1025,6 +1063,7 @@ class TrajectoryBridge(Node):
                     self._teleop_last_source_sequence = start_reference["sequence"]
                     self._teleop_owner_sequence = -1
                     self._teleop_inflight = False
+                    self._teleop_waiting_ack = None
                     self._teleop_state = "active"
                     self._teleop_stop_sent = False
                     self._teleop_stop_reason = None
@@ -1071,6 +1110,7 @@ class TrajectoryBridge(Node):
                 return response
             should_send_stop = not self._teleop_stop_sent
             self._teleop_state = "stopping"
+            self._teleop_waiting_ack = None
             self._active_goal = "teleop_stopping"
             if should_send_stop:
                 self._teleop_stop_sent = True
@@ -1358,10 +1398,20 @@ class TrajectoryBridge(Node):
                     self._active_goal = None
         return response
 
+    def _teleop_timer_tick(self):
+        self._teleop_tick(wait_for_ack=True)
+
     @_control_callback
-    def _teleop_tick(self):
+    def _teleop_tick(self, *, wait_for_ack=False):
         with self._active_lock:
-            if self._teleop_state != "active" or self._teleop_inflight:
+            if getattr(self, "_closed", False) or self._teleop_state != "active":
+                return
+            if self._teleop_inflight:
+                # Only a blocked periodic timer requests an ACK wakeup. A queued
+                # guard callback must not register a wait for a newer command.
+                if wait_for_ack:
+                    self._teleop_waiting_ack = (self._teleop_session,
+                                                self._teleop_inflight_sequence)
                 return
             session_id = self._teleop_session
             origin = self._teleop_origin
@@ -1373,7 +1423,9 @@ class TrajectoryBridge(Node):
         age = time.monotonic() - latest["stamp_s"]
         if age > float(self.get_parameter("teleop_pose_stale_s").value):
             with self._active_lock:
-                if self._teleop_state != "active":
+                if (getattr(self, "_closed", False) or
+                        self._teleop_state != "active" or self._teleop_inflight or
+                        self._teleop_session != session_id):
                     return
                 self._teleop_state = "stopping"
                 self._active_goal = "teleop_stopping"
@@ -1400,10 +1452,14 @@ class TrajectoryBridge(Node):
         # ArmSession clamps body targets to its exact calibrated raw bounds. Its gripper
         # input is normalized percent, so clamp that station-unit target here.
         mapped["gripper"] = max(0.0, min(100.0, mapped["gripper"]))
-        sequence = self._teleop_owner_sequence + 1
         with self._active_lock:
-            if self._teleop_state != "active" or self._teleop_inflight:
+            if (getattr(self, "_closed", False) or
+                    self._teleop_state != "active" or self._teleop_inflight or
+                    self._teleop_session != session_id or
+                    latest["sequence"] <= self._teleop_last_source_sequence):
                 return
+            sequence = self._teleop_owner_sequence + 1
+            self._teleop_waiting_ack = None
             self._teleop_inflight = True
             self._teleop_inflight_sequence = sequence
             self._teleop_owner_sequence = sequence
@@ -1450,6 +1506,8 @@ class TrajectoryBridge(Node):
         if not self._write_lock.acquire(timeout=timeout):
             raise TimeoutError("owner command writer did not become available")
         try:
+            if getattr(self, "_closed", False) and command.get("command") != "exit":
+                raise RuntimeError("bridge destruction rejects owner commands")
             if getattr(self, "_stop_latched", False) and command.get("command") not in {"stop", "exit"}:
                 raise RuntimeError("owner stop barrier rejects motion commands")
             self._write_owner_command(command, deadline)
@@ -2020,7 +2078,8 @@ class TrajectoryBridge(Node):
     def destroy_node(self):
         # Signal first so an in-progress passive startup stops waiting. The same
         # lifecycle lock prevents a replacement from surviving node destruction.
-        self._closed = True
+        with self._teleop_wakeup_lock:
+            self._closed = True
         with self._stop_lock:
             if self._process is not None and self._process.poll() is None:
                 process = self._process
