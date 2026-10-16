@@ -36,7 +36,19 @@ Standalone demo mode remains available with `python -m workshop.digital_twin
 --snapshot ... --calibration ...`. It uses its snapshot and calibration inputs
 and is clearly separate from ROS mode, selected with `--ros-state-file`.
 
-The ROS launch expects the ROS/Jazzy interpreter used by the station and a
-viewer interpreter with `viser` and `mujoco` installed. Override the viewer
-Python with `SO101_TWIN_VIEWER_PYTHON` or the `viewer_python` launch argument.
-The default web port is 8099.
+The station installer adds the pinned `digital-twin` extra to the station
+environment and verifies the MuJoCo and Viser imports. The web viewer defaults
+to `$HOME/.local/share/exciting-science/station/venv/bin/python`; the bridge
+continues to use the native ROS/Jazzy interpreter. Preserve that split when
+launching the web twin outside `station_live.launch.py`. To repair an existing
+station installation without rerunning the hardware checks, install the same
+project extra directly:
+
+```sh
+root=/path/to/teaching-exciting-science-2026
+uv pip install --python "$HOME/.local/share/exciting-science/station/venv/bin/python" \
+  "$root[digital-twin]"
+```
+
+Override the viewer Python with `SO101_TWIN_VIEWER_PYTHON` or the
+`viewer_python` launch argument. The default web port is 8099.

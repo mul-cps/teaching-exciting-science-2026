@@ -14,7 +14,7 @@ def generate_launch_description():
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
     state_file = runtime / "exciting-science" / "ros-twin-state.json"
     viewer_python = os.environ.get("SO101_TWIN_VIEWER_PYTHON",
-                                  str(Path.home() / "miniforge3/bin/python"))
+                                  str(Path.home() / ".local/share/exciting-science/station/venv/bin/python"))
     env = os.environ.copy()
     env["PYTHONPATH"] = str(root) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     viewer_env = {key: value for key, value in os.environ.items() if key not in {

@@ -21,7 +21,8 @@ station = [
   "torchvision==0.26.0+cpu; python_version >= '3.12'",
 ]
 
-digital-twin = ["mujoco==3.14.0", "viser==1.1.0", "numpy==2.4.6", "scipy==1.17.1", "Pillow==12.2.0", "trimesh==4.12.2", "rtree==1.4.1", "opencv-python>=4.8,<5"]
+# Keep NumPy compatible with LeRobot (<2.3) and cmeel-boost (<2.4) in the shared station venv.
+digital-twin = ["mujoco==3.14.0", "viser==1.1.0", "numpy==2.2.6", "scipy==1.17.1", "Pillow==12.2.0", "trimesh==4.12.2", "rtree==1.4.1", "opencv-python>=4.8,<5"]
 ik = ["placo==0.9.15", "cmeel-urdfdom==4.0.1", "cmeel-tinyxml2==10.0.0"]
 
 [tool.pytest.ini_options]

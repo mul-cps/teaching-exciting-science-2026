@@ -165,9 +165,11 @@ def main(argv=None):
     node = RosStatePublisher(args.output, args.root_frame, args.max_age)
     try:
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

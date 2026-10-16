@@ -19,20 +19,22 @@ else
 fi
 "$venv/bin/python" -c 'import sys; assert sys.version_info[:2] in ((3,12),(3,13)), "Existing venv needs Python 3.12 or 3.13"'
 pip_install --index-url https://download.pytorch.org/whl/cpu 'torch==2.11.0+cpu' 'torchvision==0.26.0+cpu'
-pip_install --index-url https://pypi.org/simple 'torch==2.11.0+cpu' 'torchvision==0.26.0+cpu' "$root[station]"
+pip_install --index-url https://pypi.org/simple 'torch==2.11.0+cpu' 'torchvision==0.26.0+cpu' "$root[station,digital-twin]"
 pip_check
 cd -- "$install_dir"
 "$venv/bin/python" - <<'PY'
 import torch, torchvision, usb.backend.libusb1
 from importlib.metadata import version
 from importlib.resources import files
+import mujoco, viser
 assert torch.__version__ == '2.11.0+cpu' and torchvision.__version__ == '0.26.0+cpu'
 assert torch.version.cuda is None and torch.version.hip is None
 assert version('lerobot') == '0.6.1' and version('pyusb') == '1.3.1'
+assert version('mujoco') == '3.14.0' and version('viser') == '1.1.0'
 assert usb.backend.libusb1.get_backend() is not None, 'Install system libusb via your administrator'
 for name in ('ev3_agent.py', 'station.example.json'):
     assert files('workshop.station').joinpath('resources', name).is_file()
-print('Verified CPU packages, resources and system libusb')
+print('Verified CPU packages, passive-twin viewer, resources and system libusb')
 PY
 config="$install_dir/station.json"
 if [[ ! -e "$config" ]]; then

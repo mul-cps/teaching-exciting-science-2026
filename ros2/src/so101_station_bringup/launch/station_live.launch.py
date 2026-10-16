@@ -37,7 +37,8 @@ def generate_launch_description():
         'use_web_twin': 'true',
         'web_twin_host': '0.0.0.0',
         'web_twin_port': '8099',
-        'web_twin_python': str(home / 'miniforge3/bin/python'),
+        'web_twin_python': os.environ.get(
+            'SO101_TWIN_VIEWER_PYTHON', str(station / 'venv/bin/python')),
         'track_charuco_world': 'true',
         'base_registration_file': str(station / 'calibration/robot_base_registration.json') if (station / 'calibration/robot_base_registration.json').is_file() else '',
         'attach_candidate': 'true',

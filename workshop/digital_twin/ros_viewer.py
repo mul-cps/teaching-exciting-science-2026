@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -13,13 +14,41 @@ from .mujoco_ros import (apply_ros_state, effective_urdf_to_mjcf_model,
                          compare_tool_frame, ros_pose_to_viewer_xyz, transform_between)
 
 
-def _render(model, data, root_position):
+def _render(model, data, root_position, *, width=800, height=640):
+    visual = model.vis.global_
+    visual.offwidth = max(int(visual.offwidth), int(width))
+    visual.offheight = max(int(visual.offheight), int(height))
     camera = mujoco.MjvCamera()
     camera.lookat[:] = np.asarray(root_position) + [0., 0., .15]
     camera.distance, camera.azimuth, camera.elevation = 1.2, 135., -27.
-    with mujoco.Renderer(model, height=640, width=800) as renderer:
+    with mujoco.Renderer(model, height=height, width=width) as renderer:
         renderer.update_scene(data, camera=camera)
         return renderer.render()
+
+
+def _initial_camera_pose(model, data):
+    """Fit a one-time client view to the effective robot geometry.
+
+    Perception markers and camera point clouds are deliberately excluded:
+    transient object detections and room/depth outliers should not determine
+    the initial station framing.
+    """
+    centers = np.asarray(data.geom_xpos, dtype=float).reshape(-1, 3)
+    radii = np.asarray(model.geom_rbound, dtype=float).reshape(-1, 1)
+    if not len(centers) or not np.isfinite(centers).all() or not np.isfinite(radii).all():
+        raise ValueError("effective model has no finite geometry bounds for camera framing")
+    low = np.min(centers - radii, axis=0)
+    high = np.max(centers + radii, axis=0)
+    target = (low + high) * .5
+    half_extent = (high - low) * .5
+    radius = float(np.linalg.norm(half_extent))
+    fov = np.deg2rad(60.)
+    distance = float(np.clip(radius / np.sin(fov * .5) * 1.05, .55, 1.4))
+    direction = np.asarray([1., -1., .72])
+    direction /= np.linalg.norm(direction)
+    position = target + direction * distance
+    up = np.asarray([0., 0., 1.])
+    return position, target, up
 
 
 def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
@@ -34,6 +63,26 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
     model = data = None
     description_sha = None
     last_image_update = 0.
+    camera_state = {"pose": None, "pending_clients": set()}
+    camera_state_lock = threading.Lock()
+
+    def set_initial_camera(client, pose):
+        position, look_at, up = pose
+        client.camera.position = position
+        client.camera.look_at = look_at
+        client.camera.up_direction = up
+        client.camera.fov = float(np.deg2rad(60.))
+
+    def frame_client_once(client):
+        with camera_state_lock:
+            pose = camera_state["pose"]
+            if pose is None:
+                camera_state["pending_clients"].add(client.client_id)
+                return
+            camera_state["pending_clients"].discard(client.client_id)
+        set_initial_camera(client, pose)
+
+    server.on_client_connect(frame_client_once)
     try:
         while True:
             now = time.monotonic()
@@ -51,6 +100,8 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                     model = effective_urdf_to_mjcf_model(description)
                     data = mujoco.MjData(model)
                     description_sha = digest
+                    with camera_state_lock:
+                        camera_state["pose"] = None
                     status.content = "**ROS passive twin · MODEL LOADED**\nUsing live `/follower/robot_description`."
             diagnostic = snapshot.get("diagnostics", {})
             diagnostic["bridge_snapshot_age_s"] = snapshot_age
@@ -61,6 +112,17 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
             if model is not None and fresh:
                 applied = apply_ros_state(model, data, snapshot, require_fresh=True)
                 base = applied["world_from_base"][:3, 3]
+                if camera_state["pose"] is None:
+                    pose = _initial_camera_pose(model, data)
+                    with camera_state_lock:
+                        if camera_state["pose"] is None:
+                            camera_state["pose"] = pose
+                with camera_state_lock:
+                    pending = camera_state["pending_clients"].copy()
+                if pending:
+                    for client in server.get_clients().values():
+                        if client.client_id in pending:
+                            frame_client_once(client)
                 pixels = _render(model, data, base)
                 try:
                     parity = compare_tool_frame(model, data, snapshot, description)

@@ -14,6 +14,7 @@ from workshop.digital_twin.mujoco_ros import (
 from workshop.digital_twin.ros_state import (
     RosTwinState, resolve_package_mesh_uris, transform_matrix,
 )
+from workshop.digital_twin.ros_viewer import _initial_camera_pose
 
 sys.path.insert(0, str(Path("ros2/src/so101_station_control").resolve()))
 from so101_station_control.model_offsets import apply_gripper_mount_roll
@@ -113,6 +114,26 @@ def test_package_mesh_resolution_rejects_paths_outside_package_share(uri):
     with pytest.raises(ValueError, match="escapes package share"):
         resolve_package_mesh_uris(f'<mesh filename="{uri}"/>',
                                   lambda package: "/opt/ros/share/" + package)
+
+
+def test_initial_twin_camera_frames_effective_robot_and_ignores_scene_outliers():
+    model = mujoco.MjModel.from_xml_string("""
+        <mujoco model="initial_camera_bounds">
+          <worldbody>
+            <body pos="0 0 .2"><geom type="box" size=".1 .1 .1"/></body>
+          </worldbody>
+        </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    position, target, up = _initial_camera_pose(model, data)
+    other_position, other_target, other_up = _initial_camera_pose(model, data)
+    assert np.allclose(target, other_target)
+    assert np.allclose(position, other_position)
+    assert np.allclose(up, other_up)
+    assert -1.0 < target[0] < 1.0
+    assert np.allclose(up, [0., 0., 1.])
+    assert .55 <= np.linalg.norm(position - target) <= .85
 
 
 def test_tf_graph_composes_nonidentity_base_camera_tool_and_object():
