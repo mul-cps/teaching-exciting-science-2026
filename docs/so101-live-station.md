@@ -29,6 +29,27 @@ commission the saved measured home first. Teleop's resident service continues
 to reject a start unless fresh measured joint feedback is within the saved-home
 tolerance.
 
+Gripper actions require a separately qualified jaw-gap calibration JSON. The
+launch forwards `gripper_jaw_calibration` through to the resident bridge; its
+default is empty, so a station-live process without a qualified calibration
+will reject gripper goals. Supply the reviewed file explicitly:
+
+```bash
+ros2/conda/so101-conda.sh station-live \
+  gripper_jaw_calibration:=/absolute/path/to/qualified-jaw-calibration.json
+```
+
+The file must use schema `so101-jaw-gap-calibration-v1` and set
+`qualified: true`; see [gripper registration](so101-gripper-registration.md)
+for the required fields. The action name defaults to
+`/follower/gripper_controller/gripper_cmd` and can be overridden with
+`gripper_action_name:=...`. Station-live starts MoveIt's planning-scene
+services and the scene updater by default (`use_planning_scene:=true`), which
+provides `/follower/get_planning_scene`, `/follower/apply_planning_scene`, and
+the `/so101_scene/attachment_request` and `/so101_scene/attachment_status`
+topics used by grasp execution. Disabling `use_planning_scene` removes those
+attachment endpoints.
+
 For a temporary read-only mirror while an existing resident arm controller is running:
 
 ```bash

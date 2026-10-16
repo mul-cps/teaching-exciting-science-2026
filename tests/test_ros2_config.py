@@ -134,3 +134,18 @@ def test_live_station_keeps_measured_home_gate_and_single_camera_owner():
     assert '"camera_name": "camera"' in perception
     assert "_home" in control and "_saved_home_pose" in control
     assert "home_error" in control
+
+
+def test_live_launch_forwards_qualified_gripper_calibration_and_starts_scene_updater():
+    resident = (ROOT / "ros2/src/so101_station_control/launch/moveit_resident.launch.py").read_text()
+    live = (ROOT / "ros2/src/so101_station_bringup/launch/station_live.launch.py").read_text()
+    scene = (ROOT / "ros2/src/so101_station_scene/launch/station_scene.launch.py").read_text()
+
+    assert 'DeclareLaunchArgument("gripper_jaw_calibration", default_value=""' in resident
+    assert '"gripper_jaw_calibration": LaunchConfiguration("gripper_jaw_calibration")' in resident
+    assert 'DeclareLaunchArgument("gripper_action_name"' in resident
+    assert "'gripper_jaw_calibration': ''" in live
+    assert "'gripper_action_name', 'gripper_jaw_calibration'" in live
+    assert "'so101_station_scene', 'station_scene.launch.py'" in live
+    assert "'use_planning_scene': 'true'" in live
+    assert "executable=\"scene_updater\"" in scene
