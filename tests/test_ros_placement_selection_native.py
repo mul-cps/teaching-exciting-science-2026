@@ -2,6 +2,7 @@
 import time
 import json
 import threading
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -14,9 +15,10 @@ pytest.importorskip("so101_station_workflow")
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from so101_station_workflow.srv import SelectPlacementRegion
+from sensor_msgs.msg import CameraInfo, Image
 
 from workshop.digital_twin.ros_state_node import RosStatePublisher
-from workshop.digital_twin.placement_region import SparseRGBDAnchor
+from workshop.digital_twin.placement_region import PlacementRegionTracker, SparseRGBDAnchor
 
 
 def test_ui_pins_latest_fresh_frame_and_publishes_exact_display_ack(tmp_path):
@@ -303,12 +305,20 @@ def test_native_pin_replays_bounded_camera_history_for_delayed_anchor_selection(
             lambda *args: (_ for _ in ()).throw(
                 AssertionError("anchor-history replay must not use descriptor reacquisition")))
         replay_entered = threading.Event()
+        tail_entered = threading.Event()
         allow_replay = threading.Event()
+        allow_tail = threading.Event()
         original_replay = SparseRGBDAnchor.replay_to_current
+        replay_threads = []
 
         def blocked_worker(self, *args, **kwargs):
-            replay_entered.set()
-            assert allow_replay.wait(2.)
+            replay_threads.append(threading.get_ident())
+            if not replay_entered.is_set():
+                replay_entered.set()
+                assert allow_replay.wait(2.)
+            else:
+                tail_entered.set()
+                assert allow_tail.wait(2.)
             return original_replay(self, *args, **kwargs)
 
         monkeypatch.setattr(SparseRGBDAnchor, "replay_to_current", blocked_worker)
@@ -330,19 +340,127 @@ def test_native_pin_replays_bounded_camera_history_for_delayed_anchor_selection(
         server._append_placement_gray_frame(tail_record, tail_rgb)
         allow_replay.set()
         deadline = time.monotonic() + 2.
+        while not tail_entered.is_set() and time.monotonic() < deadline:
+            server._finish_placement_replay()
+            time.sleep(.002)
+        assert tail_entered.is_set()
+        assert len(set(replay_threads)) == 1, "all replay work must stay on the worker"
+
+        # Many newer frames arrive while a costly tail is replaying. Polling the
+        # completion from the ROS thread must stay bounded and must retain all
+        # newest frames for another worker catch-up pass.
+        for index in range(17, 37):
+            dx = index
+            current = np.zeros_like(image)
+            current[35:125, 35 + dx:165 + dx] = image[35:125, 35:165]
+            current_stamp = stamp + index * 50_000_000
+            current_generation = f"{current_stamp}-tail-{index}"
+            current_record = {**first, "generation": current_generation,
+                "stamp_ns": current_stamp, "received_monotonic": time.monotonic(),
+                "rgb": current}
+            server.placement_frames.append(current_record)
+            server._append_placement_gray_frame(current_record, current)
+        start = time.monotonic()
+        server._finish_placement_replay()
+        assert time.monotonic() - start < .05, "timer callback performed blocking catch-up"
+        allow_tail.set()
+        deadline = time.monotonic() + 2.
         while server.placement_replay_active and time.monotonic() < deadline:
             server._finish_placement_replay()
             time.sleep(.005)
         assert not server.placement_replay_active
         assert server.placement_status["state"] == "anchor_tracked"
         assert server.placement_status["anchor_tracking_valid"] is True
-        assert server.placement_status["generation"] == tail_generation
-        assert server.placement_status["stamp_ns"] == tail_stamp
+        latest_generation = server.placement_frames[-1]["generation"]
+        latest_stamp = server.placement_frames[-1]["stamp_ns"]
+        assert server.placement_status["generation"] == latest_generation
+        assert server.placement_status["stamp_ns"] == latest_stamp
         assert server.placement_status["feature_count"] >= 6
         assert len(server.placement_gray_history) == 0
     finally:
         executor.remove_node(client_node)
         executor.remove_node(server)
         client_node.destroy_node()
+        server.destroy_node()
+        rclpy.try_shutdown()
+
+
+def test_failed_replacement_replay_cannot_resurrect_previous_anchor_or_goal(tmp_path,
+        monkeypatch):
+    """An accepted B selection retires A even if B's history replay fails."""
+    if not rclpy.ok():
+        rclpy.init(args=None)
+    server = RosStatePublisher(str(tmp_path / "state.json"), root_frame="charuco_board",
+        placement_directory=str(tmp_path / "placement-camera"))
+    try:
+        rng = np.random.default_rng(49)
+        image = rng.integers(0, 255, (160, 200, 3), dtype=np.uint8)
+        depth = np.ones((160, 200), dtype=np.float32)
+        k = np.array([[300., 0., 100.], [0., 300., 80.], [0., 0., 1.]])
+        old = server.placement_frontend
+        assert old.select_anchor(image, depth, k, np.eye(4), (20, 20, 180, 140),
+            stamp_ns=1_000_000_000, frame_id="camera_color_optical_frame",
+            generation="old-A", received_monotonic=time.monotonic())
+        old_id = old.tracker.selection_id
+        assert old_id
+        old.tracker.goal_corners_local = np.array([[0., 0., 1.], [.1, 0., 1.],
+                                                   [.1, .1, 1.], [0., .1, 1.]])
+        server.placement_status = {"state": "goal_selected", "valid": False,
+            "selection_id": old_id, "goal_corners_camera": old.tracker.goal_corners_local.tolist()}
+
+        stamp = 2_000_000_000
+        first = {"generation": "replacement-B-pinned", "stamp_ns": stamp,
+            "received_monotonic": time.monotonic(),
+            "frame_id": "camera_color_optical_frame", "root_frame": "charuco_board",
+            "root_from_camera": None, "base_from_camera": None,
+            "camera_matrix": k, "rgb": image, "depth_m": depth,
+            "image_path": "", "image_shape": [160, 200]}
+        server.placement_frames.append(first)
+        server._process_placement_request({"action": "pin_latest_frame",
+            "mode": "select_feeder_anchor", "request_id": "replacement-B"})
+        assert server.placement_status["state"] == "selection_frame_pinned"
+        latest = {**first, "generation": "replacement-B-latest",
+            "stamp_ns": stamp + 100_000_000,
+            "received_monotonic": time.monotonic()}
+        server.placement_frames.append(latest)
+        server._append_placement_gray_frame(latest, image)
+        monkeypatch.setattr(SparseRGBDAnchor, "replay_to_current",
+            lambda *args, **kwargs: SimpleNamespace(reason="insufficient_features"))
+        server._process_placement_request({"action": "select_feeder_anchor",
+            "generation": first["generation"], "rect_xyxy": (20, 20, 180, 140)})
+        assert server.placement_replay_active
+        assert server.placement_frontend is not old
+        assert server.placement_frontend.tracker.anchor_points is None
+        assert server.placement_tracker.goal_corners_local is None
+        deadline = time.monotonic() + 1.
+        while server.placement_replay_active and time.monotonic() < deadline:
+            server._finish_placement_replay()
+            time.sleep(.002)
+        assert server.placement_status["reason"] == "history_replay_insufficient_features"
+
+        assert server.placement_status["reason"] == "history_replay_insufficient_features"
+        assert server.placement_status.get("selection_id") != old_id
+        assert server.placement_frontend is not old
+        assert server.placement_frontend.tracker.anchor_points is None
+        assert server.placement_tracker.goal_corners_local is None
+
+        # A valid fresh camera pair after the failure must not update the old
+        # frontend or make its UUID/goal valid again.
+        stamp = 3_000_000_000
+        color = server.cv_bridge.cv2_to_imgmsg(image, encoding="rgb8")
+        depth_msg = server.cv_bridge.cv2_to_imgmsg(depth, encoding="32FC1")
+        info = CameraInfo()
+        for msg in (color, depth_msg, info):
+            msg.header.stamp.sec = stamp // 1_000_000_000
+            msg.header.stamp.nanosec = stamp % 1_000_000_000
+            msg.header.frame_id = "camera_color_optical_frame"
+        info.width, info.height = 200, 160
+        info.k = k.reshape(-1).tolist()
+        info.d = []
+        server._placement_rgbd(color, depth_msg, info)
+        assert server.placement_status["state"] == "invalid"
+        assert server.placement_status["reason"] == "history_replay_insufficient_features"
+        assert server.placement_status.get("selection_id") != old_id
+    finally:
         server.destroy_node()
         rclpy.try_shutdown()
