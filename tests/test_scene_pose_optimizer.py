@@ -122,3 +122,21 @@ def test_unvaried_base_fk_is_reported_as_unobservable():
                                         "world_point_m": (fk[:3, 3] + [.1, .2, 0]).tolist()})
     with pytest.raises(ValueError, match="unobservable"):
         optimize_scene_poses(problem)
+
+
+def test_nonconverged_solver_result_is_not_returned_as_candidate(monkeypatch):
+    from types import SimpleNamespace
+    import scipy.optimize
+
+    problem = {"entities": [{"id": "fixture", "initial_world_from_entity": np.eye(4).tolist()}],
+               "observations": []}
+    for index, offset in enumerate(([0, 0, 0], [1, 0, 0], [0, 1, 0])):
+        mount = _transform(offset)
+        problem["observations"].append(_pose_observation(
+            f"fixture-tag-{index}", mount, mount))
+
+    monkeypatch.setattr(scipy.optimize, "least_squares", lambda *args, **kwargs: SimpleNamespace(
+        x=np.zeros(6), jac=np.eye(6), success=False, nfev=1,
+        message="maximum evaluations exceeded"))
+    with pytest.raises(ValueError, match="did not converge"):
+        optimize_scene_poses(problem)
