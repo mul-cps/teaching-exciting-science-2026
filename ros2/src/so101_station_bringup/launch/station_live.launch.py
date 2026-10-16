@@ -44,6 +44,19 @@ def generate_launch_description():
         'camera_arm_calibration': '',
         'camera_target_calibration': '',
         'evidence_folder': '',
+        # Object observations cover the full valid RGB-D frame by default.
+        # Keep support fitting and pickup admission independently configurable.
+        'max_object_height_m': '0.025',
+        'observation_roi_enabled': 'false',
+        'world_roi_x_min': '-0.03', 'world_roi_x_max': '0.21',
+        'world_roi_y_min': '-0.03', 'world_roi_y_max': '0.16',
+        'world_roi_z_min': '-0.05', 'world_roi_z_max': '0.06',
+        'pickup_roi_x_min': '-0.03', 'pickup_roi_x_max': '0.21',
+        'pickup_roi_y_min': '-0.03', 'pickup_roi_y_max': '0.16',
+        'pickup_roi_z_min': '-0.05', 'pickup_roi_z_max': '0.06',
+        'observation_roi_x_min': '-1.0', 'observation_roi_x_max': '1.0',
+        'observation_roi_y_min': '-1.0', 'observation_roi_y_max': '1.0',
+        'observation_roi_z_min': '-1.0', 'observation_roi_z_max': '1.0',
     }
     def include(package, filename, args, **kwargs):
         return IncludeLaunchDescription(
@@ -82,7 +95,18 @@ def generate_launch_description():
                     'viewer_python': LaunchConfiguration('web_twin_python'),
                 },
                 condition=IfCondition(LaunchConfiguration('use_web_twin'))),
-        include('so101_station_objects', 'objects.launch.py', {},
+        include('so101_station_objects', 'objects.launch.py', {
+                    key: LaunchConfiguration(key) for key in (
+                        'max_object_height_m', 'observation_roi_enabled',
+                        'world_roi_x_min', 'world_roi_x_max',
+                        'world_roi_y_min', 'world_roi_y_max',
+                        'world_roi_z_min', 'world_roi_z_max',
+                        'pickup_roi_x_min', 'pickup_roi_x_max',
+                        'pickup_roi_y_min', 'pickup_roi_y_max',
+                        'pickup_roi_z_min', 'pickup_roi_z_max',
+                        'observation_roi_x_min', 'observation_roi_x_max',
+                        'observation_roi_y_min', 'observation_roi_y_max',
+                        'observation_roi_z_min', 'observation_roi_z_max')},
                 condition=IfCondition(LaunchConfiguration('use_objects'))),
         include('so101_station_scene', 'station_scene.launch.py', {},
                 condition=IfCondition(LaunchConfiguration('use_planning_scene'))),

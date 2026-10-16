@@ -100,7 +100,7 @@ def _orient_plane_up(plane):
 
 
 def _fit_world_support(depth, valid_depth, rgb, intrinsics, distortion,
-                       board_from_camera, world_roi, *, stride=8, max_points=MAX_SUPPORT_POINTS):
+                       board_from_camera, support_roi, *, stride=8, max_points=MAX_SUPPORT_POINTS):
     height, width = depth.shape
     vivid = np.logical_or.reduce(tuple(color_masks(rgb).values()))
     excluded = cv2.dilate(vivid.astype(np.uint8), np.ones((7, 7), np.uint8)) > 0
@@ -110,7 +110,7 @@ def _fit_world_support(depth, valid_depth, rgb, intrinsics, distortion,
     depths = depth[yy[sampled], xx[sampled]]
     camera = camera_points(pixels, depths, intrinsics, distortion)
     board = transform_points(camera, board_from_camera)
-    bounds = world_roi
+    bounds = support_roi
     inside = ((board[:, 0] >= bounds[0]) & (board[:, 0] <= bounds[1])
               & (board[:, 1] >= bounds[2]) & (board[:, 1] <= bounds[3])
               & (board[:, 2] >= bounds[4]) & (board[:, 2] <= bounds[5]))
@@ -192,17 +192,18 @@ def _split_elongated_contours(contours):
 
 def _component_geometry(contour, pixel_points, depth_values, intrinsics, distortion,
                         board_from_camera, plane_world, color, max_opening_m,
-                        world_roi, max_object_height_m):
+                        pickup_roi, max_object_height_m):
     camera = camera_points(pixel_points, depth_values, intrinsics, distortion)
     board = transform_points(camera, board_from_camera)
     normal = np.asarray(plane_world["normal"])
     above = board @ normal + plane_world["d"]
-    bounds = world_roi
+    bounds = pickup_roi
     valid = (np.isfinite(above) & (above >= MIN_OBJECT_SURFACE_CLEARANCE_M)
              & (above <= max_object_height_m)
-             & (board[:, 0] >= bounds[0]) & (board[:, 0] <= bounds[1])
-             & (board[:, 1] >= bounds[2]) & (board[:, 1] <= bounds[3]))
-    if int(valid.sum()) < 8:
+             & _inside_roi(board, bounds))
+    # Do not fit a partial in-ROI slice of a larger observed component. The
+    # complete depth-supported footprint and height must pass pickup admission.
+    if int(valid.sum()) < 8 or not np.all(valid):
         return None
     board = board[valid]
     above = above[valid]
@@ -254,9 +255,15 @@ def _component_geometry(contour, pixel_points, depth_values, intrinsics, distort
     if grasps:
         grasps = [min(grasps, key=lambda item: item["axis_rank"])]
     observed_heights = np.percentile(above, [50, 90, 95])
+    surface_centroid = np.median(transform_points(
+        camera_points(pixel_points, depth_values, intrinsics, distortion),
+        board_from_camera), axis=0)
     return {
         "color": color,
         "position": center,
+        "surface_centroid": surface_centroid,
+        "surface_centroid_spread_m": np.maximum(
+            0.001, np.percentile(np.abs(board - surface_centroid), 90, axis=0)),
         "orientation_matrix": basis,
         "dimensions_m": np.array([size_long, size_short, height_m]),
         "dimension_uncertainty_m": np.array([
@@ -269,6 +276,75 @@ def _component_geometry(contour, pixel_points, depth_values, intrinsics, distort
         "contour": np.asarray(contour, dtype=np.float32),
         "grasps": grasps,
         "geometric_only": True,
+        "pickup_eligible": True,
+        "observation_geometry": "support_plane_box_estimate",
+        "object_center_qualified": False,
+        "dimensions_semantics": "support_plane_box_extent_estimate",
+        "ik_validated": False,
+        "collision_checked": False,
+    }
+
+
+def _validate_roi(roi, name):
+    if (roi is not None and
+            (len(roi) != 6 or not np.isfinite(roi).all()
+             or any(roi[i] >= roi[i + 1] for i in (0, 2, 4)))):
+        raise ValueError(f"{name} must be absent or contain finite ordered XYZ bounds")
+
+
+def _inside_roi(points, roi):
+    if roi is None:
+        return np.ones(len(points), dtype=bool)
+    return ((points[:, 0] >= roi[0]) & (points[:, 0] <= roi[1])
+            & (points[:, 1] >= roi[2]) & (points[:, 1] <= roi[3])
+            & (points[:, 2] >= roi[4]) & (points[:, 2] <= roi[5]))
+
+
+def _visible_component_geometry(pixel_points, depth_values, intrinsics, distortion,
+                                 board_from_camera, plane_world, color):
+    """Describe the visible colored surface without inferring brick thickness."""
+    camera = camera_points(pixel_points, depth_values, intrinsics, distortion)
+    board = transform_points(camera, board_from_camera)
+    normal = np.asarray(plane_world["normal"], dtype=float)
+    reference = np.array([1.0, 0.0, 0.0])
+    axis_x = reference - normal * float(reference @ normal)
+    if np.linalg.norm(axis_x) < 0.1:
+        reference = np.array([0.0, 1.0, 0.0])
+        axis_x = reference - normal * float(reference @ normal)
+    axis_x /= np.linalg.norm(axis_x)
+    axis_y = np.cross(normal, axis_x)
+    plane_coords = np.column_stack((board @ axis_x, board @ axis_y))
+    _, _, vt = np.linalg.svd(plane_coords - np.median(plane_coords, axis=0),
+                             full_matrices=False)
+    long_axis = vt[0, 0] * axis_x + vt[0, 1] * axis_y
+    if long_axis @ axis_x < 0:
+        long_axis = -long_axis
+    short_axis = np.cross(normal, long_axis)
+    long_values, short_values = board @ long_axis, board @ short_axis
+    lo_long, hi_long = np.percentile(long_values, [5, 95])
+    lo_short, hi_short = np.percentile(short_values, [5, 95])
+    dimensions = np.array([max(0.001, hi_long - lo_long),
+                           max(0.001, hi_short - lo_short),
+                           max(0.001, float(np.percentile(board @ normal, 95)
+                                            - np.percentile(board @ normal, 5)))])
+    centroid = np.median(board, axis=0)
+    spread = np.maximum(0.001, np.percentile(np.abs(board - centroid), 90, axis=0))
+    return {
+        "color": color,
+        "position": centroid.copy(),
+        "surface_centroid": centroid,
+        "surface_centroid_spread_m": spread,
+        "orientation_matrix": np.column_stack((long_axis, short_axis, normal)),
+        "dimensions_m": dimensions,
+        "dimension_uncertainty_m": np.maximum(0.001, np.std(board, axis=0)),
+        "height_m": None,
+        "depth_points": len(board),
+        "grasps": [],
+        "geometric_only": True,
+        "pickup_eligible": False,
+        "observation_geometry": "visible_surface_centroid",
+        "object_center_qualified": False,
+        "dimensions_semantics": "visible_surface_extent_only",
         "ik_validated": False,
         "collision_checked": False,
     }
@@ -278,8 +354,14 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                  board_from_camera, world_roi=DEFAULT_TABLE_ROI,
                  max_opening_m=0.055, min_component_pixels=30,
                  max_object_height_m=DEFAULT_MAX_OBJECT_HEIGHT_M,
-                 support_plane=None):
-    """Produce measured tabletop objects and geometric-only grasp candidates."""
+                 support_plane=None, *, observation_roi=None, pickup_roi=None,
+                 support_roi=None):
+    """Track visible colored surfaces; propose grasps only in the pickup ROI.
+
+    `world_roi` remains the compatibility default for support fitting and
+    pickup admission. `support_roi` and `pickup_roi` split those policies;
+    `observation_roi=None` deliberately observes the full valid RGB-D image.
+    """
     rgb = np.asarray(rgb)
     depth = np.asarray(depth)
     transform = np.asarray(board_from_camera, dtype=float)
@@ -290,17 +372,20 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
         raise ValueError("expected matching uint8 RGB, uint16/float32 aligned depth and finite transform")
     if not np.isfinite(depth_scale_m) or depth_scale_m <= 0:
         raise ValueError("depth scale must be positive and finite")
-    if (len(world_roi) != 6 or not np.isfinite(world_roi).all()
-            or any(world_roi[i] >= world_roi[i + 1] for i in (0, 2, 4))
-            or not np.isfinite(max_object_height_m) or max_object_height_m <= 0):
-        raise ValueError("world ROI and maximum object height must be finite and ordered")
+    support_roi = world_roi if support_roi is None else support_roi
+    pickup_roi = world_roi if pickup_roi is None else pickup_roi
+    _validate_roi(support_roi, "support ROI")
+    _validate_roi(pickup_roi, "pickup ROI")
+    _validate_roi(observation_roi, "observation ROI")
+    if not np.isfinite(max_object_height_m) or max_object_height_m <= 0:
+        raise ValueError("pickup maximum object height must be positive and finite")
     depth_m = depth.astype(np.float32) * float(depth_scale_m)
     valid_depth = np.isfinite(depth_m) & (depth_m >= 0.10) & (depth_m <= 2.0)
     if int(valid_depth.sum()) < 100:
         raise ValueError("insufficient valid depth in camera frame")
     if support_plane is None:
         plane = _fit_world_support(depth_m, valid_depth, rgb, intrinsics, distortion,
-                                   transform, world_roi)
+                                   transform, support_roi)
     else:
         normal = np.asarray(support_plane.get("normal"), dtype=float).reshape(3)
         offset = float(support_plane.get("d"))
@@ -332,16 +417,11 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
             pixels = np.column_stack((xx[valid], yy[valid]))
             camera = camera_points(pixels, samples[valid], intrinsics, distortion)
             board = transform_points(camera, transform)
-            above = board @ plane["normal"] + plane["d"]
-            inside = ((board[:, 0] >= world_roi[0]) & (board[:, 0] <= world_roi[1])
-                      & (board[:, 1] >= world_roi[2]) & (board[:, 1] <= world_roi[3])
-                      & (above >= MIN_OBJECT_SURFACE_CLEARANCE_M)
-                      & (above <= max_object_height_m))
+            inside = _inside_roi(board, observation_roi)
             if int(inside.sum()) < 8:
                 continue
-            # Restrict the silhouette to depth-supported pixels in the bounded
-            # tabletop volume. This removes colored walls/arm parts before they
-            # can bias the PCA footprint or produce grasp proposals.
+            # Tracking uses every valid visible surface point. Pickup geometry
+            # is computed separately below from support-plane-compatible points.
             component = np.zeros((box_height, box_width), dtype=np.uint8)
             component[pixels[inside, 1] - y0, pixels[inside, 0] - x0] = 1
             component = cv2.morphologyEx(component, cv2.MORPH_CLOSE,
@@ -362,35 +442,56 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                 contour_global = contour.reshape(-1, 2).copy()
                 contour_global[:, 0] += x0
                 contour_global[:, 1] += y0
-                item = _component_geometry(contour_global, pixels[selected],
-                                           samples[valid][selected], intrinsics, distortion,
-                                           transform, plane, color, max_opening_m,
-                                           world_roi, max_object_height_m)
-                if item is not None:
-                    footprint = item["dimensions_m"][:2]
-                    if (float(np.max(footprint)) > MAX_OBJECT_EXTENT_M
-                            or float(np.min(footprint)) < MIN_OBJECT_EXTENT_M
-                            or float(np.max(footprint) / np.min(footprint))
-                            > MAX_OBJECT_ASPECT_RATIO):
-                        continue
-                    # This component may have been split from a touching
-                    # same-color region; report only its own depth-supported
-                    # pixels rather than the unsplit color-mask area.
-                    item["pixel_area"] = int(selected.sum())
-                    objects.append(item)
+                visible = _visible_component_geometry(
+                    pixels[selected], samples[valid][selected], intrinsics, distortion,
+                    transform, plane, color)
+                footprint = visible["dimensions_m"][:2]
+                if (float(np.max(footprint)) > MAX_OBJECT_EXTENT_M
+                        or float(np.min(footprint)) < MIN_OBJECT_EXTENT_M
+                        or float(np.max(footprint) / np.min(footprint))
+                        > MAX_OBJECT_ASPECT_RATIO):
+                    continue
+                # A supported estimate is available only when the component
+                # independently passes the historic pickup/support filters.
+                pickup = _component_geometry(
+                    contour_global, pixels[selected], samples[valid][selected],
+                    intrinsics, distortion, transform, plane, color, max_opening_m,
+                    pickup_roi, max_object_height_m)
+                if pickup is not None and _inside_roi(
+                        np.asarray(pickup["position"]).reshape(1, 3), pickup_roi)[0]:
+                    pickup["surface_centroid"] = visible["surface_centroid"]
+                    pickup["surface_centroid_spread_m"] = visible[
+                        "surface_centroid_spread_m"]
+                    item = pickup
+                else:
+                    item = visible
+                item["pixel_area"] = int(selected.sum())
+                objects.append(item)
     return {"support_plane": plane, "objects": objects,
             "qualified": False, "frame_id": "charuco_board"}
 
 
 class StableObjectTracker:
-    """Greedy color-constrained spatial association in the stable world frame."""
-    def __init__(self, max_distance_m=0.06, max_age_s=1.0):
+    """Velocity-predicted color-constrained association in the stable world frame."""
+    def __init__(self, max_distance_m=0.06, max_age_s=1.0,
+                 max_speed_m_s=0.5, prediction_distance_cap_m=0.35,
+                 ambiguity_margin_m=0.015):
         self.max_distance = float(max_distance_m)
         self.max_age = float(max_age_s)
+        self.max_speed = float(max_speed_m_s)
+        self.prediction_distance_cap = float(prediction_distance_cap_m)
+        self.ambiguity_margin = float(ambiguity_margin_m)
+        if (not np.isfinite([self.max_distance, self.max_age, self.max_speed,
+                             self.prediction_distance_cap, self.ambiguity_margin]).all()
+                or min(self.max_distance, self.max_age, self.max_speed,
+                       self.prediction_distance_cap) <= 0
+                or self.ambiguity_margin < 0):
+            raise ValueError("tracker gates must be finite and positive; ambiguity margin may be zero")
         self.next_id = 1
         self.tracks = {}
         self.owned = set()
         self.attachment_records = {}
+        self.expired_tracks = []
 
     def ownership_status(self, payload):
         """Only acknowledged world replacement releases a reserved identity."""
@@ -411,8 +512,25 @@ class StableObjectTracker:
 
     def update(self, objects, stamp_s, *, expected_owned_positions=None):
         stamp_s = float(stamp_s)
-        self.tracks = {key: track for key, track in self.tracks.items()
-                       if key in self.owned or 0 <= stamp_s - track["stamp"] <= self.max_age}
+        self.expired_tracks = []
+        retained = {}
+        for key, track in self.tracks.items():
+            age = stamp_s - track["stamp"]
+            if key in self.owned or 0 <= age <= self.max_age:
+                retained[key] = track
+            elif age > self.max_age:
+                self.expired_tracks.append({
+                    "track_id": f"{track['color']}-{key:04d}",
+                    "color": track["color"],
+                    "last_position_world": track["position"].tolist(),
+                    "last_position_semantics": track.get("position_semantics"),
+                    "last_surface_centroid_world": np.asarray(
+                        track.get("surface_centroid", []), dtype=float).tolist(),
+                    "last_observation_stamp": track["stamp"],
+                    "expired_at_stamp": stamp_s,
+                    "reason": "not_observed_past_max_age",
+                })
+        self.tracks = retained
         pairs = []
         expected_owned_positions = expected_owned_positions or {}
         owned_candidates = {}
@@ -436,14 +554,41 @@ class StableObjectTracker:
                         continue
                     reference = expected_owned_positions[track_id]
                 else:
+                    dt = max(0.0, stamp_s - track["stamp"])
+                    predicted = track["position"] + track["velocity"] * dt
                     reference = track["position"]
                 if obj["color"] == track["color"]:
                     distance = float(np.linalg.norm(position - reference))
-                    if distance <= self.max_distance:
+                    if track_id in self.owned:
+                        gate = self.max_distance
+                    else:
+                        dt = max(0.0, stamp_s - track["stamp"])
+                        gate = min(self.prediction_distance_cap,
+                                   self.max_distance + self.max_speed * dt)
+                        distance = min(distance,
+                                       float(np.linalg.norm(position - predicted)))
+                    if distance <= gate:
                         pairs.append((distance, obj_index, track_id))
+        # Do not guess through near-ties. Wait for separation and leave the
+        # involved detections unassigned rather than transferring a color ID.
+        ambiguous_objects, ambiguous_tracks = set(), set()
+        for obj_index in range(len(objects)):
+            ranked = sorted((distance, track_id) for distance, index, track_id in pairs
+                            if index == obj_index)
+            if len(ranked) > 1 and ranked[1][0] - ranked[0][0] < self.ambiguity_margin:
+                ambiguous_objects.add(obj_index)
+                ambiguous_tracks.update(track_id for _, track_id in ranked[:2])
+        for track_id in self.tracks:
+            ranked = sorted((distance, index) for distance, index, candidate_track in pairs
+                            if candidate_track == track_id)
+            if len(ranked) > 1 and ranked[1][0] - ranked[0][0] < self.ambiguity_margin:
+                ambiguous_tracks.add(track_id)
+                ambiguous_objects.update(index for _, index in ranked[:2])
         assigned_objects, assigned_tracks = set(), set()
         assignments = {}
         for _, obj_index, track_id in sorted(pairs):
+            if obj_index in ambiguous_objects or track_id in ambiguous_tracks:
+                continue
             if obj_index not in assigned_objects and track_id not in assigned_tracks:
                 assignments[obj_index] = track_id
                 assigned_objects.add(obj_index)
@@ -451,11 +596,14 @@ class StableObjectTracker:
         # Withhold unmatched same-color observations while owned identity is
         # unresolved. Only a unique observation near timestamped gripper TF is
         # pickup evidence; a different tabletop brick cannot become that proof.
-        ambiguous = set()
+        ambiguous = set(ambiguous_objects)
         for track_id in self.owned - assigned_tracks:
             ambiguous.update(index for index, obj in enumerate(objects)
                              if index not in assigned_objects and
                              obj["color"] == self.tracks[track_id]["color"])
+        for track_id in ambiguous_tracks:
+            ambiguous.update(index for distance, index, candidate_track in pairs
+                             if candidate_track == track_id)
         output = []
         for index, obj in enumerate(objects):
             if index in ambiguous:
@@ -477,7 +625,10 @@ class StableObjectTracker:
                           age_s=max(0.0, stamp_s - first_stamp))
             self.tracks[track_id] = {"color": obj["color"], "position": position,
                                      "velocity": velocity, "stamp": stamp_s,
-                                     "first_stamp": first_stamp}
+                                     "first_stamp": first_stamp,
+                                     "position_semantics": obj.get("observation_geometry"),
+                                     "surface_centroid": np.asarray(
+                                         obj.get("surface_centroid", position), dtype=float).copy()}
             output.append(record)
         return output
 
@@ -585,6 +736,13 @@ class ColoredObjectsNode:
                     "world_roi_x_min": DEFAULT_TABLE_ROI[0], "world_roi_x_max": DEFAULT_TABLE_ROI[1],
                     "world_roi_y_min": DEFAULT_TABLE_ROI[2], "world_roi_y_max": DEFAULT_TABLE_ROI[3],
                     "world_roi_z_min": DEFAULT_TABLE_ROI[4], "world_roi_z_max": DEFAULT_TABLE_ROI[5],
+                    "pickup_roi_x_min": DEFAULT_TABLE_ROI[0], "pickup_roi_x_max": DEFAULT_TABLE_ROI[1],
+                    "pickup_roi_y_min": DEFAULT_TABLE_ROI[2], "pickup_roi_y_max": DEFAULT_TABLE_ROI[3],
+                    "pickup_roi_z_min": DEFAULT_TABLE_ROI[4], "pickup_roi_z_max": DEFAULT_TABLE_ROI[5],
+                    "observation_roi_enabled": False,
+                    "observation_roi_x_min": -1.0, "observation_roi_x_max": 1.0,
+                    "observation_roi_y_min": -1.0, "observation_roi_y_max": 1.0,
+                    "observation_roi_z_min": -1.0, "observation_roi_z_max": 1.0,
                     "max_object_height_m": DEFAULT_MAX_OBJECT_HEIGHT_M,
                     "max_gripper_opening_m": 0.055,
                     "max_processing_hz": 5.0,
@@ -596,20 +754,32 @@ class ColoredObjectsNode:
                     self.get_parameter("require_registration_tracking").value)
                 self.registration_last_tracking_stamp = None
                 self.depth_scale = float(self.get_parameter("depth_scale_m").value)
-                self.roi = tuple(float(self.get_parameter(name).value) for name in (
+                self.support_roi = tuple(float(self.get_parameter(name).value) for name in (
                     "world_roi_x_min", "world_roi_x_max", "world_roi_y_min",
                     "world_roi_y_max", "world_roi_z_min", "world_roi_z_max"))
+                self.pickup_roi = tuple(float(self.get_parameter(name).value) for name in (
+                    "pickup_roi_x_min", "pickup_roi_x_max", "pickup_roi_y_min",
+                    "pickup_roi_y_max", "pickup_roi_z_min", "pickup_roi_z_max"))
+                self.observation_roi = None
+                if bool(self.get_parameter("observation_roi_enabled").value):
+                    self.observation_roi = tuple(float(self.get_parameter(name).value) for name in (
+                        "observation_roi_x_min", "observation_roi_x_max",
+                        "observation_roi_y_min", "observation_roi_y_max",
+                        "observation_roi_z_min", "observation_roi_z_max"))
                 self.max_opening = float(self.get_parameter("max_gripper_opening_m").value)
                 self.max_object_height = float(self.get_parameter("max_object_height_m").value)
                 requested_hz = float(self.get_parameter("max_processing_hz").value)
                 if not np.isfinite([self.depth_scale, self.max_opening,
-                                    self.max_object_height, requested_hz, *self.roi]).all():
+                                    self.max_object_height, requested_hz,
+                                    *self.support_roi, *self.pickup_roi,
+                                    *(self.observation_roi or ())]).all():
                     raise ValueError("object node parameters must be finite")
                 if (self.depth_scale <= 0 or self.max_opening <= 0
                         or self.max_object_height <= 0 or requested_hz <= 0):
                     raise ValueError("depth scale, opening, object height, and processing frequency must be positive")
-                if any(self.roi[i] >= self.roi[i+1] for i in (0, 2, 4)):
-                    raise ValueError("world ROI minima must be below maxima")
+                _validate_roi(self.support_roi, "support ROI")
+                _validate_roi(self.pickup_roi, "pickup ROI")
+                _validate_roi(self.observation_roi, "observation ROI")
                 self.period = 1.0 / min(5.0, requested_hz)
                 self.last_process = 0.0
                 self.last_warning = 0.0
@@ -744,8 +914,10 @@ class ColoredObjectsNode:
                     board_from_camera = transform_from_msg(tf)
                     try:
                         report = analyze_rgbd(rgb, depth, intrinsics, info_msg.d, scale,
-                                              board_from_camera, self.roi, self.max_opening,
-                                              max_object_height_m=self.max_object_height)
+                                              board_from_camera, self.support_roi, self.max_opening,
+                                              max_object_height_m=self.max_object_height,
+                                              observation_roi=self.observation_roi,
+                                              pickup_roi=self.pickup_roi)
                         plane = report["support_plane"]
                         self.last_support_plane = {
                             "normal": np.asarray(plane["normal"], dtype=float).copy(),
@@ -762,8 +934,10 @@ class ColoredObjectsNode:
                                 or cache_age > 2.0):
                             raise
                         report = analyze_rgbd(rgb, depth, intrinsics, info_msg.d, scale,
-                                              board_from_camera, self.roi, self.max_opening,
+                                              board_from_camera, self.support_roi, self.max_opening,
                                               max_object_height_m=self.max_object_height,
+                                              observation_roi=self.observation_roi,
+                                              pickup_roi=self.pickup_roi,
                                               support_plane={key: value for key, value in cache.items()
                                                              if key != "stamp"})
                         report["support_plane"]["plane_source"] = "cached_measured_support_plane"
@@ -798,6 +972,7 @@ class ColoredObjectsNode:
                     objects = self.tracker.update(report["objects"], stamp,
                                                   expected_owned_positions=expected_owned_positions)
                     report["objects"] = objects
+                    report["expired_tracks"] = self.tracker.expired_tracks
                     report["stamp"] = stamp
                     report["support_plane"] = {
                         key: (value.tolist() if isinstance(value, np.ndarray) else value)
@@ -906,14 +1081,22 @@ class ColoredObjectsNode:
                     "objects": [{
                         "track_id": obj["track_id"], "color": obj["color"],
                         "position_world": obj["position"].tolist(),
+                        "position_semantics": obj["observation_geometry"],
+                        "surface_centroid_world": obj["surface_centroid"].tolist(),
+                        "surface_centroid_spread_m": obj[
+                            "surface_centroid_spread_m"].tolist(),
+                        "object_center_qualified": obj["object_center_qualified"],
+                        "pickup_eligible": obj["pickup_eligible"],
                         "velocity_world_m_s": obj["velocity"].tolist(), "age_s": obj["age_s"],
                         "dimensions_observed_m": obj["dimensions_m"].tolist(),
+                        "dimensions_semantics": obj["dimensions_semantics"],
                         "dimension_uncertainty_m": obj["dimension_uncertainty_m"].tolist(),
                         "dimension_source": "robust visible RGB-D point extent; not CAD or full-object measurement",
                         "depth_points": obj["depth_points"], "geometric_only": True,
                         "ik_validated": False, "collision_checked": False,
                     } for obj in report["objects"]],
                     "grasp_candidates": grasp_records,
+                    "expired_tracks": report.get("expired_tracks", []),
                 }
                 message = String()
                 message.data = json.dumps(status, sort_keys=True, allow_nan=False)
