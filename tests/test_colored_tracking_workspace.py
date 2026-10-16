@@ -298,3 +298,23 @@ def test_near_tied_same_color_association_is_withheld_until_unambiguous():
         {"color": "blue", "position": np.array([0.20, 0.1, 0.02])},
     ], 1.4)
     assert {record["track_id"] for record in separated} == original_ids
+
+
+def test_unmatched_stale_track_does_not_veto_two_clear_mutual_matches():
+    tracker = StableObjectTracker(max_distance_m=0.06, max_age_s=1.0)
+    first = tracker.update([
+        {"color": "yellow", "position": np.array([0.10, 0.0, 0.02])},
+        {"color": "yellow", "position": np.array([0.15, 0.0, 0.02])},
+        # Chair-like false track is far from each real object, but nearly
+        # equidistant to them within its expanded motion gate.
+        {"color": "yellow", "position": np.array([0.125, 0.18, 0.02])},
+    ], 1.0)
+    real_ids = {first[0]["track_id"], first[1]["track_id"]}
+
+    visible = tracker.update([
+        {"color": "yellow", "position": np.array([0.10, 0.0, 0.02])},
+        {"color": "yellow", "position": np.array([0.15, 0.0, 0.02])},
+    ], 1.3)
+
+    assert len(visible) == 2
+    assert {record["track_id"] for record in visible} == real_ids

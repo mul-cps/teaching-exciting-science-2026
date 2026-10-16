@@ -622,23 +622,58 @@ class StableObjectTracker:
                                        float(np.linalg.norm(position - predicted)))
                     if distance <= gate:
                         pairs.append((distance, obj_index, track_id))
-        # Do not guess through near-ties. Wait for separation and leave the
-        # involved detections unassigned rather than transferring a color ID.
+        # Lock clear mutual-nearest pairs before checking ambiguity. A distant
+        # unmatched track can be nearly equidistant from two already-resolved
+        # detections; it must not veto their independent near-zero matches.
+        def nearest_is_clear(ranked):
+            return (len(ranked) <= 1 or
+                    (ranked[1][0] - ranked[0][0] >= self.ambiguity_margin
+                     and ranked[1][0] - ranked[0][0] > 1e-9))
+
+        object_rankings = {
+            obj_index: sorted((distance, track_id) for distance, index, track_id in pairs
+                              if index == obj_index)
+            for obj_index in range(len(objects))
+        }
+        track_rankings = {
+            track_id: sorted((distance, obj_index) for distance, obj_index, candidate_track in pairs
+                             if candidate_track == track_id)
+            for track_id in self.tracks
+        }
+        clear_objects = {index for index, ranked in object_rankings.items()
+                         if ranked and nearest_is_clear(ranked)}
+        clear_tracks = {track_id for track_id, ranked in track_rankings.items()
+                        if ranked and nearest_is_clear(ranked)}
+        assignments = {}
+        for obj_index in clear_objects:
+            nearest_track = object_rankings[obj_index][0][1]
+            if nearest_track not in clear_tracks:
+                continue
+            if track_rankings[nearest_track][0][1] == obj_index:
+                assignments[obj_index] = nearest_track
+        assigned_objects = set(assignments)
+        assigned_tracks = set(assignments.values())
+
+        # Do not guess through remaining near-ties. Wait for separation and
+        # leave the involved detections unassigned rather than transferring a
+        # color ID.
         ambiguous_objects, ambiguous_tracks = set(), set()
         for obj_index in range(len(objects)):
+            if obj_index in assigned_objects:
+                continue
             ranked = sorted((distance, track_id) for distance, index, track_id in pairs
-                            if index == obj_index)
+                            if index == obj_index and track_id not in assigned_tracks)
             if len(ranked) > 1 and ranked[1][0] - ranked[0][0] < self.ambiguity_margin:
                 ambiguous_objects.add(obj_index)
                 ambiguous_tracks.update(track_id for _, track_id in ranked[:2])
         for track_id in self.tracks:
+            if track_id in assigned_tracks:
+                continue
             ranked = sorted((distance, index) for distance, index, candidate_track in pairs
-                            if candidate_track == track_id)
+                            if candidate_track == track_id and index not in assigned_objects)
             if len(ranked) > 1 and ranked[1][0] - ranked[0][0] < self.ambiguity_margin:
                 ambiguous_tracks.add(track_id)
                 ambiguous_objects.update(index for _, index in ranked[:2])
-        assigned_objects, assigned_tracks = set(), set()
-        assignments = {}
         for _, obj_index, track_id in sorted(pairs):
             if obj_index in ambiguous_objects or track_id in ambiguous_tracks:
                 continue
