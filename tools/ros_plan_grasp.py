@@ -618,7 +618,8 @@ def main(argv=None):
         if not node.planner.wait_for_service(timeout_sec=max(0.0, deadline-time.monotonic())):
             raise TimeoutError(f"MoveIt planning service unavailable: {args.planning_service}")
 
-        contact = (candidate_for_track(node.status, args.track_id) if args.track_id else
+        contact = (candidate_for_track(node.status, args.track_id,
+                                      require_pickup_eligible=args.execute) if args.track_id else
                    PoseTarget(args.frame, tuple(args.pose[:3]), tuple(args.pose[3:])))
         if args.execute:
             candidate_record = next(item for item in node.status.get("grasp_candidates", [])
@@ -628,7 +629,8 @@ def main(argv=None):
             scene_track_id = canonical_scene_track_id(candidate_record)
             baseline_object = next((item for item in node.status.get("objects", [])
                                     if str(item.get("track_id")) == str(selected_track_id)), None)
-            if baseline_object is None or not baseline_object.get("geometric_only"):
+            if (baseline_object is None or not baseline_object.get("geometric_only")
+                    or baseline_object.get("pickup_eligible") is not True):
                 raise RuntimeError("fresh geometric object observation required before execution")
         locked_target = contact
         place = (PoseTarget(args.frame, tuple(args.place_pose[:3]), tuple(args.place_pose[3:]))
@@ -692,7 +694,8 @@ def main(argv=None):
             if args.track_id:
                 if not (args.execute and attached and name == "place"):
                     try:
-                        observed_target = candidate_for_track(node.status, args.track_id)
+                        observed_target = candidate_for_track(node.status, args.track_id,
+                                                              require_pickup_eligible=args.execute)
                     except (KeyError, TypeError, ValueError):
                         observed_target = None
                     q0 = locked_target.orientation_xyzw
@@ -789,7 +792,8 @@ def main(argv=None):
                         node.status.get("state") != "tracking" or
                         node.status.get("frame_id") != locked_target.frame_id):
                     raise RuntimeError("target tracking became stale while planning")
-                current_candidate = candidate_for_track(node.status, args.track_id)
+                current_candidate = candidate_for_track(node.status, args.track_id,
+                                                        require_pickup_eligible=True)
                 if (any(abs(a-b) > 0.003 for a, b in zip(current_candidate.position,
                                                            locked_target.position)) or
                         abs(sum(a*b for a, b in zip(current_candidate.orientation_xyzw,

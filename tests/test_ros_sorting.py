@@ -9,8 +9,21 @@ from workshop.station.ros_sorting import StableTargetSelector, run_sorting
 def status(stamp, *, track=3, x=.12, state="tracking"):
     return {"state": state, "stamp": stamp, "frame_id": "charuco_board",
             "objects": [{"track_id": track, "color": "red",
-                         "position_world": [x, .04, .02]}],
-            "grasp_candidates": [{"track_id": track}]}
+                         "position_world": [x, .04, .02], "pickup_eligible": True}],
+            "grasp_candidates": [{"track_id": track, "pickup_eligible": True}]}
+
+
+@pytest.mark.parametrize("record", ["objects", "grasp_candidates"])
+@pytest.mark.parametrize("eligible", [None, False])
+def test_preview_only_track_never_becomes_automatic_sort_target(record, eligible):
+    select = StableTargetSelector(after_stamp=10., excluded_ids=set())
+    for stamp in (10.1, 10.2, 10.3, 10.4):
+        item = status(stamp)
+        if eligible is None:
+            item[record][0].pop("pickup_eligible")
+        else:
+            item[record][0]["pickup_eligible"] = eligible
+        assert select.update(item, now=stamp) is None
 
 
 def test_target_requires_three_distinct_fresh_stationary_images():

@@ -133,11 +133,15 @@ def test_pickup_roi_is_independent_and_restored_when_brick_returns():
     assert obj["dimensions_semantics"] == "support_plane_box_extent_estimate"
     assert obj["grasps"]
 
-    outside = observe((DEFAULT_TABLE_ROI[1] + 0.04, 0.07, 0.02))["objects"][0]
+    # Use a small but well-resolved footprint with clear margin to the maximum
+    # gripper opening; contour estimates differ slightly across OpenCV builds.
+    outside = observe((DEFAULT_TABLE_ROI[1] + 0.04, 0.07, 0.02),
+                      pixel_size=24)["objects"][0]
     assert outside["pickup_eligible"] is False
     assert outside["execution_eligible"] is False
     assert outside["eligibility_reason"] == "outside_pickup_roi"
     assert outside["grasps"]  # full-component geometric preview only
+    assert outside["grasps"][0]["opening_m"] < 0.045
     assert outside["observation_geometry"] == "support_plane_box_estimate"
 
 

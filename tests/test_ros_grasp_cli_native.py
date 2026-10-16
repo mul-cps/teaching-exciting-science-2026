@@ -112,6 +112,7 @@ def _candidate(position=BASE_OBJECT):
     return {
         "candidate_id": f"{TRACK_ID}-g0", "track_id": NUMERIC_TRACK_ID,
         "frame_id": FRAME_ID, "geometric_only": True,
+        "pickup_eligible": True,
         "ik_validated": False, "collision_checked": False,
         "contact_position_world": list(position),
         "closing_axis_world": [1.0, 0.0, 0.0],
@@ -126,6 +127,7 @@ def _status(*, phase, stamp, tracking=True):
     elif phase in {"released", "released_observed"}:
         object_position = PLACE_POSE[:3]
     object_data = {"track_id": NUMERIC_TRACK_ID, "geometric_only": True,
+                   "pickup_eligible": True,
                    "position_world": list(object_position), "size": [0.04, 0.04, 0.04]}
     status = {
         "state": "tracking" if tracking else "lost", "frame_id": FRAME_ID,
@@ -209,8 +211,11 @@ class _Fixture(Node):
         registration.data = json.dumps(_registration(stamp, tracking=not self.lost))
         self.registration_pub.publish(registration)
         status = String()
-        status.data = json.dumps(_status(phase=self.phase, stamp=stamp,
-                                         tracking=not self.lost))
+        report = _status(phase=self.phase, stamp=stamp, tracking=not self.lost)
+        if getattr(self, "preview_only", False):
+            for item in (*report["grasp_candidates"], *report["objects"]):
+                item["pickup_eligible"] = False
+        status.data = json.dumps(report)
         self.status_pub.publish(status)
         joints = JointState()
         joints.header.stamp = self._now().to_msg()
@@ -378,7 +383,11 @@ def _start_fixture(monkeypatch, tmp_path, *, lose_on_first_plan=False, cancel_on
     def refresh_owner_state():
         state = json.loads(state_file.read_text(encoding="utf-8"))
         state["monotonic"] = time.monotonic()
-        state_file.write_text(json.dumps(state), encoding="utf-8")
+        # Match the real owner's atomic snapshot contract; an in-place write
+        # briefly exposes empty JSON and spuriously invalidates the bridge.
+        temporary = state_file.with_suffix(".tmp")
+        temporary.write_text(json.dumps(state), encoding="utf-8")
+        temporary.replace(state_file)
     fixture.create_timer(0.05, refresh_owner_state)
     executor = MultiThreadedExecutor(num_threads=8)
     executor.add_node(fixture)
@@ -481,6 +490,27 @@ def test_execute_cli_runs_complete_synthetic_native_ros_pick_place(monkeypatch, 
         assert fixture.plans[2]["position"][2] > fixture.plans[1]["position"][2]
         assert fixture.plans[3]["position"] == pytest.approx(PLACE_POSE[:3])
         assert fixture.plans[4]["position"] != pytest.approx(PLACE_POSE[:3])
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=3)
+        _cleanup(fixture, bridge, executor, stop, spin_thread)
+
+
+def test_execute_cli_preview_only_candidate_never_opens_or_moves_robot(monkeypatch, tmp_path):
+    files, robot_description = _write_calibrations(tmp_path)
+    fixture, bridge, executor, stop, spin_thread = _start_fixture(monkeypatch, tmp_path)
+    fixture.preview_only = True
+    fixture.set_robot_description(robot_description)
+    process, output, command = _launch_cli(tmp_path, files)
+    try:
+        stdout, _ = _communicate_cli(process, fixture, timeout=18)
+        assert process.returncode != 0, f"preview-only candidate was admitted:\n{stdout}\n{command}"
+        assert "pickup" in stdout
+        assert fixture.arm_goal_count == 0
+        assert fixture.gripper_commands == []
+        assert fixture.scene_requests == []
+        assert fixture.plans == []
     finally:
         if process.poll() is None:
             process.kill()

@@ -52,10 +52,12 @@ class StableTargetSelector:
                     or now - stamp > self.max_age_s):
                 self._reset()
                 return None
-            candidates = {str(item["track_id"]) for item in status["grasp_candidates"]}
+            candidates = {str(item["track_id"]) for item in status["grasp_candidates"]
+                          if item.get("pickup_eligible") is True}
             objects = [item for item in status["objects"]
                        if str(item["track_id"]) not in self.excluded_ids
-                       and str(item["track_id"]) in candidates]
+                       and str(item["track_id"]) in candidates
+                       and item.get("pickup_eligible") is True]
             # Multiple new objects are ambiguous; never guess which one exited.
             if len(objects) != 1:
                 self._reset()

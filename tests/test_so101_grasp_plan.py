@@ -47,6 +47,21 @@ def test_candidate_is_selected_by_stable_track_and_stays_geometric():
         candidate_for_track(status, "blue-0002")
 
 
+@pytest.mark.parametrize("eligible", [None, False, "true", 1])
+def test_geometric_preview_requires_explicit_pickup_admission_for_execution(eligible):
+    item = {"track_id": 4, "candidate_id": "green-0004-g0", "frame_id": "board",
+            "contact_position_world": [.3, .2, .01], "closing_axis_world": [1, 0, 0],
+            "approach_direction_world": [0, 0, -1]}
+    if eligible is not None:
+        item["pickup_eligible"] = eligible
+    status = {"grasp_candidates": [item]}
+    assert candidate_for_track(status, "green-0004").position == (.3, .2, .01)
+    with pytest.raises(ValueError, match="pickup"):
+        candidate_for_track(status, "green-0004", require_pickup_eligible=True)
+    item["pickup_eligible"] = True
+    assert candidate_for_track(status, "green-0004", require_pickup_eligible=True)
+
+
 def test_top_down_candidate_retreats_above_contact_and_composes_calibrated_tip():
     import numpy as np
     from scipy.spatial.transform import Rotation

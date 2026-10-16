@@ -263,9 +263,9 @@ def test_detect_requires_fresh_in_roi_stable_new_target_and_distinct_stamps(
             position = [0.01, 0.02, 0.1]
         status = {
             "state": "tracking", "frame_id": "charuco_board", "stamp": stamp,
-            "grasp_candidates": [{"track_id": 9}],
+            "grasp_candidates": [{"track_id": 9, "pickup_eligible": True}],
             "objects": [{"track_id": 9, "color": "red",
-                         "position_world": position}],
+                         "position_world": position, "pickup_eligible": True}],
         }
         devices_holder["devices"]._status(SimpleNamespace(data=json.dumps(status)))
 

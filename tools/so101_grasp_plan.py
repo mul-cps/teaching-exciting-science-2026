@@ -74,7 +74,7 @@ def transform_pose(target: PoseTarget, right_transform):
                       tuple(Rotation.from_matrix(composed[:3, :3]).as_quat()))
 
 
-def candidate_for_track(status, track_id):
+def candidate_for_track(status, track_id, *, require_pickup_eligible=False):
     """Select a proposal by numeric track ID or visible detection ID (red-0003)."""
     key = str(track_id)
     matches = [item for item in status.get("grasp_candidates", [])
@@ -83,6 +83,8 @@ def candidate_for_track(status, track_id):
     if not matches:
         raise ValueError(f"no geometric grasp candidate for track {track_id!r}")
     item = matches[0]
+    if require_pickup_eligible and item.get("pickup_eligible") is not True:
+        raise ValueError("geometric preview is not explicitly admitted to the pickup region")
     if item.get("ik_validated") or item.get("collision_checked"):
         # Tracking reports are source geometry, not planner results.
         raise ValueError("tracking source must remain marked geometric_only")
