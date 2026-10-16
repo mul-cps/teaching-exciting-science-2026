@@ -53,6 +53,44 @@ def observe(position, *, pixel_size=32):
     )
 
 
+def rgbd_with_tilted_red_face(center, angle_y, *, length=0.060, width=0.040):
+    """Ray-render one planar colored face at a controlled 3D orientation."""
+    height, image_width = 480, 640
+    rgb = np.full((height, image_width, 3), 128, dtype=np.uint8)
+    depth = np.full((height, image_width), 0, dtype=np.uint16)
+    theta = np.deg2rad(angle_y)
+    long_axis = np.array([np.cos(theta), 0.0, np.sin(theta)])
+    width_axis = np.array([0.0, 1.0, 0.0])
+    normal = np.cross(long_axis, width_axis)
+    origin = np.array([0.0, 0.0, 0.8])  # board-frame camera origin
+    yy, xx = np.mgrid[:height, :image_width]
+    camera_rays = np.stack(((xx - INTRINSICS["ppx"]) / INTRINSICS["fx"],
+                            -(yy - INTRINSICS["ppy"]) / INTRINSICS["fy"],
+                            -np.ones_like(xx)), axis=-1)
+    ray_board = camera_rays
+    denom = ray_board @ normal
+    safe = np.abs(denom) > 1e-6
+    distance = np.zeros_like(denom)
+    distance[safe] = ((center - origin) @ normal) / denom[safe]
+    board_points = origin + distance[..., None] * ray_board
+    local = board_points - center
+    on_face = (safe & (distance > 0)
+               & (np.abs(local @ long_axis) <= length / 2)
+               & (np.abs(local @ width_axis) <= width / 2))
+    rgb[on_face] = [255, 0, 0]
+    # The camera ray's forward coordinate has unit magnitude in this basis.
+    depth[on_face] = np.maximum(1, np.rint(distance[on_face] * 1000)).astype(np.uint16)
+    return rgb, depth
+
+
+def observe_tilted(center, angle_y):
+    rgb, depth = rgbd_with_tilted_red_face(center, angle_y)
+    return analyze_rgbd(
+        rgb, depth, INTRINSICS, DISTORTION, 0.001, BOARD_FROM_CAMERA,
+        support_plane=SUPPORT_PLANE,
+    )
+
+
 def test_rgbd_tracks_across_old_xyz_bounds_without_grasp_admission():
     # Cross the former x, y and z crop limits while remaining visible.
     report = observe((0.27, 0.19, 0.12))
@@ -97,20 +135,45 @@ def test_pickup_roi_is_independent_and_restored_when_brick_returns():
 
     outside = observe((DEFAULT_TABLE_ROI[1] + 0.04, 0.07, 0.02))["objects"][0]
     assert outside["pickup_eligible"] is False
-    assert outside["grasps"] == []
+    assert outside["execution_eligible"] is False
+    assert outside["eligibility_reason"] == "outside_pickup_roi"
+    assert outside["grasps"]  # full-component geometric preview only
+    assert outside["observation_geometry"] == "support_plane_box_estimate"
 
 
-def test_component_straddling_pickup_roi_is_observed_but_never_clipped_into_candidate():
+def test_component_straddling_pickup_roi_preview_uses_full_component_geometry():
     # The component's visible footprint crosses x_max although its centroid is
-    # inside. Candidate fitting must reject the whole component, not fit only
-    # the in-ROI pixels and report a fabricated smaller brick.
+    # inside. Its preview must use the complete component and remain ineligible.
     report = observe((0.205, 0.07, 0.02), pixel_size=38)
     assert len(report["objects"]) == 1
     obj = report["objects"][0]
     assert obj["pickup_eligible"] is False
-    assert obj["grasps"] == []
-    assert obj["observation_geometry"] == "visible_surface_centroid"
+    assert obj["execution_eligible"] is False
+    assert obj["eligibility_reason"] == "outside_pickup_roi"
+    assert obj["observation_geometry"] == "support_plane_box_estimate"
+    # A clipped fit used to shift the center into the allowed region and
+    # report a shorter brick; the full surface median stays at the render center.
     np.testing.assert_allclose(obj["surface_centroid"], [0.205, 0.07, 0.02], atol=0.015)
+    assert obj["dimensions_m"][0] > 0.045
+
+
+def test_lifted_face_tracks_through_full_orientation_sweep_outside_pickup_roi():
+    tracker = StableObjectTracker(max_distance_m=0.06, max_age_s=1.0)
+    center = np.array([0.27, 0.12, 0.16])
+    records = []
+    for frame, angle in enumerate(range(0, 91, 10)):
+        report = observe_tilted(center, angle)
+        assert len(report["objects"]) == 1, f"visible face lost at {angle} degrees"
+        detected = report["objects"][0]
+        assert detected["pickup_eligible"] is False
+        assert detected["grasps"] == []
+        assert detected["orientation_matrix"].shape == (3, 3)
+        assert np.linalg.det(detected["orientation_matrix"]) > 0.999
+        assert np.all(np.diff(detected["dimensions_m"]) <= 1e-9)
+        record = tracker.update([detected], 40.0 + frame * 0.2)
+        assert len(record) == 1
+        records.append(record[0])
+    assert {item["track_id"] for item in records} == {records[0]["track_id"]}
 
 
 def test_motion_crossing_old_crop_retains_id_and_expiry_reacquires_new_id():

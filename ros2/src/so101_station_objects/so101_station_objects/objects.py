@@ -197,12 +197,10 @@ def _component_geometry(contour, pixel_points, depth_values, intrinsics, distort
     board = transform_points(camera, board_from_camera)
     normal = np.asarray(plane_world["normal"])
     above = board @ normal + plane_world["d"]
-    bounds = pickup_roi
     valid = (np.isfinite(above) & (above >= MIN_OBJECT_SURFACE_CLEARANCE_M)
-             & (above <= max_object_height_m)
-             & _inside_roi(board, bounds))
-    # Do not fit a partial in-ROI slice of a larger observed component. The
-    # complete depth-supported footprint and height must pass pickup admission.
+             & (above <= max_object_height_m))
+    # Fit the complete observed component. Never crop its geometry to the
+    # pickup ROI; admission is a separate full-component predicate below.
     if int(valid.sum()) < 8 or not np.all(valid):
         return None
     board = board[valid]
@@ -254,6 +252,7 @@ def _component_geometry(contour, pixel_points, depth_values, intrinsics, distort
                        "axis_rank": opening})
     if grasps:
         grasps = [min(grasps, key=lambda item: item["axis_rank"])]
+    pickup_eligible = bool(_inside_roi(board, pickup_roi).all())
     observed_heights = np.percentile(above, [50, 90, 95])
     surface_centroid = np.median(transform_points(
         camera_points(pixel_points, depth_values, intrinsics, distortion),
@@ -276,7 +275,11 @@ def _component_geometry(contour, pixel_points, depth_values, intrinsics, distort
         "contour": np.asarray(contour, dtype=np.float32),
         "grasps": grasps,
         "geometric_only": True,
-        "pickup_eligible": True,
+        "pickup_eligible": pickup_eligible,
+        "execution_eligible": False,
+        "eligibility_reason": ("inside_pickup_roi" if pickup_eligible
+                               else "outside_pickup_roi"),
+        "execution_eligibility_reason": "not_ik_or_collision_checked",
         "observation_geometry": "support_plane_box_estimate",
         "object_center_qualified": False,
         "dimensions_semantics": "support_plane_box_extent_estimate",
@@ -302,46 +305,43 @@ def _inside_roi(points, roi):
 
 def _visible_component_geometry(pixel_points, depth_values, intrinsics, distortion,
                                  board_from_camera, plane_world, color):
-    """Describe the visible colored surface without inferring brick thickness."""
+    """Describe visible geometry in its measured 3D principal surface axes."""
     camera = camera_points(pixel_points, depth_values, intrinsics, distortion)
     board = transform_points(camera, board_from_camera)
-    normal = np.asarray(plane_world["normal"], dtype=float)
-    reference = np.array([1.0, 0.0, 0.0])
-    axis_x = reference - normal * float(reference @ normal)
-    if np.linalg.norm(axis_x) < 0.1:
-        reference = np.array([0.0, 1.0, 0.0])
-        axis_x = reference - normal * float(reference @ normal)
-    axis_x /= np.linalg.norm(axis_x)
-    axis_y = np.cross(normal, axis_x)
-    plane_coords = np.column_stack((board @ axis_x, board @ axis_y))
-    _, _, vt = np.linalg.svd(plane_coords - np.median(plane_coords, axis=0),
-                             full_matrices=False)
-    long_axis = vt[0, 0] * axis_x + vt[0, 1] * axis_y
-    if long_axis @ axis_x < 0:
-        long_axis = -long_axis
-    short_axis = np.cross(normal, long_axis)
-    long_values, short_values = board @ long_axis, board @ short_axis
-    lo_long, hi_long = np.percentile(long_values, [5, 95])
-    lo_short, hi_short = np.percentile(short_values, [5, 95])
-    dimensions = np.array([max(0.001, hi_long - lo_long),
-                           max(0.001, hi_short - lo_short),
-                           max(0.001, float(np.percentile(board @ normal, 95)
-                                            - np.percentile(board @ normal, 5)))])
     centroid = np.median(board, axis=0)
+    centered = board - centroid
+    covariance = centered.T @ centered / max(1, len(centered))
+    _, eigenvectors = np.linalg.eigh(covariance)
+    axes = eigenvectors[:, ::-1]
+    # PCA eigenvector signs are arbitrary. Stabilize the first two signs, then
+    # form the third as a cross product so the reported basis is right-handed.
+    for index in (0, 1):
+        dominant = int(np.argmax(np.abs(axes[:, index])))
+        if axes[dominant, index] < 0:
+            axes[:, index] *= -1
+    axes[:, 2] = np.cross(axes[:, 0], axes[:, 1])
+    axes[:, 2] /= np.linalg.norm(axes[:, 2])
+    principal = centered @ axes
+    extents = np.maximum(0.001, np.percentile(principal, 95, axis=0)
+                         - np.percentile(principal, 5, axis=0))
+    long_axis, short_axis, surface_normal = axes.T
     spread = np.maximum(0.001, np.percentile(np.abs(board - centroid), 90, axis=0))
     return {
         "color": color,
         "position": centroid.copy(),
         "surface_centroid": centroid,
         "surface_centroid_spread_m": spread,
-        "orientation_matrix": np.column_stack((long_axis, short_axis, normal)),
-        "dimensions_m": dimensions,
+        "orientation_matrix": axes,
+        "dimensions_m": extents,
         "dimension_uncertainty_m": np.maximum(0.001, np.std(board, axis=0)),
         "height_m": None,
         "depth_points": len(board),
         "grasps": [],
         "geometric_only": True,
         "pickup_eligible": False,
+        "execution_eligible": False,
+        "eligibility_reason": "not_support_plane_qualified",
+        "execution_eligibility_reason": "not_ik_or_collision_checked",
         "observation_geometry": "visible_surface_centroid",
         "object_center_qualified": False,
         "dimensions_semantics": "visible_surface_extent_only",
@@ -457,8 +457,7 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                     contour_global, pixels[selected], samples[valid][selected],
                     intrinsics, distortion, transform, plane, color, max_opening_m,
                     pickup_roi, max_object_height_m)
-                if pickup is not None and _inside_roi(
-                        np.asarray(pickup["position"]).reshape(1, 3), pickup_roi)[0]:
+                if pickup is not None:
                     pickup["surface_centroid"] = visible["surface_centroid"]
                     pickup["surface_centroid_spread_m"] = visible[
                         "surface_centroid_spread_m"]
@@ -1060,6 +1059,11 @@ class ColoredObjectsNode:
                             "candidate_id": f"{det.id}-g{grasp_index}", "track_id": obj["track_id"],
                             "color": obj["color"], "frame_id": self.board_frame,
                             "geometric_only": True, "ik_validated": False, "collision_checked": False,
+                            "pickup_eligible": bool(obj["pickup_eligible"]),
+                            "execution_eligible": False,
+                            "eligibility_reason": obj["eligibility_reason"],
+                            "execution_eligibility_reason": obj[
+                                "execution_eligibility_reason"],
                             "closing_axis_world": grasp["closing_axis"].tolist(),
                             "approach_direction_world": grasp["approach_direction"].tolist(),
                             "opening_m": grasp["opening_m"],
@@ -1087,6 +1091,8 @@ class ColoredObjectsNode:
                             "surface_centroid_spread_m"].tolist(),
                         "object_center_qualified": obj["object_center_qualified"],
                         "pickup_eligible": obj["pickup_eligible"],
+                        "execution_eligible": obj["execution_eligible"],
+                        "eligibility_reason": obj["eligibility_reason"],
                         "velocity_world_m_s": obj["velocity"].tolist(), "age_s": obj["age_s"],
                         "dimensions_observed_m": obj["dimensions_m"].tolist(),
                         "dimensions_semantics": obj["dimensions_semantics"],
