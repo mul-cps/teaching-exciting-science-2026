@@ -22,12 +22,15 @@ import time
 import uuid
 
 from workshop.safe_home import load_home
+from . import arm as arm_module
 from .config import JOINTS, load_config
 from .locking import station_lock, station_lock_path
 from .camera_recovery import plan_bound_reentry
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
                              ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S,
                              path_digest, prepare_trajectory)
+
+RUNTIME_SOURCE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 PERIOD_S = 0.05
 ROS_MAX_TRACK_ERROR_RAD = math.radians(10.0)
@@ -115,8 +118,11 @@ class ArmSession:
     def __init__(self, arm, state_file, logdir, *, clock=time.monotonic,
                  wall_clock=lambda: datetime.now(timezone.utc), sleep=time.sleep,
                  idle_timeout=60.0, recover_sag=False, persistent_idle=False,
-                 camera_scene_provider=None, camera_recovery_policy=None):
+                 camera_scene_provider=None, camera_recovery_policy=None, observe_only=False):
         self.arm = arm
+        self._observe_only = bool(observe_only)
+        self._owner_source_sha256 = {"arm_session": RUNTIME_SOURCE_SHA256,
+                                     "arm": arm_module.RUNTIME_SOURCE_SHA256}
         self.bus = arm.bus
         self.state_file = Path(state_file)
         self.logdir = Path(logdir)
@@ -222,8 +228,8 @@ class ArmSession:
             f"({attempts - 1} retries, {diagnostic['duration_s']:.6f}s): {error}") from error
 
     def _write_each(self, register, values):
-        if self._component_scope:
-            raise RuntimeError("component scope prohibits body writes")
+        if self._observe_only or self._component_scope:
+            raise RuntimeError("passive/component scope prohibits body writes")
         for joint in JOINTS:
             self._poll_busy_input()
             self.bus.write(register, joint, values[joint], normalize=False, num_retry=0)
@@ -366,7 +372,10 @@ class ArmSession:
         self._log_stream = self.log_path.open("a", buffering=1)
         try:
             if self.bus is None or not self.bus.is_connected:
-                self.arm.connect()
+                if self._observe_only:
+                    self.arm.connect(observe_only=True)
+                else:
+                    self.arm.connect()
                 self.bus = self.arm.bus
             self.arm._calibration()
             self.calibration_digest = self.arm.settings["calibration"]["sha256"]
@@ -403,7 +412,8 @@ class ArmSession:
                 if self.admitted_min[joint] > self.admitted_max[joint]:
                     raise ValueError("empty firmware/calibration/configured raw intersection: " + joint)
             torque = self._read("Torque_Enable")
-            if any(value != 0 for value in torque.values()):
+            torque_stamp, torque_utc = self.clock(), self.wall_clock()
+            if not self._observe_only and any(value != 0 for value in torque.values()):
                 raise RuntimeError("resident session requires verified torque-off startup")
             # Validate measured-home provenance and its calibrated representation.
             self.home_pose = self.arm._pose(load_home(
@@ -414,12 +424,15 @@ class ArmSession:
                    for j in JOINTS):
                 raise ValueError("measured home is outside firmware limits")
             actual = self._read("Present_Position")
+            position_stamp, position_utc = self.clock(), self.wall_clock()
             for joint in JOINTS:
-                if not self.firmware_min[joint] <= actual[joint] <= self.firmware_max[joint]:
+                if not self._observe_only and not self.firmware_min[joint] <= actual[joint] <= self.firmware_max[joint]:
                     overrun = actual[joint] - self.firmware_max[joint] if actual[joint] > self.firmware_max[joint] else self.firmware_min[joint] - actual[joint]
                     if (not self._sag_recovery_available or joint == "gripper" or overrun > 16):
                         raise ValueError("actual raw position outside firmware limits: " + joint)
-            state = self.publish_state(event="connected", torque=torque, raw=actual)
+            state = self.publish_state(event="connected", torque=torque, raw=actual,
+                position_monotonic=position_stamp, position_utc=position_utc,
+                torque_monotonic=torque_stamp, torque_utc=torque_utc)
             self._event("connected", state=state)
             self._initialized = True
             self.last_command = self.clock()
@@ -441,7 +454,8 @@ class ArmSession:
         self._record(dict(event=event, utc=self.wall_clock().isoformat(),
                           monotonic=self.clock(), arm_id=self.arm.settings["id"],
                           calibration_sha256=self.calibration_digest,
-                          write_scope="gripper_only" if self._component_scope else "normal",
+                          write_scope=("observe_only" if self._observe_only else
+                                       "gripper_only" if self._component_scope else "normal"),
                           component_profile_registers=dict(self._component_profile_readback),
                           component_command=(dict(self._component_command) if self._component_command else None),
                           component_restore_pending=self._component_saved_ram is not None,
@@ -489,12 +503,15 @@ class ArmSession:
             raise RuntimeError("non-binary torque state")
         state = dict(schema=1, event=event, arm_id=self.arm.settings["id"],
                      calibration_sha256=self.calibration_digest,
+                     observe_only=self._observe_only,
+                     owner_source_sha256=self._owner_source_sha256,
                      timestamp_utc=position_utc.isoformat(),
                      monotonic=position_monotonic, raw=raw, pose=pose, torque=torque,
                      torque_timestamp_utc=torque_utc.isoformat(),
                      torque_monotonic=torque_monotonic,
                      violations=violations,
-                     write_scope="gripper_only" if self._component_scope else "normal",
+                     write_scope=("observe_only" if self._observe_only else
+                                       "gripper_only" if self._component_scope else "normal"),
                      component_profile_registers=dict(self._component_profile_readback),
                      component_command=(dict(self._component_command) if self._component_command else None),
                      component_restore_pending=self._component_saved_ram is not None,
@@ -578,6 +595,8 @@ class ArmSession:
         self._component_scope = False
 
     def _ensure_profile(self, *, teleop=False):
+        if self._observe_only:
+            raise ArmPlanPreflightError("observe-only owner requires explicit verified stop before motion")
         self._release_component_scope()
         self._poll_busy_input()
         self._calibration_guard()
@@ -610,6 +629,8 @@ class ArmSession:
                         "native-8-160-220-torque-700-250")
 
     def _enable_current_goal(self, target, started, label):
+        if self._observe_only:
+            raise ArmPlanPreflightError("observe-only owner prohibits goals and enabling torque")
         self._release_component_scope()
         # Install goals before enabling torque; verify broadcast write/readback.
         self._check_leg_deadline(started, label)
@@ -1016,6 +1037,8 @@ class ArmSession:
     def cancel_hold(self):
         """Replace goals with measured pose while preserving torque state."""
         self._require_initialized()
+        if self._observe_only:
+            raise ArmPlanPreflightError("observe-only owner prohibits cancel-hold goal writes")
         if self._component_scope:
             self._component_shutdown("component_cancel_disarm")
             return self.publish_state(event="component_cancel_disarmed")
@@ -1712,6 +1735,8 @@ class ArmSession:
         No automatic retry, profile escalation or calibration update.
         """
         self._require_initialized()
+        if self._observe_only:
+            raise ArmPlanPreflightError("observe-only owner requires explicit verified stop before commissioning")
         if type(delta_counts) is not int or not 0 < abs(delta_counts) <= 16:
             raise ArmPlanPreflightError("delta_counts must be a nonzero integer in [-16,16]")
         self._component_scope = True  # before any fallible I/O; persists after return
@@ -1853,6 +1878,10 @@ class ArmSession:
 
     def shutdown(self, *, reason="stop"):
         """Disable and verify each servo, then restore saved volatile RAM only."""
+        if self._observe_only:
+            # Observe-only idle/EOF/failure/exit never turn a read-only reconnect
+            # into implicit torque writes. Explicit command_stop is distinct.
+            return True
         if self._component_scope:
             return self._component_shutdown(reason)
         if self._shutdown_complete:
@@ -1901,6 +1930,8 @@ class ArmSession:
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
+        if self._observe_only and name not in {"read_state", "stop", "exit"}:
+            raise ArmPlanPreflightError("observe-only owner requires explicit verified stop before motion")
         if self._teleop is not None and name in ("move_plan", "move_gripper", "commission_gripper_step", "recover_camera", "home", "execute_trajectory"):
             raise ArmPlanPreflightError("finite motion is unavailable during active teleop")
         if name == "read_state":
@@ -1960,7 +1991,14 @@ class ArmSession:
             return {"ok": True, "state": self.home()}
         if name == "stop":
             request_id = self._stop_request_id(command)
-            self.shutdown(reason="command_stop")
+            was_observe_only = self._observe_only
+            self._observe_only = False  # explicit stop authorizes disarm, never motion
+            self._shutdown_complete = False if was_observe_only else self._shutdown_complete
+            try:
+                self.shutdown(reason="command_stop")
+            except BaseException:
+                self._observe_only = was_observe_only
+                raise
             self._teleop = None
             if request_id is not None:
                 self.publish_state(event="torque_off")
@@ -2143,6 +2181,8 @@ def main(argv=None):
     parser.add_argument("--idle-timeout", type=float, default=60.0)
     parser.add_argument("--persistent-idle", action="store_true",
                         help="after the idle timeout, torque off once and keep publishing read-only state until exit")
+    parser.add_argument("--observe-only", action="store_true",
+                        help="open/passively sample without writes until explicit stop")
     parser.add_argument("--recover-sag", action="store_true",
                         help="admit only <=16-count initial body sag moving inward")
     parser.add_argument("--lock", type=Path, default=station_lock_path())
@@ -2159,7 +2199,7 @@ def main(argv=None):
                                   lock_path=args.lock,
                                   idle_timeout=args.idle_timeout,
                                   persistent_idle=args.persistent_idle,
-                                  recover_sag=args.recover_sag)
+                                  recover_sag=args.recover_sag, observe_only=args.observe_only)
     except KeyboardInterrupt:
         return 130
     except BaseException as error:
@@ -2169,7 +2209,7 @@ def main(argv=None):
 
 
 def run_locked_session(config, state_file, logdir, *, lock_path,
-                       idle_timeout=60.0, recover_sag=False, persistent_idle=False, fd=0,
+                       idle_timeout=60.0, recover_sag=False, persistent_idle=False, observe_only=False, fd=0,
                        emit=lambda value: print(json.dumps(value, allow_nan=False), flush=True),
                        lock_factory=station_lock, arm_factory=None,
                        session_factory=ArmSession):
@@ -2185,7 +2225,8 @@ def run_locked_session(config, state_file, logdir, *, lock_path,
             session = session_factory(arm, state_file, logdir,
                                       idle_timeout=idle_timeout,
                                       persistent_idle=persistent_idle,
-                                      recover_sag=recover_sag)
+                                      recover_sag=recover_sag,
+                                      **({"observe_only": True} if observe_only else {}))
             session.initialize()
             return session.serve(fd=fd, emit=emit)
         except BaseException as error:
@@ -2202,7 +2243,7 @@ def run_locked_session(config, state_file, logdir, *, lock_path,
                         raise
                 finally:
                     try:
-                        if session._component_scope:
+                        if session._component_scope or session._observe_only:
                             # LeRobotArm.close() calls its global stop(), which
                             # writes all six servos independently of this owner.
                             # The SDK's explicit disable_torque=False path only

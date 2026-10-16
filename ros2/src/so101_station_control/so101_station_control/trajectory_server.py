@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import functools
 import importlib.util
 import math
@@ -39,7 +40,7 @@ ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wris
 
 
 def _arm_session_command(station_python, config, state_file, log_dir, lock, idle_timeout_s,
-                         recover_sag=False):
+                         recover_sag=False, observe_only=False):
     timeout = float(idle_timeout_s)
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("owner_idle_timeout_s must be finite and positive")
@@ -47,6 +48,8 @@ def _arm_session_command(station_python, config, state_file, log_dir, lock, idle
             "--config", str(config), "--state-file", str(state_file),
             "--logdir", str(log_dir), "--lock", str(lock),
             "--persistent-idle", "--idle-timeout", str(timeout)]
+    if observe_only:
+        command.append("--observe-only")
     if recover_sag:
         command.append("--recover-sag")
     return command
@@ -65,6 +68,25 @@ def _owner_state_is_ready(state, *, arm_id, calibration_sha256, owner_started):
             state.get("calibration_sha256") == calibration_sha256 and
             isinstance(torque, dict) and torque and
             all(value == 0 for value in torque.values()))
+
+
+def _observe_owner_error(state, *, arm_id, calibration_sha256, owner_started, source_sha256, now):
+    """Validate a new passive generation independently of torque-off readiness."""
+    if not isinstance(state, dict) or state.get("observe_only") is not True:
+        return "new observe-only owner state missing"
+    if (state.get("arm_id") != arm_id or state.get("calibration_sha256") != calibration_sha256 or
+            state.get("owner_source_sha256") != source_sha256):
+        return "owner identity, calibration or source pin mismatch"
+    for key in ("monotonic", "torque_monotonic"):
+        stamp = state.get(key)
+        if type(stamp) not in (int, float) or not max(owner_started, now-.1) <= stamp <= now:
+            return "new owner encoder/torque state is not fresh"
+    for key, upper in (("raw", 4095), ("torque", 1)):
+        values = state.get(key)
+        if (not isinstance(values, dict) or set(values) != set(TELEOP_JOINTS) or
+                any(type(v) is not int or not 0 <= v <= upper for v in values.values())):
+            return "new owner lacks six-joint raw/torque readback"
+    return None
 
 
 def _load_measured_home(config_data, station_root, arm_id, calibration_sha256):
@@ -271,6 +293,9 @@ class TrajectoryBridge(Node):
         self._closed = False
         self._process = None
         self._owner_started = 0.0
+        self._owner_readers = []
+        self._owner_source_expected = None
+        self._reconnect_observe = False
         self._owner_faulted = False
         self._expected_arm_id = None
         self._expected_calibration_sha256 = None
@@ -324,6 +349,8 @@ class TrajectoryBridge(Node):
             SetBool, str(self.get_parameter("teleop_enable_service").value),
             self._set_teleop_enabled, callback_group=self._teleop_service_group)
         self._stop_group = MutuallyExclusiveCallbackGroup()
+        self._reconnect_service = self.create_service(
+            Trigger, "/follower/reconnect", self._reconnect, callback_group=self._stop_group)
         self._stop_service = self.create_service(
             Trigger, str(self.get_parameter("stop_service").value),
             self._stop, callback_group=self._stop_group)
@@ -399,7 +426,7 @@ class TrajectoryBridge(Node):
         spec.loader.exec_module(module)
         return module
 
-    def _start_owner(self):
+    def _start_owner(self, *, observe_only=False):
         if self._external_state_only:
             raise RuntimeError("external_state_only mode must never start an ArmSession owner")
         if not bool(self.get_parameter("enable_hardware").value):
@@ -462,7 +489,10 @@ class TrajectoryBridge(Node):
         command = _arm_session_command(
             station_python, config, self._state_file, logs, lock,
             self.get_parameter("owner_idle_timeout_s").value,
-            self.get_parameter("recover_sag").value)
+            self.get_parameter("recover_sag").value, observe_only=observe_only)
+        self._owner_source_expected = {name: hashlib.sha256(
+            (station_root / "workshop/station" / (name+".py")).read_bytes()).hexdigest()
+            for name in ("arm_session", "arm")}
         child_env = os.environ.copy()
         for key in tuple(child_env):
             if (key.startswith(("PYTHON", "LD_", "ROS_", "AMENT_", "COLCON_", "RMW_",
@@ -472,27 +502,44 @@ class TrajectoryBridge(Node):
         child_env["PATH"] = os.pathsep.join((str(Path(station_python).parent), os.defpath))
         self.get_logger().info("Starting the configured ArmSession bus owner subprocess")
         self._owner_started = time.monotonic()
+        if self._closed:
+            raise RuntimeError("bridge closed before owner spawn")
         self._process = subprocess.Popen(
             command, cwd=station_root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, text=True, bufsize=1, env=child_env)
-        threading.Thread(target=self._read_responses, daemon=True).start()
-        threading.Thread(target=self._read_stderr, daemon=True).start()
+        process = self._process
+        self._owner_readers = [threading.Thread(target=callback, args=(process,), daemon=True)
+                               for callback in (self._read_responses, self._read_stderr)]
+        for reader in self._owner_readers:
+            reader.start()
         deadline = time.monotonic() + 20.0
         while time.monotonic() < deadline:
+            if self._closed:
+                raise RuntimeError("bridge closed during owner startup")
             if self._process.poll() is not None:
                 raise RuntimeError(f"ArmSession exited during startup ({self._process.returncode})")
             state = self._read_state()
-            if _owner_state_is_ready(state, arm_id=expected_arm_id,
+            if observe_only:
+                if _observe_owner_error(state, arm_id=expected_arm_id,
+                        calibration_sha256=expected_calibration_sha256,
+                        owner_started=self._owner_started, source_sha256=self._owner_source_expected,
+                        now=time.monotonic()) is None:
+                    return state
+            elif _owner_state_is_ready(state, arm_id=expected_arm_id,
                                      calibration_sha256=expected_calibration_sha256,
                                      owner_started=self._owner_started):
                 self.get_logger().info("ArmSession connected; action server is ready")
                 return
             time.sleep(0.05)
-        self._process.terminate()
+        if not observe_only:
+            self._process.terminate()
         raise RuntimeError("ArmSession state did not become fresh within 20 seconds")
 
-    def _read_responses(self):
-        for line in self._process.stdout:
+    def _read_responses(self, process=None):
+        process = self._process if process is None else process
+        for line in process.stdout:
+            if process is not self._process:
+                return
             try:
                 response = json.loads(line)
                 if self._route_stop_response(response):
@@ -562,6 +609,65 @@ class TrajectoryBridge(Node):
     def _write_stop(self, command, deadline):
         self._write_owner_command(command, deadline)
 
+    def _reconnect(self, _request, response):
+        """Explicit dead-owner replacement; startup is strictly observe-only."""
+        response.success = False
+        if not self._stop_lock.acquire(blocking=False):
+            response.message = "stop/reconnect lifecycle operation is active"
+            return response
+        old_barrier = self._stop_latched
+        reserved = False
+        try:
+            if self._external_state_only or self._closed:
+                raise RuntimeError("bridge cannot own a reconnect")
+            if self._process is not None and self._process.poll() is None:
+                raise RuntimeError("owner is alive; reconnect never kills or retries a live owner")
+            with self._stop_condition:
+                with self._active_lock:
+                    if self._active_goal is not None or self._control_callbacks:
+                        raise RuntimeError("owner operation or callback has not quiesced")
+                    self._stop_latched = True
+                    self._active_goal = "reconnect"
+                    reserved = True
+            self._owner_faulted = True
+            self._home_completed_owner_started = None
+            if self._process is not None:
+                self._process.wait(timeout=.5)
+            for reader in self._owner_readers:
+                reader.join(timeout=.5)
+                if reader.is_alive():
+                    raise RuntimeError("old owner reader has not quiesced")
+            while True:
+                try:
+                    self._response_queue.get_nowait()
+                except queue.Empty:
+                    break
+            self._writer_faulted = False
+            self._reconnect_observe = True
+            if self._closed:
+                raise RuntimeError("bridge closed before reconnect spawn")
+            state = self._start_owner(observe_only=True)
+            if self._closed:
+                raise RuntimeError("bridge closed during reconnect startup")
+            if any(state["torque"].values()):
+                response.message = "observe-only owner connected; torque is on, explicit stop required"
+                return response
+            response.success = True
+            response.message = json.dumps({"state": "observe_only_connected", "raw": state["raw"],
+                "torque": state["torque"], "owner_source_sha256": state["owner_source_sha256"],
+                "monotonic": state["monotonic"], "torque_monotonic": state["torque_monotonic"],
+                "fault_preserved": True, "explicit_stop_required": True})
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
+            response.message = str(error)
+        finally:
+            if reserved:
+                with self._active_lock:
+                    if self._active_goal == "reconnect":
+                        self._active_goal = None
+                self._stop_latched = old_barrier
+            self._stop_lock.release()
+        return response
+
     def _stop(self, _request, response):
         """Disarm the owner; success requires correlated fresh torque readback."""
         response.success = False
@@ -576,6 +682,13 @@ class TrajectoryBridge(Node):
         try:
             if self._external_state_only or self._process is None or self._process.poll() is not None:
                 raise RuntimeError("resident ArmSession owner is unavailable or read only")
+            if self._reconnect_observe:
+                error = _observe_owner_error(self._read_state(), arm_id=self._expected_arm_id,
+                    calibration_sha256=self._expected_calibration_sha256,
+                    owner_started=self._owner_started, source_sha256=self._owner_source_expected,
+                    now=time.monotonic())
+                if error is not None:
+                    raise RuntimeError(error)
             request_id = uuid.uuid4().hex
             # This lock is also the final admission check for every owner write.
             # Release it before taking _active_lock (execute uses the reverse order).
@@ -630,6 +743,7 @@ class TrajectoryBridge(Node):
             with self._write_lock:
                 self._stop_latched = False
                 self._owner_faulted = False
+                self._reconnect_observe = False
                 self._cancel_before_start = False
             response.success = True
             response.message = "owner stopped; all six servos verified torque off (disarmed)"
@@ -1308,8 +1422,11 @@ class TrajectoryBridge(Node):
             self._teleop_step_done.set()
             self.get_logger().error(f"Could not send teleop step: {error}")
 
-    def _read_stderr(self):
-        for line in self._process.stderr:
+    def _read_stderr(self, process=None):
+        process = self._process if process is None else process
+        for line in process.stderr:
+            if process is not self._process:
+                return
             self.get_logger().error("ArmSession: " + line.rstrip())
 
     def _read_state(self, *, allow_stale=False):
@@ -1901,13 +2018,22 @@ class TrajectoryBridge(Node):
         return self._result(error_code, message)
 
     def destroy_node(self):
+        # Signal first so an in-progress passive startup stops waiting. The same
+        # lifecycle lock prevents a replacement from surviving node destruction.
         self._closed = True
-        if self._process is not None and self._process.poll() is None:
-            try:
-                self._send({"command": "exit"})
-                self._process.wait(timeout=5.0)
-            except (BrokenPipeError, OSError, RuntimeError, subprocess.TimeoutExpired):
-                self._process.terminate()
+        with self._stop_lock:
+            if self._process is not None and self._process.poll() is None:
+                process = self._process
+                try:
+                    self._send({"command": "exit"})
+                    process.wait(timeout=5.0)
+                except (BrokenPipeError, OSError, RuntimeError, subprocess.TimeoutExpired):
+                    process.terminate()
+                    try:
+                        process.wait(timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=1.0)
         return super().destroy_node()
 
 

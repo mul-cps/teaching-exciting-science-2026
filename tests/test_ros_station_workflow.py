@@ -92,3 +92,7 @@ def test_gripper_step_cli_raw_counts_are_bounded():
     for delta in ('0', '17', '-17', '1.5'):
         with pytest.raises(SystemExit):
             parse_args(['gripper-step', delta])
+
+
+def test_arm_connect_cli_is_explicit_follower_lifecycle_command():
+    assert parse_args(['arm-connect']).command == 'arm-connect'

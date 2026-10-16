@@ -15,6 +15,8 @@ import json
 import math
 import os
 from pathlib import Path
+
+RUNTIME_SOURCE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 import threading
 import time
 import uuid
@@ -77,8 +79,9 @@ class LeRobotArm:
         self.calibration = data
         return data
 
-    def connect(self):
-        """Select exact persistent USB identity; bus-only connection, torque off."""
+    def connect(self, *, observe_only=False):
+        """Open exact USB identity; default disarms, observe-only never writes."""
+        self._observe_only_transport = bool(observe_only)
         self._calibration()
         if self.bus is None:
             from .discovery import discover_arm
@@ -97,7 +100,8 @@ class LeRobotArm:
             try:
                 self.bus.connect(handshake=False)
                 self._timeouts()
-                self.stop()
+                if not observe_only:
+                    self.stop()
                 # The normal connect handshake is deliberately replaced with
                 # explicit six-model and firmware readback after timeout setup.
                 for k in JOINTS:
@@ -364,7 +368,9 @@ class LeRobotArm:
 
     def close(self):
         error = None
-        try: self.stop()
+        try:
+            if not getattr(self, "_observe_only_transport", False):
+                self.stop()
         except BaseException as failure: error = failure
         finally:
             if self.bus is not None and self.bus.is_connected:

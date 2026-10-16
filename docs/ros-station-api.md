@@ -170,3 +170,40 @@ observation log is written before guard rejection, and single-register command
 logs preserve intended value, actual scalar readback/type and write/read timing.
 These diagnostics distinguish the rejected observation from subsequent cleanup;
 they do not convert unexpected torque into an admitted state or retry a command.
+
+## Recovering a terminated follower owner using ROS
+
+```sh
+ros2/scripts/station-action.sh arm-connect
+ros2/scripts/station-action.sh stop
+# Wait for the coordinated station stop to confirm both EV3 and follower.
+ros2/scripts/station-action.sh status
+ros2/scripts/station-action.sh reset-fault
+```
+
+`arm-connect` calls `/follower/reconnect` (`std_srvs/srv/Trigger`) and waits for
+an explicitly requested replacement of a dead/disconnected owner. It never
+kills or replaces a live owner, including an owner with stale telemetry. Active
+actions, teleoperation, pending control callbacks and concurrent stop/reconnect
+block replacement. Existing bridge/automatic-cycle faults remain latched and
+measured-home completion is invalidated.
+
+The replacement opens in observe-only mode under the same canonical ownership
+lock and exact configured USB/calibration identity. Startup and all implicit
+idle/error/EOF/close paths perform no servo writes. New-generation state must
+report matching runtime hashes of the imported `arm.py` and `arm_session.py`,
+exact identity/calibration and all six encoder/torque values acquired within
+100 ms. Hashes are computed once per import/generation, never on telemetry ticks.
+
+Reconnect success requires all six torque states off. If fresh telemetry shows
+any torque on, reconnect returns false/not ready **and keeps the observe-only
+owner alive** for explicit stop. Observe-only mode rejects motion, calibration
+steps and teleoperation. Only an explicit `/follower/stop` (also used by the
+coordinated station stop above) authorizes disarming writes and fresh verification;
+only successful verification may leave observe-only mode. Unknown identity,
+source or stale feedback prevents that stop admission. Reconnect itself never
+homes, moves, changes calibration/qualification, retries a command, or resets a
+fault. After explicit stop/reset, all ordinary motion and physical qualification
+gates still apply. A direct commissioning failure can be recovered with
+`arm-connect` followed by an explicit `/follower/stop`; automatic station faults
+also require the coordinated station stop and explicit station fault reset.
