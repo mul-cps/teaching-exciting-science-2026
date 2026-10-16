@@ -143,7 +143,11 @@ def test_rapid_duplicate_ack_cannot_release_new_command(bridge):
     try:
         for sequence in range(30):
             latest(node, sequence)
-            spin_for(executor, .009)
+            # Correlation is the contract here; tolerate host scheduling beyond
+            # one 8 ms timer period. The separate IPC matrix pins real cadence.
+            deadline = time.monotonic() + .05
+            while len(commands) < sequence + 1 and time.monotonic() < deadline:
+                executor.spin_once(timeout_sec=.005)
             assert len(commands) == sequence + 1
             if sequence:
                 ack(node, sequence - 1)

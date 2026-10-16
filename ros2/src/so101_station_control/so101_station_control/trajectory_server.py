@@ -55,6 +55,17 @@ def _arm_session_command(station_python, config, state_file, log_dir, lock, idle
     return command
 
 
+def _load_owner_source_hashes(station_root):
+    """Use the child's shared source-map contract once for this owner generation."""
+    directory = Path(station_root) / "workshop/station"
+    spec = importlib.util.spec_from_file_location(
+        "so101_owner_source_contract", directory / "recovery_types.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.owner_source_sha256(directory)
+
+
 def _owner_state_is_ready(state, *, arm_id, calibration_sha256, owner_started):
     if not isinstance(state, dict) or state.get("event") not in {"connected", "sample"}:
         return False
@@ -195,7 +206,7 @@ def _control_callback(callback):
             if self._stop_latched:
                 if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
                     return GoalResponse.REJECT
-                if callback.__name__ in {"_home", "_commission_gripper_step", "_calibration_ready", "_set_teleop_enabled"}:
+                if callback.__name__ in {"_home", "_recover_camera", "_commission_gripper_step", "_calibration_ready", "_set_teleop_enabled"}:
                     response = args[1]
                     response.success, response.message = False, "owner stop remains latched"
                     return response
@@ -305,6 +316,10 @@ class TrajectoryBridge(Node):
         self._saved_home_pose = None
         self._saved_home_tolerance = None
         self._home_completed_owner_started = None
+        self._state_cache_lock = threading.Lock()
+        self._cached_owner_state = None
+        self._cached_owner_generation = None
+        self._cached_owner_reason = "cached_state_missing"
         self._state_file = self._resolve_state_file()
         self._gripper_jaw = None
         self._gripper_raw_limits = None
@@ -360,6 +375,12 @@ class TrajectoryBridge(Node):
         self._home_service = self.create_service(
             Trigger, str(self.get_parameter("home_service").value),
             self._home, callback_group=self._teleop_service_group)
+        self._recover_camera_service = self.create_service(
+            Trigger, "/follower/recover_camera", self._recover_camera,
+            callback_group=self._teleop_service_group)
+        self._status_group = MutuallyExclusiveCallbackGroup()
+        self._status_service = self.create_service(
+            Trigger, "/follower/status", self._status, callback_group=self._status_group)
         self._commission_gripper_service = self.create_service(
             CommissionGripperStep, "/follower/commission_gripper_step",
             self._commission_gripper_step, callback_group=self._teleop_service_group)
@@ -497,9 +518,7 @@ class TrajectoryBridge(Node):
             station_python, config, self._state_file, logs, lock,
             self.get_parameter("owner_idle_timeout_s").value,
             self.get_parameter("recover_sag").value, observe_only=observe_only)
-        self._owner_source_expected = {name: hashlib.sha256(
-            (station_root / "workshop/station" / (name+".py")).read_bytes()).hexdigest()
-            for name in ("arm_session", "arm")}
+        self._owner_source_expected = _load_owner_source_hashes(station_root)
         child_env = os.environ.copy()
         for key in tuple(child_env):
             if (key.startswith(("PYTHON", "LD_", "ROS_", "AMENT_", "COLCON_", "RMW_",
@@ -544,11 +563,17 @@ class TrajectoryBridge(Node):
 
     def _read_responses(self, process=None):
         process = self._process if process is None else process
+        generation = self._owner_started
         for line in process.stdout:
             if process is not self._process:
                 return
             try:
                 response = json.loads(line)
+                # The existing 20 Hz state reader caches teleop telemetry; do
+                # not copy every 125 Hz step acknowledgement into status.
+                if isinstance(response, dict) and response.get("command") != "teleop_step":
+                    self._cache_owner_state(response.get("state", response.get("final_state")),
+                                            generation=generation, process=process)
                 if self._route_stop_response(response):
                     continue
                 if not self._route_teleop_response(response):
@@ -752,6 +777,7 @@ class TrajectoryBridge(Node):
                 self._owner_faulted = False
                 self._reconnect_observe = False
                 self._cancel_before_start = False
+            self._cache_owner_state(state)
             response.success = True
             response.message = "owner stopped; all six servos verified torque off (disarmed)"
         except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as error:
@@ -1197,6 +1223,7 @@ class TrajectoryBridge(Node):
             response.success = True
             response.message = "measured home completed"
             self._home_completed_owner_started = self._owner_started
+            self._cache_owner_state(home_state)
         except (BrokenPipeError, OSError, RuntimeError, TimeoutError) as error:
             self._home_completed_owner_started = None
             response.success = False
@@ -1205,6 +1232,234 @@ class TrajectoryBridge(Node):
             with self._active_lock:
                 if self._active_goal == "home":
                     self._active_goal = None
+        return response
+
+    @_control_callback
+    def _recover_camera(self, _request, response):
+        """Request only the owner's qualified bounded camera re-entry operation."""
+        response.success = False
+        process, generation = self._process, self._owner_started
+        state = self._read_state()
+        if (self._external_state_only or self._closed or process is None or
+                process.poll() is not None or self._owner_faulted or self._reconnect_observe):
+            response.message = "resident ArmSession owner unavailable, faulted or awaiting verified stop"
+            return response
+        now = time.monotonic()
+        freshness = min(.1, float(self.get_parameter("state_freshness_s").value))
+        if (not isinstance(state, dict) or type(generation) not in (int, float) or
+                not math.isfinite(generation) or generation <= 0 or
+                state.get("observe_only") is not False or
+                state.get("arm_id") != self._expected_arm_id or
+                state.get("calibration_sha256") != self._expected_calibration_sha256 or
+                not isinstance(self._owner_source_expected, dict) or
+                state.get("owner_source_sha256") != self._owner_source_expected or
+                any(type(state.get(key)) not in (int, float) or
+                    not math.isfinite(state[key]) or
+                    not max(generation, now-freshness) <= state[key] <= now
+                    for key in ("monotonic", "torque_monotonic"))):
+            response.message = "fresh identity-matched non-observing owner state is required"
+            return response
+        with self._active_lock:
+            if (self._active_goal is not None or self._teleop_state != "disabled" or
+                    self._process is not process or self._owner_started != generation):
+                response.message = "another owner operation or generation is active"
+                return response
+            self._active_goal = "recover_camera"
+            self._home_completed_owner_started = None
+        started = time.monotonic()
+        try:
+            while True:
+                try:
+                    self._response_queue.get_nowait()
+                except queue.Empty:
+                    break
+            self._send({"command": "recover_camera"})
+            deadline = started + 8.0  # owner bounds its admitted operation to six seconds
+            while True:
+                if (self._process is not process or self._owner_started != generation or
+                        process.poll() is not None):
+                    raise RuntimeError("owner generation changed during camera recovery")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("camera recovery result unknown; verified stop required before retry")
+                try:
+                    result = self._response_queue.get(timeout=min(.05, remaining))
+                    break
+                except queue.Empty:
+                    continue
+            if not isinstance(result, dict):
+                raise RuntimeError("camera recovery acknowledgement is not an object")
+            if (result.get("ok") is not True or result.get("cancelled") or result.get("stopped")):
+                raise RuntimeError(result.get("error", "camera recovery did not complete"))
+            completion = result.get("state")
+            now = time.monotonic()
+            freshness = min(.1, float(self.get_parameter("state_freshness_s").value))
+            if not isinstance(completion, dict):
+                raise RuntimeError("camera recovery completion state is missing")
+            raw, torque = completion.get("raw"), completion.get("torque")
+            stamps = (completion.get("monotonic"), completion.get("torque_monotonic"))
+            if (self._process is not process or self._owner_started != generation or
+                    process.poll() is not None or self._stop_latched or self._closed or
+                    completion.get("event") != "camera_recovery_complete" or
+                    completion.get("observe_only") is not False or
+                    completion.get("owner_source_sha256") != self._owner_source_expected or
+                    completion.get("arm_id") != self._expected_arm_id or
+                    completion.get("calibration_sha256") != self._expected_calibration_sha256 or
+                    any(type(stamp) not in (int, float) or not math.isfinite(stamp) or
+                        not max(started, now-freshness) <= stamp <= now for stamp in stamps) or
+                    not isinstance(raw, dict) or set(raw) != set(TELEOP_JOINTS) or
+                    any(type(value) is not int or not 0 <= value <= 4095 for value in raw.values()) or
+                    not isinstance(torque, dict) or set(torque) != set(TELEOP_JOINTS) or
+                    any(type(value) is not int or value != 1 for value in torque.values())):
+                raise RuntimeError("camera recovery lacks fresh generation-bound torque-on held completion")
+            self._cache_owner_state(completion, generation=generation, process=process)
+            response.success = True
+            response.message = json.dumps({"schema": 1, "state": "camera_recovery_complete",
+                "home_completed_this_session": False, "raw": raw, "torque": torque})
+        except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as error:
+            self._owner_faulted = True
+            response.message = str(error)
+        finally:
+            with self._active_lock:
+                self._home_completed_owner_started = None
+                if self._active_goal == "recover_camera":
+                    self._active_goal = None
+        return response
+
+    def _cache_owner_state(self, state, *, generation=None, process=None):
+        """Prune already-read telemetry to bounded fields, bound to its reader generation."""
+        state = state if isinstance(state, dict) else {}
+        generation = self._owner_started if generation is None else generation
+        process = self._process if process is None else process
+        def stamp(key):
+            value = state.get(key)
+            return value if type(value) in (int, float) and math.isfinite(value) else None
+        position, torque_stamp = stamp("monotonic"), stamp("torque_monotonic")
+        reason = None
+        if type(generation) not in (int, float) or not math.isfinite(generation) or generation <= 0:
+            reason = "owner_generation_unconfirmed"
+        elif position is None or position < generation:
+            reason = "position_sample_precedes_owner_or_invalid"
+        elif torque_stamp is None or torque_stamp < generation:
+            reason = "torque_sample_precedes_owner_or_invalid"
+        retained = {key: state.get(key) if isinstance(state.get(key), str) and
+                    len(state[key]) <= 128 else None
+                    for key in ("event", "arm_id", "calibration_sha256")}
+        retained.update(monotonic=position, torque_monotonic=torque_stamp,
+                        observe_only=state.get("observe_only") if
+                        type(state.get("observe_only")) is bool else None)
+        for key in ("raw", "pose", "torque"):
+            values = state.get(key)
+            valid = isinstance(values, dict) and set(values) == set(TELEOP_JOINTS)
+            if valid and key == "pose":
+                valid = all(type(value) in (int, float) and math.isfinite(value)
+                            for value in values.values())
+            elif valid:
+                upper = 4095 if key == "raw" else 1
+                valid = all(type(value) is int and 0 <= value <= upper for value in values.values())
+            retained[key] = dict(values) if valid else None
+        sources = state.get("owner_source_sha256")
+        expected_sources = self._owner_source_expected
+        retained["owner_source_sha256"] = (dict(sources) if
+            isinstance(sources, dict) and isinstance(expected_sources, dict) and
+            0 < len(expected_sources) <= 4 and set(sources) == set(expected_sources) and
+            all(isinstance(value, str) and len(value) == 64 for value in sources.values()) else None)
+        with self._state_cache_lock:
+            if self._owner_started == generation and self._process is process:
+                self._cached_owner_state = retained if reason is None else None
+                self._cached_owner_generation = generation
+                self._cached_owner_reason = reason
+
+    def _status(self, _request, response):
+        """Observe cached telemetry without I/O; this is not motion admission."""
+        now = time.monotonic()
+        with self._state_cache_lock:
+            state = self._cached_owner_state
+            cached_generation = self._cached_owner_generation
+            cache_reason = self._cached_owner_reason
+        with self._active_lock:
+            process, generation = self._process, self._owner_started
+            faulted, barrier = self._owner_faulted, self._stop_latched
+            active = self._active_goal
+            teleop_state = self._teleop_state
+            completed = self._home_completed_owner_started
+            observing = self._reconnect_observe
+            expected_sources = self._owner_source_expected
+        reasons = [cache_reason] if cache_reason else []
+        connected = bool(not self._closed and process is not None and process.poll() is None)
+        if not connected:
+            reasons.append("owner_disconnected")
+        state = state if isinstance(state, dict) else {}
+        if not state:
+            reasons.append("cached_state_missing")
+        def age(key):
+            stamp = state.get(key)
+            if type(stamp) not in (int, float) or not math.isfinite(stamp) or stamp > now:
+                reasons.append(key + "_missing_or_invalid")
+                return None
+            return now - stamp
+        position_age, torque_age = age("monotonic"), age("torque_monotonic")
+        generation_valid = (type(generation) in (int, float) and math.isfinite(generation) and
+                            generation > 0 and cached_generation == generation)
+        if not generation_valid:
+            reasons.append("owner_generation_unconfirmed")
+        identity = (bool(self._expected_arm_id) and bool(self._expected_calibration_sha256) and
+                    state.get("arm_id") == self._expected_arm_id and
+                    state.get("calibration_sha256") == self._expected_calibration_sha256)
+        if not identity:
+            reasons.append("owner_identity_unconfirmed")
+        mode = state.get("observe_only")
+        observe_only = True if observing else mode if type(mode) is bool else None
+        if observe_only is None:
+            reasons.append("observe_only_unknown")
+        raw, torque = state.get("raw"), state.get("torque")
+        measurements_valid = (isinstance(raw, dict) and set(raw) == set(TELEOP_JOINTS) and
+            all(type(value) is int and 0 <= value <= 4095 for value in raw.values()) and
+            isinstance(torque, dict) and set(torque) == set(TELEOP_JOINTS) and
+            all(type(value) is int and value in (0, 1) for value in torque.values()))
+        if not measurements_valid:
+            reasons.append("six_joint_measurements_unconfirmed")
+        freshness = float(self.get_parameter("state_freshness_s").value)
+        timely = (generation_valid and position_age is not None and torque_age is not None and
+                  0 <= position_age <= freshness and 0 <= torque_age <= freshness and
+                  state.get("monotonic", -1) >= generation and
+                  state.get("torque_monotonic", -1) >= generation)
+        if not timely:
+            reasons.append("measurements_not_fresh")
+        if self._process is not process or self._owner_started != generation:
+            connected = False
+            reasons.append("owner_changed_during_snapshot")
+        actual_sources = state.get("owner_source_sha256")
+        if not isinstance(actual_sources, dict):
+            actual_sources = None
+            reasons.append("owner_source_hashes_missing")
+        source_matches = (isinstance(expected_sources, dict) and bool(expected_sources) and
+                          actual_sources == expected_sources)
+        if not source_matches:
+            reasons.append("owner_source_hashes_unconfirmed")
+        home = bool(connected and generation_valid and identity and not faulted and not barrier and
+                    source_matches and observe_only is False and completed is not None and completed == generation)
+        trusted = generation_valid and identity and source_matches
+        payload = {"schema": 1, "kind": "follower_status", "sampled_monotonic": now,
+            "connected": connected, "fresh": bool(connected and generation_valid and identity and
+                                                    measurements_valid and timely and source_matches),
+            "observe_only": observe_only, "owner_faulted": bool(faulted),
+            "stop_latched": bool(barrier), "home_completed_this_session": home,
+            "active_operation": active if isinstance(active, str) else "trajectory" if active else None,
+            "teleop_state": teleop_state, "owner_started_monotonic": generation if generation_valid else None,
+            "position_age_s": position_age, "torque_age_s": torque_age,
+            "position_monotonic": state.get("monotonic") if position_age is not None else None,
+            "torque_monotonic": state.get("torque_monotonic") if torque_age is not None else None,
+            "raw": raw if trusted and measurements_valid else None,
+            "pose": state.get("pose") if trusted else None,
+            "torque": torque if trusted and measurements_valid else None,
+            "arm_id": state.get("arm_id"),
+            "calibration_sha256": state.get("calibration_sha256"),
+            "owner_source_sha256": actual_sources,
+            "expected_owner_source_sha256": expected_sources if isinstance(expected_sources, dict) else None,
+            "reasons": reasons}
+        response.success = True
+        response.message = json.dumps(payload, allow_nan=False)
         return response
 
     @_control_callback
@@ -1487,12 +1742,19 @@ class TrajectoryBridge(Node):
 
     def _read_state(self, *, allow_stale=False):
         try:
+            generation, process = self._owner_started, self._process
             state = json.loads(self._state_file.read_text())
+            self._cache_owner_state(state, generation=generation, process=process)
             if (not allow_stale and
                     time.monotonic() - float(state["monotonic"]) > float(self.get_parameter("state_freshness_s").value)):
                 return None
             return state
-        except (OSError, ValueError, KeyError, json.JSONDecodeError):
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+            with self._state_cache_lock:
+                if self._owner_started == generation and self._process is process:
+                    self._cached_owner_state = None
+                    self._cached_owner_generation = generation
+                    self._cached_owner_reason = "state_read_failed"
             return None
 
     def _send(self, command):
