@@ -137,6 +137,32 @@ def test_sparse_depth_color_patch_is_rejected_with_bounded_diagnostics():
         "supported_fraction"] < 0.9
 
 
+def test_final_child_silhouette_rejects_concave_patch_but_keeps_solid_brick():
+    rgb = np.full((480, 640, 3), 128, dtype=np.uint8)
+    depth = np.full((480, 640), 800, dtype=np.uint16)
+    # A depth-supported, square-bounded L-shaped artifact and a true solid
+    # rectangle have otherwise identical color/depth evidence.
+    rgb[180:220, 260:268] = [255, 0, 0]
+    rgb[212:220, 260:300] = [255, 0, 0]
+    rgb[180:220, 330:370] = [0, 255, 0]
+    report = analyze_rgbd(
+        rgb, depth, INTRINSICS, DISTORTION, 0.001, BOARD_FROM_CAMERA,
+        support_plane=SUPPORT_PLANE,
+    )
+    assert {obj["color"] for obj in report["objects"]} == {"green"}
+    accepted = report["objects"][0]["silhouette_validation"]
+    assert accepted["accepted"] is True
+    assert accepted["reason"] == "silhouette_consistent_with_convex_brick_prior"
+    assert accepted["metrics"]["min_rectangle_fill"] >= 0.45
+    diagnostics = report["validation_diagnostics"]
+    assert diagnostics["silhouette_checks"] == 2
+    assert diagnostics["silhouette_accepted"] == 1
+    assert diagnostics["rejection_reasons"][
+        "silhouette_inconsistent_with_convex_brick"] == 1
+    assert diagnostics["rejected_samples"][0]["metrics"][
+        "min_rectangle_fill"] < 0.45
+
+
 def test_optional_commissioned_observation_roi_remains_configurable():
     rgb, depth = rgbd_with_red_brick((0.27, 0.19, 0.12))
     report = analyze_rgbd(

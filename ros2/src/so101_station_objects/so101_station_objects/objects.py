@@ -32,6 +32,7 @@ if str(_ROOT) not in sys.path:
 from tools.propose_rgbd_grasp import color_masks  # noqa: E402
 from so101_station_objects.colored_object_validation import (  # noqa: E402
     split_depth_coherent_components,
+    validate_brick_silhouette,
     validate_colored_component,
 )
 from so101_station_objects.analysis_worker import LatestOnlyAnalysisWorker  # noqa: E402
@@ -404,6 +405,7 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
     validation_diagnostics = {
         "color_parent_components": 0, "depth_components": 0,
         "depth_accepted_components": 0, "rejected_components": 0,
+        "silhouette_checks": 0, "silhouette_accepted": 0,
         "rejection_reasons": {}, "rejected_samples": [],
     }
 
@@ -475,6 +477,13 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                 # only inside this already depth-coherent component.
                 contours = _split_elongated_contours(contours)
                 for contour in contours:
+                    validation_diagnostics["silhouette_checks"] += 1
+                    silhouette = validate_brick_silhouette(contour, min_rect_fill=0.45)
+                    if not silhouette.accepted:
+                        reject_component(color, silhouette.reason, piece.parent_pixels,
+                                         component_pixels, silhouette.metrics)
+                        continue
+                    validation_diagnostics["silhouette_accepted"] += 1
                     contour_mask = np.zeros((box_height, box_width), dtype=np.uint8)
                     cv2.drawContours(contour_mask, [contour], -1, 1, thickness=cv2.FILLED)
                     selected = inside & (contour_mask[pixels[:, 1] - y0,
@@ -517,6 +526,10 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                         "accepted": True, "reason": validation.reason,
                         "metrics": validation.metrics,
                         "depth_cut_pixels": int(piece.depth_cut_pixels),
+                    }
+                    item["silhouette_validation"] = {
+                        "accepted": True, "reason": silhouette.reason,
+                        "metrics": silhouette.metrics,
                     }
                     objects.append(item)
     return {"support_plane": plane, "objects": objects,
@@ -1235,6 +1248,7 @@ class ColoredObjectsNode:
                         "dimension_uncertainty_m": obj["dimension_uncertainty_m"].tolist(),
                         "dimension_source": "robust visible RGB-D point extent; not CAD or full-object measurement",
                         "depth_validation": obj["depth_validation"],
+                        "silhouette_validation": obj["silhouette_validation"],
                         "depth_points": obj["depth_points"], "geometric_only": True,
                         "ik_validated": False, "collision_checked": False,
                     } for obj in report["objects"]],
