@@ -34,6 +34,7 @@ from so101_station_objects.colored_object_validation import (  # noqa: E402
     split_depth_coherent_components,
     validate_brick_silhouette,
     validate_colored_component,
+    validate_child_visibility,
 )
 from so101_station_objects.analysis_worker import LatestOnlyAnalysisWorker  # noqa: E402
 from workshop.digital_twin.grasp_geometry import fit_support_plane, footprint_grasps  # noqa: E402
@@ -464,7 +465,7 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                 # extraction; morphology must never reconnect foreground and
                 # background surfaces separated by a depth discontinuity.
                 component = np.zeros((box_height, box_width), dtype=np.uint8)
-                component[pixels[inside, 1] - y0, pixels[inside, 0] - x0] = 1
+                component[pixels[:, 1] - y0, pixels[:, 0] - x0] = 1
                 observed_component = component.copy()
                 component = cv2.morphologyEx(component, cv2.MORPH_CLOSE,
                                              np.ones((3, 3), dtype=np.uint8))
@@ -489,13 +490,16 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                                          component_pixels, silhouette.metrics)
                         continue
                     validation_diagnostics["silhouette_accepted"] += 1
-                    selected = inside & (contour_mask[pixels[:, 1] - y0,
-                                                       pixels[:, 0] - x0] != 0)
-                    if int(selected.sum()) < 8:
+                    selected = contour_mask[pixels[:, 1] - y0, pixels[:, 0] - x0] != 0
+                    if int((inside & selected).sum()) < 8:
                         reject_component(color, "insufficient_roi_depth_pixels",
                                          piece.parent_pixels, int(selected.sum()),
                                          validation.metrics)
                         continue
+                    # ROI controls child admission only. Splitting, visibility
+                    # and geometry retain every original GLOBAL child pixel;
+                    # cropping cannot manufacture a smaller complete object.
+                    visibility = validate_child_visibility(pixels[selected], depth_m.shape)
                     contour_global = contour.reshape(-1, 2).copy()
                     contour_global[:, 0] += x0
                     contour_global[:, 1] += y0
@@ -513,7 +517,7 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                         continue
                     # A supported estimate is available only when the complete
                     # coherent component passes the support-height test.
-                    pickup = _component_geometry(
+                    pickup = None if not visibility.accepted else _component_geometry(
                         contour_global, pixels[selected], samples[selected],
                         intrinsics, distortion, transform, plane, color, max_opening_m,
                         pickup_roi, max_object_height_m)
@@ -524,6 +528,9 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                         item = pickup
                     else:
                         item = visible
+                    item["acquisition_eligible"] = visibility.accepted
+                    item["acquisition_eligibility_reason"] = visibility.reason
+                    item["image_boundary_sides"] = visibility.metrics["image_boundary_sides"]
                     item["pixel_area"] = int(selected.sum())
                     item["depth_validation"] = {
                         "accepted": True, "reason": validation.reason,
@@ -574,6 +581,7 @@ class StableObjectTracker:
         self.owned = set()
         self.attachment_records = {}
         self.expired_tracks = []
+        self.ineligible_new_observations = 0
 
     def invalidate_pending_acquisition(self, stamp_s, *, timestamp_is_trusted=False):
         """Break probation without trusting rejected exposures as a clock.
@@ -597,6 +605,7 @@ class StableObjectTracker:
                 "pending_count": pending,
                 "confirmed_count": len(self.tracks) - pending,
                 "max_pending_tracks": self.max_pending_tracks,
+                "ineligible_new_observations": self.ineligible_new_observations,
                 "evidence": "consecutive_unambiguous_independent_acquisition_frames"}
 
     def ownership_status(self, payload):
@@ -625,6 +634,7 @@ class StableObjectTracker:
             # Republishing or reprocessing one exposure is not more evidence.
             return []
         self.last_acquisition_stamp = stamp_s
+        self.ineligible_new_observations = 0
         retained = {}
         for key, track in self.tracks.items():
             age = stamp_s - track["stamp"]
@@ -753,7 +763,9 @@ class StableObjectTracker:
                              if candidate_track == track_id)
         # A candidate must occur in every analyzed acquisition, including frames
         # with no valid observations. Ambiguity never contributes confirmation.
-        accepted_tracks = {key for index, key in assignments.items() if index not in ambiguous}
+        accepted_tracks = {key for index, key in assignments.items() if index not in ambiguous
+                           and (self.tracks[key]["confirmed"] or
+                                objects[index].get("acquisition_eligible", True) is True)}
         for key in list(self.tracks):
             if not self.tracks[key]["confirmed"] and key not in accepted_tracks:
                 del self.tracks[key]
@@ -769,6 +781,10 @@ class StableObjectTracker:
             position = np.asarray(obj["position"], dtype=float)
             track_id = assignments.get(index)
             previous = self.tracks.get(track_id) if track_id is not None else None
+            if (obj.get("acquisition_eligible", True) is not True and
+                    (previous is None or not previous["confirmed"])):
+                self.ineligible_new_observations += 1
+                continue
             if track_id is None:
                 if self.acquisition_min_frames > 1 and pending_count >= self.max_pending_tracks:
                     continue
@@ -1314,6 +1330,9 @@ class ColoredObjectsNode:
                         "track_id": obj["track_id"], "color": obj["color"],
                         "acquisition_state": obj["acquisition_state"],
                         "acquisition_observations": obj["acquisition_observations"],
+                        "acquisition_eligible": obj["acquisition_eligible"],
+                        "acquisition_eligibility_reason": obj["acquisition_eligibility_reason"],
+                        "image_boundary_sides": obj["image_boundary_sides"],
                         "position_world": obj["position"].tolist(),
                         "position_semantics": obj["observation_geometry"],
                         "surface_centroid_world": obj["surface_centroid"].tolist(),

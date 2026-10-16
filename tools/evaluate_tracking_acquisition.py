@@ -31,7 +31,7 @@ def replay_statuses(capture, real_ids):
             source_extra += int(not real)
             objects.append({'color':item['color'],
                             'position':np.asarray(item['position_world']),
-                            '_annotated_real':real})
+                            '_annotated_real':real, **{key:item[key]for key in ('acquisition_eligible','acquisition_eligibility_reason','image_boundary_sides')if key in item}})
         records = state.update(objects, status['stamp'])
         rows.append({'stamp':status['stamp'],
                      'real':sum(item['_annotated_real'] for item in records),
@@ -42,7 +42,7 @@ def replay_statuses(capture, real_ids):
             'published_extra':sum(row['extra'] for row in rows), 'reports':rows}
 
 
-def replay_rgbd(capture):
+def replay_rgbd(capture, annotation_x_offset_px=0):
     state = StableObjectTracker(acquisition_min_frames=3)
     rows = []
     durations = []
@@ -60,15 +60,18 @@ def replay_rgbd(capture):
         for item in report['objects']:
             camera = np.linalg.inv(transform) @ np.append(item['surface_centroid'],1.)
             pixel = camera[:2]/camera[2]*[k[0],k[4]]+[k[2],k[5]]
-            item['_annotated_real'] = bool(350 < pixel[0] < 575 and 290 < pixel[1] < 445)
+            item['_annotated_real'] = bool(350 + annotation_x_offset_px < pixel[0] < 575 + annotation_x_offset_px and 290 < pixel[1] < 445)
         records = state.update(report['objects'], metadata['stamp'])
         durations.append(time.perf_counter()-started)
         rows.append({'frame':directory.name,'stamp':metadata['stamp'],
                      'detected_real':sum(item['_annotated_real'] for item in report['objects']),
                      'detected_extra':sum(not item['_annotated_real'] for item in report['objects']),
+                     'acquisition_eligible_real':sum(item['_annotated_real'] and item['acquisition_eligible'] for item in report['objects']),
+                     'ineligible_extra':sum(not item['_annotated_real'] and not item['acquisition_eligible'] for item in report['objects']),
                      'published_real':sum(item['_annotated_real'] for item in records),
                      'published_extra':sum(not item['_annotated_real'] for item in records)})
     return {'usable_frames':len(rows),
+            **{key:sum(row[key]for row in rows)for key in ('detected_real','detected_extra','acquisition_eligible_real','ineligible_extra','published_real','published_extra')},
             'analyzer_and_tracker_s':{'median':float(np.median(durations)),
                                       'p95':float(np.quantile(durations,.95)),
                                       'max':max(durations)},
@@ -80,13 +83,15 @@ def main():
     parser.add_argument('--capture', type=Path, required=True)
     parser.add_argument('--real-track-ids', type=int, nargs='+', required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--annotation-x-offset-px', type=int, default=0,
+                        help='Offline table-brick annotation translation for changed image crop only')
     args = parser.parse_args()
     cv2.setNumThreads(1)
     result = {'qualification':'offline development evidence; temporal persistence does not prove brick identity',
               'acquisition_min_frames':3,
               'annotation':'source real IDs explicitly supplied; RGBD eight stationary table bricks annotated in pixel space only',
               'status_replay':replay_statuses(args.capture,set(args.real_track_ids)),
-              'rgbd_replay':replay_rgbd(args.capture)}
+              'rgbd_replay':replay_rgbd(args.capture,args.annotation_x_offset_px)}
     args.output.write_text(json.dumps(result,indent=2))
     print(json.dumps({key:{k:v for k,v in value.items() if k not in {'reports','frames'}}
                       for key,value in result.items() if isinstance(value,dict)},sort_keys=True))

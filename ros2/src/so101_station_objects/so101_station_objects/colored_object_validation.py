@@ -264,3 +264,35 @@ def validate_brick_silhouette(contour, *, observed_mask=None, min_rect_fill=.45)
     if fill < min_rect_fill:
         return ComponentValidation(False, 'silhouette_inconsistent_with_convex_brick', metrics)
     return ComponentValidation(True, 'silhouette_consistent_with_convex_brick_prior', metrics)
+
+
+def validate_child_visibility(observed_pixels, image_shape):
+    """Assess acquisition visibility from ORIGINAL final-child sensor pixels.
+
+    Touching the exact image boundary leaves the silhouette unknown outside
+    the sensor. This only withholds NEW identity acquisition; a previously
+    confirmed track can still follow its visible surface. There is no inset,
+    workspace bound, parent-mask gate, or claim of semantic brick identity.
+    """
+    pixels = np.asarray(observed_pixels)
+    if (len(image_shape) != 2 or
+            any(isinstance(value, (bool, np.bool_)) or
+                not isinstance(value, (int, np.integer)) or value <= 0 for value in image_shape)):
+        raise ValueError('positive integer image height and width required')
+    height, width = image_shape
+    if (pixels.ndim != 2 or pixels.shape[1] != 2 or not len(pixels) or
+            not np.issubdtype(pixels.dtype, np.integer) or
+            np.any(pixels < 0) or np.any(pixels[:, 0] >= width) or
+            np.any(pixels[:, 1] >= height)):
+        raise ValueError('original integer child pixels inside the declared image required')
+    minimum, maximum = pixels.min(axis=0), pixels.max(axis=0)
+    sides = [side for side, touched in (
+        ('left', minimum[0] == 0), ('right', maximum[0] == width-1),
+        ('top', minimum[1] == 0), ('bottom', maximum[1] == height-1)) if touched]
+    metrics = {'image_boundary_sides': sides,
+               'observed_pixel_bbox': [int(minimum[0]), int(minimum[1]),
+                                       int(maximum[0]), int(maximum[1])],
+               'image_shape': [int(height), int(width)],
+               'evidence': 'original_final_child_pixels', 'workspace_gate_applied': False}
+    return ComponentValidation(not sides, 'image_boundary_truncated' if sides else
+                               'observed_silhouette_within_image', metrics)

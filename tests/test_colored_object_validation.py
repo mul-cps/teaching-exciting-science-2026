@@ -359,3 +359,26 @@ def test_observed_pixels_cannot_relax_existing_reconstructed_contour_gate():
     result = validate_brick_silhouette(contour,observed_mask=mask)
     assert not result.accepted
     assert result.metrics['reconstructed_min_rectangle_fill'] < .45
+
+
+def test_visibility_is_final_child_sensor_boundary_evidence_not_an_inset_or_parent_gate():
+    from so101_station_objects.colored_object_validation import validate_child_visibility
+    for pixels, sides in [([[0,20],[4,20],[4,25]],['left']),
+                          ([[20,0],[24,3],[24,4]],['top']),
+                          ([[99,50],[98,50],[99,51]],['right']),
+                          ([[40,79],[42,78],[42,79]],['bottom'])]:
+        result = validate_child_visibility(np.asarray(pixels), (80,100))
+        assert not result.accepted
+        assert result.reason == 'image_boundary_truncated'
+        assert result.metrics['image_boundary_sides'] == sides
+    # A real child one pixel inside the sensor is eligible even when another
+    # touching group's parent extends to the border. No parent mask is passed.
+    assert validate_child_visibility(np.array([[1,1],[4,1],[4,5],[1,5]]),(80,100)).accepted
+
+
+@pytest.mark.parametrize('pixels,shape', [([[1.5,2]],(80,100)),
+    ([[100,2]],(80,100)), ([[-1,2]],(80,100)), ([],(80,100)), ([[1,2]],(0,100))])
+def test_child_visibility_requires_actual_integer_pixels_in_the_declared_image(pixels,shape):
+    from so101_station_objects.colored_object_validation import validate_child_visibility
+    with pytest.raises(ValueError):
+        validate_child_visibility(np.asarray(pixels),shape)
