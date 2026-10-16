@@ -124,6 +124,7 @@ class _FakeEV3:
         self.responses = list(responses or [])
         self.fail_stop = fail_stop
         self.calls = []
+        self.sample = 1000
 
     def call(self, operation, payload=None):
         self.calls.append((operation, payload))
@@ -133,8 +134,14 @@ class _FakeEV3:
             response = self.responses.pop(0)
             return response
         if operation == "status":
-            return {"session": self.session, "busy": False,
-                    "references": {"sorter": True, "feeder": True}}
+            self.sample += 1
+            return {"session": self.session, "busy": False, "connected": True,
+                "last_error": None, "power_mode": "awake", "sampled_ms": self.sample,
+                "angles": {"sorter": 0., "feeder": 0.},
+                "references": {"sorter": "home", "feeder": "eject"},
+                "motor_control": {name: dict(angle_sample_ms=self.sample, angle_read_ms=1,
+                    speed_sample=dict(speed_dps=0., sampled_ms=self.sample, duration_ms=1))
+                    for name in ("sorter", "feeder")}}
         return {"accepted": True, "job": {"id": 17}}
 
 
@@ -209,7 +216,8 @@ def test_readiness_is_read_only_and_cancellable_without_home_motion(monkeypatch,
 
     assert "/follower/home" not in node.created_clients
     assert node.created_clients["/follower/sorting_ready"].requests == 0
-    assert [name for name, _ in ev3.calls] == ["status"]
+    assert all(name == "status" for name, _ in ev3.calls)
+    assert len(ev3.calls) >= 2
 
 
 def test_ready_service_success_is_queried_after_configuration_gates(monkeypatch, tmp_path):
@@ -312,6 +320,7 @@ def test_ev3_job_identity_or_cleanup_fault_aborts_without_second_feed(
     ], fail_stop=True)
     devices, _, _ = _adapter(monkeypatch, tmp_path, ev3=ev3)
     devices.require_ready = lambda *_args: True
+    devices._require_native_ready = lambda *_args: True
     devices.wait_clear = lambda *_args: True
     events = []
 
@@ -354,6 +363,7 @@ def test_pick_place_cancellation_signals_and_reaps_child_and_stops_ev3(
                               spin_once=cancel.set)
     monkeypatch.setattr(adapter.subprocess, "Popen", Child)
     devices.require_ready = lambda *_args: True
+    devices._require_native_ready = lambda *_args: True
     devices.wait_clear = lambda *_args: True
     devices.dispense = lambda *_args: {"job_id": 17}
     devices.detect = lambda *_args: {"track_id": "red-0009", "color": "red"}
@@ -490,3 +500,36 @@ def test_grasp_client_gets_cycle_deadline_and_commissioned_clear_pose(monkeypatc
     assert 119. <= float(command[command.index("--timeout")+1]) <= 120.
     assert json.loads(Path(command[command.index("--return-joint-pose")+1]).read_text()) == dict.fromkeys(adapter.ARM_JOINTS, 0.)
     assert result["release_verified"] is True
+
+
+@pytest.mark.parametrize('changed', [
+    {'last_error': {'code': 'motion_fault'}}, {'power_mode': 'power_save'}, {'busy': True},
+    {'session': 'other'}, {'connected': False}, {'references': {'sorter': True, 'feeder': True}},
+    {'references': {'sorter': 'home', 'feeder': 'wrong'}},
+])
+def test_bad_native_admission_blocks_dispense_and_arm(monkeypatch, tmp_path, changed):
+    healthy = _FakeEV3().call('status')
+    ev3 = _FakeEV3(responses=[dict(healthy, **changed)]*5)
+    devices, node, _ = _adapter(monkeypatch, tmp_path, ev3=ev3)
+    with pytest.raises(ValueError):
+        sorting.run_sorting(devices, destinations=DESTINATIONS, cycles=1, log=lambda _: None)
+    assert not any(name in ('eject', 'wake') for name, _ in ev3.calls)
+    assert node.created_clients['/follower/sorting_ready'].requests == 0
+    # A fault arising after initial admission must also block direct dispense.
+    with pytest.raises(ValueError):
+        devices.dispense(time.monotonic()+1, threading.Event())
+    assert not any(name == 'eject' for name, _ in ev3.calls)
+    # Direct phase entry must also reject before creating a grasp child.
+    with pytest.raises(ValueError):
+        devices.pick_place({'track_id': 'red-0001', 'color': 'red'}, DESTINATIONS['red'],
+                           time.monotonic()+1, threading.Event())
+    assert devices.child is None
+
+
+def test_frozen_native_encoders_block_admission_without_waking(monkeypatch, tmp_path):
+    healthy = _FakeEV3().call('status')
+    ev3 = _FakeEV3(responses=[healthy]*100000)
+    devices, _, _ = _adapter(monkeypatch, tmp_path, ev3=ev3)
+    with pytest.raises(TimeoutError):
+        devices.require_ready(time.monotonic()+.02, threading.Event())
+    assert all(name == 'status' for name, _ in ev3.calls)

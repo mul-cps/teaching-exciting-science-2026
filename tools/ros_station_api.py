@@ -205,6 +205,9 @@ def main():
                         def log(event):
                             record(event)
                             stream.write(json.dumps(event, allow_nan=False)+'\n')
+                        # Explicit run admission may wake; read-only check_ready never does.
+                        proxy.call('wake')
+                        log({'event': 'explicit_run_wake_complete'})
                         result = run_sorting(devices, destinations=settings['destinations'],
                                              cycles=request.cycles, log=log, cancel=cancel)
                         (output/'result.json').write_text(json.dumps(result, allow_nan=False)+'\n')

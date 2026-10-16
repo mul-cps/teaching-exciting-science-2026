@@ -29,7 +29,7 @@ def test_resident_one_connection_reference_status_fault_and_cancel(tmp_path):
     halt = threading.Event()
     connections, operations = [], []
     refs = {'sorter': None, 'feeder': None}
-    axis = {'angle': 0., 'job': None, 'last_job': None, 'hold': False}
+    axis = {'angle': 0., 'job': None, 'last_job': None, 'hold': False, 'power': 'awake'}
     axis_arguments = []
     def serve():
         while not halt.is_set():
@@ -53,10 +53,11 @@ def test_resident_one_connection_reference_status_fault_and_cancel(tmp_path):
                         axis['job'] = None
                     sampled = int(time.monotonic()*1000)
                     status = dict(session='fake-session', connected=True, busy=axis['job'] is not None,
-                        references=refs.copy(), power_mode='awake', last_error=None, sampled_ms=sampled,
+                        references=refs.copy(), power_mode=axis['power'], last_error=None, sampled_ms=sampled,
                         angles={'sorter': axis['angle'], 'feeder': 0.}, job=axis['job'], last_job=axis['last_job'],
-                        motor_control={'sorter': {'angle_sample_ms': sampled, 'angle_read_ms': 1,
-                            'speed_sample': {'speed_dps': 0., 'sampled_ms': sampled, 'duration_ms': 1}}})
+                        motor_control={name: {'angle_sample_ms': sampled, 'angle_read_ms': 1,
+                            'speed_sample': {'speed_dps': 0., 'sampled_ms': sampled, 'duration_ms': 1}}
+                            for name in ('sorter', 'feeder')})
                     if op == 'status':
                         result = status
                     elif op == 'stop':
@@ -64,6 +65,9 @@ def test_resident_one_connection_reference_status_fault_and_cancel(tmp_path):
                             axis['last_job'] = dict(axis['job'], state='aborted')
                             axis['job'] = None
                         result = {'stopped': True, 'status': status}
+                    elif op == 'wake':
+                        axis['power'] = 'awake'
+                        result = {'power_mode': 'awake'}
                     elif op == 'motor_target':
                         axis_arguments.append(req['args'])
                         axis['job'] = dict(id=req['id'], operation=op, motor='sorter', target=req['args']['target'],
@@ -96,7 +100,9 @@ class FakeDevices:
             (self.output/'readiness-entered').write_text('ready')
             if cancel.wait(1.2):
                 raise InterruptedError('readiness cancelled')
-        return self.ev3.call('status')
+        from workshop.station.ev3_readiness import require_fresh_stationary
+        return require_fresh_stationary(self.ev3, session=self.ev3.session, deadline=deadline,
+            cancel=cancel, spin=lambda deadline, cancel: time.sleep(.01))
     def wait_clear(self, deadline, cancel):
         (self.output/'entered-wait-clear').write_text('ready')
         if cancel.wait(3. if self.block else .08):
@@ -165,6 +171,8 @@ main()
             frame_id='base_link', destinations={'red': [0, 0, .2, 0, 0, 0, 1]},
             clear_joint_pose_rad={name: 0 for name in ARM_JOINTS}, station_config='station.json',
             grasp_execution_config='execution.json')))
+        assert call(ConfirmReference, 'ev3/confirm_reference',
+                    ConfirmReference.Request(name='sorter', reference='home', physically_verified=True)).success
         configured = json.loads(config_path.read_text())
         configured['synthetic_readiness_block'] = True
         config_path.write_text(json.dumps(configured))
@@ -190,6 +198,8 @@ main()
         assert state['result'] == {'ready': True}
         configured['synthetic_readiness_block'] = False
         config_path.write_text(json.dumps(configured))
+        axis['power'] = 'power_save'
+        wakes_before_run = operations.count('wake')
         assert call(RunCycles, 'run_cycles', RunCycles.Request(cycles=2)).success
         until = time.monotonic()+5
         while time.monotonic() < until:
@@ -199,6 +209,9 @@ main()
             time.sleep(.05)
         assert state['result'] is not None, state
         assert state['result']['completed'] == 2
+        assert axis['power'] == 'awake'
+        assert operations.count('wake') == wakes_before_run+1
+        assert operations.index('wake') < operations.index('eject')
         assert operations.count('eject') == 2
         configured = json.loads(config_path.read_text())
         configured['synthetic_block'] = True
@@ -251,6 +264,7 @@ main()
             raise AssertionError(state)
         assert call(Trigger, 'reset_fault').success
         # No home reference: accepted bounded job fails before motor dispatch.
+        refs['sorter'] = None
         assert call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=20.)).success
         assert 'home reference' in terminal('fault')['fault']
         assert not axis_arguments

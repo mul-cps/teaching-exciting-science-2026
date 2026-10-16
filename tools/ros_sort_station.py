@@ -167,14 +167,14 @@ class ROSSortingDevices:
                 clearance_m=execution.get("placement_clearance_m"),
                 registration_uncertainty_m=execution.get("placement_registration_uncertainty_m"))
 
+    def _require_native_ready(self, deadline, cancel):
+        from workshop.station.ev3_readiness import require_fresh_stationary
+        return require_fresh_stationary(self.ev3, session=self.session, deadline=deadline,
+                                       cancel=cancel, spin=self._spin)
+
     def require_ready(self, deadline, cancel):
         from std_srvs.srv import Trigger
-        # Do not establish physical EV3 references from an unobserved angle.
-        status = self.ev3.call("status")
-        references = status.get("references", {})
-        if (status.get("session") != self.session or status.get("busy") is not False
-                or not references.get("sorter") or not references.get("feeder")):
-            raise RuntimeError("EV3 requires this session's confirmed sorter and feeder references")
+        self._require_native_ready(deadline, cancel)
         station = json.loads(Path(self.settings["station_config"]).read_text())
         if any(station.get(field) is not True for field in ("enabled", "commissioned", "automatic_start")):
             raise RuntimeError("station configuration has not admitted automatic physical operation")
@@ -200,6 +200,7 @@ class ROSSortingDevices:
         while self.settings.get("placement_selections") and self.placement_status is None:
             self._spin(placement_deadline, cancel)
         self._require_placement_ready()
+        self._require_native_ready(deadline, cancel)
 
     def wait_clear(self, deadline, cancel):
         from rclpy.time import Time
@@ -242,6 +243,7 @@ class ROSSortingDevices:
 
     def dispense(self, deadline, cancel):
         self._check(deadline, cancel)
+        self._require_native_ready(deadline, cancel)
         self._require_placement_ready()
         self.dispensed_after = self.node.get_clock().now().nanoseconds * 1e-9
         reply = self.ev3.call("eject", {"cycles": 1})
@@ -281,6 +283,7 @@ class ROSSortingDevices:
 
     def pick_place(self, target, destination, deadline, cancel):
         self._check(deadline, cancel)
+        self._require_native_ready(deadline, cancel)
         self.serial += 1
         output = self.output / f"grasp-{self.serial:04d}.json"
         clear_pose_file = self.output / f"clear-joints-{self.serial:04d}.json"
