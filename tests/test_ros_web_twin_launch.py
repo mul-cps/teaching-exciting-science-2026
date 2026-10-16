@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-launch = pytest.importorskip("launch")
+pytest.importorskip("launch.launch_context")
 from launch.actions import ExecuteProcess
 from launch import LaunchContext
 from launch.substitutions import LaunchConfiguration
