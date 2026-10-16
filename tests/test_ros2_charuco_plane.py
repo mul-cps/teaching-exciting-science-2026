@@ -67,11 +67,24 @@ def test_world_axes_are_right_handed_z_up_and_origin_lies_on_plane():
 def test_fit_rejects_low_coverage_or_missing_depth():
     depth, k, d, pose = _scene()
     sparse = np.zeros_like(depth)
-    sparse[335:430, 475:535] = depth[335:430, 475:535]
+    sparse[335:430, 475:520] = depth[335:430, 475:520]
     with pytest.raises(ValueError, match="board regions"):
         fit_depth_plane(sparse, k, d, pose)
     with pytest.raises(ValueError, match="no valid depth"):
         fit_depth_plane(np.zeros_like(depth), k, d, pose)
+
+
+def test_small_projected_board_uses_its_pixel_budget_not_full_image_area():
+    # The board has hundreds of valid interior pixels, but a full-image stride
+    # of seven drops most of them before fitting and falsely rejects support.
+    depth = np.full((480, 640), 2.0, dtype=np.float32)
+    k = np.array([[520., 0, 320.], [0, 520., 240.], [0, 0, 1.]])
+    pose = np.eye(4)
+    pose[:3, 3] = [-.0875, -.0625, 2.0]
+    _, _, metrics = fit_depth_plane(depth, k, np.zeros(5), pose)
+    assert 80 <= metrics["plane_inliers"] <= 2000
+    assert metrics["plane_coverage_cells"] >= 8
+    assert metrics["plane_p95_residual_mm"] < .001
 
 
 def test_plane_tilt_refuses_inconsistent_depth_normal():

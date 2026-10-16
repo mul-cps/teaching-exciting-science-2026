@@ -79,8 +79,14 @@ def fit_depth_plane(depth_m, camera_matrix, distortion, optical_from_board,
     # Keep pixels away from the board edge, where background and marker borders
     # are most likely to contaminate aligned depth.
     mask = cv2.erode(mask, np.ones((5, 5), np.uint8))
-    stride = max(1, int(math.ceil(math.sqrt((h * w) / (max_points * 4)))))
-    ys, xs = np.mgrid[0:h:stride, 0:w:stride]
+    # Allocate sampling to the visible board rather than unrelated image area.
+    # Otherwise a small board can lose most valid pixels before the fixed
+    # inlier/coverage gates, even when its interior provides ample depth.
+    sample_x0, sample_y0 = max(0, x0), max(0, y0)
+    sample_x1, sample_y1 = min(w, x1+1), min(h, y1+1)
+    sample_area = max(0, sample_x1-sample_x0) * max(0, sample_y1-sample_y0)
+    stride = max(1, int(math.ceil(math.sqrt(sample_area / (max_points * 4)))))
+    ys, xs = np.mgrid[sample_y0:sample_y1:stride, sample_x0:sample_x1:stride]
     sampled_vivid = int(np.count_nonzero((mask[ys, xs] != 0) & vivid[ys, xs]))
     valid = (mask[ys, xs] != 0) & ~vivid[ys, xs] & np.isfinite(depth[ys, xs])
     z = depth[ys, xs]
