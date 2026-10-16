@@ -54,15 +54,37 @@ requires a consistent held-out improvement across per-link depth residuals and
 CAD-to-depth visibility, a clearly separated competing hypothesis, and review
 of the held-out overlay. This offline comparison is evidence for review; it
 does not promote the result into RSP, MoveIt, RViz, or MuJoCo.
+## Jaw-gap action calibration
+
+The resident gripper action accepts jaw gaps in metres only when the bridge is
+configured with an independently reviewed file using this schema:
+
+```json
+{
+  "schema": "so101-jaw-gap-calibration-v1",
+  "qualified": true,
+  "closed_gap_m": 0.004,
+  "open_gap_m": 0.075,
+  "closed_percent": 0.0,
+  "open_percent": 100.0
+}
+```
+
+Replace the example gap values with measured values from the station's jaws.
+The file must set `qualified` to `true` only after that calibration is reviewed.
+The station-live launch passes its absolute path through
+`gripper_jaw_calibration:=...`; without it, gripper action goals are rejected.
+`max_effort` is required to be zero because the servo has no calibrated force
+limit. See [live station startup](so101-live-station.md) for the launch command.
 
 Example:
 
 ```sh
 python tools/fit_ros_gripper_registration.py \
-  evidence/baseline evidence/wrist-roll-plus evidence/holdout-combination \
+  evidence/baseline evidence/wrist-roll-plus evidence/elbow-plus evidence/holdout-combination \
   --output /tmp/gripper-registration --samples 10000
 ```
-# Resident `GripperCommand` action
+## Resident `GripperCommand` action
 
 The resident trajectory bridge exposes the standard
 `control_msgs/action/GripperCommand` action at

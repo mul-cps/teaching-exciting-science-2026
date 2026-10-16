@@ -26,6 +26,8 @@ def generate_launch_description():
         'state_file': str(runtime / 'arm-state.json'),
         'log_dir': str(runtime / 'arm-owner-logs'),
         'trajectory_log_dir': str(station / 'evidence/ros-control'),
+        'gripper_action_name': '/follower/gripper_controller/gripper_cmd',
+        'gripper_jaw_calibration': '',
         'station_lock': '',
         'rviz': 'true',
         'use_camera': 'true',
@@ -51,7 +53,8 @@ def generate_launch_description():
 
     robot_keys = ['external_state_only', 'enable_hardware', 'station_root',
                   'station_python', 'station_config', 'state_file', 'log_dir',
-                  'station_lock', 'rviz', 'trajectory_log_dir']
+                  'station_lock', 'rviz', 'trajectory_log_dir',
+                  'gripper_action_name', 'gripper_jaw_calibration']
     robot = include('so101_station_control', 'moveit_resident.launch.py',
                     {k: LaunchConfiguration(k) for k in robot_keys})
     perception = include('so101_station_perception', 'perception.launch.py', {
