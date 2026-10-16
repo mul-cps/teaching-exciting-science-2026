@@ -88,6 +88,8 @@ def test_plan_smoke_persists_trajectory_without_execution():
     assert 'ik_state.set_from_ik(group, target_pose, tip, 0.5)' in smoke
     assert "arm.set_goal_state(robot_state=ik_state)" in smoke
     assert "len(points) < 2" in smoke
+    assert "planning_scene.is_state_valid(start_state, group)" in smoke
+    assert "START STATE VALID" in smoke
     assert "MoveItConfigsBuilder" in launch
     assert "parameters=[moveit_config.to_dict()]" in launch
     assert "plan_only_smoke.launch.py" in (ROOT / "ros2/scripts/so101.sh").read_text()
