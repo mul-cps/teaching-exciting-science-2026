@@ -30,6 +30,9 @@ def _launch_nodes(context):
     depth_scale = float(LaunchConfiguration("depth_scale_m").perform(context))
     if not math.isfinite(depth_scale) or depth_scale <= 0:
         raise ValueError("depth_scale_m must be positive and finite")
+    far_depth = float(LaunchConfiguration("far_depth_m").perform(context))
+    if not math.isfinite(far_depth) or far_depth <= 0.1:
+        raise ValueError("far_depth_m must be finite and greater than 0.1")
     output_folder = LaunchConfiguration("evidence_folder").perform(context)
     rviz_enabled = LaunchConfiguration("rviz").perform(context).lower()
     if rviz_enabled not in ("true", "false"):
@@ -61,9 +64,10 @@ def _launch_nodes(context):
             "config_file": camera_config,
             "publish_tf": "true",
             "enable_color": "true",
-            "rgb_camera.color_profile": "640,480,15",
+            "rgb_camera.color_profile": LaunchConfiguration("color_profile"),
             "rgb_camera.color_format": "RGB8",
             "enable_depth": "true",
+            "clip_distance": str(far_depth),
             "depth_module.depth_profile": "640,480,15",
             "depth_module.depth_format": "Z16",
             "enable_sync": "true",
@@ -142,7 +146,7 @@ def _launch_nodes(context):
         ))
     if rviz_enabled == "true":
         actions.append(Node(
-            package="rviz2", executable="rviz2", name="so101_station_live_rviz",
+            package="so101_station_gpu", executable="rviz_gpu_guard", name="so101_station_live_rviz",
             arguments=["-d", rviz_config, "-f", "charuco_board" if live_world else base_frame], output="screen",
         ))
     return actions
@@ -153,6 +157,10 @@ def generate_launch_description():
         DeclareLaunchArgument("base_registration_file", default_value=""),
         DeclareLaunchArgument("track_charuco_world", default_value="false"),
         DeclareLaunchArgument("serial_no", default_value="243322071783"),
+        DeclareLaunchArgument("far_depth_m", default_value="1.2",
+                              description="Discard depth beyond the workcell before pointcloud generation"),
+        DeclareLaunchArgument("color_profile", default_value="640,480,15",
+                              description="RGB width,height,fps; wider profiles require fresh RGB-D validation"),
         DeclareLaunchArgument("camera_target_calibration", default_value=""),
         DeclareLaunchArgument("camera_arm_calibration", default_value=""),
         DeclareLaunchArgument("use_qualified_frames", default_value="false"),

@@ -31,6 +31,8 @@ def generate_launch_description():
         'station_lock': '',
         'rviz': 'true',
         'use_camera': 'true',
+        'color_profile': '640,480,15',
+        'far_depth_m': '1.2',
         'use_objects': 'true',
         'use_map': 'true',
         'use_planning_scene': 'true',
@@ -72,6 +74,8 @@ def generate_launch_description():
     robot = include('so101_station_control', 'moveit_resident.launch.py',
                     {k: LaunchConfiguration(k) for k in robot_keys})
     perception = include('so101_station_perception', 'perception.launch.py', {
+        'color_profile': LaunchConfiguration('color_profile'),
+        'far_depth_m': LaunchConfiguration('far_depth_m'),
         'track_charuco_world': LaunchConfiguration('track_charuco_world'),
         'base_registration_file': LaunchConfiguration('base_registration_file'),
         'camera_arm_calibration': LaunchConfiguration('camera_arm_calibration'),
@@ -97,7 +101,8 @@ def generate_launch_description():
                 },
                 condition=IfCondition(LaunchConfiguration('use_web_twin'))),
         include('so101_station_objects', 'objects.launch.py', {
-                    key: LaunchConfiguration(key) for key in (
+                    'max_observation_depth_m': LaunchConfiguration('far_depth_m'),
+                    **{key: LaunchConfiguration(key) for key in (
                         'max_object_height_m', 'observation_roi_enabled',
                         'world_roi_x_min', 'world_roi_x_max',
                         'world_roi_y_min', 'world_roi_y_max',
@@ -107,7 +112,7 @@ def generate_launch_description():
                         'pickup_roi_z_min', 'pickup_roi_z_max',
                         'observation_roi_x_min', 'observation_roi_x_max',
                         'observation_roi_y_min', 'observation_roi_y_max',
-                        'observation_roi_z_min', 'observation_roi_z_max')},
+                        'observation_roi_z_min', 'observation_roi_z_max')}},
                 condition=IfCondition(LaunchConfiguration('use_objects'))),
         include('so101_station_scene', 'station_scene.launch.py', {},
                 condition=IfCondition(LaunchConfiguration('use_planning_scene'))),
