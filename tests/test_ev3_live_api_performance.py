@@ -238,7 +238,29 @@ def test_critical_blocking_read_crossing_shake_end_brakes_without_reversal():
     harness.motors['sorter'].angle = crossing
     dispatches = harness.motors['sorter'].dispatches
     result = harness.request('critical_status')['result']
-    assert not result['busy']
-    assert 'Shake duration expired' in result['last_error']['message']
+    assert result['busy']
+    assert result['last_error'] is None
+    assert harness.api.job['_stage'] == 'settling'
     assert harness.motors['sorter'].target is None
     assert harness.motors['sorter'].dispatches == dispatches
+
+
+def test_critical_query_preserves_normally_entered_shake_settling():
+    from tools.benchmark_ev3_live_api import Harness
+    harness = Harness()
+    harness.api.connect()
+    harness.start_shake()
+    harness.clock.ms = harness.api.job['_end']
+    harness.api.last_heartbeat = harness.clock.ms
+    harness.api.job_tick(harness.clock.ms)
+    assert harness.api.job['_stage'] == 'settling'
+    dispatches = harness.motors['sorter'].dispatches
+    result = harness.request('critical_status')['result']
+    assert result['busy'] and result['last_error'] is None
+    assert harness.api.job['_stage'] == 'settling'
+    assert harness.motors['sorter'].target is None
+    assert harness.motors['sorter'].dispatches == dispatches
+    # Quiet completion remains the ordinary owner tick's responsibility.
+    harness.clock.ms += 220
+    harness.api.job_tick(harness.clock.ms)
+    assert harness.api.job is None and harness.api.last_job['state'] == 'complete'

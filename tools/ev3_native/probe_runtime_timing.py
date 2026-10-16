@@ -172,9 +172,29 @@ def critical_status_probe():
     assert guarded['ok'] and not guarded['result']['busy']
     assert 'Other motor drift' in guarded['result']['last_error']['message']
     assert sorter.dispatches == dispatches and sorter.target is None
+    # Normal duration expiry brakes and enters quiet settling, and repeated
+    # critical reads must not turn that permitted settling into a fault.
+    feeder.value = 0
+    shaking = api.request({'id': 5, 'operation': 'shake', 'args': {
+        'frequency_hz': 2, 'speed_dps': 50, 'acceleration': 1000, 'duration_ms': 100}})
+    assert shaking['ok']
+    clock.ms = api.job['_end'] - 1
+    api.last_heartbeat = clock.ms
+    dispatches = sorter.dispatches
+    ended = api.request({'id': 6, 'operation': 'critical_status', 'args': {}})
+    assert ended['ok'] and ended['result']['busy'] and ended['result']['last_error'] is None
+    assert api.job['_stage'] == 'settling' and sorter.target is None
+    assert sorter.dispatches == dispatches
+    settling = api.request({'id': 7, 'operation': 'critical_status', 'args': {}})
+    assert settling['ok'] and settling['result']['last_error'] is None
+    assert api.job['_stage'] == 'settling' and sorter.dispatches == dispatches
+    clock.ms += 220
+    api.job_tick(clock.ms)
+    assert api.job is None and api.last_job['state'] == 'complete'
     return {'paired_angle_speed_stamps': True, 'optional_peripheral_reads': 0,
             'read_duration_ms': 10, 'sleep_stayed_asleep': True,
             'fresh_other_axis_guard_no_dispatch': True,
+            'active_shake_critical_settling_no_dispatch': True,
             'hardware_access': False}
 
 

@@ -256,8 +256,19 @@ class LiveAPI:
             if self.job and self.clock() - self.last_heartbeat >= HEARTBEAT_MS:
                 self.disconnect('heartbeat_expired')
                 return
-            if self.job and self.job['operation'] == 'shake' and self.clock() >= self.job['_end']:
-                raise ValueError('Shake duration expired during critical sampling')
+            if (self.job and self.job['operation'] == 'shake' and self.job['_stage'] == 'moving'
+                    and self.clock() >= self.job['_end']):
+                # Requested shake duration is normal completion, not a fault.
+                # Brake immediately, but seed settling only after BOTH encoder
+                # reads and their guard-only safety check have completed.
+                if not self.job.get('_critical_duration_braked'):
+                    self.motors[self.job['motor']].brake()
+                    self.job['_critical_duration_braked'] = True
+                if check_positions:
+                    self.job_tick(self.clock(), guard_only=True)
+                    if self.job:
+                        self.begin_settle()
+                return
             if check_positions:
                 self.job_tick(self.clock(), guard_only=True)
             elif (self.job and self.job['_stage'] == 'moving'
