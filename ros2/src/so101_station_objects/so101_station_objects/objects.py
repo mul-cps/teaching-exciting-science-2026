@@ -541,10 +541,16 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
 
 
 class StableObjectTracker:
-    """Velocity-predicted color-constrained association in the stable world frame."""
+    """Velocity association with optional consecutive-frame new-track probation.
+
+    The utility defaults to immediate acquisition for offline callers. The ROS
+    adapter explicitly requires three independent accepted acquisitions. Once
+    confirmed, tracks keep the existing motion and ownership behavior.
+    """
     def __init__(self, max_distance_m=0.06, max_age_s=1.0,
                  max_speed_m_s=0.5, prediction_distance_cap_m=0.35,
-                 ambiguity_margin_m=0.015):
+                 ambiguity_margin_m=0.015, acquisition_min_frames=1,
+                 max_pending_tracks=64):
         self.max_distance = float(max_distance_m)
         self.max_age = float(max_age_s)
         self.max_speed = float(max_speed_m_s)
@@ -556,17 +562,48 @@ class StableObjectTracker:
                        self.prediction_distance_cap) <= 0
                 or self.ambiguity_margin < 0):
             raise ValueError("tracker gates must be finite and positive; ambiguity margin may be zero")
+        for name, value in (("acquisition_min_frames", acquisition_min_frames),
+                            ("max_pending_tracks", max_pending_tracks)):
+            if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value < 1:
+                raise ValueError(f"{name} must be a positive integer")
+        self.acquisition_min_frames = int(acquisition_min_frames)
+        self.max_pending_tracks = int(max_pending_tracks)
+        self.last_acquisition_stamp = None
         self.next_id = 1
         self.tracks = {}
         self.owned = set()
         self.attachment_records = {}
         self.expired_tracks = []
 
+    def invalidate_pending_acquisition(self, stamp_s, *, timestamp_is_trusted=False):
+        """Break probation without trusting rejected exposures as a clock.
+
+        Only a caller that checked a failure's timestamp against its current
+        acquisition clock may advance the barrier. Future/stale failures must
+        never prevent later valid exposures from updating confirmed tracks.
+        """
+        stamp_s = float(stamp_s)
+        if not np.isfinite(stamp_s):
+            raise ValueError("acquisition timestamp must be finite")
+        if self.last_acquisition_stamp is not None and stamp_s <= self.last_acquisition_stamp:
+            return
+        if timestamp_is_trusted:
+            self.last_acquisition_stamp = stamp_s
+        self.tracks = {key: track for key, track in self.tracks.items() if track["confirmed"]}
+
+    def acquisition_diagnostics(self):
+        pending = sum(not track["confirmed"] for track in self.tracks.values())
+        return {"minimum_frames": self.acquisition_min_frames,
+                "pending_count": pending,
+                "confirmed_count": len(self.tracks) - pending,
+                "max_pending_tracks": self.max_pending_tracks,
+                "evidence": "consecutive_unambiguous_independent_acquisition_frames"}
+
     def ownership_status(self, payload):
         """Only acknowledged world replacement releases a reserved identity."""
         track_id = payload.get("track_id", "")
         for key, track in self.tracks.items():
-            if track_id != f"{track['color']}-{key:04d}":
+            if not track["confirmed"] or track_id != f"{track['color']}-{key:04d}":
                 continue
             if (payload.get("state") in {"locked", "reserved", "attached"} or
                     payload.get("state") == "fault" and payload.get("ownership_reserved") is True):
@@ -581,13 +618,19 @@ class StableObjectTracker:
 
     def update(self, objects, stamp_s, *, expected_owned_positions=None):
         stamp_s = float(stamp_s)
+        if not np.isfinite(stamp_s):
+            raise ValueError("acquisition timestamp must be finite")
         self.expired_tracks = []
+        if self.last_acquisition_stamp is not None and stamp_s <= self.last_acquisition_stamp:
+            # Republishing or reprocessing one exposure is not more evidence.
+            return []
+        self.last_acquisition_stamp = stamp_s
         retained = {}
         for key, track in self.tracks.items():
             age = stamp_s - track["stamp"]
             if key in self.owned or 0 <= age <= self.max_age:
                 retained[key] = track
-            elif age > self.max_age:
+            elif age > self.max_age and track["confirmed"]:
                 self.expired_tracks.append({
                     "track_id": f"{track['color']}-{key:04d}",
                     "color": track["color"],
@@ -708,6 +751,17 @@ class StableObjectTracker:
         for track_id in ambiguous_tracks:
             ambiguous.update(index for distance, index, candidate_track in pairs
                              if candidate_track == track_id)
+        # A candidate must occur in every analyzed acquisition, including frames
+        # with no valid observations. Ambiguity never contributes confirmation.
+        accepted_tracks = {key for index, key in assignments.items() if index not in ambiguous}
+        for key in list(self.tracks):
+            if not self.tracks[key]["confirmed"] and key not in accepted_tracks:
+                del self.tracks[key]
+        # Count candidates that remain pending after this frame, so an early
+        # new detection is not starved by a later candidate confirming now.
+        pending_count = sum(not track["confirmed"] and
+                            track["acquisition_observations"] + 1 < self.acquisition_min_frames
+                            for track in self.tracks.values())
         output = []
         for index, obj in enumerate(objects):
             if index in ambiguous:
@@ -716,24 +770,36 @@ class StableObjectTracker:
             track_id = assignments.get(index)
             previous = self.tracks.get(track_id) if track_id is not None else None
             if track_id is None:
+                if self.acquisition_min_frames > 1 and pending_count >= self.max_pending_tracks:
+                    continue
                 track_id = self.next_id
                 self.next_id += 1
                 velocity = np.zeros(3)
                 first_stamp = stamp_s
+                observations = 1
+                confirmed = self.acquisition_min_frames == 1
+                pending_count += int(not confirmed)
             else:
                 dt = stamp_s - previous["stamp"]
                 velocity = ((position - previous["position"]) / dt
                             if dt > 1e-6 else previous["velocity"])
                 first_stamp = previous["first_stamp"]
+                observations = min(self.acquisition_min_frames,
+                                   previous["acquisition_observations"] + 1)
+                confirmed = previous["confirmed"] or observations >= self.acquisition_min_frames
             record = dict(obj, track_id=track_id, velocity=velocity,
-                          age_s=max(0.0, stamp_s - first_stamp))
+                          age_s=max(0.0, stamp_s - first_stamp),
+                          acquisition_state="confirmed", acquisition_observations=observations)
             self.tracks[track_id] = {"color": obj["color"], "position": position,
                                      "velocity": velocity, "stamp": stamp_s,
                                      "first_stamp": first_stamp,
+                                     "confirmed": confirmed,
+                                     "acquisition_observations": observations,
                                      "position_semantics": obj.get("observation_geometry"),
                                      "surface_centroid": np.asarray(
                                          obj.get("surface_centroid", position), dtype=float).copy()}
-            output.append(record)
+            if confirmed:
+                output.append(record)
         return output
 
 
@@ -850,6 +916,8 @@ class ColoredObjectsNode:
                     "max_object_height_m": DEFAULT_MAX_OBJECT_HEIGHT_M,
                     "max_gripper_opening_m": 0.055,
                     "max_processing_hz": 5.0,
+                    "acquisition_min_frames": 3,
+                    "max_pending_tracks": 64,
                 }
                 for key, value in defaults.items():
                     self.declare_parameter(key, value)
@@ -891,7 +959,9 @@ class ColoredObjectsNode:
                 self.last_marker_update_stamp = None
                 self.marker_clear_sent = True
                 self.bridge = CvBridge()
-                self.tracker = StableObjectTracker()
+                self.tracker = StableObjectTracker(
+                    acquisition_min_frames=self.get_parameter("acquisition_min_frames").value,
+                    max_pending_tracks=self.get_parameter("max_pending_tracks").value)
                 self.tf_buffer = Buffer()
                 self.tf_listener = TransformListener(self.tf_buffer, self)
                 self.detections_pub = self.create_publisher(Detection3DArray, "/so101/objects", 10)
@@ -969,7 +1039,11 @@ class ColoredObjectsNode:
                     self.markers_pub.publish(markers)
 
             def _publish_unavailable(self, stamp, state, reason, **extra):
-                from so101_station_perception.tag_observations import stamp_seconds
+                from so101_station_perception.tag_observations import stamp_is_fresh, stamp_seconds
+                acquisition_stamp = stamp_seconds(stamp)
+                now = self.get_clock().now().nanoseconds * 1e-9
+                self.tracker.invalidate_pending_acquisition(
+                    acquisition_stamp, timestamp_is_trusted=stamp_is_fresh(now, acquisition_stamp, 0.5))
                 now_mono = time.monotonic()
                 clear_markers = cached_marker_should_clear(
                     self.last_marker_update_mono, now_mono, self.marker_clear_sent)
@@ -984,7 +1058,7 @@ class ColoredObjectsNode:
                 message.data = json.dumps({
                     "schema": 1, "state": state, "frame_id": self.board_frame,
                     "stamp": stamp_seconds(stamp), "qualified": False,
-                    "reason": reason, **extra,
+                    "reason": reason, "acquisition": self.tracker.acquisition_diagnostics(), **extra,
                 }, sort_keys=True, allow_nan=False)
                 self.status_pub.publish(message)
 
@@ -1087,6 +1161,7 @@ class ColoredObjectsNode:
                 now = self.get_clock().now().nanoseconds * 1e-9
                 if (stamp <= (self.last_analysis_result_stamp or float("-inf"))
                         or not stamp_is_fresh(now, stamp, 0.5)):
+                    self.tracker.invalidate_pending_acquisition(stamp)
                     return
                 if self.require_registration_tracking:
                     tracking_stamp = self.registration_last_tracking_stamp
@@ -1129,6 +1204,7 @@ class ColoredObjectsNode:
                                               expected_owned_positions=expected_owned_positions)
                 report["objects"] = objects
                 report["expired_tracks"] = self.tracker.expired_tracks
+                report["acquisition"] = self.tracker.acquisition_diagnostics()
                 report["stamp"] = stamp
                 report["support_plane"] = {
                     key: (value.tolist() if isinstance(value, np.ndarray) else value)
@@ -1236,6 +1312,8 @@ class ColoredObjectsNode:
                     "support_plane": report["support_plane"],
                     "objects": [{
                         "track_id": obj["track_id"], "color": obj["color"],
+                        "acquisition_state": obj["acquisition_state"],
+                        "acquisition_observations": obj["acquisition_observations"],
                         "position_world": obj["position"].tolist(),
                         "position_semantics": obj["observation_geometry"],
                         "surface_centroid_world": obj["surface_centroid"].tolist(),
@@ -1259,6 +1337,7 @@ class ColoredObjectsNode:
                     "validation_diagnostics": report.get(
                         "validation_diagnostics", {}),
                     "expired_tracks": report.get("expired_tracks", []),
+                    "acquisition": report.get("acquisition", {}),
                 }
                 message = String()
                 message.data = json.dumps(status, sort_keys=True, allow_nan=False)
