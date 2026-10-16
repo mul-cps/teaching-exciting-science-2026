@@ -5,6 +5,9 @@ so101_scene_updater:
     world_frame: base_link
     board_frame: charuco_board
     apply_service: /follower/apply_planning_scene
+    get_scene_service: /follower/get_planning_scene
+    attachment_request_topic: /so101_scene/attachment_request
+    attachment_status_topic: /so101_scene/attachment_status
     max_detection_age_s: 0.5
     track_ttl_s: 0.75
     max_objects: 24

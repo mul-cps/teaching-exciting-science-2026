@@ -3,12 +3,14 @@
 import json
 import math
 import time
+import copy
 
 import numpy as np
 import rclpy
 from geometry_msgs.msg import Pose
-from moveit_msgs.msg import CollisionObject, PlanningScene
-from moveit_msgs.srv import ApplyPlanningScene
+from moveit_msgs.msg import (AttachedCollisionObject, CollisionObject,
+                             PlanningScene, PlanningSceneComponents)
+from moveit_msgs.srv import ApplyPlanningScene, GetPlanningScene
 from rclpy.node import Node
 from shape_msgs.msg import SolidPrimitive
 from std_msgs.msg import String
@@ -17,6 +19,7 @@ from vision_msgs.msg import Detection3DArray
 
 from .scene_geometry import (
     LiveObjectRegistry,
+    object_collision_id,
     quaternion_matrix_xyzw,
     stamp_is_fresh,
     table_patches_around_keepout,
@@ -71,6 +74,9 @@ class SceneUpdater(Node):
             "world_frame": "base_link",
             "board_frame": "charuco_board",
             "apply_service": "/follower/apply_planning_scene",
+            "get_scene_service": "/follower/get_planning_scene",
+            "attachment_request_topic": "/so101_scene/attachment_request",
+            "attachment_status_topic": "/so101_scene/attachment_status",
             "max_detection_age_s": 0.5,
             "track_ttl_s": 0.75,
             "max_objects": 24,
@@ -105,11 +111,17 @@ class SceneUpdater(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.scene_client = self.create_client(ApplyPlanningScene, str(get("apply_service")))
+        self.scene_read_client = self.create_client(GetPlanningScene, str(get("get_scene_service")))
         self.status_pub = self.create_publisher(String, str(get("status_topic")), 10)
+        self.attachment_status_pub = self.create_publisher(
+            String, str(get("attachment_status_topic")), 10)
         self._scene_busy = False
         self._static_sent = False
         self._static_pending = []
         self._pending_by_id = {}
+        self._attachment_queue = []
+        self._attachment_results = {}
+        self._attachment_inflight = set()
         self._table_cfg = {
             "enabled": bool(get("table_collision_enabled")),
             "size_xy": tuple(float(v) for v in get("table_size_xy_m")),
@@ -125,6 +137,8 @@ class SceneUpdater(Node):
         }
         self.create_subscription(Detection3DArray, str(get("detections_topic")),
                                  self._detections, 10)
+        self.create_subscription(String, str(get("attachment_request_topic")),
+                                 self._attachment_request, 10)
         self.create_timer(0.2, self._maintenance)
         self.get_logger().info(
             f"Scene updates are bounded to {self.max_objects} tracked boxes; "
@@ -162,6 +176,8 @@ class SceneUpdater(Node):
         now_mono = time.monotonic()
         for detection in list(array.detections)[:self.max_objects]:
             try:
+                if self.registry.is_attached(detection.id):
+                    continue
                 center, orientation = transform_box_pose(
                     transform,
                     (detection.bbox.center.position.x,
@@ -222,6 +238,8 @@ class SceneUpdater(Node):
         return boxes
 
     def _maintenance(self):
+        if self._attachment_queue and not self._scene_busy and not self._pending_by_id:
+            self._apply_attachment(self._attachment_queue.pop(0))
         if self._pending_by_id and not self._scene_busy:
             self._apply([])
         if not self._static_sent and not self._scene_busy:
@@ -242,6 +260,190 @@ class SceneUpdater(Node):
                 operation=CollisionObject.REMOVE) for key in expired]
             self._apply(remove)
             self._status("expired", ids=expired)
+
+    def _attachment_request(self, message):
+        try:
+            data = json.loads(message.data)
+            if (not isinstance(data, dict) or data.get("schema") != 1 or
+                    not isinstance(data.get("request_id"), str) or not data["request_id"] or
+                    data.get("action") not in {"attach", "detach", "allow_contact", "disallow_contact"} or
+                    not isinstance(data.get("track_id"), str) or not data["track_id"]):
+                raise ValueError("request requires schema 1, request_id, action and track_id")
+            request_id = data["request_id"]
+            if request_id in self._attachment_results:
+                self._attachment_status_pub.publish(String(data=json.dumps(
+                    self._attachment_results[request_id], sort_keys=True)))
+                return
+            if request_id in self._attachment_inflight:
+                return
+            self._attachment_inflight.add(request_id)
+            self._attachment_queue.append(data)
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            self._attachment_status({"state": "rejected", "reason": str(exc)})
+
+    def _attachment_status(self, data):
+        request_id = data.get("request_id")
+        if request_id:
+            self._attachment_inflight.discard(request_id)
+            self._attachment_results[request_id] = dict(data)
+            if len(self._attachment_results) > 128:
+                self._attachment_results.pop(next(iter(self._attachment_results)))
+        message = String()
+        message.data = json.dumps(data, sort_keys=True, allow_nan=False)
+        self.attachment_status_pub.publish(message)
+
+    def _apply_attachment(self, data):
+        request_id, action, track_id = data["request_id"], data["action"], data["track_id"]
+        try:
+            key = object_collision_id(track_id)
+            if action in {"allow_contact", "disallow_contact"}:
+                if key not in self.registry._objects:
+                    raise ValueError("contact target is not present in the live scene registry")
+                links = data.get("touch_links")
+                if not isinstance(links, list) or not links or any(
+                        not isinstance(link, str) or not link.strip() for link in links):
+                    raise ValueError("contact matrix update requires explicit touch_links")
+                self._update_contact_matrix(data, key, links, action == "allow_contact")
+                return
+            item = self.registry._objects[key]
+            if action == "attach":
+                link_from_world = transform_matrix(
+                    self._lookup(data["link_name"], self.world_frame,
+                                 self.get_clock().now()))
+                link_center, link_orientation = transform_box_pose(
+                    link_from_world, item.center_m, item.orientation_xyzw)
+                self.registry.attach(track_id, link_name=data.get("link_name"),
+                                     touch_links=data.get("touch_links"),
+                                     link_pose={"position": link_center,
+                                                "orientation_xyzw": link_orientation})
+                record = self.registry.attached_record(track_id)
+            else:
+                record = self.registry.attached_record(track_id)
+                world = data["world_pose"]
+                center = tuple(float(v) for v in world["position"])
+                orientation = tuple(float(v) for v in world["orientation_xyzw"])
+                if len(center) != 3 or len(orientation) != 4 or not all(
+                        math.isfinite(v) for v in (*center, *orientation)):
+                    raise ValueError("world_pose must contain finite XYZ and XYZW")
+                quaternion_matrix_xyzw(orientation)
+            request = ApplyPlanningScene.Request()
+            request.scene = PlanningScene()
+            request.scene.is_diff = True
+            request.scene.robot_state.is_diff = True
+            stamp = self.get_clock().now().to_msg()
+            if action == "attach":
+                request.scene.world.collision_objects = [box_collision_object(
+                    key, self.world_frame, stamp, (0, 0, 0), item.size_m, (0, 0, 0, 1),
+                    operation=CollisionObject.REMOVE)]
+                attached = AttachedCollisionObject()
+                attached.link_name = record["link_name"]
+                attached.touch_links = list(record["touch_links"])
+                attached.object = box_collision_object(
+                    key, record["link_name"], stamp, record["link_pose"]["position"],
+                    item.size_m, record["link_pose"]["orientation_xyzw"])
+                request.scene.robot_state.attached_collision_objects = [attached]
+            else:
+                attached = AttachedCollisionObject()
+                attached.link_name = record["link_name"]
+                attached.object.id = key
+                attached.object.operation = CollisionObject.REMOVE
+                request.scene.robot_state.attached_collision_objects = [attached]
+                request.scene.world.collision_objects = [box_collision_object(
+                    key, self.world_frame, stamp, center, item.size_m, orientation)]
+        except (KeyError, TypeError, ValueError, TransformException, np.linalg.LinAlgError) as exc:
+            self._attachment_status({"request_id": request_id, "state": "rejected",
+                                     "track_id": track_id, "reason": str(exc)})
+            return
+        if not self.scene_client.service_is_ready():
+            if action == "attach":
+                self.registry.detach(track_id)
+            self._attachment_status({"request_id": request_id, "state": "failed",
+                                     "track_id": track_id, "reason": "apply service unavailable"})
+            return
+        self._scene_busy = True
+        future = self.scene_client.call_async(request)
+
+        def done(result):
+            self._scene_busy = False
+            try:
+                response = result.result()
+                applied = bool(response and response.success)
+                reason = "planning-scene service rejected diff"
+            except Exception as exc:
+                applied, reason = False, str(exc)
+            if applied and action == "detach":
+                self.registry.detach(track_id, world_pose=data["world_pose"],
+                                     now_mono_s=time.monotonic())
+            elif not applied and action == "attach":
+                self.registry.detach(track_id)
+            self._attachment_status({"request_id": request_id,
+                                     "state": ("attached" if action == "attach" else "detached")
+                                     if applied else "failed", "track_id": track_id,
+                                     "collision_id": key,
+                                     **({} if applied else {"reason": reason})})
+
+        future.add_done_callback(done)
+
+    def _update_contact_matrix(self, data, collision_id, links, allow):
+        if not self.scene_read_client.service_is_ready() or not self.scene_client.service_is_ready():
+            self._attachment_status({"request_id": data["request_id"], "state": "failed",
+                                     "reason": "planning-scene read/apply service unavailable"})
+            return
+        read = GetPlanningScene.Request()
+        read.components.components = PlanningSceneComponents.ALLOWED_COLLISION_MATRIX
+        self._scene_busy = True
+        read_future = self.scene_read_client.call_async(read)
+
+        def got_scene(done_read):
+            try:
+                existing = done_read.result().scene.allowed_collision_matrix
+                matrix = copy.deepcopy(existing)
+                names = list(matrix.entry_names)
+                for link in [collision_id, *links]:
+                    if link not in names:
+                        names.append(link)
+                old_n = len(matrix.entry_names)
+                for row in matrix.entry_values:
+                    row.enabled.extend([False] * (len(names) - old_n))
+                from moveit_msgs.msg import AllowedCollisionEntry
+                for _ in range(len(names) - len(matrix.entry_values)):
+                    matrix.entry_values.append(AllowedCollisionEntry(enabled=[False] * len(names)))
+                for row in matrix.entry_values:
+                    if len(row.enabled) < len(names):
+                        row.enabled.extend([False] * (len(names) - len(row.enabled)))
+                matrix.entry_names = names
+                for link in links:
+                    i, j = names.index(collision_id), names.index(link)
+                    matrix.entry_values[i].enabled[j] = bool(allow)
+                    matrix.entry_values[j].enabled[i] = bool(allow)
+                apply = ApplyPlanningScene.Request()
+                apply.scene = PlanningScene()
+                apply.scene.is_diff = True
+                apply.scene.robot_state.is_diff = True
+                apply.scene.allowed_collision_matrix = matrix
+                apply_future = self.scene_client.call_async(apply)
+                apply_future.add_done_callback(lambda done_apply: self._contact_done(
+                    done_apply, data, allow))
+            except Exception as exc:
+                self._scene_busy = False
+                self._attachment_status({"request_id": data["request_id"], "state": "failed",
+                                         "reason": str(exc)})
+
+        read_future.add_done_callback(got_scene)
+
+    def _contact_done(self, future, data, allow):
+        self._scene_busy = False
+        try:
+            response = future.result()
+            applied = bool(response and response.success)
+            reason = "planning-scene rejected allowed-collision update"
+        except Exception as exc:
+            applied, reason = False, str(exc)
+        self._attachment_status({"request_id": data["request_id"],
+                                 "state": ("contact_allowed" if allow else "contact_disallowed")
+                                 if applied else "failed",
+                                 "track_id": data["track_id"],
+                                 **({} if applied else {"reason": reason})})
 
     def _apply(self, objects, *, static=False):
         for item in objects:

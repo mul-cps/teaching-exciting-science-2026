@@ -161,9 +161,12 @@ class LiveObjectRegistry:
         self.padding_m = float(padding_m)
         self.max_objects = int(max_objects)
         self._objects: dict[str, TrackedBox] = {}
+        self._attached: dict[str, dict] = {}
 
     def update(self, track_id, center_m, size_m, orientation_xyzw, *, now_mono_s):
         key = object_collision_id(track_id)
+        if key in self._attached:
+            raise ValueError("tracked object is attached and cannot be recreated from detections")
         center = tuple(float(v) for v in center_m)
         if len(center) != 3 or not all(math.isfinite(v) for v in center):
             raise ValueError("box center must contain three finite coordinates")
@@ -184,8 +187,59 @@ class LiveObjectRegistry:
         if not math.isfinite(now_mono_s):
             raise ValueError("monotonic time must be finite")
         expired = [key for key, item in self._objects.items()
-                   if now_mono_s - item.last_seen_mono_s >= self.ttl_s]
+                   if key not in self._attached and now_mono_s - item.last_seen_mono_s >= self.ttl_s]
         for key in expired:
             del self._objects[key]
         return sorted(expired)
+
+    def attach(self, track_id, *, link_name, touch_links, link_pose):
+        """Reserve a tracked box while its collision geometry is attached in MoveIt."""
+        key = object_collision_id(track_id)
+        if key not in self._objects:
+            raise ValueError("cannot attach an unknown tracked object")
+        if key in self._attached:
+            raise ValueError("tracked object is already attached")
+        if not isinstance(link_name, str) or not link_name.strip():
+            raise ValueError("attachment link_name is required")
+        if not isinstance(touch_links, list) or not touch_links or any(
+                not isinstance(link, str) or not link.strip() for link in touch_links):
+            raise ValueError("attachment requires explicit touch_links")
+        pose = dict(link_pose) if isinstance(link_pose, dict) else None
+        if pose is None:
+            raise ValueError("link_pose is required")
+        center = tuple(float(v) for v in pose.get("position", ()))
+        orientation = tuple(float(v) for v in pose.get("orientation_xyzw", ()))
+        if len(center) != 3 or len(orientation) != 4 or not all(
+                math.isfinite(v) for v in (*center, *orientation)):
+            raise ValueError("link_pose must contain finite XYZ and XYZW values")
+        quaternion_matrix_xyzw(orientation)
+        self._attached[key] = {"track_id": track_id, "link_name": link_name,
+                               "touch_links": tuple(touch_links), "link_pose": pose}
+        return self._objects[key]
+
+    def detach(self, track_id, *, world_pose=None, now_mono_s=None):
+        key = object_collision_id(track_id)
+        if key not in self._attached:
+            raise ValueError("tracked object is not attached")
+        replacement = None
+        if world_pose is not None:
+            center = tuple(float(v) for v in world_pose.get("position", ()))
+            orientation = tuple(float(v) for v in world_pose.get("orientation_xyzw", ()))
+            if len(center) != 3 or len(orientation) != 4 or not all(
+                    math.isfinite(v) for v in (*center, *orientation)):
+                raise ValueError("world_pose must contain finite XYZ and XYZW values")
+            quaternion_matrix_xyzw(orientation)
+            old = self._objects[key]
+            replacement = TrackedBox(key, center, old.size_m, orientation,
+                                     float(now_mono_s if now_mono_s is not None else old.last_seen_mono_s))
+        del self._attached[key]
+        if replacement is not None:
+            self._objects[key] = replacement
+        return key
+
+    def is_attached(self, track_id):
+        return object_collision_id(track_id) in self._attached
+
+    def attached_record(self, track_id):
+        return self._attached.get(object_collision_id(track_id))
 

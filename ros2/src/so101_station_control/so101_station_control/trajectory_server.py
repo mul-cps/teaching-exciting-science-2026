@@ -228,6 +228,7 @@ class TrajectoryBridge(Node):
         self._expected_calibration_sha256 = None
         self._saved_home_pose = None
         self._saved_home_tolerance = None
+        self._home_completed_owner_started = None
         self._state_file = self._resolve_state_file()
         self._gripper_jaw = None
         self._gripper_raw_limits = None
@@ -276,6 +277,9 @@ class TrajectoryBridge(Node):
         self._home_service = self.create_service(
             Trigger, str(self.get_parameter("home_service").value),
             self._home, callback_group=self._teleop_service_group)
+        self._sorting_ready_service = self.create_service(
+            Trigger, "/follower/sorting_ready", self._sorting_ready,
+            callback_group=self._teleop_service_group)
         self._calibration_ready_service = self.create_service(
             Trigger, str(self.get_parameter("calibration_ready_service").value),
             self._calibration_ready, callback_group=self._teleop_service_group)
@@ -837,13 +841,35 @@ class TrajectoryBridge(Node):
                 raise RuntimeError("ArmSession home acknowledgement did not confirm home_complete")
             response.success = True
             response.message = "measured home completed"
+            self._home_completed_owner_started = self._owner_started
         except (BrokenPipeError, OSError, RuntimeError, TimeoutError) as error:
+            self._home_completed_owner_started = None
             response.success = False
             response.message = str(error)
         finally:
             with self._active_lock:
                 if self._active_goal == "home":
                     self._active_goal = None
+        return response
+
+    def _sorting_ready(self, _request, response):
+        """Read-only admission check for sorting; this service never homes the arm."""
+        process = self._process
+        state = self._read_state()
+        with self._active_lock:
+            active = self._active_goal is not None
+            teleop_state = self._teleop_state
+        valid = (not self._external_state_only and process is not None and process.poll() is None and
+                 not self._owner_faulted and not active and teleop_state == "disabled" and
+                 self._gripper_jaw is not None and state is not None and
+                 self._home_completed_owner_started == self._owner_started and
+                 state.get("arm_id") == self._expected_arm_id and
+                 state.get("calibration_sha256") == self._expected_calibration_sha256)
+        response.success = bool(valid)
+        response.message = ("sorting readiness confirmed from fresh identity-matched resident state; no motion commanded"
+                            if valid else
+                            "sorting not ready: require fresh matching owner, completed home in this session, "
+                            "qualified jaw calibration, idle trajectory and disabled teleoperation")
         return response
 
     def _calibration_ready(self, _request, response):
@@ -1179,6 +1205,9 @@ class TrajectoryBridge(Node):
     def _execute_gripper(self, goal_handle):
         command = goal_handle.request.command
         result = GripperCommand.Result()
+        command_sent = False
+        command_complete = False
+        stop_confirmed = False
         try:
             if self._external_state_only or self._gripper_jaw is None or self._gripper_raw_limits is None:
                 raise RuntimeError("qualified jaw-gap calibration and resident hardware owner are required")
@@ -1203,52 +1232,83 @@ class TrajectoryBridge(Node):
                     break
             self._send({"command": "move_plan", "legs": [{"label": "gripper_command",
                         "target_raw": target_raw, "grasp": target_percent < float(pose["gripper"])}]})
+            command_sent = True
             deadline = time.monotonic() + 8.0
             response = None
+            cancel_deadline = None
             while time.monotonic() < deadline:
                 with self._active_lock:
                     cancelled = self._gripper_goal_cancelled
                 if cancelled:
-                    raise InterruptedError("gripper command cancelled; resident owner hold requested")
+                    cancel_deadline = cancel_deadline or (time.monotonic() + 2.0)
+                    if time.monotonic() >= cancel_deadline:
+                        raise TimeoutError("cancel_hold acknowledgement missing; owner remains reserved")
                 if self._process.poll() is not None:
                     raise RuntimeError("resident owner stopped during gripper command")
                 try:
-                    response = self._response_queue.get(timeout=min(0.05, deadline-time.monotonic()))
+                    candidate = self._response_queue.get(timeout=min(0.05, deadline-time.monotonic()))
+                    if cancelled:
+                        state = candidate.get("state") if isinstance(candidate, dict) else None
+                        if not isinstance(state, dict) or state.get("event") != "trajectory_cancel_hold":
+                            continue
+                    response = candidate
                     break
                 except queue.Empty:
                     continue
             if response is None:
                 self._send({"command": "cancel_hold"})
+                cancel_deadline = time.monotonic() + 2.0
+                while time.monotonic() < cancel_deadline:
+                    try:
+                        stopped = self._response_queue.get(timeout=min(0.05, cancel_deadline-time.monotonic()))
+                    except queue.Empty:
+                        continue
+                    stopped_state = stopped.get("state") if isinstance(stopped, dict) else None
+                    if isinstance(stopped_state, dict) and stopped_state.get("event") == "trajectory_cancel_hold":
+                        stop_confirmed = True
+                        break
+                if not stop_confirmed:
+                    self._owner_faulted = True
                 raise TimeoutError("resident gripper command did not complete within 8 seconds")
             if not response.get("ok"):
                 raise RuntimeError(response.get("error", "resident rejected gripper command"))
             final_state = response.get("state")
             if not isinstance(final_state, dict) or final_state.get("event") != "plan_complete":
+                if self._gripper_goal_cancelled and isinstance(final_state, dict) and final_state.get("event") == "trajectory_cancel_hold":
+                    stop_confirmed = True
+                    raise InterruptedError("gripper cancellation confirmed by resident hold")
                 raise RuntimeError("resident acknowledgement did not confirm plan_complete")
             final_percent = float(final_state["pose"]["gripper"])
             result.position = percent_to_gap(final_percent, self._gripper_jaw)
             result.effort = 0.0  # Not measured in force units.
             tolerance_percent = 2.0
             result.reached_goal = abs(final_percent - target_percent) <= tolerance_percent
-            result.stalled = not result.reached_goal
-            if not result.reached_goal:
+            legs = final_state.get("legs")
+            contact_inferred = (isinstance(legs, list) and len(legs) == 1 and
+                                legs[0].get("label") == "gripper_command" and
+                                legs[0].get("contact_inferred") is True)
+            result.stalled = bool(contact_inferred)
+            if not result.reached_goal and not contact_inferred:
                 raise RuntimeError("jaw stopped outside requested calibrated gap; pickup is unverified")
+            command_complete = True
             goal_handle.succeed()
             return result
         except InterruptedError as error:
             goal_handle.canceled()
-            result.stalled = True
+            result.stalled = False
             self.get_logger().warning(str(error))
             return result
         except (OSError, ValueError, RuntimeError, TimeoutError, TypeError, KeyError) as error:
-            result.stalled = True
+            if command_sent and not command_complete and not stop_confirmed:
+                self._owner_faulted = True
+            result.stalled = False
             result.reached_goal = False
             self.get_logger().error(f"GripperCommand failed: {error}")
             goal_handle.abort()
             return result
         finally:
             with self._active_lock:
-                if self._active_goal == "gripper":
+                if self._active_goal == "gripper" and not self._owner_faulted:
                     self._active_goal = None
 
     @staticmethod
