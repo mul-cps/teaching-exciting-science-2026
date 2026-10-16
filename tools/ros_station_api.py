@@ -278,15 +278,18 @@ def main():
         def admit():
             validate_target(request.target_deg)
             def move(worker, proxy, cancel):
+                latest_observation = None
                 def check(deadline):
                     if cancel.is_set():
                         raise InterruptedError('sorter position cancelled')
                     if time.monotonic() >= deadline:
                         raise TimeoutError('sorter position deadline exceeded')
                 def status(deadline):
+                    nonlocal latest_observation
                     check(deadline)
                     before = time.monotonic()
                     result = proxy.call('status')
+                    latest_observation = result
                     if time.monotonic()-before > .75:
                         raise TimeoutError('sorter telemetry receipt too slow for admission')
                     check(deadline)
@@ -334,6 +337,13 @@ def main():
                             raise RuntimeError('sorter native active job identity changed')
                         time.sleep(.05)
                 except BaseException as error:
+                    # Preserve the failing native state before cleanup changes
+                    # power mode, active-job state, or cached diagnostics.
+                    try:
+                        record(dict(event='sorter_position_failed', target_deg=request.target_deg,
+                                    error=str(error), native_observation=latest_observation))
+                    except Exception as logging_error:
+                        error.add_note('sorter failure evidence write failed: '+str(logging_error))
                     try:
                         reply = proxy.call('stop')
                         if reply.get('stopped') is not True:

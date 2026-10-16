@@ -254,6 +254,12 @@ main()
         assert call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=20.)).success
         assert 'home reference' in terminal('fault')['fault']
         assert not axis_arguments
+        failures = [json.loads(line) for line in (tmp_path/'station-events.jsonl').read_text().splitlines()
+                    if json.loads(line).get('event') == 'sorter_position_failed']
+        assert failures
+        assert failures[-1]['native_observation']['session'] == 'fake-session'
+        assert failures[-1]['native_observation']['references']['sorter'] is None
+        assert failures[-1]['native_observation']['busy'] is False
         assert call(Trigger, 'reset_fault').success
         assert call(ConfirmReference, 'ev3/confirm_reference',
                     ConfirmReference.Request(name='sorter', reference='home', physically_verified=True)).success
