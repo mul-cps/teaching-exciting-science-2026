@@ -2,23 +2,35 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import json
 import os
 import tempfile
 import time
 from pathlib import Path
+import uuid
 
+import cv2
 import numpy as np
 import rclpy
+from cv_bridge import CvBridge
+import message_filters
 from geometry_msgs.msg import PoseArray
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from sensor_msgs.msg import JointState, PointCloud2
+from rclpy.qos import qos_profile_sensor_data
+from rclpy.time import Time
+from rclpy.duration import Duration
+from sensor_msgs.msg import CameraInfo, Image, JointState, PointCloud2
 from std_msgs.msg import String
 from tf2_msgs.msg import TFMessage
+from tf2_ros import Buffer, TransformListener
 from visualization_msgs.msg import MarkerArray
 
 from .ros_state import RosTwinState, resolve_package_mesh_uris, transform_matrix
+from .placement_region import (PlacementRegionTracker, SparseRGBDAnchor,
+    pose_from_rectangle, project_rectangle_to_plane, placement_camera_frame_summary,
+    waiting_for_anchor_status)
 
 
 def _stamp_ns(stamp):
@@ -28,11 +40,38 @@ def _stamp_ns(stamp):
 class RosStatePublisher(Node):
     """Serialize authoritative state to an atomic local file; never publishes ROS."""
 
-    def __init__(self, output, root_frame="charuco_board", max_age_s=0.5):
+    def __init__(self, output, root_frame="charuco_board", max_age_s=0.5,
+                 placement_directory=None, color_topic="/camera/color/image_raw",
+                 depth_topic="/camera/aligned_depth_to_color/image_raw",
+                 camera_info_topic="/camera/color/camera_info",
+                 placement_selection_timeout_s=30.):
         super().__init__("so101_web_twin_state")
         self.output = output
         self.root_frame = root_frame.lstrip("/")
         self.state = RosTwinState(max_age_s=float(max_age_s))
+        cv2.setNumThreads(1)
+        self.cv_bridge = CvBridge()
+        self.placement_directory = Path(placement_directory or
+                                        (Path(output).parent / "placement-camera"))
+        self.placement_directory.mkdir(parents=True, exist_ok=True)
+        self.placement_request_path = Path(output).with_name("placement-region-request.json")
+        self.placement_frames = deque(maxlen=16)
+        self.placement_selection_timeout_s = float(placement_selection_timeout_s)
+        if not np.isfinite(self.placement_selection_timeout_s) or self.placement_selection_timeout_s <= 0:
+            raise ValueError("placement selection timeout must be positive and finite")
+        self.placement_tracker = PlacementRegionTracker(
+            max_selection_age_s=self.placement_selection_timeout_s)
+        self.placement_frontend = SparseRGBDAnchor(self.placement_tracker)
+        self.placement_last_request_id = None
+        self.placement_pinned_frame = None
+        self.placement_pin_expires = None
+        self.placement_status = {"state": "waiting_for_rgbd", "valid": False,
+            "reason": "waiting_for_rgbd", "placement_motion_qualified": False}
+        self.placement_frame = None
+        self.placement_plane_metrics = None
+        self.placement_last_tf_warning = 0.
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
         latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
         latched_tf = QoSProfile(depth=100, reliability=ReliabilityPolicy.RELIABLE,
@@ -45,9 +84,328 @@ class RosStatePublisher(Node):
         self.create_subscription(PoseArray, "/so101/grasp_contacts", self._contacts, 10)
         self.create_subscription(PoseArray, "/so101/grasp_candidates", self._candidates, 10)
         self.create_subscription(PointCloud2, "/camera/depth/color/points", self._point_cloud, 2)
+        self.placement_pub = self.create_publisher(String,
+            "/station/placement_goal_observation", 10)
+        self.placement_selection_service = None
+        try:
+            from so101_station_workflow.srv import SelectPlacementRegion
+            self.placement_selection_service = self.create_service(
+                SelectPlacementRegion, "/station/placement/select",
+                self._placement_selection_service)
+        except ImportError as error:
+            self.get_logger().warning(
+                f"Placement ROS selection service unavailable until so101_station_workflow is built: {error}")
+        color = message_filters.Subscriber(self, Image, color_topic,
+                                           qos_profile=qos_profile_sensor_data)
+        depth = message_filters.Subscriber(self, Image, depth_topic,
+                                           qos_profile=qos_profile_sensor_data)
+        info = message_filters.Subscriber(self, CameraInfo, camera_info_topic,
+                                          qos_profile=qos_profile_sensor_data)
+        self.camera_sync = message_filters.ApproximateTimeSynchronizer(
+            [color, depth, info], queue_size=6, slop=0.04)
+        self.camera_sync.registerCallback(self._placement_rgbd)
         self.create_timer(0.05, self._write)
         self.get_logger().info(
             "Passive ROS twin adapter: subscribing only; no camera, serial, or command interface")
+
+    def _lookup_camera_pose(self, target, source, stamp_ns):
+        stamp = Time(nanoseconds=int(stamp_ns), clock_type=self.get_clock().clock_type)
+        try:
+            if not self.tf_buffer.can_transform(target, source, stamp, timeout=Duration(seconds=0.0)):
+                return None
+            value = self.tf_buffer.lookup_transform(target, source, stamp,
+                                                    timeout=Duration(seconds=0.0))
+        except Exception:
+            return None
+        t, q = value.transform.translation, value.transform.rotation
+        return transform_matrix((t.x, t.y, t.z), (q.x, q.y, q.z, q.w))
+
+    def _placement_rgbd(self, color_msg, depth_msg, info_msg):
+        now = time.monotonic()
+        color_stamp, depth_stamp, info_stamp = map(_stamp_ns,
+            (color_msg.header.stamp, depth_msg.header.stamp, info_msg.header.stamp))
+        stamp_ns = color_stamp
+        if (stamp_ns <= 0 or max(color_stamp, depth_stamp, info_stamp)
+                - min(color_stamp, depth_stamp, info_stamp) > 40_000_000):
+            self.placement_status = {"state": "invalid", "valid": False,
+                "reason": "rgbd_camera_info_timestamp_mismatch",
+                "stamp_ns": stamp_ns, "placement_motion_qualified": False}
+            return
+        frame_id = color_msg.header.frame_id.lstrip("/")
+        if not frame_id or depth_msg.header.frame_id.lstrip("/") not in ("", frame_id):
+            self.placement_status = {"state": "invalid", "valid": False,
+                "reason": "rgbd_frame_mismatch", "stamp_ns": stamp_ns,
+                "placement_motion_qualified": False}
+            return
+        try:
+            rgb = self.cv_bridge.imgmsg_to_cv2(color_msg, desired_encoding="rgb8")
+            depth_raw = self.cv_bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
+            rgb = np.asarray(rgb, dtype=np.uint8)
+            depth_raw = np.asarray(depth_raw)
+            if rgb.ndim != 3 or rgb.shape[2] != 3 or depth_raw.shape != rgb.shape[:2]:
+                raise ValueError("color and aligned depth must have matching HxW")
+            k = np.asarray(info_msg.k, dtype=float).reshape(3, 3)
+            distortion = np.asarray(info_msg.d, dtype=float)
+            h, w = rgb.shape[:2]
+            if (info_msg.width != w or info_msg.height != h or
+                    not np.isfinite(k).all() or k[0, 0] <= 0 or k[1, 1] <= 0):
+                raise ValueError("camera intrinsics must match RGB dimensions")
+            if len(distortion) and np.any(np.abs(distortion) > 1e-12):
+                new_k, _ = cv2.getOptimalNewCameraMatrix(k, distortion, (w, h), 0., (w, h))
+                map_x, map_y = cv2.initUndistortRectifyMap(k, distortion, None, new_k,
+                                                           (w, h), cv2.CV_32FC1)
+                rgb = cv2.remap(rgb, map_x, map_y, cv2.INTER_LINEAR)
+                depth_raw = cv2.remap(depth_raw, map_x, map_y, cv2.INTER_NEAREST)
+                k = new_k
+            if depth_raw.dtype == np.uint16:
+                depth_m = depth_raw.astype(np.float32) * .001
+            elif np.issubdtype(depth_raw.dtype, np.floating):
+                depth_m = depth_raw.astype(np.float32)
+            else:
+                raise ValueError(f"unsupported depth encoding {depth_msg.encoding}")
+            root_from_camera = self._lookup_camera_pose(self.root_frame, frame_id, stamp_ns)
+            base_from_camera = self._lookup_camera_pose("base_link", frame_id, stamp_ns)
+            encoded_ok, encoded = cv2.imencode(".jpg",
+                cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 82])
+            if not encoded_ok:
+                raise ValueError("could not encode synchronized camera image")
+            generation = f"{stamp_ns}-{uuid.uuid4().hex[:8]}"
+            image_path = self.placement_directory / f"{generation}.jpg"
+            temporary = image_path.with_suffix(".tmp.jpg")
+            temporary.write_bytes(encoded.tobytes())
+            os.replace(temporary, image_path)
+            record = {"generation": generation, "stamp_ns": stamp_ns,
+                "received_monotonic": now, "frame_id": frame_id,
+                "root_frame": self.root_frame,
+                "root_from_camera": (None if root_from_camera is None else root_from_camera),
+                "base_from_camera": base_from_camera,
+                "camera_matrix": k, "rgb": rgb.copy(), "depth_m": depth_m.copy(),
+                "image_path": str(image_path), "image_shape": [h, w]}
+            self.placement_frames.append(record)
+            self.placement_frame = placement_camera_frame_summary(record)
+            if self.placement_frontend.tracker.anchor_points is not None:
+                observation = self.placement_frontend.update(rgb, depth_m, k,
+                    np.eye(4), stamp_ns=stamp_ns, frame_id=frame_id,
+                    generation=generation, received_monotonic=now)
+                self.placement_status = self._placement_snapshot_dict(observation)
+                self.placement_status["received_monotonic"] = now
+                self.placement_status["camera_frame"] = frame_id
+                self.placement_status["identity_reacquired_after_gap"] = (
+                    self.placement_frontend.identity_reacquired_after_gap)
+                self.placement_status["plane_metrics"] = self.placement_plane_metrics
+                self.placement_status["camera_from_goal"] = None
+                if observation.goal_corners_root is not None:
+                    camera_from_goal, geometry = pose_from_rectangle(observation.goal_corners_root)
+                    self.placement_status["camera_from_goal"] = camera_from_goal.tolist()
+                    self.placement_status["camera_from_goal_stamp_ns"] = stamp_ns
+                    self.placement_status["selection_id"] = observation.selection_id
+                    self.placement_status["goal_corners_camera"] = observation.goal_corners_root.tolist()
+                    self.placement_status["goal_geometry"] = geometry
+                    self.placement_status["root_from_camera_at_stamp"] = (
+                        None if root_from_camera is None else root_from_camera.tolist())
+                    self.placement_status["goal_corners_root"] = (
+                        None if root_from_camera is None else
+                        (observation.goal_corners_root @ root_from_camera[:3, :3].T
+                         + root_from_camera[:3, 3]).tolist())
+                self.placement_status["base_tf_available"] = base_from_camera is not None
+                self.placement_status["base_from_camera_at_stamp"] = (
+                    None if base_from_camera is None else base_from_camera.tolist())
+                if base_from_camera is not None and observation.goal_corners_root is not None:
+                    self.placement_status["goal_corners_base"] = (
+                        (observation.goal_corners_root @ base_from_camera[:3, :3].T
+                         + base_from_camera[:3, 3]).tolist())
+            else:
+                self.placement_status = waiting_for_anchor_status(
+                    self.placement_status, generation=generation, stamp_ns=stamp_ns,
+                    frame_id=frame_id)
+            self.placement_status.update({
+                "camera_frame": frame_id, "stamp_ns": stamp_ns,
+                "received_monotonic": now, "root_frame": self.root_frame,
+                "root_from_camera_at_stamp": (None if root_from_camera is None else
+                                               root_from_camera.tolist()),
+                "base_from_camera_at_stamp": (None if base_from_camera is None else
+                                              base_from_camera.tolist()),
+                "camera_base_registration_qualified": False,
+                "physical_placement_admission": False,
+                "placement_motion_qualified": False,
+            })
+            keep = {entry["image_path"] for entry in self.placement_frames}
+            for old in self.placement_directory.glob("*.jpg"):
+                if str(old) not in keep:
+                    old.unlink(missing_ok=True)
+        except Exception as error:
+            self.placement_tracker.invalidate("camera_observation_invalid", generation=generation,
+                stamp_ns=stamp_ns, received_monotonic=now)
+            self.placement_status = {"state": "invalid", "valid": False,
+                "reason": f"camera_observation_invalid:{error}", "stamp_ns": stamp_ns,
+                "placement_motion_qualified": False}
+
+    @staticmethod
+    def _placement_snapshot_dict(snapshot):
+        anchor_tracking_valid = bool(snapshot.reason == "tracked"
+                                      and snapshot.root_from_anchor is not None
+                                      and snapshot.age_s is not None
+                                      and snapshot.age_s <= .25)
+        state = ("tracked" if snapshot.valid else
+                 "anchor_tracked" if anchor_tracking_valid else "invalid")
+        return {"state": state, "anchor_tracking_valid": anchor_tracking_valid,
+            "valid": snapshot.valid, "reason": snapshot.reason,
+            "generation": snapshot.generation, "stamp_ns": snapshot.stamp_ns,
+            "selection_id": snapshot.selection_id,
+            "frame_id": snapshot.frame_id, "age_s": snapshot.age_s,
+            "camera_from_anchor": (None if snapshot.root_from_anchor is None else
+                                    snapshot.root_from_anchor.tolist()),
+            "goal_corners_camera": (None if snapshot.goal_corners_root is None else
+                                    snapshot.goal_corners_root.tolist()),
+            "last_valid_goal_corners_camera": (
+                None if snapshot.last_valid_goal_corners_root is None else
+                snapshot.last_valid_goal_corners_root.tolist()),
+            "feature_count": snapshot.feature_count, "inlier_count": snapshot.inlier_count,
+            "fit_rms_m": snapshot.fit_rms_m,
+            "placement_motion_qualified": False,
+            "physical_placement_admission": False,
+            "camera_from_anchor_is_measurement": True,
+            "camera_base_registration_qualified": False}
+
+    def _consume_placement_request(self):
+        try:
+            request = json.loads(self.placement_request_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        request_id = request.get("request_id") if isinstance(request, dict) else None
+        if not request_id or request_id == self.placement_last_request_id:
+            return
+        self.placement_last_request_id = request_id
+        self._process_placement_request(request)
+
+    def _process_placement_request(self, request):
+        generation = str(request.get("generation", ""))
+        if request.get("action") == "clear_selection":
+            self.placement_tracker = PlacementRegionTracker(
+                max_selection_age_s=self.placement_selection_timeout_s)
+            self.placement_frontend = SparseRGBDAnchor(self.placement_tracker)
+            self.placement_plane_metrics = None
+            self.placement_pinned_frame = None
+            self.placement_pin_expires = None
+            self.placement_status = {"state": "selection_cleared", "valid": False,
+                "reason": "selection_cleared", "generation": generation,
+                "placement_motion_qualified": False,
+                "physical_placement_admission": False}
+            return
+        frame = None
+        if (self.placement_pinned_frame is not None
+                and self.placement_pinned_frame["generation"] == generation
+                and self.placement_pin_expires is not None
+                and time.monotonic() <= self.placement_pin_expires):
+            frame = self.placement_pinned_frame
+        else:
+            frame = next((item for item in self.placement_frames
+                          if item["generation"] == generation), None)
+        if request.get("action") == "pin_frame":
+            if frame is None or time.monotonic() - frame["received_monotonic"] > .4:
+                self.placement_status = {"state": "invalid", "valid": False,
+                    "reason": "selection_frame_stale_before_pin", "generation": generation,
+                    "placement_motion_qualified": False}
+                return
+            self.placement_pinned_frame = frame
+            self.placement_pin_expires = time.monotonic() + self.placement_selection_timeout_s
+            self.placement_status = {"state": "selection_frame_pinned", "valid": False,
+                "reason": "selection_frame_pinned_for_10s", "generation": generation,
+                "selection_expires_in_s": self.placement_selection_timeout_s,
+                "placement_motion_qualified": False}
+            return
+        if request.get("action") == "unpin_frame":
+            if self.placement_pinned_frame is not None and self.placement_pinned_frame["generation"] == generation:
+                self.placement_pinned_frame = None
+                self.placement_pin_expires = None
+            self.placement_status = {"state": "selection_cancelled", "valid": False,
+                "reason": "selection_cancelled", "generation": generation,
+                "placement_motion_qualified": False}
+            return
+        if (frame is None and self.placement_pinned_frame is not None
+                and self.placement_pinned_frame["generation"] == generation
+                and self.placement_pin_expires is not None
+                and time.monotonic() <= self.placement_pin_expires):
+            frame = self.placement_pinned_frame
+        if frame is None:
+            self.placement_status = {"state": "invalid", "valid": False,
+                "reason": ("selection_frame_pin_expired" if self.placement_pinned_frame is not None
+                           else "selection_frame_expired"), "generation": generation,
+                "placement_motion_qualified": False}
+            return
+        now = time.monotonic()
+        pin_valid = (frame is self.placement_pinned_frame
+                     and self.placement_pin_expires is not None
+                     and now <= self.placement_pin_expires)
+        if not pin_valid and now - frame["received_monotonic"] > .4:
+            self.placement_status = {"state": "invalid", "valid": False,
+                "reason": "selection_frame_stale", "generation": generation,
+                "placement_motion_qualified": False}
+            return
+        if pin_valid:
+            self.placement_pinned_frame = None
+            self.placement_pin_expires = None
+        try:
+            rectangle = request["rect_xyxy"]
+            if request.get("action") == "select_feeder_anchor":
+                okay = self.placement_frontend.select_anchor(frame["rgb"], frame["depth_m"],
+                    frame["camera_matrix"], np.eye(4), rectangle,
+                    stamp_ns=frame["stamp_ns"], frame_id=frame["frame_id"],
+                    generation=generation, received_monotonic=frame["received_monotonic"])
+                if not okay:
+                    raise ValueError(self.placement_tracker.reason)
+                self.placement_plane_metrics = None
+                self.placement_status = {"state": "anchor_selected", "valid": False,
+                    "reason": "placement_area_not_selected", "generation": generation,
+                    "stamp_ns": frame["stamp_ns"], "frame_id": frame["frame_id"],
+                    "feature_count": len(self.placement_tracker.anchor_points),
+                    "selection_id": self.placement_tracker.selection_id,
+                    "placement_motion_qualified": False}
+            elif request.get("action") == "select_placement_area":
+                polygon, metrics = project_rectangle_to_plane(rectangle, frame["depth_m"],
+                    frame["camera_matrix"], np.eye(4))
+                if not self.placement_tracker.set_goal(frame["stamp_ns"], polygon,
+                        generation=generation, received_monotonic=frame["received_monotonic"],
+                        now_monotonic=now):
+                    raise ValueError(self.placement_tracker.reason)
+                self.placement_status = {"state": "goal_selected", "valid": False,
+                    "reason": "awaiting_fresh_anchor_update", "generation": generation,
+                    "stamp_ns": frame["stamp_ns"], "frame_id": frame["frame_id"],
+                    "goal_corners_root": None, "goal_corners_camera": polygon.tolist(),
+                    "camera_frame": frame["frame_id"], "plane_metrics": metrics,
+                    "camera_from_goal": pose_from_rectangle(polygon)[0].tolist(),
+                    "camera_from_goal_stamp_ns": frame["stamp_ns"],
+                    "selection_id": self.placement_tracker.selection_id,
+                    "received_monotonic": now, "fit_rms_m": 0.0,
+                    "placement_motion_qualified": False,
+                    "physical_placement_admission": False}
+                self.placement_plane_metrics = metrics
+            else:
+                raise ValueError("unknown placement selection action")
+        except (KeyError, TypeError, ValueError) as error:
+            self.placement_status = {"state": "invalid", "valid": False,
+                "reason": f"selection_rejected:{error}", "generation": generation,
+                "placement_motion_qualified": False}
+
+    def _placement_selection_service(self, request, response):
+        modes = {"feeder": "select_feeder_anchor", "goal": "select_placement_area",
+                 "clear": "clear_selection"}
+        mode = str(request.mode)
+        if mode not in modes:
+            response.success = False
+            response.message = "mode must be feeder, goal, or clear"
+            response.selection_id = ""
+            return response
+        command = {"request_id": uuid.uuid4().hex, "action": modes[mode],
+                   "generation": str(request.generation)}
+        if mode != "clear":
+            command["rect_xyxy"] = list(request.pixel_rectangle)
+        self._process_placement_request(command)
+        response.success = self.placement_status.get("state") in {
+            "anchor_selected", "goal_selected", "selection_cleared"}
+        response.message = str(self.placement_status.get("reason", ""))
+        response.selection_id = str(self.placement_status.get("selection_id", ""))
+        return response
 
     def _joints(self, message):
         if not message.name or len(message.name) != len(message.position):
@@ -139,8 +497,30 @@ class RosStatePublisher(Node):
         self._poses(message, "/so101/grasp_candidates")
 
     def _write(self):
-        snapshot = self.state.snapshot(time.monotonic())
+        self._consume_placement_request()
+        now = time.monotonic()
+        if self.placement_tracker.anchor_points is not None:
+            tracker_snapshot = self.placement_tracker.snapshot(now)
+            if self.placement_status.get("valid") and not tracker_snapshot.valid:
+                self.placement_status = self._placement_snapshot_dict(tracker_snapshot)
+                self.placement_status["valid"] = False
+                self.placement_status["goal_corners_camera"] = None
+                self.placement_status["camera_from_goal"] = None
+        if (self.placement_pin_expires is not None and now > self.placement_pin_expires):
+            self.placement_pinned_frame = None
+            self.placement_pin_expires = None
+        elif self.placement_status.get("state") in {"tracked", "anchor_tracked"}:
+            age = now - float(self.placement_status.get("received_monotonic", now))
+            if age > self.placement_tracker.max_age_s:
+                self.placement_status = dict(self.placement_status,
+                    state="invalid", valid=False, anchor_tracking_valid=False,
+                    reason="stale_frame", received_monotonic=now,
+                    goal_corners_camera=None, camera_from_goal=None,
+                    goal_corners_root=None, goal_corners_base=None)
+        snapshot = self.state.snapshot(now)
         snapshot["root_frame"] = self.root_frame
+        snapshot["placement_camera_frame"] = self.placement_frame
+        snapshot["placement_goal"] = self.placement_status
         parent = os.path.dirname(self.output) or "."
         os.makedirs(parent, exist_ok=True)
         fd, temporary = tempfile.mkstemp(prefix=".ros-twin-", dir=parent)
@@ -153,6 +533,9 @@ class RosStatePublisher(Node):
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
+        goal = String()
+        goal.data = json.dumps(self.placement_status, separators=(",", ":"))
+        self.placement_pub.publish(goal)
 
 
 def main(argv=None):
@@ -160,9 +543,16 @@ def main(argv=None):
     parser.add_argument("--output", required=True)
     parser.add_argument("--root-frame", default="charuco_board")
     parser.add_argument("--max-age", type=float, default=0.5)
+    parser.add_argument("--placement-directory", type=Path)
+    parser.add_argument("--color-topic", default="/camera/color/image_raw")
+    parser.add_argument("--depth-topic", default="/camera/aligned_depth_to_color/image_raw")
+    parser.add_argument("--camera-info-topic", default="/camera/color/camera_info")
+    parser.add_argument("--placement-selection-timeout", type=float, default=30.)
     args = parser.parse_args(argv)
     rclpy.init(args=None)
-    node = RosStatePublisher(args.output, args.root_frame, args.max_age)
+    node = RosStatePublisher(args.output, args.root_frame, args.max_age,
+        args.placement_directory, args.color_topic, args.depth_topic, args.camera_info_topic,
+        args.placement_selection_timeout)
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

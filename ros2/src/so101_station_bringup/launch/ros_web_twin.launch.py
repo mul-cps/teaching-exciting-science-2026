@@ -13,6 +13,7 @@ def generate_launch_description():
     root = Path(root_default).resolve()
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
     state_file = runtime / "exciting-science" / "ros-twin-state.json"
+    placement_directory = runtime / "exciting-science" / "placement-camera"
     viewer_python = os.environ.get("SO101_TWIN_VIEWER_PYTHON",
                                   str(Path.home() / ".local/share/exciting-science/station/venv/bin/python"))
     env = os.environ.copy()
@@ -26,7 +27,12 @@ def generate_launch_description():
     viewer_env["PYTHONPATH"] = str(root)
     bridge = ExecuteProcess(
         cmd=[sys.executable, "-m", "workshop.digital_twin.ros_state_node",
-             "--output", str(state_file), "--root-frame", LaunchConfiguration("world_frame")],
+             "--output", str(state_file), "--root-frame", LaunchConfiguration("world_frame"),
+             "--placement-directory", str(placement_directory),
+             "--color-topic", LaunchConfiguration("placement_color_topic"),
+             "--depth-topic", LaunchConfiguration("placement_depth_topic"),
+             "--camera-info-topic", LaunchConfiguration("placement_camera_info_topic"),
+             "--placement-selection-timeout", LaunchConfiguration("placement_selection_timeout_s")],
         cwd=str(root), env=env, output="screen", name="so101_ros_twin_state")
     return LaunchDescription([
         DeclareLaunchArgument("world_frame", default_value="charuco_board",
@@ -35,6 +41,12 @@ def generate_launch_description():
         DeclareLaunchArgument("port", default_value="8099"),
         DeclareLaunchArgument("viewer_python", default_value=viewer_python,
                               description="Python with MuJoCo and Viser installed"),
+        DeclareLaunchArgument("placement_color_topic", default_value="/camera/color/image_raw"),
+        DeclareLaunchArgument("placement_depth_topic",
+                              default_value="/camera/aligned_depth_to_color/image_raw"),
+        DeclareLaunchArgument("placement_camera_info_topic",
+                              default_value="/camera/color/camera_info"),
+        DeclareLaunchArgument("placement_selection_timeout_s", default_value="30.0"),
         # Consume the declared override without shell evaluation.
         ExecuteProcess(cmd=[LaunchConfiguration("viewer_python"), "-m", "workshop.digital_twin",
                             "--ros-state-file", str(state_file), "--host",

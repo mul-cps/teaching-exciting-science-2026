@@ -18,6 +18,10 @@
   <exec_depend>moveit_py</exec_depend>
   <exec_depend>moveit_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
   <exec_depend>shape_msgs</exec_depend>
   <exec_depend>rosidl_runtime_py</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
@@ -26,5 +30,6 @@
   <exec_depend>so101_station_scene</exec_depend>
   <exec_depend>so101_station_map</exec_depend>
   <exec_depend>so101_station_perception</exec_depend>
+  <exec_depend>so101_station_workflow</exec_depend>
   <exec_depend>so101_station_gpu</exec_depend>
 </package>
