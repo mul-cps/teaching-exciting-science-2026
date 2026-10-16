@@ -233,6 +233,7 @@ class TrajectoryBridge(Node):
         self._gripper_jaw = None
         self._gripper_raw_limits = None
         self._gripper_goal_cancelled = False
+        self._gripper_command_submitted = False
         self._external_state_only = bool(self.get_parameter("external_state_only").value)
         self._trajectory_helper = None
         self._state_validity = None
@@ -1189,6 +1190,7 @@ class TrajectoryBridge(Node):
                 return GoalResponse.REJECT
             self._active_goal = "gripper"
             self._gripper_goal_cancelled = False
+            self._gripper_command_submitted = False
         return GoalResponse.ACCEPT
 
     def _gripper_cancel_request(self, _goal_handle):
@@ -1196,11 +1198,28 @@ class TrajectoryBridge(Node):
             if self._active_goal != "gripper":
                 return CancelResponse.REJECT
             self._gripper_goal_cancelled = True
-        try:
-            self._send({"command": "cancel_hold"})
-            return CancelResponse.ACCEPT
-        except (BrokenPipeError, OSError, RuntimeError):
-            return CancelResponse.REJECT
+            if not self._gripper_command_submitted:
+                return CancelResponse.ACCEPT
+            try:
+                self._send({"command": "cancel_hold"})
+                return CancelResponse.ACCEPT
+            except (BrokenPipeError, OSError, RuntimeError):
+                return CancelResponse.REJECT
+
+    def _submit_gripper_plan(self, command):
+        """Serialize cancel-before-submit against owner command admission."""
+        with self._active_lock:
+            if (self._active_goal != "gripper" or self._gripper_goal_cancelled or
+                    self._gripper_command_submitted):
+                return False
+            while True:
+                try:
+                    self._response_queue.get_nowait()
+                except queue.Empty:
+                    break
+            self._send(command)
+            self._gripper_command_submitted = True
+            return True
 
     def _execute_gripper(self, goal_handle):
         command = goal_handle.request.command
@@ -1225,13 +1244,13 @@ class TrajectoryBridge(Node):
             low, high = self._gripper_raw_limits
             target_raw = dict(raw)
             target_raw["gripper"] = int(round(low + target_percent * (high - low) / 100.0))
-            while True:
-                try:
-                    self._response_queue.get_nowait()
-                except queue.Empty:
-                    break
-            self._send({"command": "move_plan", "legs": [{"label": "gripper_command",
-                        "target_raw": target_raw, "grasp": target_percent < float(pose["gripper"])}]})
+            submitted = self._submit_gripper_plan({"command": "move_plan", "legs": [{
+                "label": "gripper_command", "target_raw": target_raw,
+                "grasp": target_percent < float(pose["gripper"])}]})
+            if not submitted:
+                goal_handle.canceled()
+                command_complete = True
+                return result
             command_sent = True
             deadline = time.monotonic() + 8.0
             response = None
@@ -1310,6 +1329,7 @@ class TrajectoryBridge(Node):
             with self._active_lock:
                 if self._active_goal == "gripper" and not self._owner_faulted:
                     self._active_goal = None
+                self._gripper_command_submitted = False
 
     @staticmethod
     def _has_nondefault_tolerance(goal_request):

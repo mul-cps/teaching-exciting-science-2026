@@ -134,6 +134,26 @@ def validate_clear_joint_pose(value):
     return pose
 
 
+def canonical_scene_track_id(candidate_record):
+    """Return Detection3D.id used by scene ownership, distinct from numeric track_id."""
+    candidate_id = candidate_record.get("candidate_id") if isinstance(candidate_record, dict) else None
+    if isinstance(candidate_id, str) and "-g" in candidate_id:
+        detection_id = candidate_id.rsplit("-g", 1)[0]
+        if detection_id:
+            return detection_id
+    detection_id = candidate_record.get("detection_id") if isinstance(candidate_record, dict) else None
+    if isinstance(detection_id, str) and detection_id:
+        return detection_id
+    raise ValueError("grasp candidate has no canonical Detection3D ID for scene ownership")
+
+
+def scene_request_payload(action, track_id, request_id, **fields):
+    if not isinstance(track_id, str) or not track_id or not isinstance(request_id, str) or not request_id:
+        raise ValueError("scene ownership requests require canonical track and request IDs")
+    return {"schema": 1, "request_id": request_id, "action": action,
+            "track_id": track_id, **fields}
+
+
 def verify_live_registration(status, received_at, now=None, *, now_ros=None):
     now = time.monotonic() if now is None else now
     stamp = status.get("stamp") if isinstance(status, dict) else None
@@ -142,6 +162,11 @@ def verify_live_registration(status, received_at, now=None, *, now_ros=None):
                 isinstance(stamp, (int, float)) and math.isfinite(stamp) and
                 (now_ros is None or 0 <= now_ros - stamp < 0.5) and
                 0 <= now - received_at < 0.5)
+
+
+def require_live_registration(status, received_at, *, now=None, now_ros=None):
+    if not verify_live_registration(status, received_at, now, now_ros=now_ros):
+        raise RuntimeError("fresh Charuco base registration observation required immediately before arm motion")
 
 
 def scene_ack_terminal_state(action, ack):
@@ -303,6 +328,7 @@ def main(argv=None):
     try:
         jaw_calibration = tcp_calibration = tcp_from_object = None
         selected_track_id = None
+        scene_track_id = None
         baseline_object = None
         attached = False
         scene_locked = False
@@ -418,8 +444,7 @@ def main(argv=None):
 
         def scene_attachment(action, track_id, deadline, **fields):
             request_id = f"grasp-{time.monotonic_ns()}"
-            payload = {"schema": 1, "request_id": request_id, "action": action,
-                       "track_id": str(track_id), **fields}
+            payload = scene_request_payload(action, track_id, request_id, **fields)
             msg = String()
             msg.data = json.dumps(payload, sort_keys=True, allow_nan=False)
             node.attachment_pub.publish(msg)
@@ -469,6 +494,8 @@ def main(argv=None):
             points = planned.trajectory.joint_trajectory.points
             if not points or set(planned.trajectory.joint_trajectory.joint_names) != set(ARM_JOINTS):
                 raise RuntimeError("clear pose planner returned an invalid arm trajectory")
+            require_live_registration(node.registration_status, node.registration_received,
+                now_ros=node.get_clock().now().nanoseconds * 1e-9)
             move_trajectory(planned.trajectory, deadline)
             result["segments"].append({"name": "post_release_clear_pose", "state": "trajectory_succeeded",
                                        "trajectory": ros_message_json(planned.trajectory)})
@@ -536,6 +563,8 @@ def main(argv=None):
                                    max(0.1, deadline-time.monotonic()), "tool retreat plan").motion_plan_response
             if planned.error_code.val != MoveItErrorCodes.SUCCESS:
                 raise RuntimeError("collision checked post-release tool retreat planning failed")
+            require_live_registration(node.registration_status, node.registration_received,
+                now_ros=node.get_clock().now().nanoseconds * 1e-9)
             move_trajectory(planned.trajectory, deadline)
             result["segments"].append({"name": "post_release_tool_retreat",
                                        "state": "trajectory_succeeded",
@@ -566,6 +595,7 @@ def main(argv=None):
                                     if (str(item.get("track_id")) == str(args.track_id) or
                                         str(item.get("candidate_id", "")).rsplit("-g", 1)[0] == str(args.track_id)))
             selected_track_id = candidate_record["track_id"]
+            scene_track_id = canonical_scene_track_id(candidate_record)
             baseline_object = next((item for item in node.status.get("objects", [])
                                     if str(item.get("track_id")) == str(selected_track_id)), None)
             if baseline_object is None or not baseline_object.get("geometric_only"):
@@ -612,7 +642,7 @@ def main(argv=None):
                                      "execution_config": str(config_path),
                                      "tcp_link": args.tip_link,
                                      "units": {"position": "m", "orientation": "quaternion_xyzw"}}
-            scene_attachment("lock", selected_track_id, deadline)
+            scene_attachment("lock", scene_track_id, deadline)
             scene_locked = True
             open_result = command_gap(args.open_gap_m, deadline)
             if not open_result.reached_goal:
@@ -625,10 +655,9 @@ def main(argv=None):
                 result["state"] = "target_status_stale"
                 result["segments"].append({"name": name, "state": result["state"]})
                 break
-            if args.execute and not verify_live_registration(
-                    node.registration_status, node.registration_received,
-                    now_ros=node.get_clock().now().nanoseconds * 1e-9):
-                raise RuntimeError("fresh Charuco base registration observation required before motion")
+            if args.execute:
+                require_live_registration(node.registration_status, node.registration_received,
+                    now_ros=node.get_clock().now().nanoseconds * 1e-9)
             if args.track_id:
                 if not (args.execute and attached and name == "place"):
                     try:
@@ -650,7 +679,7 @@ def main(argv=None):
                     result["segments"].append({"name": name, "state": result["state"]})
                     break
             if args.execute and name == "contact":
-                scene_attachment("allow_contact", args.track_id, deadline,
+                scene_attachment("allow_contact", scene_track_id, deadline,
                                  touch_links=args.touch_link)
                 contact_matrix_enabled = True
             req = MotionPlanRequest()
@@ -703,7 +732,7 @@ def main(argv=None):
                        "planning_time_s": planned.planning_time}
             if planned.error_code.val != MoveItErrorCodes.SUCCESS:
                 if contact_matrix_enabled:
-                    scene_attachment("disallow_contact", args.track_id, deadline,
+                    scene_attachment("disallow_contact", scene_track_id, deadline,
                                      touch_links=args.touch_link)
                     contact_matrix_enabled = False
                 segment["state"] = "path_plan_failed"
@@ -717,7 +746,7 @@ def main(argv=None):
                     len(points[-1].positions) != len(names) or
                     not all(math.isfinite(float(value)) for value in points[-1].positions)):
                 if contact_matrix_enabled:
-                    scene_attachment("disallow_contact", args.track_id, deadline,
+                    scene_attachment("disallow_contact", scene_track_id, deadline,
                                      touch_links=args.touch_link)
                     contact_matrix_enabled = False
                 segment["state"] = "invalid_planner_trajectory"
@@ -740,6 +769,10 @@ def main(argv=None):
                             "point_count": len(points),
                             "trajectory": ros_message_json(planned.trajectory)})
             if args.execute:
+                # Planner latency can outlive the registration observation used
+                # to admit the request; recheck immediately before every action.
+                require_live_registration(node.registration_status, node.registration_received,
+                    now_ros=node.get_clock().now().nanoseconds * 1e-9)
                 move_trajectory(planned.trajectory, deadline)
                 segment["execution_state"] = "trajectory_succeeded"
                 if name == "contact":
@@ -752,11 +785,11 @@ def main(argv=None):
                     if close_result.reached_goal or not close_result.stalled:
                         raise RuntimeError("close did not infer contact; refusing provisional attachment")
                     attachment_attempted = True
-                    scene_attachment("attach", args.track_id, deadline,
+                    scene_attachment("attach", scene_track_id, deadline,
                                      link_name=args.tip_link, touch_links=args.touch_link)
                     attached = True
                     scene_locked = False
-                    scene_attachment("disallow_contact", args.track_id, deadline,
+                    scene_attachment("disallow_contact", scene_track_id, deadline,
                                      touch_links=args.touch_link)
                     contact_matrix_enabled = False
                     result["object_attachment"]["state"] = "provisionally_attached"
@@ -806,7 +839,7 @@ def main(argv=None):
                     release_expected = {"position": world_from_object[:3, 3].tolist(),
                                         "orientation_xyzw": list(matrix_quaternion_xyzw(world_from_object[:3, :3]))}
                     release_pose = base_link_pose({"frame_id": target.frame_id, **release_expected})
-                    scene_attachment("detach", args.track_id, deadline,
+                    scene_attachment("detach", scene_track_id, deadline,
                                      world_pose=release_pose)
                     attached = False
                     scene_locked = False
@@ -857,7 +890,7 @@ def main(argv=None):
         failed = locals().get("result")
         if locals().get("scene_locked") and not locals().get("attachment_attempted"):
             try:
-                scene_attachment("unlock", locals().get("selected_track_id"),
+                scene_attachment("unlock", locals().get("scene_track_id"),
                                  time.monotonic() + 2.0)
                 scene_locked = False
             except Exception as unlock_error:
@@ -865,7 +898,7 @@ def main(argv=None):
                     failed["scene_unlock_error"] = str(unlock_error)
         if locals().get("contact_matrix_enabled") and locals().get("selected_track_id") is not None:
             try:
-                scene_attachment("disallow_contact", args.track_id,
+                scene_attachment("disallow_contact", locals().get("scene_track_id"),
                                  time.monotonic() + 2.0,
                                  touch_links=locals().get("args").touch_link)
                 contact_matrix_enabled = False

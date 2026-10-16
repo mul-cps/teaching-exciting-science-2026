@@ -1,6 +1,9 @@
 """Offline unit contracts for the resident gripper action mapping."""
 import sys
 from pathlib import Path
+import queue
+import threading
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,6 +14,24 @@ from so101_station_control.gripper_action import (  # noqa: E402
     gap_to_percent,
     percent_to_gap,
 )
+
+
+def test_cancel_before_gripper_plan_submission_prevents_owner_command():
+    pytest.importorskip("rclpy")
+    from rclpy.action.server import CancelResponse
+    from so101_station_control.trajectory_server import TrajectoryBridge
+
+    commands = []
+    bridge = SimpleNamespace(_active_lock=threading.Lock(), _active_goal="gripper",
+                             _gripper_goal_cancelled=False, _gripper_command_submitted=False,
+                             _response_queue=queue.Queue(), _send=commands.append)
+    cancelled = TrajectoryBridge._gripper_cancel_request(bridge, None)
+    assert cancelled == CancelResponse.ACCEPT
+    assert not commands  # No cancel_hold is sent for a command not yet submitted.
+    submitted = TrajectoryBridge._submit_gripper_plan(
+        bridge, {"command": "move_plan", "legs": [{"label": "gripper_command"}]})
+    assert not submitted
+    assert commands == []
 
 
 CALIBRATION = {"closed_gap_m": 0.004, "open_gap_m": 0.075,

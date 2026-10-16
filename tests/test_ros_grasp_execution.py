@@ -11,6 +11,8 @@ from tools.ros_plan_grasp import (load_execution_calibration, verify_camera_arm_
                                   robot_description_from_parameter_response,
                                   ros_message_json, validate_clear_joint_pose,
                                   verify_live_registration, scene_ack_terminal_state)
+from tools.ros_plan_grasp import (canonical_scene_track_id, scene_request_payload,
+                                  require_live_registration)
 
 
 def _write(path, data):
@@ -123,6 +125,8 @@ def test_robot_description_reads_native_get_parameters_response_values():
 
 
 def test_native_ros_trajectory_message_serializes_as_json():
+    pytest.importorskip("moveit_msgs.msg")
+    pytest.importorskip("trajectory_msgs.msg")
     from moveit_msgs.msg import RobotTrajectory
     message = RobotTrajectory()
     message.joint_trajectory.joint_names = ["shoulder_pan"]
@@ -140,6 +144,10 @@ def test_lift_release_require_live_registration_and_joint_clear_pose_is_exact():
     registration = {"state": "tracking", "observation_valid": True, "stamp": 10.0}
     assert verify_live_registration(registration, base, base + 0.1)
     assert not verify_live_registration(registration, base, base + 0.5)
+    # A planning request can be admitted with fresh localization, then lose it
+    # before the returned path is submitted to the arm action.
+    with pytest.raises(RuntimeError, match="immediately before arm motion"):
+        require_live_registration(registration, base, now=base + 0.6)
     assert validate_clear_joint_pose({name: 0.0 for name in ARM_JOINTS})
     with pytest.raises(ValueError, match="exactly the five"):
         validate_clear_joint_pose({"shoulder_pan": 0.0})
@@ -151,3 +159,15 @@ def test_scene_ack_waits_through_reserved_and_accepts_terminal_ack():
     assert scene_ack_terminal_state("attach", {"state": "attached"}) == "attached"
     with pytest.raises(RuntimeError, match="scene attach failed"):
         scene_ack_terminal_state("attach", {"state": "failed", "reason": "apply failed"})
+
+
+def test_scene_transport_uses_canonical_detection_id_for_every_ownership_action():
+    candidate = {"candidate_id": "red-0003-g1", "track_id": 3}
+    scene_id = canonical_scene_track_id(candidate)
+    assert scene_id == "red-0003"
+    requests = [scene_request_payload(action, scene_id, f"request-{i}")
+                for i, action in enumerate(("lock", "allow_contact", "attach",
+                                            "disallow_contact", "detach", "unlock"))]
+    assert {request["track_id"] for request in requests} == {"red-0003"}
+    with pytest.raises(ValueError, match="canonical track"):
+        scene_request_payload("lock", 3, "numeric-is-not-scene-id")
