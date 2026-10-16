@@ -74,11 +74,12 @@ variables; this prevents the tool-tag roll and base yaw from being silently
 co-estimated as a gauge-coupled pair. Calibrate that mount independently when
 possible, especially for the gripper tag's unknown rotation/constant tool roll.
 
-The optimizer checks the numerical Jacobian rank before returning. A failed
-rank check means the capture motion or tag geometry did not constrain all
-requested parameters. Add arm poses with varied joints and well-spread tag
-locations, or lock uncertain parameters; do not force a candidate out of a
-degenerate capture set.
+The optimizer checks solver convergence and numerical Jacobian rank before
+returning. Either failure means there is no candidate: a failed rank check
+means capture motion or tag geometry did not constrain all requested
+parameters. Add arm poses with varied joints and well-spread tag locations, or
+lock uncertain parameters; do not force a candidate out of a degenerate capture
+set.
 
 ## Run and benchmark
 
@@ -92,9 +93,12 @@ python tools/optimize_scene_poses.py --benchmark
 ```
 
 The second invocation warm-starts each entity from the prior candidate while
-reusing the same cached observations. Call at a low rate or when observations
-change, review residuals/observability, and explicitly promote an accepted
-candidate through the station's calibration workflow. The benchmark is a
+reusing the same cached observations. It does not validate or qualify that
+cache, establish marker associations, or provide held-out evidence; keep the
+source captures and association manifest with the observation JSON. Call at a
+low rate or when observations change, review residuals/observability, and
+explicitly promote an accepted candidate through the station's calibration
+workflow. The benchmark is a
 small synthetic CPU batch with one injected marker-pose outlier; it warms the
 SciPy import and reports steady solve timing and recovery error, not camera or
 ROS latency.

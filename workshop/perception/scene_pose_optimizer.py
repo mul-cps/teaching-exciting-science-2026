@@ -151,6 +151,8 @@ def optimize_scene_poses(problem: dict[str, Any], *, max_nfev: int = 100,
 
     result = least_squares(residuals, np.asarray(x0), loss=loss, f_scale=f_scale,
                            max_nfev=max_nfev, method="trf", x_scale="jac")
+    if not result.success:
+        raise ValueError(f"scene pose optimization did not converge: {result.message}")
     jac = np.asarray(result.jac, dtype=float)
     singular_values = np.linalg.svd(jac, compute_uv=False)
     rank_tolerance = (singular_values[0] if len(singular_values) else 0.0) * 1e-10
