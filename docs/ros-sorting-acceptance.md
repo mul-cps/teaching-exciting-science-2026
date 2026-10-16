@@ -116,3 +116,14 @@ acquisition time; they remain explicitly unqualified. These experiments do not
 qualify jaw gap, TCP, camera recovery or physical sorting. See the progress log
 and evidence directories `gripper-component-step-8-8c80fce`,
 `gripper-component-step-16-8c80fce`, and `camera-current-visibility-check`.
+
+
+### Live recovery deployment checkpoint
+
+Source79d4234 is deployed in the follower bridge/serial owner on ROS domain76
+with all six source pins matched and native publisher identity enabled. A single
+unconfigured recovery request rejected without position changes; explicit stop
+then verified all six torque bits off and cleared the resulting owner fault.
+Camera recovery remains not configured; station commissioning and automatic
+start remain disabled. No physical recovery, home or sort is qualified by this
+checkpoint. Evidence: `recovery-live-79d4234/RESULTS.md` and `final-status.json`.
