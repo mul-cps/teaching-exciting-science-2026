@@ -11,12 +11,16 @@ DOMAIN_ENTRYPOINT = ROOT / "ros2/scripts/ros-domain-entrypoint.sh"
 
 
 def run_runtime(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    test_env = os.environ.copy()
+    if env is None or "ROS_DOMAIN_ID" not in env:
+        test_env.pop("ROS_DOMAIN_ID", None)
+    test_env.update({"ROS2_IMAGE": "localhost/so101-ros2:test", **(env or {})})
     return subprocess.run(
         [str(RUNTIME), *args],
         cwd=ROOT,
         text=True,
         capture_output=True,
-        env={**os.environ, "ROS2_IMAGE": "localhost/so101-ros2:test", **(env or {})},
+        env=test_env,
         check=False,
     )
 

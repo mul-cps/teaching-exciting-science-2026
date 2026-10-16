@@ -13,10 +13,14 @@ WRAPPER = CONDA_DIR / "so101-conda.sh"
 
 
 def run_wrapper(*args: str, env: dict[str, str] | None = None):
+    test_env = os.environ.copy()
+    if env is None or "ROS_DOMAIN_ID" not in env:
+        test_env.pop("ROS_DOMAIN_ID", None)
+    test_env.update(env or {})
     return subprocess.run(
         [str(WRAPPER), *args],
         cwd=ROOT,
-        env={**os.environ, **(env or {})},
+        env=test_env,
         text=True,
         capture_output=True,
         check=False,
