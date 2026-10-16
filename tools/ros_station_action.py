@@ -15,6 +15,8 @@ def parse_args(argv=None):
     for name in ('status', 'diagnostics', 'check-ready', 'cancel', 'stop', 'reset-fault',
                  'connect', 'wake', 'sleep', 'ev3-home', 'arm-home'):
         commands.add_parser(name)
+    jaw = commands.add_parser('gripper-step')
+    jaw.add_argument('delta_counts', type=int)
     axis = commands.add_parser('sorter-position')
     axis.add_argument('target_deg', type=float)
     run = commands.add_parser('run')
@@ -40,6 +42,8 @@ def parse_args(argv=None):
             validate_target(args.target_deg)
         except ValueError as error:
             parser.error(str(error))
+    if args.command == 'gripper-step' and not 0 < abs(args.delta_counts) <= 16:
+        parser.error('delta_counts must be nonzero and within -16..16')
     if args.command == 'run' and not 1 <= args.cycles <= 100:
         parser.error('cycles must be 1..100')
     return args
@@ -58,7 +62,11 @@ def main(argv=None):
         request = Trigger.Request()
         names = {'connect': 'ev3/connect', 'ev3-home': 'ev3/home', 'arm-home': 'arm/home'}
         name = names.get(args.command, args.command.replace('-', '_'))
-        if args.command == 'sorter-position':
+        if args.command == 'gripper-step':
+            from so101_station_workflow.srv import CommissionGripperStep
+            name, service_type = '/follower/commission_gripper_step', CommissionGripperStep
+            request = CommissionGripperStep.Request(delta_counts=args.delta_counts)
+        elif args.command == 'sorter-position':
             from so101_station_workflow.srv import SorterPosition
             name, service_type = 'ev3/sorter_position', SorterPosition
             request = SorterPosition.Request(target_deg=args.target_deg)
@@ -78,9 +86,10 @@ def main(argv=None):
             request = SelectPlacementRegion.Request(generation=args.generation,
                 mode={'select-anchor': 'feeder', 'select-area': 'goal', 'clear-selection': 'clear', 'pin-anchor': 'pin_feeder', 'pin-area': 'pin_goal'}[args.command],
                 pixel_rectangle=getattr(args, 'pixels', [0, 0, 0, 0]))
-        client = node.create_client(service_type, '/station/'+name)
+        service_name = name if name.startswith('/') else '/station/'+name
+        client = node.create_client(service_type, service_name)
         if not client.wait_for_service(timeout_sec=3.):
-            raise RuntimeError('/station/'+name+' unavailable; start station_live.launch.py')
+            raise RuntimeError(service_name+' unavailable; start station_live.launch.py')
         future = client.call_async(request)
         deadline = time.monotonic()+5.
         while not future.done():

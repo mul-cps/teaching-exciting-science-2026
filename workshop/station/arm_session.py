@@ -127,6 +127,10 @@ class ArmSession:
         self.persistent_idle = bool(persistent_idle)
         self._idle_handled = False
         self._shutdown_complete = False
+        self._component_scope = False
+        self._component_saved_ram = None
+        self._component_profile_readback = {}
+        self._component_command = None
         self.recover_sag = bool(recover_sag)
         self._sag_recovery_available = bool(recover_sag)
         self.saved_ram = None
@@ -218,6 +222,8 @@ class ArmSession:
             f"({attempts - 1} retries, {diagnostic['duration_s']:.6f}s): {error}") from error
 
     def _write_each(self, register, values):
+        if self._component_scope:
+            raise RuntimeError("component scope prohibits body writes")
         for joint in JOINTS:
             self._poll_busy_input()
             self.bus.write(register, joint, values[joint], normalize=False, num_retry=0)
@@ -435,6 +441,10 @@ class ArmSession:
         self._record(dict(event=event, utc=self.wall_clock().isoformat(),
                           monotonic=self.clock(), arm_id=self.arm.settings["id"],
                           calibration_sha256=self.calibration_digest,
+                          write_scope="gripper_only" if self._component_scope else "normal",
+                          component_profile_registers=dict(self._component_profile_readback),
+                          component_command=(dict(self._component_command) if self._component_command else None),
+                          component_restore_pending=self._component_saved_ram is not None,
                           profile=self.profile, **fields))
 
     def publish_state(self, *, event="sample", torque=None, phase=None, label=None, raw=None,
@@ -484,6 +494,10 @@ class ArmSession:
                      torque_timestamp_utc=torque_utc.isoformat(),
                      torque_monotonic=torque_monotonic,
                      violations=violations,
+                     write_scope="gripper_only" if self._component_scope else "normal",
+                     component_profile_registers=dict(self._component_profile_readback),
+                     component_command=(dict(self._component_command) if self._component_command else None),
+                     component_restore_pending=self._component_saved_ram is not None,
                      profile=self.profile,
                      profile_registers=(self._active_profile if self.saved_ram is not None and self.profile != "unmodified" else None),
                      phase=phase, label=label, feedback_timing=feedback_timing,
@@ -550,7 +564,21 @@ class ArmSession:
                 raise ValueError("leg exceeds raw step budget: " + label + "/" + joint)
         return recovery
 
+    def _release_component_scope(self):
+        if not self._component_scope:
+            return
+        # Component cleanup stays latched until a fresh, ordinary all-off,
+        # in-bounds admission. An out-of-bounds passive body cannot enable here.
+        self._calibration_guard()
+        raw = self._read("Present_Position")
+        torque = self._read("Torque_Enable")
+        self._validate_target(raw, "component_scope_normal_admission")
+        if any(torque.values()) or self._component_saved_ram is not None:
+            raise RuntimeError("normal motion requires clean component cleanup and all torque off")
+        self._component_scope = False
+
     def _ensure_profile(self, *, teleop=False):
+        self._release_component_scope()
         self._poll_busy_input()
         self._calibration_guard()
         self._shutdown_complete = False
@@ -582,6 +610,7 @@ class ArmSession:
                         "native-8-160-220-torque-700-250")
 
     def _enable_current_goal(self, target, started, label):
+        self._release_component_scope()
         # Install goals before enabling torque; verify broadcast write/readback.
         self._check_leg_deadline(started, label)
         self.bus.sync_write("Goal_Position", target, normalize=False, num_retry=0)
@@ -987,6 +1016,9 @@ class ArmSession:
     def cancel_hold(self):
         """Replace goals with measured pose while preserving torque state."""
         self._require_initialized()
+        if self._component_scope:
+            self._component_shutdown("component_cancel_disarm")
+            return self.publish_state(event="component_cancel_disarmed")
         self._teleop = None
         measured = self._read("Present_Position")
         self.bus.sync_write("Goal_Position", measured, normalize=False, num_retry=0)
@@ -1618,8 +1650,184 @@ class ArmSession:
                 raise
             return self._camera_recovery_hold(error)
 
+    def _component_shutdown(self, reason):
+        """Only ID6 writes, including after partial admission/disconnect/stop.
+
+        A nonzero or unreadable body torque is a failure, never a reason to
+        write the passive body or to claim an all-off acknowledgement.
+        """
+        failures = []
+        torque = None
+        try:
+            if not self.bus.is_connected:
+                raise ConnectionError("component bus disconnected; torque state unknown")
+            self.bus.write("Torque_Enable", "gripper", 0, normalize=False, num_retry=0)
+        except BaseException as error:
+            failures.append(str(error))
+        try:
+            if not self.bus.is_connected:
+                raise ConnectionError("component bus disconnected; readback unavailable")
+            torque = self._read("Torque_Enable")
+            if any(torque.values()):
+                raise RuntimeError("component cleanup cannot confirm all six torque off")
+        except BaseException as error:
+            failures.append(str(error))
+        # Restore only jaw RAM, and only after jaw-off was actually measured.
+        if torque is not None and torque["gripper"] == 0 and self._component_saved_ram:
+            for register, value in self._component_saved_ram.items():
+                try:
+                    self.bus.write(register, "gripper", value, normalize=False, num_retry=0)
+                    if self.bus.read(register, "gripper", normalize=False, num_retry=0) != value:
+                        raise RuntimeError("component RAM restore differs: " + register)
+                    self._component_profile_readback[register] = value
+                    self._event("component_profile_readback", register=register, raw_value=value, restoring=True)
+                except BaseException as error:
+                    failures.append(str(error))
+            if not failures:
+                self._component_saved_ram = None
+        if not failures:
+            try:
+                raw = self._read("Present_Position")
+                position_stamp, position_utc = self.clock(), self.wall_clock()
+                torque = self._read("Torque_Enable")
+                torque_stamp, torque_utc = self.clock(), self.wall_clock()
+                if any(torque.values()):
+                    raise RuntimeError("component final readback is not all-off")
+                self.publish_state(event="torque_off", raw=raw, torque=torque,
+                    position_monotonic=position_stamp, position_utc=position_utc,
+                    torque_monotonic=torque_stamp, torque_utc=torque_utc)
+            except BaseException as error:
+                failures.append(str(error))
+        self._event("component_shutdown", reason=reason, failures=failures, torque=torque)
+        if failures:
+            raise RuntimeError("component cleanup incomplete: " + "; ".join(failures))
+        self._shutdown_complete = True
+        return True
+
+    def commission_gripper_step(self, delta_counts):
+        """One raw-count jaw step; passive body is observed, never written.
+
+        STS3215 RAM profile is deliberately fixed to the lowest nonzero raw
+        velocity (physical units unqualified), acceleration 1, torque limit 50.
+        No automatic retry, profile escalation or calibration update.
+        """
+        self._require_initialized()
+        if type(delta_counts) is not int or not 0 < abs(delta_counts) <= 16:
+            raise ArmPlanPreflightError("delta_counts must be a nonzero integer in [-16,16]")
+        self._component_scope = True  # before any fallible I/O; persists after return
+        self._shutdown_complete = False
+        started = self.clock()
+        self._component_command = dict(command_id=uuid.uuid4().hex, delta_counts=delta_counts,
+            started_monotonic=started, deadline_monotonic=started+2.0, status="admitting",
+            profile_raw={"Acceleration": 1, "Goal_Velocity": 1, "Torque_Limit": 50})
+        baseline = None
+        previous_at = started
+        position_read_at = started
+        enabled = False
+        target = None
+
+        def sample():
+            nonlocal previous_at, position_read_at, baseline
+            self._poll_busy_input()
+            self._check_cancel()
+            self._calibration_guard()
+            if not self.bus.is_connected:
+                raise ConnectionError("component bus disconnected")
+            raw = self._read("Present_Position")
+            position_stamp, position_utc = self.clock(), self.wall_clock()
+            torque = self._read("Torque_Enable")
+            torque_stamp, torque_utc = self.clock(), self.wall_clock()
+            now = self.clock()
+            if now - started >= 2.0:
+                raise TimeoutError("component gripper step 2 second deadline exceeded")
+            if now - previous_at > .100000001:
+                raise RuntimeError("component feedback exceeded 100 ms")
+            previous_at = torque_stamp
+            position_read_at = position_stamp
+            if now-position_stamp > .100000001:
+                raise RuntimeError("component encoder admission feedback exceeded 100 ms")
+            if any(not 0 <= value <= 4095 for value in raw.values()):
+                raise RuntimeError("component raw encoder outside hardware range")
+            if not self.admitted_min["gripper"] <= raw["gripper"] <= self.admitted_max["gripper"]:
+                raise RuntimeError("component jaw actual outside ordinary admitted bounds")
+            if any(torque[j] != 0 for j in JOINTS if j != "gripper"):
+                raise RuntimeError("component passive body torque is not zero")
+            if torque["gripper"] != int(enabled):
+                raise RuntimeError("component gripper torque readback differs")
+            if baseline is None:
+                baseline = dict(raw)
+            if any(abs(raw[j] - baseline[j]) > 2 for j in JOINTS if j != "gripper"):
+                raise RuntimeError("component passive body drift exceeded 2 counts")
+            if abs(raw["gripper"] - baseline["gripper"]) > (abs(delta_counts) + 2 if enabled else 2):
+                raise RuntimeError("component jaw excursion exceeded bounded step")
+            self.publish_state(event="commission_gripper_sample", raw=raw, torque=torque,
+                position_monotonic=position_stamp, position_utc=position_utc,
+                torque_monotonic=torque_stamp, torque_utc=torque_utc)
+            self._event("commission_gripper_progress", target_raw=target, elapsed_s=now-started)
+            return raw
+
+        def write(register, value):
+            # Refresh the passive guard before every potentially enabling write.
+            sample()
+            # Snapshot/log I/O can block or receive a stop after sampling.
+            # Recheck immediately before the single-shot hardware write.
+            self._poll_busy_input()
+            self._check_cancel()
+            if self.clock() - started >= 2.0:
+                raise TimeoutError("component gripper step 2 second deadline exceeded")
+            if self.clock() - min(previous_at, position_read_at) > .100000001:
+                raise RuntimeError("component write admission feedback exceeded 100 ms")
+            self.bus.write(register, "gripper", value, normalize=False, num_retry=0)
+            if self.bus.read(register, "gripper", normalize=False, num_retry=0) != value:
+                raise RuntimeError("component RAM readback differs: " + register)
+            if register in RAM_REGISTERS:
+                self._component_profile_readback[register] = value
+                self._event("component_profile_readback", register=register, raw_value=value, restoring=False)
+
+        try:
+            for index in range(5):
+                raw = sample()
+                if index < 4:
+                    self.sleep(PERIOD_S)
+            target = raw["gripper"] + delta_counts
+            self._component_command.update(start_raw=raw["gripper"], target_raw=target)
+            if not (self.admitted_min["gripper"] <= raw["gripper"] <= self.admitted_max["gripper"] and
+                    self.admitted_min["gripper"] <= target <= self.admitted_max["gripper"]):
+                raise ArmPlanPreflightError("component jaw start/target outside ordinary admitted bounds")
+            if self._component_saved_ram is not None:
+                raise RuntimeError("previous component cleanup remains incomplete")
+            self._component_saved_ram = {reg: self.bus.read(reg, "gripper", normalize=False, num_retry=0)
+                                         for reg in RAM_REGISTERS}
+            for register, value in (("Acceleration", 1), ("Goal_Velocity", 1), ("Torque_Limit", 50),
+                                    ("Goal_Position", target)):
+                write(register, value)
+            write("Torque_Enable", 1)
+            enabled = True
+            self._component_command["status"] = "moving"
+            quiet_since = None
+            while True:
+                raw = sample()
+                if abs(raw["gripper"] - target) <= 1:
+                    if quiet_since is None:
+                        quiet_since = self.clock()
+                    if self.clock() - quiet_since >= .2:
+                        break
+                else:
+                    quiet_since = None
+                self.sleep(PERIOD_S)
+        except BaseException:
+            self._component_command["status"] = "cancelled" if self._cancel_requested else "failed"
+            raise
+        finally:
+            self._component_shutdown("commission_gripper_step")
+        self._component_command.update(status="complete", completed_monotonic=self.clock())
+        self._event("commission_gripper_complete", delta_counts=delta_counts, target_raw=target)
+        return self.publish_state(event="commission_gripper_complete")
+
     def shutdown(self, *, reason="stop"):
         """Disable and verify each servo, then restore saved volatile RAM only."""
+        if self._component_scope:
+            return self._component_shutdown(reason)
         if self._shutdown_complete:
             return True
         if self.bus is None or not getattr(self.bus, "is_connected", False):
@@ -1666,7 +1874,7 @@ class ArmSession:
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
-        if self._teleop is not None and name in ("move_plan", "move_gripper", "recover_camera", "home", "execute_trajectory"):
+        if self._teleop is not None and name in ("move_plan", "move_gripper", "commission_gripper_step", "recover_camera", "home", "execute_trajectory"):
             raise ArmPlanPreflightError("finite motion is unavailable during active teleop")
         if name == "read_state":
             if set(command) != {"command"}:
@@ -1676,6 +1884,10 @@ class ArmSession:
             if set(command) != {"command", "legs"}:
                 raise ValueError("move_plan requires exactly command and legs")
             return {"ok": True, "state": self.move_plan(command["legs"])}
+        if name == "commission_gripper_step":
+            if set(command) != {"command", "delta_counts"}:
+                raise ArmPlanPreflightError("commission_gripper_step requires exactly command and delta_counts")
+            return {"ok": True, "state": self.commission_gripper_step(command["delta_counts"])}
         if name == "move_gripper":
             if set(command) != {"command", "target_raw"}:
                 raise ArmPlanPreflightError("move_gripper requires exactly command and target_raw")
@@ -1804,7 +2016,7 @@ class ArmSession:
                     command = json.loads(line)
                     name = command.get("command") if isinstance(command, dict) else None
                     previous_idle_handled = self._idle_handled
-                    if name in ("move_plan", "move_gripper", "recover_camera", "home", "execute_trajectory"):
+                    if name in ("move_plan", "move_gripper", "commission_gripper_step", "recover_camera", "home", "execute_trajectory"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None
@@ -1856,7 +2068,7 @@ class ArmSession:
                         self._motion_busy = False
                     emit(result)
                     self.last_command = self.clock()
-                    if name in ("move_plan", "move_gripper", "recover_camera", "home", "execute_trajectory"):
+                    if name in ("move_plan", "move_gripper", "commission_gripper_step", "recover_camera", "home", "execute_trajectory"):
                         self._idle_handled = False
                     elif name == "stop" and self.persistent_idle:
                         self._idle_handled = True
@@ -1963,7 +2175,25 @@ def run_locked_session(config, state_file, logdir, *, lock_path,
                         raise
                 finally:
                     try:
-                        if hasattr(session.arm, "close"):
+                        if session._component_scope:
+                            # LeRobotArm.close() calls its global stop(), which
+                            # writes all six servos independently of this owner.
+                            # The SDK's explicit disable_torque=False path only
+                            # closes the transport; component shutdown above owns
+                            # verified jaw cleanup, even when that cleanup fails.
+                            bus = session.bus
+                            if bus is not None and bus.is_connected:
+                                try:
+                                    bus.disconnect(disable_torque=False)
+                                except BaseException as disconnect_error:
+                                    handler = getattr(bus, "port_handler", None)
+                                    if handler is not None:
+                                        try:
+                                            handler.closePort()
+                                        except BaseException as close_error:
+                                            disconnect_error.add_note(str(close_error))
+                                    raise
+                        elif hasattr(session.arm, "close"):
                             session.arm.close()
                     except BaseException as close_error:
                         if failure is not None:

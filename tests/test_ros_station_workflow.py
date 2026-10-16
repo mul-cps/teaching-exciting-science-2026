@@ -84,3 +84,11 @@ def test_private_ticket_is_exact_single_use_and_stop_revokes_queued_mutations():
             consume({'private': queued}, operation=operation, arguments_json='{}', stop_pending=True)
     cancel.set()
     consume({'private': ('job', 'stop', '{}')}, operation='stop', arguments_json='{}', stop_pending=True)
+
+
+def test_gripper_step_cli_raw_counts_are_bounded():
+    assert parse_args(['gripper-step', '8']).delta_counts == 8
+    assert parse_args(['gripper-step', '-16']).delta_counts == -16
+    for delta in ('0', '17', '-17', '1.5'):
+        with pytest.raises(SystemExit):
+            parse_args(['gripper-step', delta])

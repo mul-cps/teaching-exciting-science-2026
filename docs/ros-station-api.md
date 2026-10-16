@@ -101,3 +101,53 @@ The bridge service is an implementation API; ordinary users use the typed servic
 ## Physical gates
 
 These APIs do not qualify the rig. Current missing gates include feeder reference, qualified camera/base registration, jaw/TCP calibration and placement tool transform, reachable clear arm/home state, collision/scene admission, independent pickup/lift/release evidence and the physical endurance/failure matrix in `ros-sorting-acceptance.md`. Synthetic ROS tests prove orchestration and transport contracts only. Missing commissioning data is reported as a gate and cannot be substituted with a synthetic confirmation.
+
+## Bounded jaw commissioning (raw counts)
+
+After rebuilding the workflow interfaces and refreshing the resident follower
+owner, the calibration prerequisite is ROS-callable without a jaw gap model:
+
+```sh
+ros2/scripts/station-action.sh gripper-step 8
+# Equivalent: /follower/commission_gripper_step
+# so101_station_workflow/srv/CommissionGripperStep {delta_counts: 8}
+```
+
+This is one relative encoder step, not an SI jaw-gap command. The owner derives
+the absolute target from fresh measured jaw position and requires both start and
+target inside the existing jaw firmware/calibration/configuration intersection.
+Only nonzero signed steps of at most 16 counts are accepted. The first physical
+trial is +8 counts. Raw Goal_Velocity=1, Acceleration=1 and Torque_Limit=50 are
+fixed with readback; their physical velocity/force units remain unqualified.
+The complete operation has a two-second deadline, with no retry or escalation.
+Failure to arrive within one count and remain there for 200 ms is a failure.
+
+Admission requires all six measured torque states off and a 200 ms stable passive
+body baseline. During the step, all five body encoders and torque states are
+sampled with a maximum 100 ms feedback gap; any body drift exceeding two counts,
+nonzero body torque, unreadable state, excessive jaw excursion or cancellation
+aborts. A passive body may be outside ordinary motion bounds only in this
+component operation. It receives no profile, goal or torque writes. Ordinary
+home, recovery, teleoperation and trajectory bounds are unchanged.
+
+Only gripper RAM is written. Success, failure, `/follower/stop`, EOF and later
+idle/shutdown disable only the gripper. Saved jaw RAM is restored only after
+measured jaw torque-off; unknown/nonzero body torque prevents an all-off
+acknowledgement and is never corrected by writing the body. The gripper-only
+write scope persists after completion until a fresh normal in-bounds, all-off
+admission succeeds. `/follower/stop` cancels the bounded operation; normal
+trajectory cancellation still retains its existing hold behavior.
+
+The owner state file exposes `write_scope`, `component_profile_registers`,
+`component_restore_pending` and `component_command` alongside all six raw
+encoders and torque states. The command record contains an owner-generated
+identity, signed step, derived absolute target, fixed raw profile, start/deadline
+and outcome; it remains available after cleanup.
+Guarded commissioning samples preserve separate position/torque acquisition
+timestamps. The owner JSONL log records each verified profile readback and
+restoration. The typed service returns measured final raw counts and torque
+states only after completion with both encoder and torque acquisition stamps
+within 100 ms. Process teardown closes the transport explicitly without the
+normal all-servo stop path. Failures latch bridge admission until explicit
+verified stop. This produces experimental evidence for camera jaw-gap/TCP
+calibration; it does not mark calibration qualified or enable automatic sorting.

@@ -29,6 +29,7 @@ from rclpy.qos import (QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile,
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
+from so101_station_workflow.srv import CommissionGripperStep
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 from .leader_reader import JOINTS as TELEOP_JOINTS, matched_pose, validate_pose_packet
@@ -172,7 +173,7 @@ def _control_callback(callback):
             if self._stop_latched:
                 if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
                     return GoalResponse.REJECT
-                if callback.__name__ in {"_home", "_calibration_ready", "_set_teleop_enabled"}:
+                if callback.__name__ in {"_home", "_commission_gripper_step", "_calibration_ready", "_set_teleop_enabled"}:
                     response = args[1]
                     response.success, response.message = False, "owner stop remains latched"
                     return response
@@ -329,6 +330,9 @@ class TrajectoryBridge(Node):
         self._home_service = self.create_service(
             Trigger, str(self.get_parameter("home_service").value),
             self._home, callback_group=self._teleop_service_group)
+        self._commission_gripper_service = self.create_service(
+            CommissionGripperStep, "/follower/commission_gripper_step",
+            self._commission_gripper_step, callback_group=self._teleop_service_group)
         self._sorting_ready_service = self.create_service(
             Trigger, "/follower/sorting_ready", self._sorting_ready,
             callback_group=self._teleop_service_group)
@@ -1046,6 +1050,86 @@ class TrajectoryBridge(Node):
         finally:
             with self._active_lock:
                 if self._active_goal == "home":
+                    self._active_goal = None
+        return response
+
+    @_control_callback
+    def _commission_gripper_step(self, request, response):
+        """Raw bounded calibration step, serialized through the sole bus owner."""
+        response.success = False
+        if type(request.delta_counts) is not int or not 0 < abs(request.delta_counts) <= 16:
+            response.message = "delta_counts must be a nonzero integer in [-16,16]"
+            return response
+        process = self._process
+        if (self._external_state_only or process is None or process.poll() is not None or
+                self._owner_faulted or self._read_state() is None):
+            response.message = "resident ArmSession owner unavailable, faulted or stale"
+            return response
+        with self._active_lock:
+            if self._active_goal is not None:
+                response.message = "another owner operation is active"
+                return response
+            self._active_goal = "commission_gripper"
+            self._home_completed_owner_started = None
+        started = time.monotonic()
+        try:
+            while True:
+                try:
+                    self._response_queue.get_nowait()
+                except queue.Empty:
+                    break
+            self._send({"command": "commission_gripper_step", "delta_counts": request.delta_counts})
+            deadline = started + 4.0  # owner motion budget is fixed at 2 seconds
+            while True:
+                if process.poll() is not None:
+                    raise RuntimeError("owner exited during component step")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("component result unknown; stop and inspect before any retry")
+                try:
+                    result = self._response_queue.get(timeout=min(.05, remaining))
+                    break
+                except queue.Empty:
+                    continue
+            if not isinstance(result, dict):
+                raise RuntimeError("component acknowledgement is not an object")
+            state = result.get("state")
+            if (result.get("ok") is not True or result.get("stopped") or result.get("cancelled") or
+                    not isinstance(state, dict) or state.get("event") != "commission_gripper_complete"):
+                raise RuntimeError(result.get("error", "component operation did not complete"))
+            torque, raw = state.get("torque"), state.get("raw")
+            now = time.monotonic()
+            freshness = min(.1, float(self.get_parameter("state_freshness_s").value))
+            torque_stamp = state.get("torque_monotonic")
+            if (state.get("arm_id") != self._expected_arm_id or
+                    state.get("calibration_sha256") != self._expected_calibration_sha256 or
+                    not max(started, now-freshness) <= state.get("monotonic", -1) <= now or
+                    type(torque_stamp) not in (int, float) or
+                    not max(started, now-freshness) <= torque_stamp <= now or
+                    not isinstance(torque, dict) or set(torque) != set(TELEOP_JOINTS) or
+                    any(type(v) is not int or v != 0 for v in torque.values()) or
+                    not isinstance(raw, dict) or set(raw) != set(TELEOP_JOINTS) or
+                    any(type(v) is not int or not 0 <= v <= 4095 for v in raw.values())):
+                raise RuntimeError("component completion lacks fresh identity-bound all-off readback")
+            response.success = True
+            response.message = json.dumps({"state": "commission_gripper_complete", "raw": raw,
+                                           "delta_counts": request.delta_counts, "torque": torque,
+                                           "component_command": state.get("component_command"),
+                                           "write_scope": state.get("write_scope"),
+                                           "position_monotonic": state["monotonic"],
+                                           "torque_monotonic": torque_stamp})
+        except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as error:
+            self._owner_faulted = True
+            response.message = str(error)
+            # Stop remains jaw-only in the owner even after the component method
+            # has returned. Do not turn an unknown result into success or retry.
+            try:
+                self._send({"command": "stop", "request_id": uuid.uuid4().hex})
+            except (OSError, RuntimeError, TimeoutError, ValueError):
+                pass
+        finally:
+            with self._active_lock:
+                if self._active_goal == "commission_gripper":
                     self._active_goal = None
         return response
 
