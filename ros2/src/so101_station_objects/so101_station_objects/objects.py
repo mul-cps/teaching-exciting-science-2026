@@ -34,6 +34,7 @@ from so101_station_objects.colored_object_validation import (  # noqa: E402
     split_depth_coherent_components,
     validate_colored_component,
 )
+from so101_station_objects.analysis_worker import LatestOnlyAnalysisWorker  # noqa: E402
 from workshop.digital_twin.grasp_geometry import fit_support_plane, footprint_grasps  # noqa: E402
 
 COLOR_NAMES = ("red", "green", "blue", "yellow")
@@ -833,7 +834,6 @@ class ColoredObjectsNode:
                 _validate_roi(self.pickup_roi, "pickup ROI")
                 _validate_roi(self.observation_roi, "observation ROI")
                 self.period = 1.0 / min(5.0, requested_hz)
-                self.last_process = 0.0
                 self.last_warning = 0.0
                 self.last_support_plane = None
                 self.last_marker_update_mono = None
@@ -866,6 +866,16 @@ class ColoredObjectsNode:
                 self.sync = message_filters.ApproximateTimeSynchronizer(
                     [color, depth, info], queue_size=6, slop=0.04)
                 self.sync.registerCallback(self._process)
+                self.analysis_worker = LatestOnlyAnalysisWorker(
+                    self._analyze_job, min_start_interval_s=self.period)
+                self.last_analysis_result_stamp = None
+                self.analysis_timer = self.create_timer(0.05, self._consume_analysis)
+
+            def destroy_node(self):
+                worker = getattr(self, "analysis_worker", None)
+                if worker is not None:
+                    worker.close()
+                return super().destroy_node()
 
             def _attachment_status(self, message):
                 try:
@@ -945,9 +955,6 @@ class ColoredObjectsNode:
                             registration_observation_age_s=age,
                             registration_status_topic=self.get_parameter("registration_status_topic").value)
                         return
-                if time.monotonic() - self.last_process < self.period:
-                    return
-                self.last_process = time.monotonic()
                 if (color_msg.header.frame_id != depth_msg.header.frame_id
                         or color_msg.header.frame_id != info_msg.header.frame_id
                         or abs(stamp - stamp_seconds(depth_msg.header.stamp)) > 0.04
@@ -964,78 +971,119 @@ class ColoredObjectsNode:
                         self.board_frame, color_msg.header.frame_id,
                         Time.from_msg(color_msg.header.stamp), timeout=Duration(seconds=0.35))
                     board_from_camera = transform_from_msg(tf)
-                    try:
-                        report = analyze_rgbd(rgb, depth, intrinsics, info_msg.d, scale,
-                                              board_from_camera, self.support_roi, self.max_opening,
-                                              max_object_height_m=self.max_object_height,
-                                              observation_roi=self.observation_roi,
-                                              pickup_roi=self.pickup_roi)
-                        plane = report["support_plane"]
-                        self.last_support_plane = {
-                            "normal": np.asarray(plane["normal"], dtype=float).copy(),
-                            "d": float(plane["d"]),
-                            "plane_source": plane["plane_source"],
-                            "support_points": int(plane["support_points"]),
-                            "support_inliers": int(plane["support_inliers"]),
-                            "stamp": stamp,
-                        }
-                    except SupportPlaneUnavailable as error:
-                        cache = self.last_support_plane
-                        cache_age = None if cache is None else stamp - cache["stamp"]
-                        if (cache is None or cache_age is None or cache_age < 0
-                                or cache_age > 2.0):
-                            raise
-                        report = analyze_rgbd(rgb, depth, intrinsics, info_msg.d, scale,
-                                              board_from_camera, self.support_roi, self.max_opening,
-                                              max_object_height_m=self.max_object_height,
-                                              observation_roi=self.observation_roi,
-                                              pickup_roi=self.pickup_roi,
-                                              support_plane={key: value for key, value in cache.items()
-                                                             if key != "stamp"})
-                        report["support_plane"]["plane_source"] = "cached_measured_support_plane"
-                        report["support_plane"]["support_plane_age_s"] = float(cache_age)
-                    if not stamp_is_fresh(self.get_clock().now().nanoseconds * 1e-9, stamp, 0.5):
+                    now = self.get_clock().now().nanoseconds * 1e-9
+                    if not stamp_is_fresh(now, stamp, 0.5):
                         self._publish_unavailable(color_msg.header.stamp, "stale",
                                                   "RGB-D pair expired while waiting for timestamped TF")
                         return
                     if self.require_registration_tracking:
                         tracking_stamp = self.registration_last_tracking_stamp
-                        age = (self.get_clock().now().nanoseconds * 1e-9 - tracking_stamp
-                               if tracking_stamp is not None else None)
+                        age = now - tracking_stamp if tracking_stamp is not None else None
                         if age is None or age < 0 or age > 0.5:
                             self._publish_unavailable(color_msg.header.stamp,
                                                       "registration_unavailable",
                                                       "ChArUco localization expired while waiting for timestamped TF",
                                                       registration_observation_age_s=age)
                             return
-                    expected_owned_positions = {}
-                    for key, record in self.tracker.attachment_records.items():
-                        try:
-                            source_frame = (record["world_frame"] if record.get("phase") == "locked"
-                                            else record["link_name"])
-                            held_tf = self.tf_buffer.lookup_transform(
-                                self.board_frame, source_frame, Time.from_msg(color_msg.header.stamp))
-                            board_from_link = transform_from_msg(held_tf)
-                            local = np.asarray(record["world_position"] if record.get("phase") == "locked"
-                                               else record["link_pose"]["position"], dtype=float)
-                            expected_owned_positions[key] = board_from_link[:3, :3] @ local + board_from_link[:3, 3]
-                        except (KeyError, TypeError, ValueError, TransformException):
-                            continue
-                    objects = self.tracker.update(report["objects"], stamp,
-                                                  expected_owned_positions=expected_owned_positions)
-                    report["objects"] = objects
-                    report["expired_tracks"] = self.tracker.expired_tracks
-                    report["stamp"] = stamp
-                    report["support_plane"] = {
-                        key: (value.tolist() if isinstance(value, np.ndarray) else value)
-                        for key, value in report["support_plane"].items()
-                        if key != "inlier_mask" and key != "residuals_m"}
-                    self._publish_report(report, color_msg.header.stamp)
+                    cache = self.last_support_plane
+                    cache_snapshot = None if cache is None else {
+                        **cache, "normal": np.asarray(cache["normal"], dtype=float).copy()}
+                    self.analysis_worker.submit({
+                        "stamp": stamp, "ros_stamp": color_msg.header.stamp,
+                        "rgb": np.asarray(rgb).copy(), "depth": np.asarray(depth).copy(),
+                        "intrinsics": dict(intrinsics),
+                        "distortion": np.asarray(info_msg.d, dtype=float).copy(),
+                        "scale": float(scale), "board_from_camera": board_from_camera.copy(),
+                        "support_plane_cache": cache_snapshot,
+                    })
                 except (ValueError, TypeError, cv2.error, TransformException) as error:
                     if time.monotonic() - self.last_warning >= 2.0:
                         self.get_logger().warning(f"Colored object observation unavailable: {error}")
                         self.last_warning = time.monotonic()
                     self._publish_unavailable(color_msg.header.stamp, "unavailable", str(error))
+
+            def _analyze_job(self, job):
+                """Pure CPU analysis; this worker never accesses ROS or mutable tracking state."""
+                try:
+                    return analyze_rgbd(
+                        job["rgb"], job["depth"], job["intrinsics"], job["distortion"],
+                        job["scale"], job["board_from_camera"], self.support_roi,
+                        self.max_opening, max_object_height_m=self.max_object_height,
+                        observation_roi=self.observation_roi, pickup_roi=self.pickup_roi)
+                except SupportPlaneUnavailable:
+                    cache = job["support_plane_cache"]
+                    cache_age = None if cache is None else job["stamp"] - cache["stamp"]
+                    if (cache is None or cache_age is None or cache_age < 0 or cache_age > 2.0):
+                        raise
+                    report = analyze_rgbd(
+                        job["rgb"], job["depth"], job["intrinsics"], job["distortion"],
+                        job["scale"], job["board_from_camera"], self.support_roi,
+                        self.max_opening, max_object_height_m=self.max_object_height,
+                        observation_roi=self.observation_roi, pickup_roi=self.pickup_roi,
+                        support_plane={key: value for key, value in cache.items()
+                                       if key != "stamp"})
+                    report["support_plane"]["plane_source"] = "cached_measured_support_plane"
+                    report["support_plane"]["support_plane_age_s"] = float(cache_age)
+                    return report
+
+            def _consume_analysis(self):
+                from so101_station_perception.tag_observations import stamp_is_fresh
+                result = self.analysis_worker.take_result()
+                if result is None:
+                    return
+                job, report, error = result
+                stamp = job["stamp"]
+                now = self.get_clock().now().nanoseconds * 1e-9
+                if (stamp <= (self.last_analysis_result_stamp or float("-inf"))
+                        or not stamp_is_fresh(now, stamp, 0.5)):
+                    return
+                if self.require_registration_tracking:
+                    tracking_stamp = self.registration_last_tracking_stamp
+                    age = now - tracking_stamp if tracking_stamp is not None else None
+                    if age is None or age < 0 or age > 0.5:
+                        self._publish_unavailable(
+                            job["ros_stamp"], "registration_unavailable",
+                            "ChArUco localization expired during RGB-D analysis",
+                            registration_observation_age_s=age)
+                        return
+                if error is not None:
+                    if time.monotonic() - self.last_warning >= 2.0:
+                        self.get_logger().warning(f"Colored object observation unavailable: {error}")
+                        self.last_warning = time.monotonic()
+                    self._publish_unavailable(job["ros_stamp"], "unavailable", str(error))
+                    return
+                self.last_analysis_result_stamp = stamp
+                plane = report["support_plane"]
+                if plane.get("plane_source") != "cached_measured_support_plane":
+                    self.last_support_plane = {
+                        "normal": np.asarray(plane["normal"], dtype=float).copy(),
+                        "d": float(plane["d"]), "plane_source": plane["plane_source"],
+                        "support_points": int(plane["support_points"]),
+                        "support_inliers": int(plane["support_inliers"]), "stamp": stamp,
+                    }
+                expected_owned_positions = {}
+                for key, record in self.tracker.attachment_records.items():
+                    try:
+                        source_frame = (record["world_frame"] if record.get("phase") == "locked"
+                                        else record["link_name"])
+                        held_tf = self.tf_buffer.lookup_transform(
+                            self.board_frame, source_frame, Time.from_msg(job["ros_stamp"]))
+                        board_from_link = transform_from_msg(held_tf)
+                        local = np.asarray(record["world_position"] if record.get("phase") == "locked"
+                                           else record["link_pose"]["position"], dtype=float)
+                        expected_owned_positions[key] = board_from_link[:3, :3] @ local + board_from_link[:3, 3]
+                    except (KeyError, TypeError, ValueError, TransformException):
+                        continue
+                objects = self.tracker.update(report["objects"], stamp,
+                                              expected_owned_positions=expected_owned_positions)
+                report["objects"] = objects
+                report["expired_tracks"] = self.tracker.expired_tracks
+                report["stamp"] = stamp
+                report["support_plane"] = {
+                    key: (value.tolist() if isinstance(value, np.ndarray) else value)
+                    for key, value in report["support_plane"].items()
+                    if key != "inlier_mask" and key != "residuals_m"}
+                self._publish_report(report, job["ros_stamp"])
 
             def _publish_report(self, report, stamp):
                 detections = Detection3DArray()
