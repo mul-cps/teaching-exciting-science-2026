@@ -8,15 +8,15 @@ records commands, limitations and decisions.
 
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
-| Software suite | System Python: 1008 passed, 46 skipped (17.34s, after depth/worker/shape integration) | Software passed; skipped checks remain separate |
-| Native ROS checks | Prior broad subset72passed; latest tracking/validation/worker subset60passed in domain75 | Passed with test owners; no physical execution |
+| Software suite | System Python: 1061 passed, 50 skipped (18.51s, after final tracker/twin integration) | Software passed; skipped checks remain separate |
+| Native ROS checks | Root tracking/validation/worker subset94passed in domain75; station-venv twin/EGL/dependency subset19passed | Passed with test owners; no physical execution |
 | Clean package installation | All 17 packages built in a fresh integration prefix; separate startup worker verified a non-symlink install and installed plane-module import | Passed |
 | MoveIt planning | Mock start state valid, no collision; seven-point trajectory saved | Planning only; physical scene not qualified |
 | Single station startup | One camera launch and one resident follower owner; calibrated jaw path forwarded through both launch layers | Implemented; live cold starts pending |
 | Calibration | Available reports are explicitly unqualified; no held-out evidence supports a further 180-degree mount correction | Not accepted |
 | Plane residual ≤3 mm / pickup position error ≤5 mm | No current held-out physical measurements prove these bounds | Pending |
-| Passive twin | Effective ROS description and timestamped state are consumed passively; native tests cover historical cloud TF and static TF timing | Software checked; live hash/pose gates pending |
-| Twin error ≤1 mm / ≤0.5 degrees | No synchronized live qualification run completed | Pending |
+| Passive twin | Live viewer renders correct root-frame TF/marker semantics; raw RSP/MoveIt hashes match; bridge interruption visibly marks STALE and restart restores FRESH | Stationary live display and stale/reconnect checked; physical registration remains separate |
+| Twin error ≤1 mm / ≤0.5 degrees | One fresh synchronized stationary sample: tool disagreement1.24e-16m/0degrees; all-link/root-geometry nonidentity-transform regressions pass | Stationary mathematical parity passed; moving physical qualification pending |
 | Teleop ≥100 Hz for 30 minutes | Uncapped profile regression retained; no qualifying endurance run this session | Pending |
 | Twenty consecutive physical sorting cycles, ≥5 per color | No physical sorting cycle executed | Pending |
 | Failure recovery and reconnect | Software tests cover stop/ownership paths; transport failure observed while torque was last verified off | Physical behavior unqualified |
@@ -40,11 +40,12 @@ camera/base/TCP/jaw qualification remains a prerequisite for execution.
 
 Full-view color tracking now separates observation, support and pickup admission.
 Contact/pregrasp previews outside pickup bounds do not authorize execution.
-Depth support and final-child shape checks reject floating fragments without a
-fixed workspace exclusion. A fresh12-second capture preserved all eight real
-bricks in60/60tracking reports; five reports still included one false yellow
-chair fragment. That residual is under investigation; perception is not fully
-accepted. Captures are in `tracking-shape-live/` under the evidence directory.
+Depth support, original per-child shape evidence and three-frame acquisition
+confirmation reject transient floating fragments without a fixed workspace
+exclusion. Latest30-second capture `tracking-confirmed-live/` preserved all eight
+real bricks with zero extras in150/150tracking reports. Receipt age was below
+0.327seconds. This verifies the stationary reproduced scene; live dynamic,
+occlusion and semantic generalization remain unqualified.
 
 Evidence is under
 `~/.local/share/exciting-science/station/evidence/2026-10-16-sorting/`, including
