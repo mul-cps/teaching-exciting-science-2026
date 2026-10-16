@@ -17,6 +17,38 @@ states, the expanded RSP description, and TF. It rejects RGB-D skew above
 40 ms, stale data, and joint movement above 0.004 rad over the preceding
 250 ms. Capture only after the arm has independently reached a stable pose.
 
+Diagnostic captures remain available without arm-state or camera identity
+arguments. They record absent/unmatched provenance explicitly and always set
+`qualified: false`. For qualification input, require bound provenance and pin
+the live RealSense serial. The strict mode reads (but does not command) the
+existing ArmSession state file, the camera's `DeviceInfo` service and
+`serial_no` parameter. It requires their identities and calibration hashes to
+match the station config, the owner acquisition timestamp to be within 40 ms of
+the color frame and no more than 80 ms old, and the five arm joints to agree
+with the ROS radians within 0.01 rad. It also records the nearest ROS joint
+state timestamp and camera identity query timestamps. The gripper ROS joint is
+only a visual proxy: this provenance does not qualify jaw angle, camera/base
+registration accuracy, pickup accuracy, or the fitted transform.
+
+Run strict capture against an already-running station, using a new output
+directory and the station's explicit pinned serial/state path:
+
+```sh
+ROS_DOMAIN_ID=0 ./ros2/conda/so101-conda.sh run \
+  python tools/capture_ros_robot_registration.py \
+  --output-directory /path/to/new-registration-bundle \
+  --station-config /path/to/station.json \
+  --state-file /path/to/current/arm-state.json \
+  --camera-node /camera --expected-camera-serial PINNED_SERIAL \
+  --require-bound-provenance --timeout 30
+```
+
+Each new bundle uses capture schema 2 while retaining the top-level fields
+consumed by the offline fitters. The `provenance.qualification_inputs_bound`
+flag means identity and capture timing were bound; it is not a physical
+calibration qualification. Older bundles are not modified or retroactively
+marked as identity-bound.
+
 For a comparison, collect at least four snapshots: three distinct training
 poses followed by a separate held-out pose. Use the same camera, board
 placement, station, and effective robot-description hash throughout. Capture

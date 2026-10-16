@@ -3,6 +3,7 @@
 
 import argparse
 from collections import deque
+from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -68,7 +69,7 @@ def validate_tracking_status(status, *, now, max_age_s=0.5):
 
 def closest_settled_joint_state(samples, image_stamp, joint_names=JOINTS, *,
                                 max_age_s=0.08, window_s=0.25,
-                                max_span_rad=0.004):
+                                max_span_rad=0.004, return_stamp=False):
     """Return the closest six-joint state after confirming a quiet prior window.
 
     Samples are ``(stamp_seconds, names, positions)`` tuples. The settled
@@ -105,7 +106,7 @@ def closest_settled_joint_state(samples, image_stamp, joint_names=JOINTS, *,
         values = [pose[joint] for _, pose in window]
         if max(values) - min(values) > max_span_rad:
             raise ValueError("joint state is moving; settled window span exceeds 0.004 rad")
-    return nearest
+    return (nearest_stamp, nearest) if return_stamp else nearest
 
 
 def _stamp_seconds(stamp):
@@ -137,16 +138,155 @@ def _station_identity(config_path):
     if not config_path:
         return {}
     config_path = Path(config_path)
-    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config_bytes = config_path.read_bytes()
+    config = json.loads(config_bytes)
     arm = config.get("arm", {})
     result = {"arm_id": arm.get("id"),
-              "station_config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest()}
+              "station_config_sha256": hashlib.sha256(config_bytes).hexdigest()}
     calibration = arm.get("calibration", {})
     calibration_path = calibration.get("path")
     if calibration_path and Path(calibration_path).is_file():
         result["calibration_sha256"] = hashlib.sha256(Path(calibration_path).read_bytes()).hexdigest()
     if calibration.get("sha256"):
         result["configured_calibration_sha256"] = calibration["sha256"]
+    return result
+
+
+def validate_station_identity_snapshot(initial, current):
+    """Reject station/calibration source changes between bind and bundle write."""
+    keys = ("arm_id", "station_config_sha256", "calibration_sha256",
+            "configured_calibration_sha256")
+    changed = [key for key in keys if initial.get(key) != current.get(key)]
+    if changed:
+        raise ValueError("station identity source changed before capture write: " +
+                         ", ".join(changed))
+
+
+def _normalized_serial(value):
+    if not isinstance(value, str):
+        return None
+    # librealsense launch accepts the serial with an optional leading underscore.
+    return value.strip().lstrip("_") or None
+
+
+def camera_identity_provenance(*, expected_serial, device_info, parameter_serial,
+                               require_bound):
+    """Bind the requested serial to both the driver parameter and DeviceInfo."""
+    expected = _normalized_serial(expected_serial)
+    observed = _normalized_serial(
+        device_info.get("serial_number") if isinstance(device_info, dict) else None)
+    configured = _normalized_serial(parameter_serial)
+    firmware = (device_info.get("firmware_version")
+                if isinstance(device_info, dict) else None)
+    reasons = []
+    if not expected:
+        reasons.append("expected camera serial was not supplied")
+    if not observed:
+        reasons.append("camera DeviceInfo serial is unavailable")
+    if not configured:
+        reasons.append("camera serial_no parameter is unavailable")
+    if expected and observed and expected != observed:
+        reasons.append("camera DeviceInfo serial does not match the pinned serial")
+    if expected and configured and expected != configured:
+        reasons.append("camera serial_no parameter does not match the pinned serial")
+    if not isinstance(firmware, str) or not firmware.strip():
+        reasons.append("camera DeviceInfo firmware version is unavailable")
+        firmware = None
+    result = {"bound": not reasons, "expected_serial": expected,
+              "serial_number": observed, "serial_no_parameter": configured,
+              "firmware_version": firmware, "reason": "; ".join(reasons) or None}
+    if require_bound and reasons:
+        raise ValueError(result["reason"])
+    return result
+
+
+def _owner_timestamp(state):
+    try:
+        value = datetime.fromisoformat(str(state["timestamp_utc"]).replace("Z", "+00:00"))
+        if value.tzinfo is None:
+            return None
+        return value.astimezone(timezone.utc).timestamp()
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return None
+
+
+def owner_state_provenance(samples, *, image_stamp, joint_positions,
+                           expected_arm_id, expected_calibration_sha256,
+                           now_utc, require_bound, max_pair_delta_s=0.04,
+                           max_age_s=0.08, max_arm_joint_error_rad=0.01):
+    """Select and validate an ArmSession acquisition paired to the color stamp.
+
+    The five arm angles are compared using the actual published bridge mapping
+    (owner degrees to ROS radians). The gripper value is deliberately excluded:
+    the bridge's gripper joint is a visual proxy, not a qualified jaw encoder.
+    """
+    now = now_utc.astimezone(timezone.utc).timestamp()
+    stamped = [(stamp, state) for state in samples
+               if isinstance(state, dict) and (stamp := _owner_timestamp(state)) is not None]
+    selected = min(stamped, key=lambda item: abs(item[0] - float(image_stamp))) if stamped else None
+    reasons = []
+    if selected is None:
+        reasons.append("no timestamped ArmSession sample is available")
+        state, acquisition_stamp = None, None
+    else:
+        acquisition_stamp, state = selected
+        pair_delta = abs(acquisition_stamp - float(image_stamp))
+        age = now - acquisition_stamp
+        if pair_delta > max_pair_delta_s:
+            reasons.append(f"ArmSession acquisition is not paired to image ({pair_delta:.3f}s)")
+        if age < -0.05 or age > max_age_s:
+            reasons.append(f"ArmSession acquisition is stale at capture ({age:.3f}s old)")
+        if state.get("schema") != 1 or state.get("event") != "sample":
+            reasons.append("ArmSession state is not a measured sample")
+        if (state.get("arm_id") != expected_arm_id or
+                state.get("calibration_sha256") != expected_calibration_sha256):
+            reasons.append("ArmSession identity does not match station arm/calibration")
+        raw = state.get("raw")
+        if (not isinstance(raw, dict) or set(raw) != set(JOINTS) or
+                any(type(value) is not int or not 0 <= value <= 4095
+                    for value in raw.values())):
+            reasons.append("ArmSession sample has no valid raw six-joint counts")
+        pose = state.get("pose")
+        if (not isinstance(pose, dict) or set(pose) != set(JOINTS) or
+                any(type(value) not in (int, float) or not math.isfinite(value)
+                    for value in pose.values())):
+            reasons.append("ArmSession sample has no valid six-joint pose")
+            arm_error = None
+        elif (not isinstance(joint_positions, dict) or
+              not set(JOINTS).issubset(joint_positions)):
+            reasons.append("paired ROS joint state is incomplete")
+            arm_error = None
+        else:
+            arm_error = max(abs(math.radians(float(pose[joint])) -
+                                float(joint_positions[joint])) for joint in JOINTS[:-1])
+            if arm_error > max_arm_joint_error_rad:
+                reasons.append(f"ArmSession and ROS arm joints disagree ({arm_error:.4f} rad)")
+        try:
+            monotonic = float(state["monotonic"])
+            if not math.isfinite(monotonic) or monotonic < 0:
+                raise ValueError
+        except (KeyError, TypeError, ValueError):
+            monotonic = None
+            reasons.append("ArmSession monotonic acquisition timestamp is invalid")
+        pair_delta = abs(acquisition_stamp - float(image_stamp))
+        age = now - acquisition_stamp
+    result = {
+        "bound": not reasons,
+        "reason": "; ".join(reasons) or None,
+        "arm_id": state.get("arm_id") if state else None,
+        "calibration_sha256": state.get("calibration_sha256") if state else None,
+        "timestamp_utc": state.get("timestamp_utc") if state else None,
+        "monotonic": state.get("monotonic") if state else None,
+        "raw": state.get("raw") if state else None,
+        "pose": state.get("pose") if state else None,
+        "acquisition_stamp": acquisition_stamp,
+        "pair_delta_s": pair_delta if selected else None,
+        "age_at_capture_s": age if selected else None,
+        "arm_joint_max_error_rad": arm_error if selected else None,
+        "physical_gripper_mapping_qualified": False,
+    }
+    if require_bound and reasons:
+        raise ValueError(result["reason"])
     return result
 
 
@@ -163,9 +303,16 @@ class RegistrationCaptureNode:
         from sensor_msgs.msg import CameraInfo, Image, JointState
         from std_msgs.msg import String
         from tf2_ros import Buffer, TransformListener
+        try:
+            from realsense2_camera_msgs.srv import DeviceInfo
+        except ImportError:
+            DeviceInfo = None
 
         class _Node(Node):
             def __init__(self, output_directory, *, timeout_s, station_config="",
+                         state_file=None, expected_camera_serial=None,
+                         require_bound_provenance=False, camera_node="/camera",
+                         device_info_service="", max_owner_age_s=0.08,
                          color_topic="/camera/color/image_raw",
                          depth_topic="/camera/aligned_depth_to_color/image_raw",
                          camera_info_topic="/camera/color/camera_info",
@@ -178,6 +325,19 @@ class RegistrationCaptureNode:
                 self.output_directory = Path(output_directory)
                 self.timeout_s = timeout_s
                 self.station_config = station_config
+                self.station_identity = _station_identity(station_config)
+                self.state_file = Path(state_file) if state_file else None
+                self.expected_camera_serial = expected_camera_serial
+                self.require_bound_provenance = bool(require_bound_provenance)
+                self.max_owner_age_s = float(max_owner_age_s)
+                self.owner_states = deque(maxlen=256)
+                self._last_owner_monotonic = None
+                self.owner_state_error = None
+                self.device_info = None
+                self.device_info_observed_at = None
+                self.camera_serial_parameter = None
+                self.camera_parameter_observed_at = None
+                self.camera_identity_error = None
                 self.optical_frame, self.world_frame = optical_frame, world_frame
                 self.base_frame, self.gripper_frame = base_frame, gripper_frame
                 self.bridge = CvBridge()
@@ -199,6 +359,16 @@ class RegistrationCaptureNode:
                 self.description_client = AsyncParameterClient(
                     self, "/follower/robot_state_publisher")
                 self.description_future = None
+                self.camera_node = camera_node.rstrip("/") or "/camera"
+                self.device_info_service = device_info_service or f"{self.camera_node}/device_info"
+                self.device_info_type = DeviceInfo
+                self.device_info_client = (self.create_client(DeviceInfo, self.device_info_service)
+                                           if DeviceInfo is not None else None)
+                self.device_info_future = None
+                self.camera_parameter_client = AsyncParameterClient(self, self.camera_node)
+                self.camera_parameter_future = None
+                self._last_device_info_query = 0.0
+                self._last_camera_parameter_query = 0.0
                 self.buffer = Buffer()
                 self.listener = TransformListener(self.buffer, self)
                 self.create_subscription(Image, color_topic, self._color, qos_profile_sensor_data)
@@ -258,6 +428,8 @@ class RegistrationCaptureNode:
             def _capture_pending(self):
                 if self.done:
                     return
+                self._sample_owner_state()
+                self._sample_camera_identity()
                 if time.monotonic() - self.started > self.timeout_s:
                     self.failure = RuntimeError(timeout_message(
                         self.last_rejection_reason, received_counts=self.received_counts,
@@ -313,8 +485,55 @@ class RegistrationCaptureNode:
                              "camera_info": info.header.frame_id}, now=now,
                             expected_frame=self.optical_frame)
                         validate_tracking_status(self.tracking, now=now)
-                        joint_positions = closest_settled_joint_state(
-                            self.joints, frame_stamp, JOINTS)
+                        joint_stamp, joint_positions = closest_settled_joint_state(
+                            self.joints, frame_stamp, JOINTS, return_stamp=True)
+                        now_utc = datetime.now(timezone.utc)
+                        identity = camera_identity_provenance(
+                            expected_serial=self.expected_camera_serial,
+                            device_info=self.device_info,
+                            parameter_serial=self.camera_serial_parameter,
+                            require_bound=self.require_bound_provenance)
+                        owner = owner_state_provenance(
+                            self.owner_states, image_stamp=frame_stamp,
+                            joint_positions=joint_positions,
+                            expected_arm_id=self.station_identity.get("arm_id"),
+                            expected_calibration_sha256=(
+                                self.station_identity.get("configured_calibration_sha256") or
+                                self.station_identity.get("calibration_sha256")),
+                            now_utc=now_utc, require_bound=self.require_bound_provenance,
+                            max_age_s=self.max_owner_age_s)
+                        owner["ros_joint_state_stamp"] = joint_stamp
+                        owner["ros_joint_state_delta_s"] = abs(joint_stamp - frame_stamp)
+                        owner["state_file"] = str(self.state_file) if self.state_file else None
+                        owner["state_read_error"] = self.owner_state_error
+                        identity["device_info_service"] = self.device_info_service
+                        identity["device_info_error"] = getattr(self, "device_info_error", None)
+                        identity["camera_parameter_error"] = getattr(
+                            self, "camera_parameter_error", None)
+                        identity["device_info_observed_at_utc"] = (
+                            self.device_info_observed_at.isoformat()
+                            if self.device_info_observed_at else None)
+                        identity["camera_parameter_observed_at_utc"] = (
+                            self.camera_parameter_observed_at.isoformat()
+                            if self.camera_parameter_observed_at else None)
+                        device_age = (now_utc - self.device_info_observed_at).total_seconds() \
+                            if self.device_info_observed_at else None
+                        parameter_age = (now_utc - self.camera_parameter_observed_at).total_seconds() \
+                            if self.camera_parameter_observed_at else None
+                        identity["device_info_age_at_capture_s"] = device_age
+                        identity["camera_parameter_age_at_capture_s"] = parameter_age
+                        if self.require_bound_provenance and (
+                                device_age is None or not 0 <= device_age <= 2.0 or
+                                parameter_age is None or not 0 <= parameter_age <= 2.0):
+                            raise ValueError("camera identity query is missing, future-dated, or stale")
+                        station_hashes_match = (
+                            bool(self.station_identity.get("station_config_sha256")) and
+                            bool(self.station_identity.get("arm_id")) and
+                            bool(self.station_identity.get("calibration_sha256")) and
+                            self.station_identity.get("calibration_sha256") ==
+                            self.station_identity.get("configured_calibration_sha256"))
+                        if self.require_bound_provenance:
+                            self._validate_station_hashes()
                         transforms = {
                             "world_from_camera": self._lookup(self.world_frame, self.optical_frame, frame_stamp),
                             "world_from_base": self._lookup(self.world_frame, self.base_frame, frame_stamp),
@@ -328,7 +547,13 @@ class RegistrationCaptureNode:
                             f"exact TF lookup at image stamp {frame_stamp:.9f} failed: {error}", stamp)
                         continue
                     self._write_capture(color, depth, info, frame_stamp,
-                                        joint_positions, transforms, now)
+                                        joint_positions, transforms, now,
+                                        provenance={"camera": identity, "owner": owner,
+                                                    "station_hashes_match": station_hashes_match,
+                                                    "qualification_inputs_bound":
+                                                    identity["bound"] and owner["bound"] and
+                                                    station_hashes_match,
+                                                    "physical_gripper_mapping_qualified": False})
                     self.done = True
                     self.timer.cancel()
                     return
@@ -337,9 +562,87 @@ class RegistrationCaptureNode:
                 request_time = Time(seconds=stamp)
                 return _transform_matrix(self.buffer.lookup_transform(target, source, request_time))
 
-            def _write_capture(self, color_msg, depth_msg, info, stamp,
-                               joint_positions, transforms, now):
+            def _sample_owner_state(self):
+                if self.state_file is None:
+                    return
                 try:
+                    state = json.loads(self.state_file.read_text(encoding="utf-8"))
+                    monotonic = float(state["monotonic"])
+                    if (state.get("event") == "sample" and math.isfinite(monotonic) and
+                            (self._last_owner_monotonic is None or
+                             monotonic > self._last_owner_monotonic)):
+                        self.owner_states.append(state)
+                        self._last_owner_monotonic = monotonic
+                    self.owner_state_error = None
+                except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+                    self.owner_state_error = str(error)
+
+            def _sample_camera_identity(self):
+                if self.device_info_client is not None:
+                    elapsed = time.monotonic() - self._last_device_info_query
+                    if (self.device_info_future is None and elapsed >= 1.0 and
+                            self.device_info_client.service_is_ready()):
+                        self.device_info_future = self.device_info_client.call_async(
+                            self.device_info_type.Request())
+                        self._last_device_info_query = time.monotonic()
+                    if self.device_info_future is not None and self.device_info_future.done():
+                        try:
+                            response = self.device_info_future.result()
+                            self.device_info = {
+                                "serial_number": response.serial_number,
+                                "firmware_version": response.firmware_version,
+                                "device_name": response.device_name,
+                                "usb_type_descriptor": response.usb_type_descriptor,
+                                "physical_port": response.physical_port,
+                            }
+                            self.device_info_observed_at = datetime.now(timezone.utc)
+                            self.device_info_error = None
+                        except Exception as error:
+                            self.device_info_error = str(error)
+                        self.device_info_future = None
+                else:
+                    self.device_info_error = "realsense2_camera_msgs/DeviceInfo is unavailable"
+                elapsed = time.monotonic() - self._last_camera_parameter_query
+                if (self.camera_parameter_future is None and elapsed >= 1.0 and
+                        self.camera_parameter_client.services_are_ready()):
+                    self.camera_parameter_future = self.camera_parameter_client.get_parameters(
+                        ["serial_no"])
+                    self._last_camera_parameter_query = time.monotonic()
+                if (self.camera_parameter_future is not None and
+                        self.camera_parameter_future.done()):
+                    try:
+                        values = self.camera_parameter_future.result().values
+                        if values and values[0].string_value:
+                            self.camera_serial_parameter = values[0].string_value
+                            self.camera_parameter_observed_at = datetime.now(timezone.utc)
+                        self.camera_parameter_error = None
+                    except Exception as error:
+                        self.camera_parameter_error = str(error)
+                    self.camera_parameter_future = None
+
+            def _validate_station_hashes(self):
+                identity = self.station_identity
+                if not identity.get("station_config_sha256") or not identity.get("arm_id"):
+                    raise ValueError("strict provenance requires station-config arm identity and hash")
+                calibration = identity.get("calibration_sha256")
+                configured = identity.get("configured_calibration_sha256")
+                if not calibration or not configured:
+                    raise ValueError("strict provenance requires both calibration file and configured hashes")
+                if calibration != configured:
+                    raise ValueError("station calibration file hash does not match configured hash")
+
+            def _write_capture(self, color_msg, depth_msg, info, stamp,
+                               joint_positions, transforms, now, provenance=None):
+                try:
+                    station_identity_now = _station_identity(self.station_config)
+                    identity_unchanged = True
+                    try:
+                        validate_station_identity_snapshot(
+                            self.station_identity, station_identity_now)
+                    except ValueError:
+                        identity_unchanged = False
+                        if self.require_bound_provenance:
+                            raise
                     import cv2
                     from ament_index_python.packages import get_package_share_directory
                     color = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding="bgr8")
@@ -352,12 +655,29 @@ class RegistrationCaptureNode:
                     offsets_share = Path(get_package_share_directory("so101_station_control"))
                     package_paths = {"so101_description": str(share)}
                     roll = _mount_roll_from_config(offsets_share / "config" / "model_offsets.yaml")
+                    capture_provenance = provenance or {
+                        "camera": camera_identity_provenance(
+                            expected_serial=self.expected_camera_serial,
+                            device_info=self.device_info,
+                            parameter_serial=self.camera_serial_parameter,
+                            require_bound=False),
+                        "owner": {"bound": False,
+                                  "reason": self.owner_state_error or
+                                  "no timestamp-paired ArmSession sample selected",
+                                  "physical_gripper_mapping_qualified": False},
+                        "station_hashes_match": False,
+                        "qualification_inputs_bound": False,
+                        "physical_gripper_mapping_qualified": False,
+                    }
+                    if not identity_unchanged:
+                        capture_provenance["qualification_inputs_bound"] = False
+                        capture_provenance["station_identity_changed_during_capture"] = True
                     if not cv2.imwrite(str(self.output_directory / "color.png"), color):
                         raise RuntimeError("could not save color.png")
                     np.save(self.output_directory / "depth.npy", depth, allow_pickle=False)
                     (self.output_directory / "robot.urdf").write_text(self.robot_description, encoding="utf-8")
                     capture = {
-                        "schema": 1,
+                        "schema": 2,
                         "stamp": stamp,
                         "color_stamp": stamp,
                         "depth_stamp": _stamp_seconds(depth_msg.header.stamp),
@@ -376,7 +696,10 @@ class RegistrationCaptureNode:
                         "mesh_package_paths": package_paths,
                         "gripper_mount_roll_deg": roll,
                         "urdf_sha256": hashlib.sha256(self.robot_description.encode()).hexdigest(),
-                        **_station_identity(self.station_config),
+                        **self.station_identity,
+                        "provenance": capture_provenance,
+                        "qualified": False,
+                        "station_identity_unchanged_at_write": identity_unchanged,
                     }
                     (self.output_directory / "capture.json").write_text(
                         json.dumps(capture, indent=2, sort_keys=True, allow_nan=False) + "\n",
@@ -393,6 +716,17 @@ def main(argv=None):
     parser.add_argument("--output-directory", required=True, type=Path)
     parser.add_argument("--timeout", type=float, default=15.0)
     parser.add_argument("--station-config", default="")
+    parser.add_argument("--state-file", type=Path,
+                        help="ArmSession state file to sample alongside the ROS joint states")
+    parser.add_argument("--expected-camera-serial",
+                        help="pinned RealSense serial required for bound provenance")
+    parser.add_argument("--camera-node", default="/camera",
+                        help="RealSense ROS node namespace used for DeviceInfo and serial_no")
+    parser.add_argument("--device-info-service", default="",
+                        help="DeviceInfo service (default: <camera-node>/device_info)")
+    parser.add_argument("--max-owner-age", type=float, default=0.08)
+    parser.add_argument("--require-bound-provenance", action="store_true",
+                        help="reject captures lacking pinned camera, arm/calibration and time-paired owner identity")
     parser.add_argument("--color-topic", default="/camera/color/image_raw")
     parser.add_argument("--depth-topic", default="/camera/aligned_depth_to_color/image_raw")
     parser.add_argument("--camera-info-topic", default="/camera/color/camera_info")
@@ -405,12 +739,21 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if not math.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("--timeout must be positive and finite")
+    if not math.isfinite(args.max_owner_age) or not 0 < args.max_owner_age <= 0.08:
+        parser.error("--max-owner-age must be positive and no greater than 0.08 seconds")
+    if args.require_bound_provenance and not (
+            args.station_config and args.state_file and args.expected_camera_serial):
+        parser.error("--require-bound-provenance requires --station-config, --state-file, and --expected-camera-serial")
     args.output_directory = args.output_directory.resolve()
     args.output_directory.mkdir(parents=True, exist_ok=False)
     import rclpy
     rclpy.init(args=None)
     node = RegistrationCaptureNode(
         args.output_directory, timeout_s=args.timeout, station_config=args.station_config,
+        state_file=args.state_file, expected_camera_serial=args.expected_camera_serial,
+        require_bound_provenance=args.require_bound_provenance,
+        camera_node=args.camera_node, device_info_service=args.device_info_service,
+        max_owner_age_s=args.max_owner_age,
         color_topic=args.color_topic, depth_topic=args.depth_topic,
         camera_info_topic=args.camera_info_topic, joint_states_topic=args.joint_states_topic,
         tracking_topic=args.tracking_topic, optical_frame=args.optical_frame,
