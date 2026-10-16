@@ -270,6 +270,8 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
     import rclpy
+    import signal
+    from rclpy.signals import SignalHandlerOptions
     from geometry_msgs.msg import PoseStamped
     from control_msgs.action import FollowJointTrajectory, GripperCommand
     from moveit_msgs.msg import (Constraints, JointConstraint, MoveItErrorCodes, MotionPlanRequest,
@@ -338,7 +340,16 @@ def main(argv=None):
             except (ValueError, TypeError):
                 self.registration_status = None
 
-    rclpy.init()
+    # Keep the ROS context alive while interruption cancels and waits for the
+    # resident goal. rclpy's default signal handler shuts it down first, making
+    # the cancellation requests below unable to reach the action server.
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    def interrupt_execution(_signum, _frame):
+        raise KeyboardInterrupt
+    previous_signal_handlers = {
+        signum: signal.signal(signum, interrupt_execution)
+        for signum in (signal.SIGINT, signal.SIGTERM)
+    }
     node = Client()
     try:
         jaw_calibration = tcp_calibration = tcp_from_object = None
@@ -941,8 +952,13 @@ def main(argv=None):
                 cancel_active_goal(time.monotonic() + 5.0)
             except BaseException as cancel_error:
                 node.get_logger().error(f"retrying until resident action cancellation is confirmed: {cancel_error}")
-        node.destroy_node()
-        rclpy.shutdown()
+        try:
+            node.destroy_node()
+            if rclpy.ok():
+                rclpy.shutdown()
+        finally:
+            for signum, handler in previous_signal_handlers.items():
+                signal.signal(signum, handler)
 
 
 if __name__ == "__main__":

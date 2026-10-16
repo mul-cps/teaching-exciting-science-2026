@@ -73,3 +73,12 @@ Ruling: do not infer successful recovery from encoder-only motion, stale images 
 - Focused planner regressions: `python -m pytest -q tests/test_camera_recovery.py` ->14 passed. Three new cases failed before the fix: a pose-only adapter, an unknown swept segment, and a segment oracle never being called. Every segment now contributes to the returned minimum clearance.
 - A real URDF/depth collision adapter and native grasp CLI subprocess harness are in progress. These tests do not qualify live recovery or physical sorting.
 - Latest user-authorized run preflight still found no `/dev/serial/by-id` and no EV3 USB device. D435i remains enumerated; no actuator commands were sent.
+
+## Reconnection and native execution checkpoint
+
+- After the user requested another connection check, both expected serial identities returned (`5AB9068906`, `5AB9068765`), along with EV3 USB and `usb0`. SSH using the station EV3 key confirmed machine-id `0a8ffb6d314b403ab9cb5dc4ba3f599d`; the persistent live API returned idle/power-save status with both motor references still unset.
+- A new resident read-only connection succeeded and shut down on stdin EOF. All six torque bits were zero; elbow remains raw2993/91.56deg. Saved state: local evidence `reconnected-arm-state.json`. No goal/profile/motion was sent.
+- Fresh native ROS RGB-D start delivered201color/205depth/200aligned frames over15seconds, saved a zero-skew paired image and exited cleanly. Evidence: local `rgbd_reconnected/`. Visual inspection confirms the station scene; this does not qualify camera/base registration or repeated cold starts.
+- New actual CLI subprocess tests exercise native ROS services/actions end to end: complete synthetic pick/place; lost localization before any arm goal; interruption during lift with terminal canceled goal and retained scene attachment. Native result:3passed in5.80seconds. Synthetic calibration records are test fixtures only.
+- SIGINT previously shut down the ROS context before the CLI could confirm action cancellation. Execution now handles SIGINT/SIGTERM through Python interruption, keeps ROS alive during cancellation, and shuts it down afterward. The native interruption regression passes.
+- Recovery now checks encoder acquisition freshness throughout collision evaluation as well as camera freshness. Focused camera/grasp geometry tests:34passed2skipped; camera planner alone15passed. Physical acceptance gates and live recovery integration remain incomplete.

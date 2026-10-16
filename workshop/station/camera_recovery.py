@@ -109,8 +109,10 @@ def plan_bound_reentry(raw, admitted_bounds, firmware_bounds, *, scene, now,
                     or observed < minimum_clearance_m):
                 raise ValueError("recovery swept-volume clearance is unknown or insufficient")
             clearance = min(clearance, observed)
-        if now + time.monotonic()-started - scene.stamp_monotonic > .5:
-            raise ValueError("camera scene expired while checking recovery")
+        checked_at = now + time.monotonic()-started
+        if any(checked_at-stamp > .5 for stamp in
+               (scene.stamp_monotonic, scene.arm_stamp_monotonic)):
+            raise ValueError("camera or encoder observation expired while checking recovery")
     payload = {"model_sha256": expected_model_sha256,
                "calibration_sha256": expected_calibration_sha256,
                "camera_serial": expected_camera_serial,

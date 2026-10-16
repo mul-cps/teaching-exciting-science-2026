@@ -83,6 +83,18 @@ def test_pose_only_collision_adapter_cannot_admit_recovery():
         plan(scene)
 
 
+def test_encoder_observation_must_remain_fresh_through_collision_check(monkeypatch):
+    scene = Scene()
+    scene.stamp_monotonic = 10.1
+    scene.arm_stamp_monotonic = 10.0
+    ticks = iter([0.0, .35])
+    monkeypatch.setattr("workshop.station.camera_recovery.time.monotonic", lambda: next(ticks, .35))
+    with pytest.raises(ValueError, match="expired"):
+        plan_bound_reentry(START, BOUNDS, FIRMWARE, scene=scene, now=10.2,
+                           expected_model_sha256="a" * 64,
+                           expected_calibration_sha256="b" * 64)
+
+
 @pytest.mark.parametrize("field,value", [("registration_qualified", False),
     ("stamp_monotonic", 9.), ("arm_stamp_monotonic", 9.8),
     ("model_sha256", "c" * 64), ("calibration_sha256", "c" * 64)])
