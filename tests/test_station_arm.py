@@ -313,9 +313,9 @@ def test_commission_cli_exports_taught_pose_and_route(setup, tmp_path, monkeypat
     config_file = tmp_path/'input.json'; config_file.write_text(json.dumps(complete))
     exported = tmp_path/'exported.json'; captured = tmp_path/'pickup.json'
     monkeypatch.setattr(commission, 'LeRobotArm', lambda config: a)
-    commission.main(['--config', str(config_file), '--capture-pose', 'pickup', '--output', str(captured), '--update-config', str(exported)])
+    commission.main(['--lock', str(tmp_path/'station.lock'), '--config', str(config_file), '--capture-pose', 'pickup', '--output', str(captured), '--update-config', str(exported)])
     assert load_config(exported)['arm']['poses']['pickup'] == json.loads(captured.read_text())['position']
-    commission.main(['--config', str(exported), '--set-route', 'pick_and_place', 'pickup', 'red', '--color', 'red', '--update-config', str(exported)])
+    commission.main(['--lock', str(tmp_path/'station.lock'), '--config', str(exported), '--set-route', 'pick_and_place', 'pickup', 'red', '--color', 'red', '--update-config', str(exported)])
     assert load_config(exported)['arm']['trajectories']['pick_and_place']['red'] == ['pickup', 'red']
     assert load_config(exported)['commissioned'] is False
 
@@ -331,7 +331,7 @@ def test_route_only_cli_builds_first_color_without_device_access(setup, tmp_path
     source = tmp_path/'input.json'; source.write_text(json.dumps(complete))
     exported = tmp_path/'routes.json'
     monkeypatch.setattr(LeRobotArm, 'connect', lambda *args: pytest.fail('route export must not open a bus'))
-    commission.main(['--config', str(source), '--set-route', 'pick_and_place', 'pickup', 'red', '--color', 'red', '--update-config', str(exported)])
+    commission.main(['--lock', str(tmp_path/'station.lock'), '--config', str(source), '--set-route', 'pick_and_place', 'pickup', 'red', '--color', 'red', '--update-config', str(exported)])
     config = load_config(exported)
     assert config['arm']['trajectories'] == {'pick_and_place': {'red': ['pickup', 'red']}}
     assert not config['commissioned'] and not config['automatic_start']

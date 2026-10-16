@@ -1,8 +1,5 @@
 """ROS sorting adapter contract tests; no ROS graph or devices are started."""
-import importlib
 import json
-import os
-from pathlib import Path
 import signal
 import sys
 import threading
@@ -12,18 +9,8 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 
-SOURCE_ROOT = Path(os.environ.get(
-    "ROS_SORTING_SOURCE_ROOT", Path(__file__).resolve().parents[1]
-)).resolve()
-if not (SOURCE_ROOT / "workshop/station/ros_sorting.py").is_file():
-    pytest.skip(
-        "set ROS_SORTING_SOURCE_ROOT to the checkout with the station adapter",
-        allow_module_level=True,
-    )
-sys.path.insert(0, str(SOURCE_ROOT))
-
-sorting = importlib.import_module("workshop.station.ros_sorting")
-adapter = importlib.import_module("tools.ros_sort_station")
+from workshop.station import ros_sorting as sorting
+from tools import ros_sort_station as adapter
 
 
 DESTINATIONS = {"red": [0.1, 0.2, 0.3, 0.0, 0.0, 0.0, 1.0]}
@@ -114,7 +101,7 @@ class _FakeNode:
         return object()
 
     def create_client(self, _service_type, name):
-        response = (SimpleNamespace(return_code=_CancelGoal.Response.ERROR_NONE)
+        response = (SimpleNamespace(return_code=_CancelGoal.Response.ERROR_NONE, goals_canceling=[])
                     if name.endswith("/_action/cancel_goal") else None)
         client = self.clients.get(name, _ServiceClient(name, response=response))
         self.created_clients[name] = client
@@ -162,6 +149,7 @@ def _module(monkeypatch, name, **attrs):
 def _install_ros_fakes(monkeypatch, *, spin_once=None):
     _module(monkeypatch, "action_msgs")
     _module(monkeypatch, "action_msgs.srv", CancelGoal=_CancelGoal)
+    _module(monkeypatch, "action_msgs.msg", GoalStatusArray=type("GoalStatusArray", (), {}))
     _module(monkeypatch, "rclpy")
     _module(monkeypatch, "rclpy.qos", qos_profile_sensor_data=object())
     _module(monkeypatch, "sensor_msgs")
@@ -191,6 +179,7 @@ def _settings(tmp_path):
         "frame_id": "charuco_board",
         "pickup_bounds_m": [-0.2, 0.2, -0.2, 0.2, 0.0, 0.4],
         "tip_link": "gripper_frame_link",
+        "clear_joint_pose_rad": dict.fromkeys(adapter.ARM_JOINTS, 0.),
     }
 
 
@@ -393,3 +382,85 @@ def test_failed_pick_place_proof_never_admits_a_second_cycle():
     assert sum(call[0] == "pick_place" for call in devices.calls) == 1
     assert not any(event["event"] == "cycle_complete" for event in events)
     assert devices.calls[-1] == ("stop",)
+
+
+def test_client_cannot_submit_an_action_after_final_server_cancel(monkeypatch, tmp_path):
+    events = []
+    devices, _, _ = _adapter(monkeypatch, tmp_path)
+
+    class Child:
+        returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def send_signal(self, value):
+            events.append("interrupt_client")
+            self.returncode = -int(value)
+
+        def wait(self, timeout=None):
+            events.append("client_exited")
+            return self.returncode
+
+    devices.child = Child()
+    for client in devices.cancel_clients:
+        original = client.call_async
+        def record(request, original=original):
+            events.append("cancel_server")
+            return original(request)
+        client.call_async = record
+    devices.stop()
+    assert events == ["interrupt_client", "client_exited", "cancel_server", "cancel_server"]
+
+
+@pytest.mark.parametrize("failure", ["signal_race", "shutdown_timeout"])
+def test_child_shutdown_failure_cannot_skip_either_server_cancel(monkeypatch, tmp_path, failure):
+    devices, _, _ = _adapter(monkeypatch, tmp_path)
+
+    class Child:
+        def poll(self):
+            return None
+
+        def send_signal(self, value):
+            if failure == "signal_race":
+                raise ProcessLookupError("client just exited")
+
+        def wait(self, timeout=None):
+            raise adapter.subprocess.TimeoutExpired("grasp", timeout)
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            pass
+
+    devices.child = Child()
+    with pytest.raises(RuntimeError):
+        devices.stop()
+    assert all(client.requests == 1 for client in devices.cancel_clients)
+
+
+def test_stop_waits_for_terminal_action_after_cancel_acceptance(monkeypatch, tmp_path):
+    devices, _, rclpy = _adapter(monkeypatch, tmp_path)
+    goal_id = [9] * 16
+    devices.cancel_clients[0].response = SimpleNamespace(
+        return_code=0, goals_canceling=[SimpleNamespace(goal_id=SimpleNamespace(uuid=goal_id))])
+    calls = []
+    def spin(*args, **kwargs):
+        calls.append(True)
+        devices._action_status(0, SimpleNamespace(status_list=[SimpleNamespace(
+            goal_info=SimpleNamespace(goal_id=SimpleNamespace(uuid=goal_id)), status=5)]))
+    rclpy.spin_once = spin
+    devices.stop()
+    assert len(calls) == 1
+
+
+def test_cancel_acceptance_alone_cannot_confirm_stop(monkeypatch, tmp_path):
+    devices, _, _ = _adapter(monkeypatch, tmp_path)
+    devices.cancel_clients[0].response = SimpleNamespace(
+        return_code=0, goals_canceling=[SimpleNamespace(goal_id=SimpleNamespace(uuid=[9]*16))])
+    clock = iter(range(1000))
+    monkeypatch.setattr(adapter.time, "monotonic", lambda: float(next(clock)))
+    with pytest.raises(RuntimeError, match="did not confirm terminal"):
+        devices.stop()
+    assert devices.cancel_clients[1].requests == 1
