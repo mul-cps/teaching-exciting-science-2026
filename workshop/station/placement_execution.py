@@ -46,22 +46,37 @@ def require_area_contains(status, target, registration, *, footprint_m,
     half = (local[:, :2].max(axis=0)-local[:, :2].min(axis=0))/2
     if (np.max(np.abs(local[:, 2])) > tolerance
             or np.max(np.abs(local.mean(axis=0))) > tolerance
-            or np.min(half) <= tolerance
-            or not np.allclose(np.abs(local[:, :2]), half, atol=tolerance)):
-        raise ValueError('placement corners are inconsistent with a centered planar rectangle')
-    if not np.allclose(2*half, [target.area_width_m, target.area_height_m], atol=tolerance):
-        raise ValueError("placement area extent disagrees with observed corners")
-    signs = {tuple(np.sign(row)) for row in local[:, :2]}
-    edges = np.roll(local[:, :2], -1, axis=0)-local[:, :2]
+            or np.min(half) <= tolerance):
+        raise ValueError('placement corners are inconsistent with a centered planar quadrilateral')
+    polygon = local[:, :2]
+    edges = np.roll(polygon, -1, axis=0)-polygon
+    lengths = np.linalg.norm(edges, axis=1)
     cross = edges[:, 0]*np.roll(edges[:, 1], -1)-edges[:, 1]*np.roll(edges[:, 0], -1)
-    if len(signs) != 4 or not (np.all(cross > 0) or np.all(cross < 0)):
+    # Strict convexity rejects self-crossed, concave, duplicate and collinear
+    # corners. Do not reorder them: their source is exact TL/TR/BR/BL pixels.
+    if (np.min(lengths) <= tolerance
+            or not (np.all(cross > 1e-8) or np.all(cross < -1e-8))):
         raise ValueError('placement area corner ordering is malformed')
+    # pose_from_rectangle defines X from the top edge and Y from the
+    # orthogonalized left edge, with origin at the four-corner mean. Its
+    # width/height are edge lengths, not a metric rectangle or bounding box.
+    if (not np.allclose([lengths[0], lengths[3]],
+                        [target.area_width_m, target.area_height_m], atol=tolerance)
+            or abs(edges[0, 1]) > tolerance or edges[0, 0] <= 0
+            or polygon[3, 1]-polygon[0, 1] <= 0):
+        raise ValueError('placement area extent/axes disagree with observed corners')
+    winding = 1. if np.all(cross > 0) else -1.
+    inward = winding*np.column_stack((-edges[:, 1], edges[:, 0]))/lengths[:, None]
     margin = clearance_m + registration_uncertainty_m + 3*float(target.fit_uncertainty_m)
-    # The carried envelope is commissioned about the selected goal origin;
-    # the tool envelope is commissioned in goal axes about the tool origin.
-    needed = np.maximum(envelopes[0], envelopes[1]+np.abs(goal_from_tip[:2, 3])) + margin
-    if np.any(half < needed):
-        raise ValueError('carried brick/tool footprint exceeds placement area after uncertainty clearance')
+    signs = np.array([[-1.,-1.], [1.,-1.], [1.,1.], [-1.,1.]])
+    # Both envelopes are commissioned in goal axes. The carried envelope is
+    # about the selected goal origin, and the tool envelope about the tool
+    # origin. Convexity makes testing all envelope vertices sufficient.
+    footprints = (signs*envelopes[0], signs*envelopes[1]+goal_from_tip[:2, 3])
+    for footprint in footprints:
+        distances = np.einsum('vki,ki->vk', footprint[:, None, :]-polygon[None, :, :], inward)
+        if np.any(distances+1e-12 < margin):
+            raise ValueError('carried brick/tool footprint exceeds placement area after uncertainty clearance')
     return tuple(float(v) for v in half)
 
 

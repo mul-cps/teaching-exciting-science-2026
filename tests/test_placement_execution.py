@@ -73,3 +73,89 @@ def test_actual_carried_dimensions_are_admitted_conservatively_for_rotation():
         require_observed_footprint([.04,.04,.01], [.04,.04])
     with pytest.raises(ValueError):
         require_observed_footprint(None, [.04,.04])
+
+
+def tilted_image_selection(scale=1.):
+    """Perfect pinhole backprojection of an image rectangle onto a tilted plane."""
+    from workshop.digital_twin.placement_region import pose_from_rectangle
+    # Camera rays are pixel offsets normalized by focal length. Plane:
+    # z=.6+.55*x+.30*y, producing a convex perspective quadrilateral.
+    image = np.array([[-.25,-.18],[.25,-.18],[.25,.18],[-.25,.18]])*scale
+    rays = np.column_stack((image, np.ones(4)))
+    distance = .6/(1.-.55*rays[:,0]-.30*rays[:,1])
+    corners = rays*distance[:,None]
+    pose, geometry = pose_from_rectangle(corners)
+    selection = str(uuid.uuid4())
+    status = dict(state='tracked', valid=True, selection_id=selection, frame_id='camera',
+        stamp_ns=1_000_000_000, camera_from_goal_stamp_ns=1_000_000_000,
+        camera_from_goal=pose.tolist(), fit_rms_m=.0001, goal_geometry=geometry,
+        plane_metrics={'plane_rms_m': .0001}, goal_corners_camera=corners.tolist())
+    registration = QualifiedFrameRegistration('camera', 'base_link', np.eye(4), 'synthetic-pinned-sha')
+    kwargs = dict(selection_id=selection, registration=registration, received_monotonic=10.,
+        now_monotonic=10.1, now_ros_ns=1_100_000_000, goal_from_tip=np.eye(4),
+        footprint_m=[.04,.04], tool_footprint_m=[.03,.03], clearance_m=.005,
+        registration_uncertainty_m=.002)
+    return status, kwargs
+
+
+def test_perfect_tilted_perspective_image_selection_resolves_to_usable_goal(tmp_path):
+    from workshop.digital_twin.placement_region import resolve_placement_goal
+    status, kwargs = tilted_image_selection()
+    import json
+    from workshop.digital_twin.placement_region import load_qualified_frame_registration
+    base_from_camera = np.eye(4)
+    base_from_camera[:3,:3] = [[0,-1,0],[1,0,0],[0,0,1]]
+    base_from_camera[:3,3] = [.1,-.2,.3]
+    calibration = tmp_path/'synthetic-qualified-registration.json'
+    calibration.write_text(json.dumps(dict(schema='camera-arm-calibration-v1', qualified=True,
+        transform_direction='base_from_camera', camera_frame='camera',
+        base_from_camera=base_from_camera.tolist())))
+    kwargs['registration'] = load_qualified_frame_registration(calibration)
+    target = resolve_placement_goal(status, expected_selection_id=kwargs['selection_id'],
+        registration=kwargs['registration'], received_monotonic=10., now_monotonic=10.1,
+        now_ros_ns=1_100_000_000)
+    corners = np.asarray(status['goal_corners_camera'])
+    # Prove this is not the old axis-aligned/rectangle synthetic special case.
+    assert not np.isclose(np.linalg.norm(corners[1]-corners[0]), np.linalg.norm(corners[2]-corners[3]))
+    resolved, position, quaternion, area = resolve_tool_destination(status, **kwargs)
+    assert resolved.selection_id == target.selection_id
+    assert resolved.registration_sha256 == kwargs['registration'].sha256
+    np.testing.assert_allclose(position, target.position_m)
+    assert min(area) > .05
+
+
+def test_perspective_small_area_and_offset_tool_protrusion_fail():
+    status, kwargs = tilted_image_selection(.10)
+    with pytest.raises(ValueError, match='footprint'):
+        resolve_tool_destination(status, **kwargs)
+    status, kwargs = tilted_image_selection()
+    offset = np.eye(4)
+    offset[0,3] = .16
+    with pytest.raises(ValueError, match='footprint'):
+        resolve_tool_destination(status, **dict(kwargs, goal_from_tip=offset))
+
+
+def test_perspective_quad_still_rejects_nonplanar_and_malformed_corners():
+    status, kwargs = tilted_image_selection()
+    corners = np.asarray(status['goal_corners_camera'])
+    normal = np.asarray(status['camera_from_goal'])[:3,2]
+    nonplanar = corners.copy()
+    nonplanar[2] += .004*normal
+    with pytest.raises(ValueError, match='inconsistent'):
+        resolve_tool_destination(dict(status, goal_corners_camera=nonplanar.tolist()), **kwargs)
+    with pytest.raises(ValueError, match='ordering'):
+        resolve_tool_destination(dict(status, goal_corners_camera=corners[[0,2,1,3]].tolist()), **kwargs)
+
+
+def test_perspective_tool_inside_bounding_box_but_outside_quad_is_rejected():
+    status, kwargs = tilted_image_selection()
+    pose = np.asarray(status['camera_from_goal'])
+    polygon = (np.asarray(status['goal_corners_camera'])-pose[:3,3])@pose[:3,:3]
+    tool = np.eye(4)
+    tool[:2,3] = [-.16,.13]
+    tool_vertices = np.array([[-1,-1],[1,-1],[1,1],[-1,1]])*.002+tool[:2,3]
+    margin = .005+.002+3*np.hypot(.0001,.0001)
+    assert np.all(tool_vertices > polygon[:,:2].min(axis=0)+margin)
+    assert np.all(tool_vertices < polygon[:,:2].max(axis=0)-margin)
+    with pytest.raises(ValueError, match='footprint'):
+        resolve_tool_destination(status, **dict(kwargs, goal_from_tip=tool, tool_footprint_m=[.004,.004]))
