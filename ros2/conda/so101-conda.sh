@@ -122,7 +122,8 @@ case "$ACTION" in
     exec "$0" build
     ;;
   station-live)
-    ros_run ros2 launch so101_station_bringup station_live.launch.py "$@"
+    ros_run ros2 launch so101_station_bringup station_live.launch.py \
+      "station_root:=$ROOT_DIR" "$@"
     ;;
   rviz)
     ros_run ros2 launch so101_station_bringup mock_moveit.launch.py

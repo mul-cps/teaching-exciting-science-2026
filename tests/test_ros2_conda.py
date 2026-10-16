@@ -12,14 +12,14 @@ ENVIRONMENT = CONDA_DIR / "environment.yml"
 WRAPPER = CONDA_DIR / "so101-conda.sh"
 
 
-def run_wrapper(*args: str, env: dict[str, str] | None = None):
+def run_wrapper(*args: str, env: dict[str, str] | None = None, cwd=None):
     test_env = os.environ.copy()
     if env is None or "ROS_DOMAIN_ID" not in env:
         test_env.pop("ROS_DOMAIN_ID", None)
     test_env.update(env or {})
     return subprocess.run(
         [str(WRAPPER), *args],
-        cwd=ROOT,
+        cwd=ROOT if cwd is None else cwd,
         env=test_env,
         text=True,
         capture_output=True,
@@ -264,10 +264,11 @@ def test_station_live_uses_clean_conda_ros_environment_and_default_cyclone(tmp_p
         "ROS_DISTRO": "iron",
         "PYTHONPATH": "/opt/ros/iron/lib/python3/site-packages",
     }
-    result = run_wrapper("station-live", "rviz:=false", env=env)
+    result = run_wrapper("station-live", "rviz:=false", env=env, cwd=tmp_path)
     assert result.returncode == 0, result.stderr
     args = (capture / "args").read_text().splitlines()
     assert "station_live.launch.py" in args
+    assert f"station_root:={ROOT}" in args
     assert args[-1] == "rviz:=false"
     clean_environment = dict(
         line.split("=", 1)
