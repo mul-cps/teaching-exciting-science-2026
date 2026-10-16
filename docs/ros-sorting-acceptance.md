@@ -8,7 +8,7 @@ records commands, limitations and decisions.
 
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
-| Software suite | System Python: 1140 passed, 53 skipped (23.80s, at domain/GPU integration); trusted CGAL/mesh-audit subset44passed | Software passed; skipped checks remain separate |
+| Software suite | System Python: 1164 passed, 74 skipped (24.45s, workflow/placement integration); trusted CGAL/mesh-audit subset44passed | Software passed; skipped checks remain separate |
 | Native ROS checks | Root camera/GPU/domain subset42passed in domain75; typed object-depth launch subset23passed; earlier tracking/validation/worker subset94passed and station-venv twin subset19passed | Passed with test owners; no physical execution |
 | Clean package installation | All 17 packages built in a fresh integration prefix; separate startup worker verified a non-symlink install and installed plane-module import | Passed |
 | MoveIt planning | Mock start state valid, no collision; seven-point trajectory saved | Planning only; physical scene not qualified |
@@ -23,6 +23,9 @@ records commands, limitations and decisions.
 | Camera-guided automatic arm recovery | Bounded planner, conservative depth adapter and owner admission/watchdog implemented and tested; production provider rejects without qualified geometry/registration | Live physical recovery pending |
 | ROS isolation and rendering | Full station and twin restarted on domain76; wrapper defaults76/rejects0; localhost discovery; actual RViz amdgpu counter increments | Live checked; rebuilt container image remains separate |
 | Native EV3 commissioning | Exact machine/port identity checked; one diagnostic sorter switch home completed1.859s/refhome0; baseline overspeed guard and MicroPython fault observed and recorded; feeder reference remainsNone | Sorter home once; feeder/ejection/othermoves/sorting pending |
+| ROS workflow and quick actions | Reviewed resident API, private one-use EV3 command admission, bounded cycles/cancel/stop; root combined native subset43passed; live typed status/diagnostics work on domain76 | API running idle/disconnected; commissioning config absent; physical cycles pending |
+| Acknowledged arm stop | New bridge/sole owner started; live `/follower/stop` succeeded with fresh six-servo torque-off readback, unchanged raw positions | Idle protocol checked; arm was already torque off, moving-stop qualification pending |
+| Interactive moving placement area | Browser8101 camera upright; principal-point-aware clicks tested; fiducial-inclusive stationary anchor9/9features, approximately0.8–1.1mm residual | Browser goal-frame pinning repair and actual moving-feeder validation pending |
 | Three successful cold starts | Three camera-only starts passed after reconnection; complete station cold-start gate not exercised | Pending |
 | Release artifacts and publication | Local camera/USB logs retained; implementation branch not a release | Pending |
 
