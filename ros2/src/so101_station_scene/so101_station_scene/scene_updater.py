@@ -4,6 +4,7 @@ import json
 import math
 import time
 import copy
+import re
 
 import numpy as np
 import rclpy
@@ -65,6 +66,20 @@ def box_collision_object(object_id, frame_id, stamp, center, size, orientation,
     return item
 
 
+def _acm_equivalent(left, right):
+    """MoveIt may reorder matrix names when serializing its internal map."""
+    def entries(matrix):
+        names = list(matrix.entry_names)
+        if (len(names) != len(set(names)) or len(matrix.entry_values) != len(names)
+                or any(len(row.enabled) != len(names) for row in matrix.entry_values)
+                or len(matrix.default_entry_names) != len(matrix.default_entry_values)):
+            raise ValueError("malformed allowed-collision matrix")
+        return ({(a, b): bool(matrix.entry_values[i].enabled[j])
+                 for i, a in enumerate(names) for j, b in enumerate(names)},
+                dict(zip(matrix.default_entry_names, matrix.default_entry_values)))
+    return entries(left) == entries(right)
+
+
 class SceneUpdater(Node):
     def __init__(self):
         super().__init__("so101_scene_updater")
@@ -79,6 +94,7 @@ class SceneUpdater(Node):
             "attachment_status_topic": "/so101_scene/attachment_status",
             "max_detection_age_s": 0.5,
             "track_ttl_s": 0.75,
+            "attachment_timeout_s": 3.0,
             "max_objects": 24,
             "min_object_extent_m": 0.002,
             "max_object_extent_m": 0.30,
@@ -122,6 +138,13 @@ class SceneUpdater(Node):
         self._attachment_queue = []
         self._attachment_results = {}
         self._attachment_inflight = set()
+        self._attachment_payloads = {}
+        self._attachment_operation = None
+        self._scene_fault = None
+        self._contact_previous = {}
+        self.attachment_timeout_s = float(get("attachment_timeout_s"))
+        if not math.isfinite(self.attachment_timeout_s) or self.attachment_timeout_s <= 0:
+            raise ValueError("attachment timeout must be positive and finite")
         self._table_cfg = {
             "enabled": bool(get("table_collision_enabled")),
             "size_xy": tuple(float(v) for v in get("table_size_xy_m")),
@@ -238,7 +261,10 @@ class SceneUpdater(Node):
         return boxes
 
     def _maintenance(self):
-        if self._attachment_queue and not self._scene_busy and not self._pending_by_id:
+        operation = self._attachment_operation
+        if operation and time.monotonic() >= operation["deadline"]:
+            self._attachment_fault(operation["data"], "planning-scene acknowledgement deadline exceeded")
+        if self._attachment_queue and not self._scene_busy and (self._scene_fault or not self._pending_by_id):
             self._apply_attachment(self._attachment_queue.pop(0))
         if self._pending_by_id and not self._scene_busy:
             self._apply([])
@@ -262,24 +288,57 @@ class SceneUpdater(Node):
             self._status("expired", ids=expired)
 
     def _attachment_request(self, message):
+        data = None
         try:
+            if len(message.data) > 8192:
+                raise ValueError("attachment request exceeds 8192 bytes")
             data = json.loads(message.data)
             if (not isinstance(data, dict) or data.get("schema") != 1 or
-                    not isinstance(data.get("request_id"), str) or not data["request_id"] or
-                    data.get("action") not in {"attach", "detach", "allow_contact", "disallow_contact"} or
-                    not isinstance(data.get("track_id"), str) or not data["track_id"]):
-                raise ValueError("request requires schema 1, request_id, action and track_id")
+                    not isinstance(data.get("request_id"), str) or
+                    not re.fullmatch(r"[A-Za-z0-9_.:-]{1,96}", data["request_id"]) or
+                    data.get("action") not in {"lock", "unlock", "attach", "detach", "allow_contact", "disallow_contact", "query", "recover"}):
+                raise ValueError("request requires schema 1, bounded request_id and supported action")
+            object_collision_id(data.get("track_id"))
+            action = data["action"]
+            if action in {"attach", "allow_contact", "disallow_contact"}:
+                links = data.get("touch_links")
+                if (not isinstance(links, list) or not 1 <= len(links) <= 16 or any(
+                        not isinstance(link, str) or not re.fullmatch(r"[A-Za-z0-9_/]{1,96}", link)
+                        for link in links)):
+                    raise ValueError("explicit bounded touch_links required")
+            if action == "attach" and (not isinstance(data.get("link_name"), str) or
+                    not re.fullmatch(r"[A-Za-z0-9_/]{1,96}", data["link_name"])):
+                raise ValueError("valid link_name required")
+            if action == "detach":
+                world = data.get("world_pose")
+                if not isinstance(world, dict) or world.get("frame_id", self.world_frame) != self.world_frame:
+                    raise ValueError("world_pose must use the planning world frame")
+                center = tuple(float(v) for v in world.get("position", ()))
+                if len(center) != 3 or not all(math.isfinite(v) for v in center):
+                    raise ValueError("world_pose requires finite XYZ")
+                quaternion_matrix_xyzw(world.get("orientation_xyzw", ()))
             request_id = data["request_id"]
+            if request_id in self._attachment_payloads and self._attachment_payloads[request_id] != data:
+                raise ValueError("request_id was already used for a different payload")
             if request_id in self._attachment_results:
-                self._attachment_status_pub.publish(String(data=json.dumps(
+                self.attachment_status_pub.publish(String(data=json.dumps(
                     self._attachment_results[request_id], sort_keys=True)))
                 return
             if request_id in self._attachment_inflight:
                 return
+            if len(self._attachment_inflight) >= 32:
+                raise ValueError("attachment request queue is full")
+            self._attachment_payloads[request_id] = copy.deepcopy(data)
             self._attachment_inflight.add(request_id)
             self._attachment_queue.append(data)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
-            self._attachment_status({"state": "rejected", "reason": str(exc)})
+            # Do not overwrite the authoritative result of a reused request ID.
+            result = {"state": "rejected", "reason": str(exc)}
+            if isinstance(data, dict) and data.get("request_id") not in self._attachment_payloads:
+                candidate = data.get("request_id")
+                if isinstance(candidate, str) and len(candidate) <= 96:
+                    result["request_id"] = candidate
+            self._attachment_status(result)
 
     def _attachment_status(self, data):
         request_id = data.get("request_id")
@@ -287,18 +346,51 @@ class SceneUpdater(Node):
             self._attachment_inflight.discard(request_id)
             self._attachment_results[request_id] = dict(data)
             if len(self._attachment_results) > 128:
-                self._attachment_results.pop(next(iter(self._attachment_results)))
+                oldest = next(iter(self._attachment_results))
+                self._attachment_results.pop(oldest)
+                self._attachment_payloads.pop(oldest, None)
         message = String()
         message.data = json.dumps(data, sort_keys=True, allow_nan=False)
         self.attachment_status_pub.publish(message)
 
     def _apply_attachment(self, data):
         request_id, action, track_id = data["request_id"], data["action"], data["track_id"]
+        if action in {"query", "recover"}:
+            self._query_ownership(data)
+            return
+        if self._scene_fault and not (action == "disallow_contact" and
+                self._scene_fault["data"]["action"] in {"allow_contact", "disallow_contact"} and
+                self._scene_fault["data"]["track_id"] == track_id and
+                (self._scene_fault.get("future") is None or self._scene_fault["future"].done())):
+            self._attachment_status({"request_id": request_id, "track_id": track_id,
+                                     "state": "rejected", "reason": "scene ownership fault requires query/recover"})
+            return
         try:
             key = object_collision_id(track_id)
+            if not self.scene_client.service_is_ready():
+                raise ValueError("apply service unavailable")
+            if action == "lock":
+                item = self.registry.lock(track_id)
+                record = self.registry.attached_record(track_id)
+                record["world_frame"] = self.world_frame
+                self._attachment_status({"request_id": request_id, "track_id": track_id,
+                                         "state": "locked", "attachment": record})
+                return
+            if action == "unlock":
+                record = self.registry.attached_record(track_id)
+                if not record or record.get("phase") != "locked":
+                    raise ValueError("unlock requires a target lock with no attachment attempt")
+                if key in self._contact_previous:
+                    raise ValueError("restore contact allowance before unlocking target")
+                self.registry.detach(track_id, world_pose={"position": self.registry._objects[key].center_m,
+                    "orientation_xyzw": self.registry._objects[key].orientation_xyzw}, now_mono_s=time.monotonic())
+                self._attachment_status({"request_id": request_id, "track_id": track_id, "state": "unlocked"})
+                return
             if action in {"allow_contact", "disallow_contact"}:
                 if key not in self.registry._objects:
                     raise ValueError("contact target is not present in the live scene registry")
+                if action == "allow_contact" and not self.registry.is_attached(track_id):
+                    raise ValueError("lock the physical target before allowing gripper contact")
                 links = data.get("touch_links")
                 if not isinstance(links, list) or not links or any(
                         not isinstance(link, str) or not link.strip() for link in links):
@@ -317,8 +409,16 @@ class SceneUpdater(Node):
                                      link_pose={"position": link_center,
                                                 "orientation_xyzw": link_orientation})
                 record = self.registry.attached_record(track_id)
+                # Publish before sending the diff so perception preserves the
+                # physical identity even through occlusion and lifted motion.
+                self.attachment_status_pub.publish(String(data=json.dumps({
+                    "request_id": request_id, "track_id": track_id, "state": "reserved",
+                    "attachment": record})))
+                self._pending_by_id.pop(key, None)
             else:
                 record = self.registry.attached_record(track_id)
+                if record is None or record.get("phase") == "locked":
+                    raise ValueError("tracked object is not attached")
                 world = data["world_pose"]
                 center = tuple(float(v) for v in world["position"])
                 orientation = tuple(float(v) for v in world["orientation_xyzw"])
@@ -354,37 +454,134 @@ class SceneUpdater(Node):
             self._attachment_status({"request_id": request_id, "state": "rejected",
                                      "track_id": track_id, "reason": str(exc)})
             return
-        if not self.scene_client.service_is_ready():
-            if action == "attach":
-                self.registry.detach(track_id)
-            self._attachment_status({"request_id": request_id, "state": "failed",
-                                     "track_id": track_id, "reason": "apply service unavailable"})
-            return
         self._scene_busy = True
-        future = self.scene_client.call_async(request)
+        try:
+            future = self.scene_client.call_async(request)
+        except Exception as exc:
+            self._attachment_fault(data, str(exc))
+            return
+        operation = self._watch_attachment(data, future)
 
         def done(result):
+            if self._attachment_operation is not operation:
+                return  # A timeout requires explicit reconciliation, even after a late ACK.
+            self._attachment_operation = None
             self._scene_busy = False
             try:
                 response = result.result()
-                applied = bool(response and response.success)
-                reason = "planning-scene service rejected diff"
+                if not response or not response.success:
+                    raise ValueError("planning-scene service rejected diff")
             except Exception as exc:
-                applied, reason = False, str(exc)
-            if applied and action == "detach":
+                self._attachment_fault(data, str(exc), future=future)
+                return
+            if action == "detach":
                 self.registry.detach(track_id, world_pose=data["world_pose"],
                                      now_mono_s=time.monotonic())
-            elif not applied and action == "attach":
-                self.registry.detach(track_id)
             self._attachment_status({"request_id": request_id,
-                                     "state": ("attached" if action == "attach" else "detached")
-                                     if applied else "failed", "track_id": track_id,
-                                     "collision_id": key,
-                                     **({} if applied else {"reason": reason})})
+                                     "state": "attached" if action == "attach" else "detached",
+                                     "track_id": track_id, "collision_id": key,
+                                     **({"attachment": self.registry.attached_record(track_id)}
+                                        if action == "attach" else {})})
+
+        future.add_done_callback(done)
+
+    def _watch_attachment(self, data, future):
+        operation = {"data": data, "future": future,
+                     "deadline": time.monotonic() + self.attachment_timeout_s}
+        self._attachment_operation = operation
+        return operation
+
+    def _attachment_fault(self, data, reason, *, future=None):
+        operation = self._attachment_operation
+        if data["action"] not in {"query", "recover"} or self._scene_fault is None:
+            self._scene_fault = {"data": data, "future": future or (operation or {}).get("future")}
+        self._attachment_operation = None
+        self._scene_busy = False
+        self._attachment_status({"request_id": data["request_id"], "track_id": data["track_id"],
+                                 "state": "fault", "reason": reason,
+                                 "ownership_reserved": self.registry.is_attached(data["track_id"]),
+                                 "action": data["action"],
+                                 "recovery": "query actual scene; recover only after outstanding apply completes"})
+
+    def _query_ownership(self, data):
+        """Read actual ownership. Recovery requires a terminal previous RPC."""
+        if not self.scene_read_client.service_is_ready():
+            self._attachment_status({"request_id": data["request_id"], "track_id": data["track_id"],
+                                     "state": "rejected", "reason": "scene query unavailable"})
+            return
+        key = object_collision_id(data["track_id"])
+        fault = self._scene_fault
+        read = GetPlanningScene.Request()
+        read.components.components = (PlanningSceneComponents.WORLD_OBJECT_GEOMETRY |
+                                      PlanningSceneComponents.ROBOT_STATE_ATTACHED_OBJECTS)
+        self._scene_busy = True
+        try:
+            future = self.scene_read_client.call_async(read)
+        except Exception as exc:
+            self._attachment_fault(data, str(exc))
+            return
+        operation = self._watch_attachment(data, future)
+
+        def done(result):
+            if self._attachment_operation is not operation:
+                return
+            self._attachment_operation = None
+            self._scene_busy = False
+            try:
+                scene = result.result().scene
+                attached = [entry for entry in scene.robot_state.attached_collision_objects
+                            if entry.object.id == key]
+                world = [entry for entry in scene.world.collision_objects if entry.id == key]
+                observed = "attached" if attached and not world else "world" if world and not attached else "ambiguous"
+                if data["action"] == "query":
+                    self._attachment_status({"request_id": data["request_id"], "track_id": data["track_id"],
+                                             "state": "queried", "observed": observed,
+                                             "fault": bool(fault)})
+                    return
+                if fault and fault["data"]["track_id"] != data["track_id"]:
+                    raise ValueError("recovery must name the faulted object")
+                if fault and fault.get("future") is not None and not fault["future"].done():
+                    raise ValueError("previous RPC is still outstanding; recovery cannot release ownership")
+                if fault and fault["data"]["action"] in {"allow_contact", "disallow_contact"}:
+                    raise ValueError("contact matrix uncertainty requires explicit disallow_contact recovery")
+                if observed == "attached" and self.registry.is_attached(data["track_id"]):
+                    record = self.registry.attached_record(data["track_id"])
+                    if attached[0].link_name != record["link_name"]:
+                        raise ValueError("actual attachment link differs from reserved link")
+                    state = "attached"
+                elif observed == "world" and self.registry.is_attached(data["track_id"]):
+                    item = world[0]
+                    if item.header.frame_id != self.world_frame or len(item.primitive_poses) != 1 or len(item.primitives) != 1:
+                        raise ValueError("recovery requires one world-frame box")
+                    pose = item.primitive_poses[0]
+                    if item.primitives[0].type != SolidPrimitive.BOX or not np.allclose(
+                            item.primitives[0].dimensions, self.registry._objects[key].size_m):
+                        raise ValueError("world replacement dimensions differ from reserved box")
+                    world_pose = {"position": (pose.position.x, pose.position.y, pose.position.z),
+                                  "orientation_xyzw": (pose.orientation.x, pose.orientation.y,
+                                                       pose.orientation.z, pose.orientation.w)}
+                    self.registry.detach(data["track_id"], world_pose=world_pose, now_mono_s=time.monotonic())
+                    state = "detached"
+                else:
+                    raise ValueError("actual scene does not establish unique protected ownership")
+                self._scene_fault = None
+                self._attachment_status({"request_id": data["request_id"], "track_id": data["track_id"], "state": state})
+            except Exception as exc:
+                # Preserve the original uncertain apply future, not the completed query.
+                self._scene_fault = fault or {"data": data, "future": None}
+                self._attachment_status({"request_id": data["request_id"], "track_id": data["track_id"],
+                                         "state": "fault", "reason": str(exc)})
 
         future.add_done_callback(done)
 
     def _update_contact_matrix(self, data, collision_id, links, allow):
+        if not allow and collision_id not in self._contact_previous and self._scene_fault:
+            # The read phase failed before any allow diff was submitted. Its
+            # late callback is suppressed, so there is no matrix change to undo.
+            self._scene_fault = None
+            self._attachment_status({"request_id": data["request_id"], "track_id": data["track_id"],
+                                     "state": "contact_disallowed"})
+            return
         if not self.scene_read_client.service_is_ready() or not self.scene_client.service_is_ready():
             self._attachment_status({"request_id": data["request_id"], "state": "failed",
                                      "reason": "planning-scene read/apply service unavailable"})
@@ -392,9 +589,16 @@ class SceneUpdater(Node):
         read = GetPlanningScene.Request()
         read.components.components = PlanningSceneComponents.ALLOWED_COLLISION_MATRIX
         self._scene_busy = True
-        read_future = self.scene_read_client.call_async(read)
+        try:
+            read_future = self.scene_read_client.call_async(read)
+        except Exception as exc:
+            self._attachment_fault(data, str(exc))
+            return
+        operation = self._watch_attachment(data, read_future)
 
         def got_scene(done_read):
+            if self._attachment_operation is not operation:
+                return
             try:
                 existing = done_read.result().scene.allowed_collision_matrix
                 matrix = copy.deepcopy(existing)
@@ -402,53 +606,75 @@ class SceneUpdater(Node):
                 for link in [collision_id, *links]:
                     if link not in names:
                         names.append(link)
+                snapshot = self._contact_previous.get(collision_id)
+                if allow and self._contact_previous:
+                    raise ValueError("contact allowance already has an unresolved restoration snapshot")
+                if allow and len(names) != len(existing.entry_names) and any(existing.default_entry_values):
+                    raise ValueError("expand implicit allowed-collision defaults explicitly before contact allowance")
+                if not allow:
+                    if snapshot is None or tuple(links) != snapshot["links"]:
+                        raise ValueError("disallow_contact requires the original contact restoration snapshot and links")
+                    if not _acm_equivalent(existing, snapshot["applied"]) and not _acm_equivalent(existing, snapshot["original"]):
+                        raise ValueError("allowed-collision matrix changed externally; exact restoration requires operator reconciliation")
+                    matrix = copy.deepcopy(snapshot["original"])
                 old_n = len(matrix.entry_names)
-                for row in matrix.entry_values:
-                    row.enabled.extend([False] * (len(names) - old_n))
-                from moveit_msgs.msg import AllowedCollisionEntry
-                for _ in range(len(names) - len(matrix.entry_values)):
-                    matrix.entry_values.append(AllowedCollisionEntry(enabled=[False] * len(names)))
-                for row in matrix.entry_values:
-                    if len(row.enabled) < len(names):
-                        row.enabled.extend([False] * (len(names) - len(row.enabled)))
-                matrix.entry_names = names
-                for link in links:
-                    i, j = names.index(collision_id), names.index(link)
-                    matrix.entry_values[i].enabled[j] = bool(allow)
-                    matrix.entry_values[j].enabled[i] = bool(allow)
+                if allow:
+                    for row in matrix.entry_values:
+                        row.enabled.extend([False] * (len(names) - old_n))
+                    from moveit_msgs.msg import AllowedCollisionEntry
+                    for _ in range(len(names) - len(matrix.entry_values)):
+                        matrix.entry_values.append(AllowedCollisionEntry(enabled=[False] * len(names)))
+                    for row in matrix.entry_values:
+                        if len(row.enabled) < len(names):
+                            row.enabled.extend([False] * (len(names) - len(row.enabled)))
+                    matrix.entry_names = names
+                    for link in links:
+                        i, j = names.index(collision_id), names.index(link)
+                        matrix.entry_values[i].enabled[j] = bool(allow)
+                        matrix.entry_values[j].enabled[i] = bool(allow)
+                    self._contact_previous[collision_id] = {
+                        "original": copy.deepcopy(existing), "applied": copy.deepcopy(matrix),
+                        "links": tuple(links)}
                 apply = ApplyPlanningScene.Request()
                 apply.scene = PlanningScene()
                 apply.scene.is_diff = True
                 apply.scene.robot_state.is_diff = True
                 apply.scene.allowed_collision_matrix = matrix
                 apply_future = self.scene_client.call_async(apply)
+                apply_operation = self._watch_attachment(data, apply_future)
                 apply_future.add_done_callback(lambda done_apply: self._contact_done(
-                    done_apply, data, allow))
+                    done_apply, data, allow, apply_operation))
             except Exception as exc:
-                self._scene_busy = False
-                self._attachment_status({"request_id": data["request_id"], "state": "failed",
-                                         "reason": str(exc)})
+                self._attachment_fault(data, str(exc), future=read_future)
 
         read_future.add_done_callback(got_scene)
 
-    def _contact_done(self, future, data, allow):
+    def _contact_done(self, future, data, allow, operation):
+        if self._attachment_operation is not operation:
+            return
+        self._attachment_operation = None
         self._scene_busy = False
         try:
             response = future.result()
-            applied = bool(response and response.success)
-            reason = "planning-scene rejected allowed-collision update"
+            if not response or not response.success:
+                raise ValueError("planning-scene rejected allowed-collision update")
         except Exception as exc:
-            applied, reason = False, str(exc)
+            self._attachment_fault(data, str(exc), future=future)
+            return
+        self._scene_fault = None
+        if not allow:
+            self._contact_previous.pop(object_collision_id(data["track_id"]), None)
         self._attachment_status({"request_id": data["request_id"],
-                                 "state": ("contact_allowed" if allow else "contact_disallowed")
-                                 if applied else "failed",
-                                 "track_id": data["track_id"],
-                                 **({} if applied else {"reason": reason})})
+                                 "state": "contact_allowed" if allow else "contact_disallowed",
+                                 "track_id": data["track_id"]})
 
     def _apply(self, objects, *, static=False):
         for item in objects:
+            if item.id not in self._pending_by_id and len(self._pending_by_id) >= self.max_objects + 8:
+                self._status("queue_full", reason="world scene update queue is bounded")
+                continue
             self._pending_by_id[item.id] = item
-        if self._scene_busy or not self._pending_by_id or not self.scene_client.service_is_ready():
+        if self._scene_busy or self._scene_fault or not self._pending_by_id or not self.scene_client.service_is_ready():
             return
         queued = list(self._pending_by_id.values())
         self._pending_by_id.clear()
@@ -465,7 +691,9 @@ class SceneUpdater(Node):
             try:
                 response = result.result()
                 applied = bool(response and response.success)
-            except Exception as exc:  # ROS service errors become status, not a node crash.
+            except Exception as exc:  # Preserve world diffs before accepting target locks.
+                for item in queued:
+                    self._pending_by_id.setdefault(item.id, item)
                 self._status("apply_failed", reason=str(exc))
                 return
             if static and applied:

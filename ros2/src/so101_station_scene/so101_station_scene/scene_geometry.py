@@ -18,7 +18,7 @@ class TrackedBox:
 
 def object_collision_id(track_id: str) -> str:
     """Map a stable tracker ID into this node's collision-object namespace."""
-    if not isinstance(track_id, str) or not track_id or len(track_id) > 96:
+    if not isinstance(track_id, str) or not track_id or len(track_id) > 96 or any(c.isspace() or ord(c) < 32 for c in track_id):
         raise ValueError("detection must have a stable track id")
     encoded = quote(track_id, safe="-_.~")
     if not encoded or encoded in (".", ".."):
@@ -167,6 +167,8 @@ class LiveObjectRegistry:
         key = object_collision_id(track_id)
         if key in self._attached:
             raise ValueError("tracked object is attached and cannot be recreated from detections")
+        if self._attached and key not in self._objects:
+            raise ValueError("new identities are withheld while a physical object is reserved")
         center = tuple(float(v) for v in center_m)
         if len(center) != 3 or not all(math.isfinite(v) for v in center):
             raise ValueError("box center must contain three finite coordinates")
@@ -192,12 +194,22 @@ class LiveObjectRegistry:
             del self._objects[key]
         return sorted(expired)
 
+    def lock(self, track_id):
+        """Freeze one target before gripper interaction starts."""
+        key = object_collision_id(track_id)
+        if key not in self._objects or key in self._attached:
+            raise ValueError("lock requires an available live tracked object")
+        item = self._objects[key]
+        self._attached[key] = {"track_id": track_id, "phase": "locked",
+                               "world_position": item.center_m}
+        return item
+
     def attach(self, track_id, *, link_name, touch_links, link_pose):
         """Reserve a tracked box while its collision geometry is attached in MoveIt."""
         key = object_collision_id(track_id)
         if key not in self._objects:
             raise ValueError("cannot attach an unknown tracked object")
-        if key in self._attached:
+        if key in self._attached and self._attached[key].get("phase") != "locked":
             raise ValueError("tracked object is already attached")
         if not isinstance(link_name, str) or not link_name.strip():
             raise ValueError("attachment link_name is required")
@@ -213,7 +225,7 @@ class LiveObjectRegistry:
                 math.isfinite(v) for v in (*center, *orientation)):
             raise ValueError("link_pose must contain finite XYZ and XYZW values")
         quaternion_matrix_xyzw(orientation)
-        self._attached[key] = {"track_id": track_id, "link_name": link_name,
+        self._attached[key] = {"track_id": track_id, "phase": "attached", "link_name": link_name,
                                "touch_links": tuple(touch_links), "link_pose": pose}
         return self._objects[key]
 

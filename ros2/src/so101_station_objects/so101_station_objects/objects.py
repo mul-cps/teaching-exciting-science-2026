@@ -389,17 +389,56 @@ class StableObjectTracker:
         self.max_age = float(max_age_s)
         self.next_id = 1
         self.tracks = {}
+        self.owned = set()
+        self.attachment_records = {}
 
-    def update(self, objects, stamp_s):
+    def ownership_status(self, payload):
+        """Only acknowledged world replacement releases a reserved identity."""
+        track_id = payload.get("track_id", "")
+        for key, track in self.tracks.items():
+            if track_id != f"{track['color']}-{key:04d}":
+                continue
+            if (payload.get("state") in {"locked", "reserved", "attached"} or
+                    payload.get("state") == "fault" and payload.get("ownership_reserved") is True):
+                self.owned.add(key)
+                record = payload.get("attachment")
+                if isinstance(record, dict):
+                    self.attachment_records[key] = record
+            elif payload.get("state") in {"detached", "unlocked"}:
+                self.owned.discard(key)
+                self.attachment_records.pop(key, None)
+            return
+
+    def update(self, objects, stamp_s, *, expected_owned_positions=None):
         stamp_s = float(stamp_s)
         self.tracks = {key: track for key, track in self.tracks.items()
-                       if 0 <= stamp_s - track["stamp"] <= self.max_age}
+                       if key in self.owned or 0 <= stamp_s - track["stamp"] <= self.max_age}
         pairs = []
+        expected_owned_positions = expected_owned_positions or {}
+        owned_candidates = {}
+        for key in self.owned:
+            expected = expected_owned_positions.get(key)
+            if expected is None:
+                # A stale tabletop position cannot identify a lifted brick.
+                owned_candidates[key] = []
+                continue
+            expected = np.asarray(expected, dtype=float)
+            if expected.shape != (3,) or not np.isfinite(expected).all():
+                raise ValueError("expected held-object position must be finite XYZ")
+            owned_candidates[key] = [index for index, obj in enumerate(objects)
+                if obj["color"] == self.tracks[key]["color"] and
+                np.linalg.norm(np.asarray(obj["position"]) - expected) <= self.max_distance]
         for obj_index, obj in enumerate(objects):
             position = np.asarray(obj["position"], dtype=float)
             for track_id, track in self.tracks.items():
+                if track_id in self.owned:
+                    if owned_candidates[track_id] != [obj_index]:
+                        continue
+                    reference = expected_owned_positions[track_id]
+                else:
+                    reference = track["position"]
                 if obj["color"] == track["color"]:
-                    distance = float(np.linalg.norm(position - track["position"]))
+                    distance = float(np.linalg.norm(position - reference))
                     if distance <= self.max_distance:
                         pairs.append((distance, obj_index, track_id))
         assigned_objects, assigned_tracks = set(), set()
@@ -409,8 +448,18 @@ class StableObjectTracker:
                 assignments[obj_index] = track_id
                 assigned_objects.add(obj_index)
                 assigned_tracks.add(track_id)
+        # Withhold unmatched same-color observations while owned identity is
+        # unresolved. Only a unique observation near timestamped gripper TF is
+        # pickup evidence; a different tabletop brick cannot become that proof.
+        ambiguous = set()
+        for track_id in self.owned - assigned_tracks:
+            ambiguous.update(index for index, obj in enumerate(objects)
+                             if index not in assigned_objects and
+                             obj["color"] == self.tracks[track_id]["color"])
         output = []
         for index, obj in enumerate(objects):
+            if index in ambiguous:
+                continue
             position = np.asarray(obj["position"], dtype=float)
             track_id = assignments.get(index)
             previous = self.tracks.get(track_id) if track_id is not None else None
@@ -529,6 +578,7 @@ class ColoredObjectsNode:
                     "depth_topic": "/camera/aligned_depth_to_color/image_raw",
                     "camera_info_topic": "/camera/color/camera_info",
                     "board_frame": "charuco_board",
+                    "attachment_status_topic": "/so101_scene/attachment_status",
                     "registration_status_topic": "/so101_perception/charuco_world/status",
                     "require_registration_tracking": True,
                     "depth_scale_m": 0.001,
@@ -576,6 +626,9 @@ class ColoredObjectsNode:
                 self.grasps_pub = self.create_publisher(PoseArray, "/so101/grasp_candidates", 10)
                 self.contacts_pub = self.create_publisher(PoseArray, "/so101/grasp_contacts", 10)
                 self.status_pub = self.create_publisher(String, "/so101/grasp_status", 10)
+                self.attachment_sub = self.create_subscription(
+                    String, self.get_parameter("attachment_status_topic").value,
+                    self._attachment_status, 10)
                 self.registration_sub = self.create_subscription(
                     String, self.get_parameter("registration_status_topic").value,
                     self._registration_status, 10)
@@ -591,6 +644,14 @@ class ColoredObjectsNode:
                 self.sync = message_filters.ApproximateTimeSynchronizer(
                     [color, depth, info], queue_size=6, slop=0.04)
                 self.sync.registerCallback(self._process)
+
+            def _attachment_status(self, message):
+                try:
+                    payload = json.loads(message.data)
+                    if isinstance(payload, dict):
+                        self.tracker.ownership_status(payload)
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    return
 
             def _registration_status(self, message):
                 try:
@@ -721,7 +782,21 @@ class ColoredObjectsNode:
                                                       "ChArUco localization expired while waiting for timestamped TF",
                                                       registration_observation_age_s=age)
                             return
-                    objects = self.tracker.update(report["objects"], stamp)
+                    expected_owned_positions = {}
+                    for key, record in self.tracker.attachment_records.items():
+                        try:
+                            source_frame = (record["world_frame"] if record.get("phase") == "locked"
+                                            else record["link_name"])
+                            held_tf = self.tf_buffer.lookup_transform(
+                                self.board_frame, source_frame, Time.from_msg(color_msg.header.stamp))
+                            board_from_link = transform_from_msg(held_tf)
+                            local = np.asarray(record["world_position"] if record.get("phase") == "locked"
+                                               else record["link_pose"]["position"], dtype=float)
+                            expected_owned_positions[key] = board_from_link[:3, :3] @ local + board_from_link[:3, 3]
+                        except (KeyError, TypeError, ValueError, TransformException):
+                            continue
+                    objects = self.tracker.update(report["objects"], stamp,
+                                                  expected_owned_positions=expected_owned_positions)
                     report["objects"] = objects
                     report["stamp"] = stamp
                     report["support_plane"] = {
