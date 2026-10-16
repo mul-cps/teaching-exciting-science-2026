@@ -116,3 +116,16 @@ def test_two_visible_brick_faces_are_not_rejected_for_global_nonplanarity():
     result = validate_colored_component(rgb, depth, mask, INTR)
     assert result.accepted
     assert result.metrics['plane_residual_p95_m'] > .005
+
+
+def test_local_computation_crop_preserves_global_calibrated_geometry():
+    rgb, depth, mask = inputs()
+    reference = validate_colored_component(rgb, depth, mask, INTR)
+    shifted_rgb = np.roll(rgb, 10, axis=1)
+    shifted_depth = np.roll(depth, 10, axis=1)
+    shifted_mask = np.roll(mask, 10, axis=1)
+    shifted = validate_colored_component(shifted_rgb, shifted_depth, shifted_mask,
+        dict(INTR, ppx=INTR['ppx']+10))
+    assert shifted.accepted == reference.accepted
+    assert shifted.metrics['centroid_camera_m'] == pytest.approx(reference.metrics['centroid_camera_m'])
+    assert shifted.metrics['visible_extents_m'] == pytest.approx(reference.metrics['visible_extents_m'])

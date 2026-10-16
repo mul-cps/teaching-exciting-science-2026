@@ -100,6 +100,16 @@ def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distort
         raise ValueError('validation fractions are invalid')
     if not all(np.isfinite(v) and v > 0 for v in (max_neighbor_jump_m, max_depth_split_m)):
         raise ValueError('positive finite depth continuity limits required')
+    # Work on the original component's support bounding box, never a workspace
+    # ROI. Camera intrinsics are translated below so all metric geometry remains
+    # in the same optical frame and coordinates as the full aligned image.
+    support_y, support_x = np.nonzero(support)
+    x_offset = int(support_x.min()) if len(support_x) else 0
+    y_offset = int(support_y.min()) if len(support_y) else 0
+    x_end = int(support_x.max())+1 if len(support_x) else 1
+    y_end = int(support_y.max())+1 if len(support_y) else 1
+    crop = (slice(y_offset, y_end), slice(x_offset, x_end))
+    region, support, depth, valid, rgb = region[crop], support[crop], depth[crop], valid[crop], rgb[crop]
     metrics = {'color_pixels': int(region.sum()), 'local_support_pixels': int(support.sum()),
                'semantic_identity': 'unqualified_colored_surface',
                'workspace_gate_applied': False, 'support_plane_gate_applied': False}
@@ -121,6 +131,9 @@ def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distort
         raise ValueError('calibrated color intrinsics required') from error
     if not np.isfinite(values).all() or min(values[:2]) <= 0:
         raise ValueError('finite positive color focal lengths required')
+    values = values.copy()
+    values[2] -= x_offset
+    values[3] -= y_offset
     d = np.zeros(5) if distortion is None else np.asarray(distortion, dtype=float)
     if d.ndim != 1 or len(d) not in (4, 5, 8) or not np.isfinite(d).all():
         raise ValueError('finite explicit OpenCV distortion required')
