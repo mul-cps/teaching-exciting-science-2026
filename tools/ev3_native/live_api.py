@@ -150,10 +150,14 @@ class LiveAPI:
         if not job:
             return function(*args)
         started = self.clock()
+        # Pybricks 2 uses MicroPython v1.11: returning from this try/finally
+        # corrupts the saved fast locals in its VM (confirmed on the EV3).
+        # Preserve the finally path for exceptions, but return after it.
         try:
-            return function(*args)
+            result = function(*args)
         finally:
             self.record_timing(job, name, self.clock() - started)
+        return result
 
     def control_parameters(self, motor):
         """Read native controller settings when available; never set them."""

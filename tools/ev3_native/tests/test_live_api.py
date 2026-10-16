@@ -594,6 +594,26 @@ class Tests(unittest.TestCase):
         self.assertEqual(timing['job_tick_ms']['count'], 1)
         self.assertLessEqual(len(timing), 10)
 
+    def test_timed_call_keeps_return_outside_finally_for_pybricks_vm(self):
+        tree = ast.parse(MODULE.read_text())
+        helper = next(node for node in ast.walk(tree)
+                      if isinstance(node, ast.FunctionDef) and node.name == 'timed_call')
+        for block in ast.walk(helper):
+            if isinstance(block, ast.Try) and block.finalbody:
+                self.assertFalse(any(isinstance(node, ast.Return)
+                                     for entry in block.body for node in ast.walk(entry)))
+        import sys
+        original = list(sys.path)
+        sys.path.insert(0, str(MODULE.parent))
+        try:
+            spec = importlib.util.spec_from_file_location(
+                'runtime_timing_probe', MODULE.parent / 'probe_runtime_timing.py')
+            probe = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(probe)
+            self.assertTrue(probe.run()['timing_helper_passed'])
+        finally:
+            sys.path[:] = original
+
     def test_diagnostic_home_quiet_cli_argument_is_opt_in_and_strict(self):
         self.assertFalse(self.lib.parse_args(['live_api.py']))
         self.assertTrue(self.lib.parse_args(['live_api.py', '--diagnostic-home-quiet']))
