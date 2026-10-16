@@ -250,3 +250,50 @@ def test_effective_description_rejects_unresolved_mesh_uri():
             '<robot name="x"><link name="base_link"><visual><geometry>'
             '<mesh filename="package://missing/mesh.stl"/>'
             '</geometry></visual></link></robot>')
+
+
+def _minimal_joint_model_without_geometries():
+    bodies = "".join(
+        f'<body name="{name}_link"><inertial pos="0 0 0" mass="1" diaginertia=".1 .1 .1"/>'
+        f'<joint name="{name}" type="hinge" axis="0 0 1"/>'
+        for name in ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex",
+                     "wrist_roll", "gripper"))
+    closing = "</body>" * 6
+    return mujoco.MjModel.from_xml_string(
+        f'<mujoco><worldbody><body name="base_link">{bodies}{closing}</body></worldbody></mujoco>')
+
+
+def _valid_snapshot_for_model():
+    world_from_base = transform_matrix((.2, -.1, .3),
+        Rotation.from_euler("z", 21, degrees=True).as_quat())
+    return {"root_frame": "charuco_board", "transforms": {
+        "base_link": _tf("charuco_board", "base_link", world_from_base[:3, 3],
+                          Rotation.from_matrix(world_from_base[:3, :3]).as_quat())},
+        "transform_fresh": {"base_link": True},
+        "joint_state": {"fresh": True, "positions_rad": {
+            name: 0. for name in ("shoulder_pan", "shoulder_lift", "elbow_flex",
+                                  "wrist_flex", "wrist_roll", "gripper")}},
+        "diagnostics": {"freshness": "fresh"}}
+
+
+def test_apply_ros_state_handles_effective_model_with_no_root_geometries():
+    model = _minimal_joint_model_without_geometries()
+    result = apply_ros_state(model, mujoco.MjData(model), _valid_snapshot_for_model())
+    assert np.allclose(result["world_from_base"][:3, 3], [.2, -.1, .3])
+
+
+def test_model_baseline_caches_do_not_keep_replaced_models_alive():
+    import gc
+    import weakref
+
+    from workshop.digital_twin import mujoco_ros
+
+    model = _minimal_joint_model_without_geometries()
+    data = mujoco.MjData(model)
+    apply_ros_state(model, data, _valid_snapshot_for_model())
+    model_ref = weakref.ref(model)
+    del data, model
+    gc.collect()
+    assert model_ref() is None
+    assert len(mujoco_ros._ROOT_BODY_BASELINES) == 0
+    assert len(mujoco_ros._ROOT_GEOM_BASELINES) == 0

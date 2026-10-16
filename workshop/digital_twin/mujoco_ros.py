@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from weakref import WeakKeyDictionary
 import xml.etree.ElementTree as ET
 
 import mujoco
 import numpy as np
 
-_ROOT_BODY_BASELINES: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
-_ROOT_GEOM_BASELINES: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+_ROOT_BODY_BASELINES = WeakKeyDictionary()
+_ROOT_GEOM_BASELINES = WeakKeyDictionary()
 
 
 def effective_urdf_to_mjcf_model(robot_description: str):
@@ -93,23 +94,23 @@ def apply_ros_state(model, data, snapshot, *, root_frame=None, require_fresh=Tru
     # root body by world_from_base while preserving those folded local offsets.
     direct = np.flatnonzero(model.body_parentid == 0)
     direct = direct[direct != 0]
-    key = id(model)
-    if key not in _ROOT_BODY_BASELINES:
-        _ROOT_BODY_BASELINES[key] = (direct.copy(), model.body_pos[direct].copy(),
-                                    model.body_quat[direct].copy())
-    direct, local_pos, local_quat = _ROOT_BODY_BASELINES[key]
+    if model not in _ROOT_BODY_BASELINES:
+        _ROOT_BODY_BASELINES[model] = (direct.copy(), model.body_pos[direct].copy(),
+                                       model.body_quat[direct].copy())
+    direct, local_pos, local_quat = _ROOT_BODY_BASELINES[model]
     model.body_pos[direct] = local_pos @ base_from_root[:3, :3].T + base_from_root[:3, 3]
     model.body_quat[direct] = np.asarray([
         _quat_multiply(world_from_base_quat, quat) for quat in local_quat])
     root_geoms = np.flatnonzero(model.geom_bodyid == 0)
-    if key not in _ROOT_GEOM_BASELINES:
-        _ROOT_GEOM_BASELINES[key] = (root_geoms.copy(), model.geom_pos[root_geoms].copy(),
-                                     model.geom_quat[root_geoms].copy())
-    root_geoms, local_geom_pos, local_geom_quat = _ROOT_GEOM_BASELINES[key]
+    if model not in _ROOT_GEOM_BASELINES:
+        _ROOT_GEOM_BASELINES[model] = (root_geoms.copy(), model.geom_pos[root_geoms].copy(),
+                                       model.geom_quat[root_geoms].copy())
+    root_geoms, local_geom_pos, local_geom_quat = _ROOT_GEOM_BASELINES[model]
     model.geom_pos[root_geoms] = (local_geom_pos @ base_from_root[:3, :3].T
                                   + base_from_root[:3, 3])
     model.geom_quat[root_geoms] = np.asarray([
-        _quat_multiply(world_from_base_quat, quat) for quat in local_geom_quat])
+        _quat_multiply(world_from_base_quat, quat) for quat in local_geom_quat],
+        dtype=float).reshape((-1, 4))
     mujoco.mj_forward(model, data)
     return {"world_from_base": base_from_root,
             "joint_positions_rad": dict(joint_state["positions_rad"]),
