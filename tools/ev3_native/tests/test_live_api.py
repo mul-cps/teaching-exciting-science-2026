@@ -561,18 +561,64 @@ class Tests(unittest.TestCase):
         self.assertGreater(self.api.color.reads, 0)
         self.assertGreater(self.brick.screen.frames, 0)
 
-    def test_quiet_mode_does_not_suppress_other_motor_jobs(self):
-        self.quiet_api()
-        self.confirm('feeder')
-        self.request('eject', cycles=1)
-        self.tick(20)
-        self.assertGreater(self.api.color.reads, 0)
-        self.assertGreater(self.brick.screen.frames, 0)
-        self.assertTrue(any(call[0] == 'beep' for call in self.brick.speaker.calls))
-        speed_reads = sum(m.speed_reads for m in self.motors.values())
-        self.request('status')
-        self.assertEqual(sum(m.speed_reads for m in self.motors.values()), speed_reads + 2)
-        self.assertNotIn('timing_diagnostics', self.api.job)
+    def test_every_motor_job_defers_bulk_io_through_settling_then_resumes(self):
+        for diagnostics in (False, True):
+            for operation in ('motor_target', 'eject', 'shake'):
+                with self.subTest(operation=operation, diagnostics=diagnostics):
+                    self.setUp()
+                    if diagnostics:
+                        self.quiet_api()
+                    self.confirm('sorter')
+                    self.confirm('feeder')
+                    self.motors['sorter'].value = 100
+                    self.touch.override = False
+                    self.api.beep_active = True
+                    self.api.next_beep = 100
+                    if operation == 'motor_target':
+                        reply = self.request(operation, name='sorter', target=112,
+                                             speed=50, acceleration=400, actuation=30)
+                    elif operation == 'eject':
+                        reply = self.request(operation, cycles=1)
+                    else:
+                        reply = self.request(operation, frequency_hz=5, duration_ms=200)
+                    self.assertTrue(reply['ok'])
+                    self.assertIn(('volume', 0, 'Beep'), self.brick.speaker.calls)
+                    self.assertFalse(self.api.beep_active)
+                    muted = list(self.brick.speaker.calls)
+                    reads = sum(m.speed_reads for m in self.motors.values())
+                    angle_reads = {name: motor.angle_reads for name, motor in self.motors.items()}
+                    touch_reads = self.touch.reads
+                    stages = set()
+                    for index in range(250):
+                        stages.add(self.api.job['_stage'])
+                        self.tick(20)
+                        if self.api.job is None:
+                            break
+                        self.request('status')
+                        self.assertEqual(sum(m.speed_reads for m in self.motors.values()), reads)
+                        self.assertEqual(self.api.color.reads, 0)
+                        self.assertEqual(self.brick.screen.frames, 0)
+                        self.assertEqual(self.brick.speaker.calls, muted)
+                    self.assertIsNone(self.api.job)
+                    self.assertEqual(self.api.last_job['state'], 'complete')
+                    self.assertIn('moving', stages)
+                    self.assertIn('settling', stages)
+                    for name, motor in self.motors.items():
+                        self.assertGreater(motor.angle_reads, angle_reads[name])
+                    self.assertGreater(self.touch.reads, touch_reads)
+                    self.assertGreater(self.api.color.reads, 0)
+                    self.assertGreater(self.brick.screen.frames, 0)
+                    self.request('status')
+                    self.assertGreater(sum(m.speed_reads for m in self.motors.values()), reads)
+                    if diagnostics:
+                        timing = self.api.last_job['timing_diagnostics']
+                        for field in ('loop_gap_ms', 'angle_read_ms', 'touch_read_ms', 'job_tick_ms'):
+                            self.assertGreater(timing[field]['count'], 0)
+                        for field in ('beep_ms', 'color_ms', 'render_ms', 'status_speed_read_ms'):
+                            self.assertGreater(timing[field]['skipped'], 0)
+                        self.assertIsNotNone(timing['captured_before_cleanup_ms'])
+                    else:
+                        self.assertNotIn('timing_diagnostics', self.api.last_job)
 
     def test_quiet_home_mutes_an_existing_beep_before_motor_dispatch(self):
         self.quiet_api()
@@ -635,13 +681,26 @@ class Tests(unittest.TestCase):
                 'runtime_timing_probe', MODULE.parent / 'probe_runtime_timing.py')
             probe = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(probe)
-            self.assertTrue(probe.run()['timing_helper_passed'])
+            result = probe.run()
+            self.assertTrue(result['timing_helper_passed'])
+            self.assertTrue(result['motion_target_passed'])
+            self.assertFalse(result['hardware_access'])
+            self.assertEqual(result['fake_target']['state'], 'complete')
+            self.assertEqual(result['fake_target']['target_deg'], 12)
+            probe_tree = ast.parse((MODULE.parent / 'probe_runtime_timing.py').read_text(),
+                                   feature_version=(3, 4))
+            for node in ast.walk(probe_tree):
+                if isinstance(node, ast.ImportFrom):
+                    self.assertFalse((node.module or '').startswith('pybricks'))
+                if isinstance(node, ast.Import):
+                    self.assertFalse(any(alias.name.startswith('pybricks') for alias in node.names))
         finally:
             sys.path[:] = original
 
     def test_diagnostic_home_quiet_cli_argument_is_opt_in_and_strict(self):
         self.assertFalse(self.lib.parse_args(['live_api.py']))
         self.assertTrue(self.lib.parse_args(['live_api.py', '--diagnostic-home-quiet']))
+        self.assertTrue(self.lib.parse_args(['live_api.py', '--diagnostic-motion-quiet']))
         with self.assertRaises(ValueError):
             self.lib.parse_args(['live_api.py', '--unknown'])
 

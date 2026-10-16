@@ -32,9 +32,9 @@ def native_runtime(implementation):
 def parse_args(argv):
     if len(argv) == 1:
         return False
-    if len(argv) == 2 and argv[1] == '--diagnostic-home-quiet':
+    if len(argv) == 2 and argv[1] in ('--diagnostic-home-quiet', '--diagnostic-motion-quiet'):
         return True
-    raise ValueError('Usage: live_api.py [--diagnostic-home-quiet]')
+    raise ValueError('Usage: live_api.py [--diagnostic-motion-quiet | --diagnostic-home-quiet]')
 
 
 def fault(code, message):
@@ -115,7 +115,7 @@ class LiveAPI:
         self.last_heartbeat = self.clock()
 
     def refresh_angles(self):
-        job = self.diagnostic_home_job()
+        job = self.diagnostic_motion_job()
         timing_started = self.clock() if job else None
         for name, motor in self.motors.items():
             started = self.clock()
@@ -132,8 +132,12 @@ class LiveAPI:
             return job
         return None
 
+    def diagnostic_motion_job(self):
+        return self.job if self.diagnostic_home_quiet else None
+
     def diagnostic_home_job(self):
-        return self.home_job() if self.diagnostic_home_quiet else None
+        # Compatibility for callers using the original diagnostic flag/helper.
+        return self.diagnostic_motion_job()
 
     def record_timing(self, job, name, duration=None, skipped=False):
         timing = job.get('timing_diagnostics') if job else None
@@ -224,12 +228,12 @@ class LiveAPI:
         return {key: value for key, value in job.items() if not key.startswith('_')}
 
     def status(self):
-        diagnostic_job = self.diagnostic_home_job()
+        diagnostic_job = self.diagnostic_motion_job()
         status_started = self.clock() if diagnostic_job else None
         motor_control = {}
         for name, motor in self.motors.items():
             if self.power_mode != 'power_save':
-                if self.home_job():
+                if self.job:
                     self.record_timing(diagnostic_job, 'status_speed_read_ms', skipped=True)
                 else:
                     self.speed_samples[name] = self.timed_call(
@@ -461,7 +465,7 @@ class LiveAPI:
     def start_job(self, request_id, operation, name, targets, speed, acceleration, actuation,
                   dispatch=True, limit_speed=None):
         now = self.clock()
-        if operation == 'home_touch' and self.beep_active:
+        if self.beep_active:
             # A prior negative-duration beep remains on until its volume is
             # cleared. Mute it before dispatch so quiet mode never strands it.
             self.brick.speaker.set_volume(0, 'Beep')
@@ -479,7 +483,7 @@ class LiveAPI:
                     '_speed': speed, '_other': other, '_other_start': self.angles[other],
                     'native_control': dict(self.motor_control[name]),
                     'speed_sample': dict(self.speed_samples[name])}
-        if self.diagnostic_home_quiet and operation == 'home_touch':
+        if self.diagnostic_home_quiet:
             self.job['timing_diagnostics'] = {
                 name: {'count': 0, 'max_ms': 0, 'skipped': 0}
                 for name in DIAGNOSTIC_TIMING_FIELDS}
@@ -794,7 +798,7 @@ class LiveAPI:
 
     def tick(self):
         now = self.clock()
-        diagnostic_job = self.diagnostic_home_job()
+        diagnostic_job = self.diagnostic_motion_job()
         if diagnostic_job:
             previous_tick = diagnostic_job.get('_diagnostic_last_tick_ms')
             if previous_tick is not None:
@@ -817,15 +821,15 @@ class LiveAPI:
         try:
             if now - self.last_angles >= (20 if active else 500):
                 self.refresh_angles()
-            if (active and due and self.job['motor'] == 'sorter') or sensors_due:
-                touch_job = self.diagnostic_home_job()
+            if (active and due) or sensors_due:
+                touch_job = self.diagnostic_motion_job()
                 self.sensor_touch = bool(self.timed_call(
                     touch_job, 'touch_read_ms', self.touch.pressed))
             if active and due:
                 now = self.clock()
                 self.last_motion_tick = now
                 job = self.job
-                job_timing = self.diagnostic_home_job()
+                job_timing = self.diagnostic_motion_job()
                 if job_timing:
                     job_timing['_diagnostic_job_tick_started_ms'] = self.clock()
                 self.job_tick(now)
@@ -838,9 +842,9 @@ class LiveAPI:
             else:
                 self.last_error = fault('telemetry_error', str(error))
         try:
-            # Keep expensive peripheral I/O out of every homing loop, not
-            # only diagnostic runs. Optional metrics do not select safety policy.
-            peripheral_job = self.home_job()
+            # Defer bulk I/O through movement and settling for every motor job.
+            # Optional timing metrics do not select this safety policy.
+            peripheral_job = self.job
             if peripheral_job:
                 if now >= self.next_beep and (self.beep_active or self.beep_left):
                     self.record_timing(peripheral_job, 'beep_ms', skipped=True)

@@ -2,7 +2,7 @@
 """Timing-helper regression for the actual VM; imports no hardware drivers.
 
 Run beside live_api.py with CPython or brickrun -r -- pybricks-micropython.
-It uses fake clocks/callables only. The persistent native API should be stopped
+It uses fake clocks, axes, sensors, and peripheral call counters only. The persistent native API should be stopped
 before brickrun takes its graphics console; no physical motors are constructed.
 """
 import sys
@@ -29,6 +29,134 @@ class Probe:
         raise ValueError('expected probe failure')
 
 
+class FakeControl:
+    def __init__(self, axis):
+        self.axis = axis
+        self.settings = (800, 1600, 100)
+
+    def limits(self, *args, **kwargs):
+        if args:
+            self.settings = tuple(args)
+        if kwargs:
+            self.settings = (kwargs['speed'], kwargs['acceleration'], kwargs['actuation'])
+        return self.settings
+
+    def target_tolerances(self):
+        return (50, 5)
+
+    def stall_tolerances(self):
+        return (15, 200)
+
+    def done(self):
+        return self.axis.target is None or self.axis.value == self.axis.target
+
+    def stalled(self):
+        return False
+
+
+class FakeAxis:
+    def __init__(self):
+        self.value = 0
+        self.target = None
+        self.angle_reads = 0
+        self.speed_reads = 0
+        self.control = FakeControl(self)
+
+    def angle(self):
+        self.angle_reads += 1
+        return self.value
+
+    def speed(self):
+        self.speed_reads += 1
+        return 0
+
+    def brake(self):
+        self.target = None
+
+    def run_target(self, speed, target, then, wait):
+        assert then == 'BRAKE' and wait is False
+        self.target = target
+
+    def advance(self):
+        if self.target is not None and self.value != self.target:
+            self.value += 1 if self.target > self.value else -1
+
+
+class FakePeripherals:
+    def __init__(self):
+        self.calls = 0
+        self.touch_reads = 0
+        self.screen = self
+        self.speaker = self
+
+    def pressed(self):
+        self.touch_reads += 1
+        return False
+
+    def color(self):
+        self.calls += 1
+        return 'fake'
+
+    def clear(self):
+        self.calls += 1
+
+    def draw_text(self, *args):
+        self.calls += 1
+
+    def set_volume(self, *args):
+        self.calls += 1
+
+    def beep(self, **kwargs):
+        self.calls += 1
+
+
+class FakeStop:
+    BRAKE = 'BRAKE'
+
+
+def full_target_probe():
+    clock = Probe()
+    sorter, feeder = FakeAxis(), FakeAxis()
+    peripherals = FakePeripherals()
+    api = live_api.LiveAPI({'sorter': sorter, 'feeder': feeder}, peripherals,
+                          peripherals, peripherals, clock.clock, FakeStop,
+                          'portable-fake-target', diagnostic_home_quiet=True)
+    api.connect()
+    api.references['sorter'] = 'home'
+    reply = api.request({'id': 1, 'operation': 'motor_target', 'args': {
+        'name': 'sorter', 'target': 12, 'speed': 50, 'acceleration': 400, 'actuation': 30}})
+    assert reply['ok']
+    speed_reads = sorter.speed_reads + feeder.speed_reads
+    stages = {}
+    request_id = 1
+    for index in range(40):
+        stages[api.job['_stage']] = True
+        clock.ms += 20
+        sorter.advance()
+        feeder.advance()
+        api.tick()
+        if api.job is None:
+            break
+        request_id += 1
+        response = api.request({'id': request_id, 'operation': 'status', 'args': {}})
+        assert response['ok'] and response['result']['busy']
+        assert sorter.speed_reads + feeder.speed_reads == speed_reads
+        assert peripherals.calls == 0
+    assert api.job is None
+    assert api.last_job['state'] == 'complete'
+    assert api.last_job['target'] == 12 and sorter.value == 12
+    assert 'moving' in stages and 'settling' in stages
+    assert sorter.angle_reads > 2 and feeder.angle_reads > 2
+    assert peripherals.touch_reads > 0 and peripherals.calls > 0
+    timing = api.last_job['timing_diagnostics']
+    assert timing['touch_read_ms']['count'] > 0
+    assert timing['job_tick_ms']['count'] > 0
+    assert timing['status_speed_read_ms']['skipped'] > 0
+    assert timing['captured_before_cleanup_ms'] is not None
+    return {'target_deg': sorter.value, 'elapsed_ms': api.last_job['elapsed_ms'],
+            'state': api.last_job['state'], 'timing_diagnostics': timing}
+
+
 def run():
     probe = Probe()
     job = {'timing_diagnostics': True}
@@ -45,7 +173,9 @@ def run():
     result = live_api.LiveAPI.timed_call(probe, None, 'inactive', probe.success, 42)
     assert result == 42
     assert len(probe.records) == 2
-    return {'timing_helper_passed': True, 'hardware_access': False,
+    target = full_target_probe()
+    return {'timing_helper_passed': True, 'motion_target_passed': True,
+            'fake_target': target, 'hardware_access': False,
             'runtime': str(sys.implementation)}
 
 
