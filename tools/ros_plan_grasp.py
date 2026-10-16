@@ -248,6 +248,7 @@ def parse_args(argv=None):
     parser.add_argument("--output", required=True, help="new JSON output file")
     parser.add_argument("--place-pose", nargs=7, type=float, metavar=("X", "Y", "Z", "QX", "QY", "QZ", "QW"),
                         help="optional place contact pose in --frame")
+    parser.add_argument("--placement-selection", help="pinned moving placement UUID; requires qualified placement_goal_from_tip")
     parser.add_argument("--planning-time", type=float, default=6.0)
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--execute", action="store_true",
@@ -299,10 +300,13 @@ def main(argv=None):
             self.status_history = []
             self.attachment_acks = {}
             self.active_goal_handle = None
+            self.placement_status = None
+            self.placement_received = 0.
             self.registration_status = None
             self.registration_received = 0.0
             self.create_subscription(JointState, args.joint_states_topic, self.on_joints,
                                      qos_profile_sensor_data)
+            self.create_subscription(String, "/station/placement_goal_observation", self.on_placement, 10)
             self.create_subscription(String, args.status_topic, self.on_status, 10)
             self.create_subscription(String, "/so101_perception/charuco_world/status",
                                      self.on_registration_status, 10)
@@ -314,6 +318,13 @@ def main(argv=None):
             if args.execute:
                 self.arm_action = ActionClient(self, FollowJointTrajectory, args.trajectory_action)
                 self.gripper_action = ActionClient(self, GripperCommand, args.gripper_action)
+
+        def on_placement(self, msg):
+            try:
+                self.placement_status = json.loads(msg.data)
+                self.placement_received = time.monotonic()
+            except (ValueError, TypeError):
+                self.placement_status = None
 
         def on_joints(self, msg):
             self.joints = msg
@@ -635,7 +646,48 @@ def main(argv=None):
         locked_target = contact
         place = (PoseTarget(args.frame, tuple(args.place_pose[:3]), tuple(args.place_pose[3:]))
                  if args.place_pose else None)
-        if args.execute and node.status.get("frame_id") != place.frame_id:
+        def selected_place():
+            from workshop.digital_twin.placement_region import load_qualified_frame_registration
+            from workshop.station.placement_execution import resolve_tool_destination, DestinationPose, require_observed_footprint
+            require_observed_footprint(baseline_object.get("size"), execution_config.get("placement_footprint_m"))
+            registration = load_qualified_frame_registration(camera_arm_path)
+            if registration.sha256 != placement_registration.sha256:
+                raise RuntimeError("trusted placement registration changed during execution")
+            resolved, position, orientation, area = resolve_tool_destination(node.placement_status,
+                selection_id=args.placement_selection, registration=registration,
+                received_monotonic=node.placement_received, now_monotonic=time.monotonic(),
+                now_ros_ns=node.get_clock().now().nanoseconds,
+                goal_from_tip=execution_config.get("placement_goal_from_tip"),
+                footprint_m=execution_config.get("placement_footprint_m"),
+                tool_footprint_m=execution_config.get("placement_tool_footprint_m"),
+                clearance_m=execution_config.get("placement_clearance_m"),
+                registration_uncertainty_m=execution_config.get("placement_registration_uncertainty_m"))
+            frame = node.status["frame_id"]
+            if frame == resolved.frame_id:
+                return DestinationPose(frame, position, orientation, resolved.selection_id,
+                    resolved.registration_sha256, area, resolved.observation_stamp_ns)
+            # Compose the placement into the same observation frame used for
+            # independent release verification, at image acquisition time.
+            tf = node.tf_buffer.lookup_transform(frame, resolved.frame_id,
+                Time(nanoseconds=resolved.observation_stamp_ns))
+            matrix = np.eye(4)
+            q, t = tf.transform.rotation, tf.transform.translation
+            matrix[:3, :3] = quaternion_matrix_xyzw((q.x, q.y, q.z, q.w))
+            matrix[:3, 3] = [t.x, t.y, t.z]
+            tool = np.eye(4)
+            tool[:3, :3] = quaternion_matrix_xyzw(orientation)
+            tool[:3, 3] = position
+            composed = matrix @ tool
+            return DestinationPose(frame, tuple(composed[:3, 3]),
+                tuple(matrix_quaternion_xyzw(composed[:3, :3])), resolved.selection_id,
+                resolved.registration_sha256, area, resolved.observation_stamp_ns)
+        if args.placement_selection:
+            if not args.execute:
+                raise ValueError("tracked placement requires qualified execution configuration")
+            from workshop.digital_twin.placement_region import load_qualified_frame_registration
+            placement_registration = load_qualified_frame_registration(camera_arm_path)
+            place = selected_place()
+        if args.execute and not args.placement_selection and node.status.get("frame_id") != place.frame_id:
             raise ValueError("execute place pose frame must match the live geometric status frame")
         segments = staged_targets(contact, place=place,
             tip_from_grasp=tcp_calibration["tip_from_grasp"] if args.execute else None)
@@ -716,54 +768,70 @@ def main(argv=None):
                 scene_attachment("allow_contact", scene_track_id, deadline,
                                  touch_links=args.touch_link)
                 contact_matrix_enabled = True
-            req = MotionPlanRequest()
-            req.group_name = args.group
-            req.pipeline_id = "ompl"
-            req.planner_id = "RRTConnectkConfigDefault"
-            req.allowed_planning_time = args.planning_time
-            req.num_planning_attempts = 3
-            req.max_velocity_scaling_factor = 0.20
-            req.max_acceleration_scaling_factor = 0.20
-            req.start_state = RobotState()
-            req.start_state.joint_state.header = node.joints.header
-            req.start_state.joint_state.name = list(ALL_JOINTS)
-            req.start_state.joint_state.position = [current[j] for j in ALL_JOINTS]
-            req.start_state.is_diff = False
-            pose = PoseStamped()
-            pose.header.frame_id = target.frame_id
-            pose.header.stamp = node.get_clock().now().to_msg()
-            pose.pose.position.x, pose.pose.position.y, pose.pose.position.z = target.position
-            (pose.pose.orientation.x, pose.pose.orientation.y,
-             pose.pose.orientation.z, pose.pose.orientation.w) = target.orientation_xyzw
-            constraints = Constraints()
-            position = PositionConstraint()
-            position.header = pose.header
-            position.link_name = args.tip_link
-            sphere = SolidPrimitive()
-            sphere.type = SolidPrimitive.SPHERE
-            sphere.dimensions = [0.008]
-            position.constraint_region.primitives = [sphere]
-            position.constraint_region.primitive_poses = [pose.pose]
-            position.weight = 1.0
-            constraints.position_constraints = [position]
-            orientation = OrientationConstraint()
-            orientation.header = pose.header
-            orientation.link_name = args.tip_link
-            orientation.orientation = pose.pose.orientation
-            # Five arm joints cannot satisfy arbitrary six-axis pose constraints.
-            orientation.absolute_x_axis_tolerance = 0.35
-            orientation.absolute_y_axis_tolerance = 0.35
-            orientation.absolute_z_axis_tolerance = 0.45
-            orientation.weight = 1.0
-            constraints.orientation_constraints = [orientation]
-            req.goal_constraints = [constraints]
-            service_request = GetMotionPlan.Request()
-            service_request.motion_plan_request = req
-            response = _wait_future(node, node.planner.call_async(service_request),
-                                    max(0.1, deadline-time.monotonic()), f"{name} plan")
+            for placement_attempt in range(3):
+                if name == "place" and args.placement_selection:
+                    target = place = selected_place()
+                req = MotionPlanRequest()
+                req.group_name = args.group
+                req.pipeline_id = "ompl"
+                req.planner_id = "RRTConnectkConfigDefault"
+                req.allowed_planning_time = args.planning_time
+                req.num_planning_attempts = 3
+                req.max_velocity_scaling_factor = 0.20
+                req.max_acceleration_scaling_factor = 0.20
+                req.start_state = RobotState()
+                req.start_state.joint_state.header = node.joints.header
+                req.start_state.joint_state.name = list(ALL_JOINTS)
+                req.start_state.joint_state.position = [current[j] for j in ALL_JOINTS]
+                req.start_state.is_diff = False
+                pose = PoseStamped()
+                pose.header.frame_id = target.frame_id
+                pose.header.stamp = node.get_clock().now().to_msg()
+                pose.pose.position.x, pose.pose.position.y, pose.pose.position.z = target.position
+                (pose.pose.orientation.x, pose.pose.orientation.y,
+                 pose.pose.orientation.z, pose.pose.orientation.w) = target.orientation_xyzw
+                constraints = Constraints()
+                position = PositionConstraint()
+                position.header = pose.header
+                position.link_name = args.tip_link
+                sphere = SolidPrimitive()
+                sphere.type = SolidPrimitive.SPHERE
+                sphere.dimensions = [0.008]
+                position.constraint_region.primitives = [sphere]
+                position.constraint_region.primitive_poses = [pose.pose]
+                position.weight = 1.0
+                constraints.position_constraints = [position]
+                orientation = OrientationConstraint()
+                orientation.header = pose.header
+                orientation.link_name = args.tip_link
+                orientation.orientation = pose.pose.orientation
+                # Five arm joints cannot satisfy arbitrary six-axis pose constraints.
+                orientation.absolute_x_axis_tolerance = 0.35
+                orientation.absolute_y_axis_tolerance = 0.35
+                orientation.absolute_z_axis_tolerance = 0.45
+                orientation.weight = 1.0
+                constraints.orientation_constraints = [orientation]
+                req.goal_constraints = [constraints]
+                service_request = GetMotionPlan.Request()
+                service_request.motion_plan_request = req
+                response = _wait_future(node, node.planner.call_async(service_request),
+                                        max(0.1, deadline-time.monotonic()), f"{name} plan")
+                if name != "place" or not args.placement_selection:
+                    break
+                from workshop.station.placement_execution import same_destination
+                if same_destination(target, selected_place()):
+                    break
+            else:
+                raise RuntimeError("placement kept moving during bounded replanning")
             planned = response.motion_plan_response
             segment = {"name": name, "error_code": planned.error_code.val,
                        "planning_time_s": planned.planning_time}
+            if name == "place" and args.placement_selection:
+                segment["selected_placement"] = dict(selection_id=target.selection_id,
+                    registration_sha256=target.registration_sha256,
+                    observation_stamp_ns=target.observation_stamp_ns,
+                    area_half_extents_m=target.area_half_extents_m,
+                    planning_attempts=placement_attempt+1)
             if planned.error_code.val != MoveItErrorCodes.SUCCESS:
                 if contact_matrix_enabled:
                     scene_attachment("disallow_contact", scene_track_id, deadline,
@@ -808,6 +876,12 @@ def main(argv=None):
                 # to admit the request; recheck immediately before every action.
                 require_live_registration(node.registration_status, node.registration_received,
                     now_ros=node.get_clock().now().nanoseconds * 1e-9)
+                if name == "place" and args.placement_selection:
+                    from workshop.station.placement_execution import same_destination
+                    validated_place = selected_place()
+                    if not same_destination(target, validated_place):
+                        raise RuntimeError("placement moved after planning; trajectory refused")
+                    segment["selected_placement"]["validated_stamp_ns"] = validated_place.observation_stamp_ns
                 move_trajectory(planned.trajectory, deadline)
                 segment["execution_state"] = "trajectory_succeeded"
                 if name == "contact":

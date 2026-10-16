@@ -1,0 +1,6 @@
+string name
+string reference
+bool physically_verified
+---
+bool success
+string message

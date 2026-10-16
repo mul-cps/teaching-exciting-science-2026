@@ -1,0 +1,5 @@
+string color
+string selection_id
+---
+bool success
+string message

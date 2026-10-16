@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+import os
+import sys
+from pathlib import Path
+root = Path(os.environ.get('SO101_STATION_ROOT', os.getcwd())).resolve()
+sys.path.insert(0, str(root))
+from tools.ros_station_api import main
+main()

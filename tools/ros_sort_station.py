@@ -66,6 +66,8 @@ class ROSSortingDevices:
         from tf2_ros import Buffer, TransformListener
         self.settings, self.ev3, self.output = settings, client, Path(output)
         self.node, self.rclpy = node, rclpy
+        self.placement_status = None
+        self.placement_received = 0.
         self.status = None
         self.status_received = 0.
         self.joints = None
@@ -74,6 +76,7 @@ class ROSSortingDevices:
         self.baseline_ids = set()
         self.dispensed_after = 0.
         self.session = client.session
+        node.create_subscription(String, "/station/placement_goal_observation", self._placement, 1)
         node.create_subscription(String, "/so101/grasp_status", self._status, 1)
         node.create_subscription(JointState, "/follower/joint_states", self._joints,
                                  qos_profile_sensor_data)
@@ -90,6 +93,13 @@ class ROSSortingDevices:
                 "/follower/gripper_controller/gripper_cmd")):
             node.create_subscription(GoalStatusArray, name + "/_action/status",
                                      lambda message, index=index: self._action_status(index, message), 10)
+
+    def _placement(self, message):
+        try:
+            self.placement_status = json.loads(message.data)
+            self.placement_received = time.monotonic()
+        except (ValueError, TypeError):
+            self.placement_status = None
 
     def _action_status(self, index, message):
         for item in message.status_list:
@@ -133,6 +143,30 @@ class ROSSortingDevices:
             raise ValueError("invalid observed object position")
         return all(bounds[2*i] <= p <= bounds[2*i+1] for i, p in enumerate(position))
 
+    def _require_placement_ready(self, colors=None):
+        selections = self.settings.get("placement_selections", {})
+        if not selections:
+            return
+        from workshop.digital_twin.placement_region import load_qualified_frame_registration
+        from workshop.station.placement_execution import resolve_tool_destination
+        execution_path = Path(self.settings["grasp_execution_config"])
+        execution = json.loads(execution_path.read_text())
+        registration_path = Path(execution["camera_arm_calibration"])
+        if not registration_path.is_absolute():
+            registration_path = execution_path.parent / registration_path
+        registration = load_qualified_frame_registration(registration_path)
+        for color, selection in selections.items():
+            if colors is not None and color not in colors:
+                continue
+            resolve_tool_destination(self.placement_status, selection_id=selection,
+                registration=registration, received_monotonic=self.placement_received,
+                now_monotonic=time.monotonic(), now_ros_ns=self.node.get_clock().now().nanoseconds,
+                goal_from_tip=execution.get("placement_goal_from_tip"),
+                footprint_m=execution.get("placement_footprint_m"),
+                tool_footprint_m=execution.get("placement_tool_footprint_m"),
+                clearance_m=execution.get("placement_clearance_m"),
+                registration_uncertainty_m=execution.get("placement_registration_uncertainty_m"))
+
     def require_ready(self, deadline, cancel):
         from std_srvs.srv import Trigger
         # Do not establish physical EV3 references from an unobserved angle.
@@ -162,6 +196,10 @@ class ROSSortingDevices:
         response = future.result()
         if response is None or not response.success:
             raise RuntimeError("station is not ready: " + (response.message if response else "no response"))
+        placement_deadline = min(deadline, time.monotonic()+1.)
+        while self.settings.get("placement_selections") and self.placement_status is None:
+            self._spin(placement_deadline, cancel)
+        self._require_placement_ready()
 
     def wait_clear(self, deadline, cancel):
         from rclpy.time import Time
@@ -204,6 +242,7 @@ class ROSSortingDevices:
 
     def dispense(self, deadline, cancel):
         self._check(deadline, cancel)
+        self._require_placement_ready()
         self.dispensed_after = self.node.get_clock().now().nanoseconds * 1e-9
         reply = self.ev3.call("eject", {"cycles": 1})
         job = reply.get("job", {})
@@ -236,7 +275,9 @@ class ROSSortingDevices:
             target = selector.update(observed, now=self.node.get_clock().now().nanoseconds * 1e-9)
             if target:
                 return {"track_id": target.track_id, "color": target.color,
-                        "position": target.position, "stamp": target.stamp}
+                        "position": target.position, "stamp": target.stamp,
+                        "size": next(item.get("size") for item in observed["objects"]
+                                     if str(item["track_id"]) == str(int(target.track_id.rsplit("-", 1)[1])))}
 
     def pick_place(self, target, destination, deadline, cancel):
         self._check(deadline, cancel)
@@ -252,6 +293,13 @@ class ROSSortingDevices:
                    "--track-id", target["track_id"], "--frame", self.settings["frame_id"],
                    "--return-joint-pose", str(clear_pose_file),
                    "--place-pose", *(str(value) for value in destination), "--output", str(output)]
+        selection = self.settings.get("placement_selections", {}).get(target["color"])
+        if selection:
+            execution = json.loads(Path(self.settings["grasp_execution_config"]).read_text())
+            from workshop.station.placement_execution import require_observed_footprint
+            require_observed_footprint(target.get("size"), execution.get("placement_footprint_m"))
+            self._require_placement_ready(colors={target["color"]})
+            command.extend(["--placement-selection", selection])
         with (self.output / f"grasp-{self.serial:04d}.log").open("x") as stream:
             self._check(deadline, cancel)
             self.child = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT)

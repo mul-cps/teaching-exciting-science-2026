@@ -1,0 +1,7 @@
+string operation
+string arguments_json
+string job_id
+---
+bool success
+string result_json
+string message

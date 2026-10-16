@@ -1,0 +1,4 @@
+uint32 cycles
+---
+bool success
+string message

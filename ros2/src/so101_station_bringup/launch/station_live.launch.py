@@ -3,12 +3,13 @@ import os
 from pathlib import Path
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -36,6 +37,13 @@ def generate_launch_description():
         'use_objects': 'true',
         'use_map': 'true',
         'use_planning_scene': 'true',
+        'use_station_api': 'true',
+        'sorting_config': str(station / 'sorting.json'),
+        'sorting_evidence_dir': str(station / 'evidence/sorting'),
+        'ev3_api_port': '18766',
+        'use_ev3_tunnel': 'false',
+        'ev3_remote': 'robot@192.168.0.1',
+        'ev3_ssh_key': str(station / 'ssh/id_ev3'),
         'use_web_twin': 'true',
         'web_twin_host': '0.0.0.0',
         'web_twin_port': '8099',
@@ -94,6 +102,20 @@ def generate_launch_description():
     return LaunchDescription([
         *(DeclareLaunchArgument(k, default_value=v) for k, v in defaults.items()),
         robot, leader, perception,
+        ExecuteProcess(cmd=['ssh', '-N', '-T', '-o', 'ExitOnForwardFailure=yes',
+                            '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
+                            '-o', 'IdentitiesOnly=yes', '-i', LaunchConfiguration('ev3_ssh_key'),
+                            '-L', ['127.0.0.1:', LaunchConfiguration('ev3_api_port'), ':127.0.0.1:8766'],
+                            LaunchConfiguration('ev3_remote')], output='screen',
+                       condition=IfCondition(LaunchConfiguration('use_ev3_tunnel'))),
+        Node(package='so101_station_workflow', executable='station_api',
+             name='station_workflow', output='screen',
+             additional_env={'SO101_STATION_ROOT': LaunchConfiguration('station_root')},
+             parameters=[{'sorting_config': LaunchConfiguration('sorting_config'),
+                          'evidence_dir': LaunchConfiguration('sorting_evidence_dir'),
+                          'ev3_port': ParameterValue(
+                              LaunchConfiguration('ev3_api_port'), value_type=int)}],
+             condition=IfCondition(LaunchConfiguration('use_station_api'))),
         include('so101_station_bringup', 'ros_web_twin.launch.py', {
                     'host': LaunchConfiguration('web_twin_host'),
                     'port': LaunchConfiguration('web_twin_port'),

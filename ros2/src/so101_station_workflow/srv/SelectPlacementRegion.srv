@@ -1,0 +1,7 @@
+string generation
+string mode
+int32[4] pixel_rectangle
+---
+bool success
+string message
+string selection_id
