@@ -22,6 +22,7 @@ records commands, limitations and decisions.
 | Failure recovery and reconnect | Software tests cover stop/ownership paths; transport failure observed while torque was last verified off | Physical behavior unqualified |
 | Camera-guided automatic arm recovery | Bounded planner, conservative depth adapter and owner admission/watchdog implemented and tested; production provider rejects without qualified geometry/registration | Live physical recovery pending |
 | ROS isolation and rendering | Full station and twin restarted on domain76; wrapper defaults76/rejects0; localhost discovery; actual RViz amdgpu counter increments | Live checked; rebuilt container image remains separate |
+| Native EV3 commissioning | Exact machine/port identity checked; one diagnostic sorter switch home completed1.859s/refhome0; baseline overspeed guard and MicroPython fault observed and recorded; feeder reference remainsNone | Sorter home once; feeder/ejection/othermoves/sorting pending |
 | Three successful cold starts | Three camera-only starts passed after reconnection; complete station cold-start gate not exercised | Pending |
 | Release artifacts and publication | Local camera/USB logs retained; implementation branch not a release | Pending |
 
