@@ -3,6 +3,9 @@ FROM docker.io/library/ros@sha256:066420e07f60aa18262f2479981def87ebcfcec42eefb0
 
 ENV DEBIAN_FRONTEND=noninteractive \
     ROS_DISTRO=jazzy \
+    ROS_DOMAIN_ID=76 \
+    RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
+    ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
@@ -39,6 +42,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
       ros-jazzy-ros2launch \
       ros-jazzy-usb-cam \
       ros-jazzy-rviz2 \
+      ros-jazzy-rmw-cyclonedds-cpp \
       ros-jazzy-tf-transformations \
       ros-jazzy-urdf \
       ros-jazzy-xacro \
@@ -48,5 +52,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN printf '\nsource /opt/ros/jazzy/setup.bash\nif [[ -f /ws/install/setup.bash ]]; then source /ws/install/setup.bash; fi\n' >> /etc/bash.bashrc
+
+COPY ros2/scripts/ros-domain-entrypoint.sh /usr/local/bin/ros-domain-entrypoint
+RUN chmod 0755 /usr/local/bin/ros-domain-entrypoint
+ENTRYPOINT ["/usr/local/bin/ros-domain-entrypoint"]
 
 WORKDIR /ws

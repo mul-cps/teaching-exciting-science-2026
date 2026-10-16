@@ -21,6 +21,12 @@ environment. The wrapper removes inherited ROS and
 Python paths before every command, chooses CycloneDDS by default when available,
 and honors an explicit `RMW_IMPLEMENTATION` override.
 
+The supported Conda and container wrappers use ROS domain 76 by default,
+CycloneDDS when available, and localhost-only discovery unless explicitly
+overridden. To work on another nonzero ROS domain, set `ROS_DOMAIN_ID` on the
+wrapper command; valid IDs are 1 through 232. Domain 0 is disabled by the
+station wrappers to avoid joining unrelated ROS graphs on the default domain.
+
 For the integrated startup, use `ros2/conda/so101-conda.sh station-live`.
 That launch includes one resident follower owner, one read-only leader
 publisher, and one RealSense camera owner. The leader publisher does not

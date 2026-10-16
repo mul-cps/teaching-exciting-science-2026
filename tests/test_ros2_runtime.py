@@ -6,6 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "ros2/scripts/runtime.sh"
+CONTAINERFILE = ROOT / "ros2/container/Containerfile"
+DOMAIN_ENTRYPOINT = ROOT / "ros2/scripts/ros-domain-entrypoint.sh"
 
 
 def run_runtime(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -37,6 +39,43 @@ def test_plan_mounts_workspace_and_x11_without_usb_or_devices():
     assert "/tmp/.X11-unix:/tmp/.X11-unix:ro" in result.stdout
     assert "--device" not in result.stdout
     assert "/dev/bus/usb" not in result.stdout
+    assert "--env ROS_DOMAIN_ID=76" in result.stdout
+    assert "--env RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" in result.stdout
+    assert "--env ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST" in result.stdout
+
+
+def test_runtime_respects_explicit_nonzero_domain_and_rejects_zero():
+    selected = run_runtime("plan", env={
+        "ROS_DOMAIN_ID": "75",
+        "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp",
+        "ROS_AUTOMATIC_DISCOVERY_RANGE": "SUBNET",
+    })
+    assert selected.returncode == 0, selected.stderr
+    assert "--env ROS_DOMAIN_ID=75" in selected.stdout
+    assert "--env RMW_IMPLEMENTATION=rmw_fastrtps_cpp" in selected.stdout
+    assert "--env ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET" in selected.stdout
+
+    disabled = run_runtime("plan", env={"ROS_DOMAIN_ID": "0"})
+    assert disabled.returncode != 0
+    assert "ROS_DOMAIN_ID=0 is disabled" in disabled.stderr
+
+
+def test_container_image_defaults_to_domain_76_and_entrypoint_rejects_zero():
+    containerfile = CONTAINERFILE.read_text()
+    assert "ROS_DOMAIN_ID=76" in containerfile
+    assert "RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" in containerfile
+    assert "ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST" in containerfile
+    assert 'ENTRYPOINT ["/usr/local/bin/ros-domain-entrypoint"]' in containerfile
+
+    disabled = subprocess.run(
+        [str(DOMAIN_ENTRYPOINT)],
+        env={**os.environ, "ROS_DOMAIN_ID": "0"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert disabled.returncode == 2
+    assert "ROS_DOMAIN_ID=0 is disabled" in disabled.stderr
 
 
 def test_gpu_is_opt_in():

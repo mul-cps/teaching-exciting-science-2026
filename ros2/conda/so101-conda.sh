@@ -33,7 +33,9 @@ Usage: ros2/conda/so101-conda.sh create|fetch|build|clean-build|station-live|rvi
   real        Refuse hardware startup; the station owner retains that gate
 
 Set SO101_CONDA_ROOT, SO101_CONDA_EXE, or SO101_CONDA_PREFIX to override the
-Miniforge defaults. No ROS package is installed into Conda base.
+Miniforge defaults. Station commands default to ROS_DOMAIN_ID=76; an explicit
+nonzero domain from 1 through 232 is preserved and domain 0 is rejected.
+No ROS package is installed into Conda base.
 EOF
 }
 
@@ -41,6 +43,12 @@ if [[ "$ACTION" == "-h" || "$ACTION" == "--help" || "$ACTION" == "help" ]]; then
   usage
   exit 0
 fi
+
+ROS_DOMAIN_ID_VALUE="${ROS_DOMAIN_ID:-76}"
+[[ "$ROS_DOMAIN_ID_VALUE" =~ ^[0-9]{1,3}$ ]] || fail "ROS_DOMAIN_ID must be an integer from 1 through 232"
+ROS_DOMAIN_ID_NUMBER=$((10#$ROS_DOMAIN_ID_VALUE))
+((ROS_DOMAIN_ID_NUMBER >= 1 && ROS_DOMAIN_ID_NUMBER <= 232)) || \
+  fail "ROS_DOMAIN_ID=0 is disabled; select a domain from 1 through 232"
 
 [[ -x "$CONDA_EXE" ]] || fail "Conda executable is not available: $CONDA_EXE"
 
@@ -65,6 +73,7 @@ clean_conda() {
     -u LD_LIBRARY_PATH \
     -u LD_PRELOAD \
     -u PKG_CONFIG_PATH \
+    ROS_DOMAIN_ID="$ROS_DOMAIN_ID_NUMBER" \
     ROS_AUTOMATIC_DISCOVERY_RANGE="${ROS_AUTOMATIC_DISCOVERY_RANGE:-LOCALHOST}" \
     "${rmw_env[@]}" \
     OPENBLAS_NUM_THREADS="${SO101_BLAS_THREADS:-1}" \

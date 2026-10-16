@@ -31,6 +31,8 @@ Options:
 
 Hardware is disabled by default. The caller must arrange the station lock used
 by the resident controller before opting into hardware access.
+Station ROS commands default to ROS_DOMAIN_ID=76 and reject domain 0. An
+explicit nonzero domain from 1 through 232 is preserved.
 EOF
 }
 
@@ -40,6 +42,12 @@ if [[ "$ACTION" == "-h" || "$ACTION" == "--help" ]]; then
 fi
 
 fail() { printf 'runtime.sh: %s\n' "$*" >&2; exit 2; }
+
+ROS_DOMAIN_ID_VALUE="${ROS_DOMAIN_ID:-76}"
+[[ "$ROS_DOMAIN_ID_VALUE" =~ ^[0-9]{1,3}$ ]] || fail "ROS_DOMAIN_ID must be an integer from 1 through 232"
+ROS_DOMAIN_ID_NUMBER=$((10#$ROS_DOMAIN_ID_VALUE))
+((ROS_DOMAIN_ID_NUMBER >= 1 && ROS_DOMAIN_ID_NUMBER <= 232)) || \
+  fail "ROS_DOMAIN_ID=0 is disabled; select a domain from 1 through 232"
 
 while (($#)); do
   case "$1" in
@@ -90,7 +98,11 @@ podman_args=(run --rm --network host --ipc host --userns keep-id --user "$(id -u
 if ((COMMAND_MODE == 0)); then
   podman_args+=(--interactive --tty)
 fi
-podman_args+=(--env HOME=/ws/.cache/so101-ros2/home --env ROS_DISTRO=jazzy --env DISPLAY="${DISPLAY:-:0}")
+podman_args+=(--env HOME=/ws/.cache/so101-ros2/home --env ROS_DISTRO=jazzy
+  --env "ROS_DOMAIN_ID=$ROS_DOMAIN_ID_NUMBER"
+  --env "RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
+  --env "ROS_AUTOMATIC_DISCOVERY_RANGE=${ROS_AUTOMATIC_DISCOVERY_RANGE:-LOCALHOST}"
+  --env DISPLAY="${DISPLAY:-:0}")
 podman_args+=(--volume "$ROOT_DIR:/ws:Z")
 podman_args+=(--volume "$HOME/.cache/so101-ros2/build:/ws/build:Z")
 podman_args+=(--volume "$HOME/.cache/so101-ros2/install:/ws/install:Z")

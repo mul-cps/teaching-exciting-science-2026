@@ -104,6 +104,7 @@ def test_conda_run_clears_inherited_ros_python_and_loader_environment(tmp_path: 
     ):
         assert name not in clean_environment
     assert clean_environment["ROS_AUTOMATIC_DISCOVERY_RANGE"] == expected
+    assert clean_environment["ROS_DOMAIN_ID"] == "76"
     assert clean_environment["RMW_IMPLEMENTATION"] == "rmw_cyclonedds_cpp"
     assert clean_environment["DISPLAY"] == ":77"
     assert clean_environment["XAUTHORITY"] == "/tmp/test.xauth"
@@ -141,6 +142,47 @@ def test_conda_run_respects_explicit_rmw_override(tmp_path: Path):
         if "=" in line
     )
     assert clean_environment["RMW_IMPLEMENTATION"] == "rmw_fastrtps_cpp"
+
+
+def test_conda_run_respects_explicit_nonzero_domain_id(tmp_path: Path):
+    fake_conda = tmp_path / "conda"
+    capture = tmp_path / "capture"
+    fake_conda.write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        "mkdir -p \"$(dirname \"$TEST_CONDA_ENV\")\"\n"
+        "env | sort > \"$TEST_CONDA_ENV\"\n"
+    )
+    fake_conda.chmod(0o755)
+    result = run_wrapper(
+        "run", "ros2", "topic", "list",
+        env={
+            "SO101_CONDA_EXE": str(fake_conda),
+            "SO101_CONDA_PREFIX": str(tmp_path / "environment"),
+            "TEST_CONDA_ENV": str(capture / "environment"),
+            "ROS_DOMAIN_ID": "75",
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    environment = dict(
+        line.split("=", 1)
+        for line in (capture / "environment").read_text().splitlines()
+        if "=" in line
+    )
+    assert environment["ROS_DOMAIN_ID"] == "75"
+
+
+def test_conda_wrapper_rejects_domain_zero_before_invoking_conda(tmp_path: Path):
+    fake_conda = tmp_path / "conda"
+    marker = tmp_path / "called"
+    fake_conda.write_text(f"#!/usr/bin/env bash\ntouch '{marker}'\n")
+    fake_conda.chmod(0o755)
+    result = run_wrapper(
+        "run", "ros2", "topic", "list",
+        env={"SO101_CONDA_EXE": str(fake_conda), "ROS_DOMAIN_ID": "0"},
+    )
+    assert result.returncode != 0
+    assert "ROS_DOMAIN_ID=0 is disabled" in result.stderr
+    assert not marker.exists()
 
 
 def test_create_uses_repository_environment_file_and_dedicated_prefix(tmp_path: Path):
