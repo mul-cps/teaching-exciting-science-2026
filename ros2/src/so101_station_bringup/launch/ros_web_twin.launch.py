@@ -5,26 +5,29 @@ import sys
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import EnvironmentVariable, LaunchConfiguration, TextSubstitution
 
 
 def generate_launch_description():
-    root_default = os.environ.get("SO101_STATION_ROOT", os.getcwd())
-    root = Path(root_default).resolve()
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
     state_file = runtime / "exciting-science" / "ros-twin-state.json"
     placement_directory = runtime / "exciting-science" / "placement-camera"
+    station_root = LaunchConfiguration("station_root")
+    source_pythonpath = [station_root, TextSubstitution(text=os.pathsep),
+                         EnvironmentVariable("PYTHONPATH", default_value="")]
     viewer_python = os.environ.get("SO101_TWIN_VIEWER_PYTHON",
                                   str(Path.home() / ".local/share/exciting-science/station/venv/bin/python"))
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(root) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    env["PYTHONPATH"] = source_pythonpath
+    env["SO101_STATION_ROOT"] = station_root
     viewer_env = {key: value for key, value in os.environ.items() if key not in {
         "LD_LIBRARY_PATH", "LD_PRELOAD", "PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE",
         "AMENT_PREFIX_PATH", "COLCON_PREFIX_PATH", "CMAKE_PREFIX_PATH", "ROS_DISTRO",
         "ROS_VERSION", "ROS_PYTHON_VERSION", "ROS_ETC_DIR", "CONDA_PREFIX",
         "CONDA_DEFAULT_ENV", "CONDA_SHLVL", "CONDA_EXE", "CONDA_PYTHON_EXE",
     }}
-    viewer_env["PYTHONPATH"] = str(root)
+    viewer_env["PYTHONPATH"] = station_root
+    viewer_env["SO101_STATION_ROOT"] = station_root
     bridge = ExecuteProcess(
         cmd=[sys.executable, "-m", "workshop.digital_twin.ros_state_node",
              "--output", str(state_file), "--root-frame", LaunchConfiguration("world_frame"),
@@ -33,8 +36,11 @@ def generate_launch_description():
              "--depth-topic", LaunchConfiguration("placement_depth_topic"),
              "--camera-info-topic", LaunchConfiguration("placement_camera_info_topic"),
              "--placement-selection-timeout", LaunchConfiguration("placement_selection_timeout_s")],
-        cwd=str(root), env=env, output="screen", name="so101_ros_twin_state")
+        cwd=station_root, env=env, output="screen", name="so101_ros_twin_state")
     return LaunchDescription([
+        DeclareLaunchArgument("station_root",
+            default_value=os.environ.get("SO101_STATION_ROOT", os.getcwd()),
+            description="Absolute source root containing workshop/digital_twin"),
         DeclareLaunchArgument("world_frame", default_value="charuco_board",
                               description="Common ROS world frame also shown in RViz"),
         DeclareLaunchArgument("host", default_value="0.0.0.0"),
@@ -51,7 +57,7 @@ def generate_launch_description():
         ExecuteProcess(cmd=[LaunchConfiguration("viewer_python"), "-m", "workshop.digital_twin",
                             "--ros-state-file", str(state_file), "--host",
                             LaunchConfiguration("host"), "--port", LaunchConfiguration("port")],
-                       cwd=str(root), env=viewer_env, output="screen", name="so101_ros_web_twin",
+                       cwd=station_root, env=viewer_env, output="screen", name="so101_ros_web_twin",
                        respawn=False),
         bridge,
     ])

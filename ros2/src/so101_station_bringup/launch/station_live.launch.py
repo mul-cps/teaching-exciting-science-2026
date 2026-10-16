@@ -117,6 +117,7 @@ def generate_launch_description():
                               LaunchConfiguration('ev3_api_port'), value_type=int)}],
              condition=IfCondition(LaunchConfiguration('use_station_api'))),
         include('so101_station_bringup', 'ros_web_twin.launch.py', {
+                    'station_root': LaunchConfiguration('station_root'),
                     'host': LaunchConfiguration('web_twin_host'),
                     'port': LaunchConfiguration('web_twin_port'),
                     'viewer_python': LaunchConfiguration('web_twin_python'),
