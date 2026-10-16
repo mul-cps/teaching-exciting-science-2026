@@ -23,7 +23,7 @@ records commands, limitations and decisions.
 | Camera-guided automatic arm recovery | Bounded planner, conservative depth adapter and owner admission/watchdog implemented and tested; production provider rejects without qualified geometry/registration | Live physical recovery pending |
 | ROS isolation and rendering | Full station and twin restarted on domain76; wrapper defaults76/rejects0; localhost discovery; actual RViz amdgpu counter increments | Live checked; rebuilt container image remains separate |
 | Native EV3 commissioning | Exact machine/port identity checked; one diagnostic sorter switch home completed1.859s/refhome0; baseline overspeed guard and MicroPython fault observed and recorded; feeder reference remainsNone | Sorter home once; feeder/ejection/othermoves/sorting pending |
-| ROS workflow and quick actions | Reviewed resident API, private one-use EV3 command admission, bounded cycles/cancel/stop; root combined native subset43passed; live typed status/diagnostics work on domain76 | API running idle/disconnected; commissioning config absent; physical cycles pending |
+| ROS workflow and quick actions | Reviewed resident API, private one-use EV3 command admission, bounded cycles/cancel/stop; root combined native subset43passed; live typed status/diagnostics and sole EV3 connection work on domain76 | API running idle/connected; commissioning config absent; physical cycles pending |
 | Acknowledged arm stop | New bridge/sole owner started; live `/follower/stop` succeeded with fresh six-servo torque-off readback, unchanged raw positions | Idle protocol checked; arm was already torque off, moving-stop qualification pending |
 | Interactive moving placement area | Browser8101 camera upright; principal-point-aware clicks tested; fiducial-inclusive stationary anchor9/9features, approximately0.8–1.1mm residual | Browser goal-frame pinning repair and actual moving-feeder validation pending |
 | Three successful cold starts | Three camera-only starts passed after reconnection; complete station cold-start gate not exercised | Pending |
@@ -62,9 +62,10 @@ evidence before clearing temporary storage.
 
 ## Sorting entry point
 
-`tools/ros_sort_station.py` consumes the already-running ROS station and the
-persistent EV3 API tunnel. It opens neither a camera SDK nor an arm serial port.
-It requires explicit `--execute`, a newly created evidence directory, and a
+The resident ROS workflow consumes the already-running station and owns the
+persistent EV3 API connection. Its sorting adapter opens neither a camera SDK
+nor an arm serial port. Use the [typed ROS quick actions](ros-station-api.md);
+the resident API is the sole EV3 client. Sorting requires a
 `so101-ros-sorting-v1` JSON configuration containing:
 
 - `enabled`, `commissioned`, and `automatic_start`, all explicitly true only
@@ -84,10 +85,9 @@ completion in the current resident-owner session.
 Once these prerequisites are physically verified:
 
 ```sh
-ros2/conda/so101-conda.sh run python tools/ros_sort_station.py \
-  --config /path/to/commissioned-sorting.json \
-  --ev3-port 18766 --cycles 1 --execute \
-  --output /path/to/new-cycle-evidence
+ros2/scripts/station-action.sh check-ready
+ros2/scripts/station-action.sh run 1
+ros2/scripts/station-action.sh status
 ```
 
 Every failure prevents another dispense. A cycle completes only after distinct
