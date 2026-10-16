@@ -344,3 +344,18 @@ def test_observed_corner_occlusion_and_touching_children_survive_without_parent_
         selected = np.zeros_like(parent)
         cv2.fillPoly(selected,[child],1)
         assert validate_brick_silhouette(child,observed_mask=parent&selected).accepted
+
+
+def test_observed_pixels_cannot_relax_existing_reconstructed_contour_gate():
+    import json
+    from so101_station_objects.colored_object_validation import validate_brick_silhouette
+    case = json.loads(_capture_evidence_file('blue-observed-regression.json').read_text())
+    points = np.asarray(case['observed_pixels'],np.int64)
+    extent = points.max(axis=0)+1
+    mask = np.zeros((extent[1],extent[0]),np.uint8)
+    mask[points[:,1],points[:,0]] = 1
+    contour = np.asarray(case['contour'],np.float32)
+    assert not validate_brick_silhouette(contour).accepted
+    result = validate_brick_silhouette(contour,observed_mask=mask)
+    assert not result.accepted
+    assert result.metrics['reconstructed_min_rectangle_fill'] < .45

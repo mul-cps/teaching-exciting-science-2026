@@ -251,7 +251,7 @@ def validate_brick_silhouette(contour, *, observed_mask=None, min_rect_fill=.45)
         # closing, bridge or external reconstruction may fill the gaps.
         boundary_area = sum(float(cv2.contourArea(boundary)) for boundary in boundaries)
         observed_boundary_fill = boundary_area/(float(width)*float(height))
-        observed_fill = min(observed_pixel_fill, observed_boundary_fill)
+        observed_fill = min(fill, observed_pixel_fill, observed_boundary_fill)
         metrics.update(reconstructed_min_rectangle_fill=fill,
                        min_rectangle_fill=observed_fill,
                        observed_pixels=int(len(xx)),
