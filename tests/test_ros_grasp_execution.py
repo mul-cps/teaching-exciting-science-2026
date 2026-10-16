@@ -102,6 +102,23 @@ def test_pickup_evidence_requires_same_track_three_stable_elevated_samples():
     assert not verify_observed_lift([sample(.15, 10.01), sample(.15, 10.01), sample(.15, 10.01)], 3, [.1, .2, .1])
 
 
+@pytest.mark.parametrize("field,value", [
+    ("position_semantics", "visible_surface_centroid"),
+    ("dimensions_semantics", "visible_surface_extent_only"),
+])
+def test_tracking_only_surface_point_cannot_prove_object_center_lift_or_release(field, value):
+    received = __import__("time").monotonic()
+    samples = [(received, {
+        "state": "tracking", "frame_id": "world", "stamp": stamp,
+        "registration": {"state": "tracking", "observation_valid": True, "stamp": stamp},
+        "registration_received": received,
+        "objects": [{"track_id": 3, "position_world": [.1, .2, .15],
+                     "geometric_only": True, field: value}],
+    }) for stamp in (10.01, 10.02, 10.03)]
+    assert not verify_observed_lift(samples, 3, [.1, .2, .1])
+    assert not verify_observed_release(samples, 3, [.1, .2, .15])
+
+
 def test_execution_requires_qualified_camera_registration_and_matching_model_digest(tmp_path):
     from hashlib import sha256
 

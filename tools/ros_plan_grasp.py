@@ -69,7 +69,9 @@ def verify_observed_lift(status_samples, track_id, baseline_position, *, rise_m=
         last_stamp = stamp
         item = next((obj for obj in status.get("objects", [])
                      if str(obj.get("track_id")) == track), None)
-        if item is None or item.get("geometric_only") is not True:
+        if (item is None or item.get("geometric_only") is not True
+                or item.get("position_semantics") not in (None, "support_plane_box_estimate")
+                or item.get("dimensions_semantics") not in (None, "support_plane_box_extent_estimate")):
             continue
         position = item.get("position_world")
         if isinstance(position, list) and len(position) == 3 and all(
@@ -217,7 +219,9 @@ def verify_observed_release(status_samples, track_id, expected_position, *, tole
         last_stamp = stamp
         item = next((obj for obj in status.get("objects", [])
                      if str(obj.get("track_id")) == track), None)
-        if item is None or item.get("geometric_only") is not True:
+        if (item is None or item.get("geometric_only") is not True
+                or item.get("position_semantics") not in (None, "support_plane_box_estimate")
+                or item.get("dimensions_semantics") not in (None, "support_plane_box_extent_estimate")):
             continue
         position = item.get("position_world")
         if isinstance(position, list) and len(position) == 3 and all(
