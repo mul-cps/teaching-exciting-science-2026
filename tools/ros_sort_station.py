@@ -239,6 +239,7 @@ class ROSSortingDevices:
                         "position": target.position, "stamp": target.stamp}
 
     def pick_place(self, target, destination, deadline, cancel):
+        self._check(deadline, cancel)
         self.serial += 1
         output = self.output / f"grasp-{self.serial:04d}.json"
         clear_pose_file = self.output / f"clear-joints-{self.serial:04d}.json"
@@ -247,10 +248,12 @@ class ROSSortingDevices:
             stream.write("\n")
         command = [sys.executable, str(ROOT / "tools/ros_plan_grasp.py"), "--execute",
                    "--execution-config", self.settings["grasp_execution_config"],
+                   "--timeout", str(min(180., max(.1, deadline-time.monotonic()))),
                    "--track-id", target["track_id"], "--frame", self.settings["frame_id"],
                    "--return-joint-pose", str(clear_pose_file),
                    "--place-pose", *(str(value) for value in destination), "--output", str(output)]
         with (self.output / f"grasp-{self.serial:04d}.log").open("x") as stream:
+            self._check(deadline, cancel)
             self.child = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT)
             while self.child.poll() is None:
                 self._spin(deadline, cancel)

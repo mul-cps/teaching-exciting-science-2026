@@ -31,6 +31,7 @@ def _digest(value):
 
 def plan_bound_reentry(raw, admitted_bounds, firmware_bounds, *, scene, now,
                        expected_model_sha256, expected_calibration_sha256,
+                       expected_camera_serial="243322071783",
                        minimum_clearance_m=.010):
     """Check an inward path for a soft-limit excursion of at most 32 counts.
 
@@ -46,7 +47,8 @@ def plan_bound_reentry(raw, admitted_bounds, firmware_bounds, *, scene, now,
             or scene.model_sha256 != expected_model_sha256
             or scene.calibration_sha256 != expected_calibration_sha256
             or scene.registration_qualified is not True
-            or not isinstance(scene.camera_serial, str) or not scene.camera_serial):
+            or not isinstance(expected_camera_serial, str) or not expected_camera_serial
+            or scene.camera_serial != expected_camera_serial):
         raise ValueError("identity-matched qualified camera registration and model required")
     stamps = (now, scene.stamp_monotonic, scene.arm_stamp_monotonic)
     if (any(type(v) not in (int, float) or not math.isfinite(v) for v in stamps)
@@ -82,6 +84,8 @@ def plan_bound_reentry(raw, admitted_bounds, firmware_bounds, *, scene, now,
             target[joint] = low+2 if value < low else high-2
             if abs(target[joint]-value) > 32:
                 raise ValueError("re-entry exceeds the bounded camera recovery envelope")
+    if getattr(scene, "arm_raw", None) != raw:
+        raise ValueError("camera scene must be paired to the exact measured encoder pose")
     steps = max(1, max(math.ceil(abs(target[j]-raw[j])/2) for j in JOINTS))
     samples = tuple({j: round(raw[j]+(target[j]-raw[j])*step/steps) for j in JOINTS}
                     for step in range(steps+1))
@@ -97,6 +101,7 @@ def plan_bound_reentry(raw, admitted_bounds, firmware_bounds, *, scene, now,
             raise ValueError("camera scene expired while checking recovery")
     payload = {"model_sha256": expected_model_sha256,
                "calibration_sha256": expected_calibration_sha256,
+               "camera_serial": expected_camera_serial,
                "scene_stamp_monotonic": scene.stamp_monotonic,
                "samples_raw": samples}
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"),

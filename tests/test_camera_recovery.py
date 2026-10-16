@@ -19,6 +19,7 @@ class Scene:
     registration_qualified = True
     stamp_monotonic = 10.
     arm_stamp_monotonic = 10.
+    arm_raw = START
 
     def __init__(self, obstruction=None):
         self.obstruction = obstruction
@@ -76,3 +77,13 @@ def test_camera_recovery_does_not_move_gripper_or_invent_boundaries():
         plan_bound_reentry({**START, "gripper": 3001}, BOUNDS, FIRMWARE,
                            scene=Scene(), now=10.1, expected_model_sha256="a" * 64,
                            expected_calibration_sha256="b" * 64)
+
+
+@pytest.mark.parametrize("field,value", [("camera_serial", "another-camera"),
+    ("arm_raw", {**START, "elbow_flex": 2970})])
+def test_scene_must_belong_to_identified_camera_and_exact_encoder_sample(field, value):
+    scene = Scene()
+    setattr(scene, field, value)
+    with pytest.raises(ValueError):
+        plan(scene)
+    assert not scene.samples

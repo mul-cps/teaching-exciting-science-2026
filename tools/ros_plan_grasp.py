@@ -169,6 +169,14 @@ def require_live_registration(status, received_at, *, now=None, now_ros=None):
         raise RuntimeError("fresh Charuco base registration observation required immediately before arm motion")
 
 
+def submit_localized_goal(client, goal, *, registration, received_at, now_ros, deadline):
+    """Validate at submission, after any action-server discovery delay."""
+    require_live_registration(registration, received_at, now_ros=now_ros)
+    if time.monotonic() >= deadline:
+        raise TimeoutError("execution deadline expired before action goal submission")
+    return client.send_goal_async(goal)
+
+
 def scene_ack_terminal_state(action, ack):
     state = ack.get("state") if isinstance(ack, dict) else None
     if state in {"reserved", "pending", "applying"}:
@@ -392,7 +400,10 @@ def main(argv=None):
             return True
 
         def send_action_goal(client, goal, deadline, label):
-            future = client.send_goal_async(goal)
+            future = submit_localized_goal(client, goal,
+                registration=node.registration_status,
+                received_at=node.registration_received,
+                now_ros=node.get_clock().now().nanoseconds * 1e-9, deadline=deadline)
             try:
                 return spin_future(future, deadline, label)
             except BaseException:

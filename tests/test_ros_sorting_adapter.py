@@ -1,5 +1,6 @@
 """ROS sorting adapter contract tests; no ROS graph or devices are started."""
 import json
+from pathlib import Path
 import signal
 import sys
 import threading
@@ -464,3 +465,28 @@ def test_cancel_acceptance_alone_cannot_confirm_stop(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError, match="did not confirm terminal"):
         devices.stop()
     assert devices.cancel_clients[1].requests == 1
+
+
+def test_grasp_client_gets_cycle_deadline_and_commissioned_clear_pose(monkeypatch, tmp_path):
+    devices, _, _ = _adapter(monkeypatch, tmp_path)
+    commands = []
+
+    class Child:
+        returncode = 0
+
+        def __init__(self, command, **kwargs):
+            commands.append(command)
+            Path(command[command.index("--output")+1]).write_text(json.dumps({
+                "state": "pick_place_complete", "track_id": "red-0009",
+                "pickup_verified": True, "lift_verified": True, "release_verified": True}))
+
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(adapter.subprocess, "Popen", Child)
+    result = devices.pick_place({"track_id": "red-0009", "color": "red"},
+                                 DESTINATIONS["red"], time.monotonic()+120., threading.Event())
+    command = commands[0]
+    assert 119. <= float(command[command.index("--timeout")+1]) <= 120.
+    assert json.loads(Path(command[command.index("--return-joint-pose")+1]).read_text()) == dict.fromkeys(adapter.ARM_JOINTS, 0.)
+    assert result["release_verified"] is True

@@ -15,6 +15,32 @@ from tools.ros_plan_grasp import (canonical_scene_track_id, scene_request_payloa
                                   require_live_registration)
 
 
+def test_localization_expiring_during_server_discovery_prevents_goal_submission():
+    from tools.ros_plan_grasp import submit_localized_goal
+    import time
+    sent = []
+    client = SimpleNamespace(send_goal_async=lambda goal: sent.append(goal))
+    stale = {"state": "tracking", "observation_valid": True, "stamp": 10.0}
+    with pytest.raises(RuntimeError, match="immediately before arm motion"):
+        submit_localized_goal(client, object(), registration=stale,
+                              received_at=time.monotonic()-.6, now_ros=10.6,
+                              deadline=time.monotonic()+1.)
+    assert not sent
+
+
+def test_expired_execution_deadline_prevents_a_freshly_localized_goal():
+    from tools.ros_plan_grasp import submit_localized_goal
+    import time
+    sent = []
+    client = SimpleNamespace(send_goal_async=lambda goal: sent.append(goal))
+    fresh = {"state": "tracking", "observation_valid": True, "stamp": 10.0}
+    with pytest.raises(TimeoutError):
+        submit_localized_goal(client, object(), registration=fresh,
+                              received_at=time.monotonic(), now_ros=10.0,
+                              deadline=time.monotonic()-.01)
+    assert not sent
+
+
 def _write(path, data):
     path.write_text(json.dumps(data))
     return str(path)

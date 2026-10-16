@@ -39,3 +39,22 @@ Ruling: implement the existing plan directly, keeping its full physical gates; n
 
 Ruling: the user requested autonomous camera-guided recovery rather than manual elbow repositioning; retain original sorting acceptance gates and add recovery as a prerequisite. A planner alone does not satisfy this requirement.
 Ruling: do not infer successful recovery from encoder-only motion, stale images or a vision callback returning a fabricated clearance. Hardware transport and a qualified scene must be available before the live path is admitted.
+
+## Review corrections and remaining work
+
+- Root recovery planner now binds the camera serial and exact encoder snapshot as well as model/calibration hashes; mismatched source/sample regression tests failed before the fix and pass afterward.
+- Root adapter now terminates/reaps the goal-producing client before final action cancellations, attempts both cancellations even when child shutdown fails, and waits for terminal GoalStatus for acknowledged cancelling goals. Regression tests cover late-submit ordering, process-exit race, forced-shutdown timeout and cancellation-accepted-without-terminal-state.
+- Root integration clean-build: all 17 packages passed. Native ROS control, scene, map, gripper and grasp subset: 45 passed; RCL logged a timer callback cleanup diagnostic after tests. This is not physical execution evidence.
+- Independent scene fixes are in progress with native regression tests; execute CLI fixes are in a separate worker branch. Full suite remains pending until these are integrated.
+- Camera-guided automatic recovery requirement is broader than the small bound-reentry planner: general recovery planning, complete acquired collision scene, owner-side path verification, live vision watchdog, and physical recovery trials still remain. Do not present the bounded helper as completed autonomous recovery.
+- Physical sorting, calibration accuracy, 30-minute teleop, recovery experiments and three cold starts remain unverified. The USB hub outage still prevents arm/EV3 access.
+
+## Integrated verification checkpoint
+
+- HEAD includes scene ownership fix91d4fbd, grasp cancellation/evidence0395cbd, canonical-ID/atomic-submit/localization fixesa12edf6, and jaw launch forwarding1ada560.
+- Latest root full suite: `python -m pytest -q` ->865passed45skipped in12.01s. Native ROS control/scene/objects/map/gripper/grasp/ownership subset ->84passed in1.38s.
+- Integration clean-build rerun ->17packages passed in19.9s; log `/tmp/sorting-integration-clean-build-20261016.log`.
+- Final registration gate moved into common action submission after discovery, with regression tests for registration expiring during discovery and execution deadline expiry; no goal is sent in either case.
+- Sorting adapter forwards its operation deadline to the grasp child and writes the commissioned clear-joint map as an explicit evidence file.
+- User again authorized running the robot; root attempted a fresh resident connection. It exited with `arm persistent USB identity absent or ambiguous`. Both arm adapters and EV3 remained absent in current enumeration. No motion sent.
+- Goal remains active. Do not mark completion or claim physical validation.
