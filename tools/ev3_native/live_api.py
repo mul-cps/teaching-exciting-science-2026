@@ -821,7 +821,9 @@ class LiveAPI:
         try:
             if now - self.last_angles >= (20 if active else 500):
                 self.refresh_angles()
-            if (active and due) or sensors_due:
+            # Color/LCD deadlines remain pending while motion defers bulk I/O;
+            # they must not cause extra touch reads on ready-socket bursts.
+            if (active and due) or (not active and sensors_due):
                 touch_job = self.diagnostic_motion_job()
                 self.sensor_touch = bool(self.timed_call(
                     touch_job, 'touch_read_ms', self.touch.pressed))

@@ -142,6 +142,10 @@ def full_target_probe():
         assert response['ok'] and response['result']['busy']
         assert sorter.speed_reads + feeder.speed_reads == speed_reads
         assert peripherals.calls == 0
+        reads = (sorter.angle_reads, feeder.angle_reads, peripherals.touch_reads)
+        for burst in range(10):
+            api.tick()
+        assert reads == (sorter.angle_reads, feeder.angle_reads, peripherals.touch_reads)
     assert api.job is None
     assert api.last_job['state'] == 'complete'
     assert api.last_job['target'] == 12 and sorter.value == 12

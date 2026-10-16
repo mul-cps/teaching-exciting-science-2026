@@ -92,15 +92,25 @@ def test_benchmark_rejects_unbounded_or_empty_options(option, value):
         benchmark(**{option: value})
 
 
-def test_display_changes_eventually_reach_lcd_during_shake():
+def test_display_changes_wait_until_shake_has_braked_and_settled():
     from tools.benchmark_ev3_live_api import Harness
     harness = Harness()
     harness.start_shake()
     harness.advance()
     harness.request('display', text='Check alignment')
+    frames = harness.brick.screen.frames
     for _ in range(30): harness.advance()
-    assert any('Check alignment' in line[2] for line in harness.brick.screen.lines), (
-        'LCD shake optimization must still deliver an explicit display update')
+    assert harness.api.job is not None
+    assert harness.brick.screen.frames == frames, 'active motion must defer LCD I/O'
+    for _ in range(150):
+        harness.advance()
+        if harness.api.job is None:
+            break
+        assert harness.brick.screen.frames == frames, 'settling must also defer LCD I/O'
+    assert harness.api.last_job['state'] == 'complete'
+    assert harness.api.job is None
+    assert all(motor.target is None for motor in harness.motors.values()), 'both axes must be braked'
+    assert any('Check alignment' in line[2] for line in harness.brick.screen.lines)
     assert harness.brick.screen.frames <= 3
 
 
@@ -124,6 +134,12 @@ def test_socket_readiness_bursts_do_not_resample_active_drivers():
     # The daemon can wake repeatedly before the next 20 ms sample deadline.
     for _ in range(100): harness.api.tick()
     assert harness.read_counts() == reads, 'ready sockets must not turn driver sampling into a busy loop'
+    harness.advance()
+    after = harness.read_counts()
+    assert after['touch'] == reads['touch'] + 1, 'the next 20 ms tick must sample touch'
+    assert after['sorter']['angle'] == reads['sorter']['angle'] + 1
+    assert after['feeder']['angle'] == reads['feeder']['angle'] + 1
+    assert after['color'] == reads['color']
 
 
 def test_cached_idle_angles_refresh_within_half_second():
