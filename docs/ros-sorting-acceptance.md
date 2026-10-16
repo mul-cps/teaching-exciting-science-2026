@@ -95,3 +95,20 @@ Every failure prevents another dispense. A cycle completes only after distinct
 fresh observations verify pickup/lift and the brick remaining at its destination
 after the tool retreats, followed by measured clearance. Command acceptance,
 successful planning, and jaw movement do not establish a completed physical sort.
+
+
+### Camera and model based calibration status
+
+Missing measurements may be derived from pinned source CAD and bounded physical
+experiments compared with synchronized camera data. Keep nominal estimates, fit
+uncertainty and separate held-out validation explicit; external metrology is not
+assumed available. Current STEP contact geometry is nominal only.
+
+The gripper-only commissioning API has software coverage and review, but its first
+two +8-count trials faulted before observed displacement. The instrumented second
+trial captured jaw torque enabled immediately after the goal-position write, with
+all five body joints off. Cleanup verified all six off; the owner then exited, so
+that last snapshot is historical. Write/enable ordering is being corrected against
+this evidence. Neither trial qualifies jaw gap, contact position, camera recovery
+or a physical sort. See the progress log and local evidence directories
+`gripper-component-step-8-00e3b22` and `gripper-component-step-8-634fa3e`.
