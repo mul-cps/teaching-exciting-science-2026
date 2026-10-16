@@ -107,6 +107,26 @@ class Tests(unittest.TestCase):
         self.request('home_touch'); self.tick(300)
         self.assertFalse(self.motors['sorter'].commands)
         self.assertEqual(self.motors['sorter'].resets,[0])
+    def test_pressed_home_from_negative_fault_pose_only_zeros_after_quiet_switch(self):
+        sorter = self.motors['sorter']
+        sorter.value = -1
+        self.api.last_error = {'code': 'motion_fault', 'message': 'Sorter soft limit exceeded'}
+        reply = self.request('home_touch')
+        self.assertTrue(reply['ok'])
+        self.assertFalse(sorter.commands)
+        self.assertFalse(sorter.resets)
+        self.assertIsNone(self.api.references['sorter'])
+        self.tick(180)
+        self.assertFalse(sorter.commands)
+        self.assertFalse(sorter.resets)
+        self.assertIsNone(self.api.references['sorter'])
+        self.tick(100)
+        self.assertFalse(sorter.commands)
+        self.assertEqual(sorter.resets, [0])
+        self.assertEqual(self.api.references['sorter'], 'home')
+        self.assertEqual(self.api.last_job['state'], 'complete')
+        self.assertIsNone(self.api.last_error)
+
     def test_stop_brake_failure_is_not_reported_stopped(self):
         self.confirm('feeder'); self.request('eject',cycles=1)
         def failed_brake(): raise OSError('cannot brake')

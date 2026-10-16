@@ -14,7 +14,11 @@ def finite(value):
 
 def validate_target(target):
     if not finite(target) or not 0 <= target <= 550:
-        raise ValueError('sorter absolute target must be finite within 0..550 degrees')
+        raise ValueError('sorter position requires a finite interior target: 0 < degrees < 550')
+    if target == 0:
+        raise ValueError('sorter zero requires explicit ev3-home with switch verification; position target rejected')
+    if target == 550:
+        raise ValueError('sorter upper boundary 550 degrees is not qualified; position target rejected')
 
 
 def stationary_snapshot(status, *, session):

@@ -277,9 +277,17 @@ main()
         assert call(Trigger, 'reset_fault').success
         assert call(ConfirmReference, 'ev3/confirm_reference',
                     ConfirmReference.Request(name='sorter', reference='home', physically_verified=True)).success
-        assert not call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=551.)).success
+        before_boundary = json.loads(call(Trigger, 'status').message)['workflow']
+        wake_count = operations.count('wake')
+        for boundary in (0., 550., 551.):
+            rejected = call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=boundary))
+            assert not rejected.success
+            after_boundary = json.loads(call(Trigger, 'status').message)['workflow']
+            assert after_boundary['job_id'] == before_boundary['job_id']
+            assert after_boundary['state'] == before_boundary['state']
+        assert operations.count('wake') == wake_count
         assert not axis_arguments
-        assert call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=550.)).success
+        assert call(SorterPosition, 'ev3/sorter_position', SorterPosition.Request(target_deg=549.)).success
         assert 'six-second' in terminal('fault')['fault']
         assert not axis_arguments
         assert call(Trigger, 'reset_fault').success

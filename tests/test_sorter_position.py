@@ -15,8 +15,8 @@ def test_fixed_profile_and_conservative_distance_budget():
     assert position_arguments(snapshot(), session='s', target=200) == dict(
         name='sorter', target=200., speed=50., acceleration=400., actuation=30.)
     with pytest.raises(ValueError, match='six-second'):
-        position_arguments(snapshot(), session='s', target=550)
-    for invalid in (-1, 551, float('nan'), True):
+        position_arguments(snapshot(), session='s', target=549)
+    for invalid in (-1, 0., 550., 551, float('nan'), True):
         with pytest.raises(ValueError):
             validate_target(invalid)
     assert parse_args(['sorter-position', '200']).target_deg == 200
@@ -111,3 +111,15 @@ def test_repeated_slow_terminal_samples_fail_and_cancel_prevents_retry():
             critical_status_read(Proxy(), deadline=6., cancel=cancel, stage='motion_or_terminal',
                 slow_reads=[0], record=lambda _: None, observe=lambda *_: None, clock=lambda: clock[0])
         assert len(calls) == (1 if cancel_after_first else 2)
+
+
+def test_exact_boundary_positions_are_rejected_consistently_by_cli_and_arguments():
+    for target, reason in ((0., 'ev3-home'), (550., 'not qualified')):
+        with pytest.raises(ValueError, match=reason):
+            position_arguments(snapshot(), session='s', target=target)
+        with pytest.raises(SystemExit) as error:
+            parse_args(['sorter-position', str(target)])
+        assert error.value.code == 2
+    # No unqualified broad inset or stopping-margin claim is introduced.
+    validate_target(.001)
+    validate_target(549.999)
