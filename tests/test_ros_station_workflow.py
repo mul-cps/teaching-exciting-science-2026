@@ -54,3 +54,33 @@ def test_quick_commands_require_physical_ack_and_bound_cycles():
     assert parse_args(['run']).cycles == 1
     assert parse_args(['run', '20']).cycles == 20
     assert parse_args(['confirm-reference', 'feeder', '--physically-verified']).physically_verified
+
+
+def test_private_ticket_is_exact_single_use_and_stop_revokes_queued_mutations():
+    from tools.ros_station_api import consume_operation_ticket
+    lock = threading.Lock()
+    cancel = threading.Event()
+    def consume(tickets, **changes):
+        values = dict(job_id='job', operation='eject', arguments_json='{"cycles":1}',
+                      cancel=cancel, stop_pending=False)
+        values.update(changes)
+        return consume_operation_ticket(tickets, lock, 'private', **values)
+    ticket = ('job', 'eject', '{"cycles":1}')
+    tickets = {'private': ticket}
+    consume(tickets)
+    with pytest.raises(RuntimeError, match='single-use'):
+        consume(tickets)
+    with pytest.raises(RuntimeError, match='single-use'):
+        consume({'private': ticket}, arguments_json='{"cycles":100}')
+    with pytest.raises(RuntimeError, match='single-use'):
+        consume({'private': ticket}, job_id='other-job')
+    for operation in ('eject', 'home_touch', 'wake', 'power_save'):
+        queued = ('job', operation, '{}')
+        cancel.set()
+        with pytest.raises(InterruptedError):
+            consume({'private': queued}, operation=operation, arguments_json='{}')
+        cancel.clear()
+        with pytest.raises(InterruptedError):
+            consume({'private': queued}, operation=operation, arguments_json='{}', stop_pending=True)
+    cancel.set()
+    consume({'private': ('job', 'stop', '{}')}, operation='stop', arguments_json='{}', stop_pending=True)

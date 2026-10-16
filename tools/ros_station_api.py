@@ -2,6 +2,7 @@
 """Resident ROS workflow. Owns exactly one EV3 session; never opens arm/camera."""
 import json
 import signal
+import secrets
 from pathlib import Path
 import threading
 import time
@@ -9,6 +10,17 @@ import time
 from workshop.station.ev3_live_client import EV3LiveClient
 from workshop.station.ros_workflow import StationWorkflow
 from workshop.station.locking import station_lock, state_dir
+
+
+def consume_operation_ticket(tickets, lock, capability, *, job_id, operation,
+                             arguments_json, cancel, stop_pending):
+    """Consume an exact private command once, then recheck cancellation admission."""
+    with lock:
+        ticket = tickets.pop(capability, None)
+    if ticket != (job_id, operation, arguments_json):
+        raise RuntimeError('private single-use EV3 operation capability required')
+    if operation != 'stop' and (cancel.is_set() or stop_pending):
+        raise InterruptedError('station cancellation/stop prohibits EV3 mutation')
 
 
 def main():
@@ -37,6 +49,8 @@ def main():
     cache = {'connected': False, 'error': 'EV3 not connected; call /station/ev3/connect'}
     destinations = {}
     stop_state = {'pending': False, 'ev3_stopped': None, 'arm_disarmed': None}
+    ticket_lock = threading.Lock()
+    tickets = {}
     follower_stop = node.create_client(Trigger, '/follower/stop')
     evidence = Path(str(get('evidence_dir')))
     evidence.mkdir(parents=True, exist_ok=True)
@@ -91,6 +105,10 @@ def main():
         try:
             operation = request.operation
             active = workflow.thread and workflow.thread.is_alive()
+            if operation != 'status':
+                consume_operation_ticket(tickets, ticket_lock, request.capability,
+                    job_id=request.job_id, operation=operation, arguments_json=request.arguments_json,
+                    cancel=workflow.cancel, stop_pending=stop_state['pending'])
             if active and request.job_id != workflow.job_id and operation != 'stop':
                 raise RuntimeError('EV3 reserved by active station job')
             if operation not in {'status', 'stop', 'eject', 'home_touch', 'wake', 'power_save', 'confirm_reference'}:
@@ -118,20 +136,35 @@ def main():
             self.client = worker.create_client(EV3Command, '/station/ev3/command')
             self.session = ev3.session
         def call(self, operation, arguments=None):
+            def check_cancel():
+                if operation not in {'status', 'stop'} and self.cancel.is_set():
+                    raise InterruptedError('station cancellation prohibits EV3 mutation')
+            check_cancel()
             if not self.client.wait_for_service(timeout_sec=1.):
                 raise RuntimeError('resident EV3 ROS bridge unavailable')
-            request = EV3Command.Request(operation=operation, arguments_json=json.dumps(arguments or {}),
-                                         job_id=workflow.job_id or '')
-            future = self.client.call_async(request)
-            deadline = time.monotonic()+3.
-            while not future.done():
-                if time.monotonic() >= deadline:
-                    raise TimeoutError('EV3 ROS command delivery unknown; no retry')
-                self.node._station_executor.spin_once(timeout_sec=.02)
-            response = future.result()
-            if not response.success:
-                raise RuntimeError(response.message)
-            return json.loads(response.result_json)
+            check_cancel()
+            arguments_json = json.dumps(arguments or {}, allow_nan=False, sort_keys=True, separators=(',', ':'))
+            capability = secrets.token_urlsafe(32)
+            job_id = workflow.job_id or ''
+            with ticket_lock:
+                tickets[capability] = (job_id, operation, arguments_json)
+            try:
+                check_cancel()
+                request = EV3Command.Request(operation=operation, arguments_json=arguments_json,
+                    job_id=job_id, capability=capability)
+                future = self.client.call_async(request)
+                deadline = time.monotonic()+3.
+                while not future.done():
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError('EV3 ROS command delivery unknown; no retry')
+                    self.node._station_executor.spin_once(timeout_sec=.02)
+                response = future.result()
+                if not response.success:
+                    raise RuntimeError(response.message)
+                return json.loads(response.result_json)
+            finally:
+                with ticket_lock:
+                    tickets.pop(capability, None)
 
     from types import SimpleNamespace
     worker_ros = SimpleNamespace(ok=rclpy.ok,

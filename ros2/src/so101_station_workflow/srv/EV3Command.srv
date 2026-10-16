@@ -1,6 +1,7 @@
 string operation
 string arguments_json
 string job_id
+string capability
 ---
 bool success
 string result_json

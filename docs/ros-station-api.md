@@ -69,9 +69,9 @@ Bindings stay fixed throughout a running job. The executor resolves the selected
 | `/station/ev3/confirm_reference` | `so101_station_workflow/srv/ConfirmReference` | `name`, `reference`, `physically_verified` |
 | `/station/placement/select` | `so101_station_workflow/srv/SelectPlacementRegion` | Exact `generation`, `mode` feeder/goal/clear, four integer pixel coordinates; returns selection UUID |
 | `/station/select_destination` | `so101_station_workflow/srv/SelectDestination` | `color`, `selection_id`; idle only |
-| `/station/ev3/command` | `so101_station_workflow/srv/EV3Command` | Serialized bridge; active-job UUID required during workflow, external eject prohibited |
+| `/station/ev3/command` | `so101_station_workflow/srv/EV3Command` | Internal serialized bridge; exact private single-use capability and active-job UUID required for changes; public UUID never grants eject |
 
-The bridge service is an implementation API; ordinary users use the typed services/quick commands. It permits only status/stop/eject/home/wake/power-save operations, requires the active job UUID for all changes, and rejects reference confirmation outside the explicit acknowledgement service. External stop requests use `/station/stop` to coordinate the arm and EV3. It never opens another arm serial port or camera SDK. Automatic operation still requires the resident teleop-disabled readiness gate.
+The bridge service is an implementation API; ordinary users use the typed services/quick commands. It permits only status/stop/eject/home/wake/power-save operations, requires the active job UUID plus a private, single-use operation capability bound to the exact operation and arguments for all changes, and rejects reference confirmation outside the explicit acknowledgement service. The capability is minted only by the internal proxy and never published in status; knowing a public job UUID cannot authorize dispensing or other mutation during readiness, arm homing or sorting. Cancellation or a pending stop revokes all queued mutations, while internal cleanup stop remains available. External stop requests use `/station/stop` to coordinate the arm and EV3. It never opens another arm serial port or camera SDK. Automatic operation still requires the resident teleop-disabled readiness gate.
 
 ## Physical gates
 

@@ -64,14 +64,29 @@ def test_resident_one_connection_reference_status_fault_and_cancel(tmp_path):
     # EV3 proxy, while no hardware executable can be reached by this test.
     fake_adapter = """
 from tools import ros_sort_station as sorting
+from pathlib import Path
 import time
 class FakeDevices:
     def __init__(self, settings, client, output, **kwargs):
         self.ev3 = client
+        self.output = Path(output)
+        self.block = settings.get('synthetic_block', False)
+        self.readiness_block = settings.get('synthetic_readiness_block', False)
     def require_ready(self, deadline, cancel):
+        if self.readiness_block:
+            (self.output/'readiness-entered').write_text('ready')
+            if cancel.wait(1.2):
+                raise InterruptedError('readiness cancelled')
         return self.ev3.call('status')
     def wait_clear(self, deadline, cancel):
-        if cancel.wait(.08):
+        (self.output/'entered-wait-clear').write_text('ready')
+        if cancel.wait(3. if self.block else .08):
+            # Keep this job alive after braking to exercise stale queued RPCs.
+            time.sleep(.8)
+            try:
+                self.ev3.call('wake')
+            except InterruptedError:
+                (self.output/'proxy-cancelled').write_text('blocked before RPC')
             raise InterruptedError('synthetic cycle cancelled')
         return True
     def dispense(self, deadline, cancel):
@@ -128,6 +143,31 @@ main()
             frame_id='base_link', destinations={'red': [0, 0, .2, 0, 0, 0, 1]},
             clear_joint_pose_rad={name: 0 for name in ARM_JOINTS}, station_config='station.json',
             grasp_execution_config='execution.json')))
+        configured = json.loads(config_path.read_text())
+        configured['synthetic_readiness_block'] = True
+        config_path.write_text(json.dumps(configured))
+        readiness = call(Trigger, 'check_ready')
+        assert readiness.success
+        readonly_job = json.loads(readiness.message)['job_id']
+        until = time.monotonic()+3
+        while not (tmp_path/'readiness-entered').exists() and time.monotonic() < until:
+            rclpy.spin_once(node, timeout_sec=.02)
+        assert (tmp_path/'readiness-entered').exists()
+        before_readiness = {op: operations.count(op) for op in ('eject', 'home_touch', 'wake', 'power_save')}
+        for operation in before_readiness:
+            rejected = call(EV3Command, 'ev3/command', EV3Command.Request(operation=operation,
+                arguments_json='{}', job_id=readonly_job))
+            assert not rejected.success and 'private single-use' in rejected.message
+        assert all(operations.count(op) == count for op, count in before_readiness.items())
+        until = time.monotonic()+3
+        while time.monotonic() < until:
+            state = json.loads(call(Trigger, 'status').message)['workflow']
+            if state['state'] == 'idle':
+                break
+            time.sleep(.02)
+        assert state['result'] == {'ready': True}
+        configured['synthetic_readiness_block'] = False
+        config_path.write_text(json.dumps(configured))
         assert call(RunCycles, 'run_cycles', RunCycles.Request(cycles=2)).success
         until = time.monotonic()+5
         while time.monotonic() < until:
@@ -138,8 +178,29 @@ main()
         assert state['result'] is not None, state
         assert state['result']['completed'] == 2
         assert operations.count('eject') == 2
-        assert call(RunCycles, 'run_cycles', RunCycles.Request(cycles=100)).success
+        configured = json.loads(config_path.read_text())
+        configured['synthetic_block'] = True
+        config_path.write_text(json.dumps(configured))
+        admission = call(RunCycles, 'run_cycles', RunCycles.Request(cycles=100))
+        assert admission.success
+        cancelled_job_id = json.loads(admission.message)['job_id']
+        until = time.monotonic()+3
+        while not (tmp_path/cancelled_job_id/'entered-wait-clear').exists() and time.monotonic() < until:
+            rclpy.spin_once(node, timeout_sec=.02)
+        assert (tmp_path/cancelled_job_id/'entered-wait-clear').exists()
+        before_injection = operations.count('eject')
+        rejected = call(EV3Command, 'ev3/command', EV3Command.Request(operation='eject',
+            arguments_json='{"cycles":100}', job_id=cancelled_job_id))
+        assert not rejected.success and 'private single-use' in rejected.message
+        assert operations.count('eject') == before_injection
         assert call(Trigger, 'cancel').success
+        mutations_after_stop = {op: operations.count(op) for op in ('eject', 'home_touch', 'wake', 'power_save')}
+        for operation in mutations_after_stop:
+            rejected = call(EV3Command, 'ev3/command', EV3Command.Request(operation=operation,
+                arguments_json='{}', job_id=cancelled_job_id))
+            assert not rejected.success, operation
+            assert 'private single-use' in rejected.message, (operation, rejected.message)
+        assert all(operations.count(op) == count for op, count in mutations_after_stop.items())
         for _ in range(20):
             rclpy.spin_once(node, timeout_sec=.02)
         state = json.loads(call(Trigger, 'status').message)
@@ -154,7 +215,8 @@ main()
             time.sleep(.05)
         assert state['state'] == 'fault'
         assert state['result'] is None
-        assert operations.count('eject') < 102
+        assert (tmp_path/cancelled_job_id/'proxy-cancelled').read_text() == 'blocked before RPC'
+        assert all(operations.count(op) == count for op, count in mutations_after_stop.items())
         assert not call(RunCycles, 'run_cycles', RunCycles.Request(cycles=1)).success
         assert len(connections) == 1
     finally:
