@@ -8,8 +8,8 @@ records commands, limitations and decisions.
 
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
-| Software suite | System Python: 880 passed, 45 skipped | Software passed; skipped checks remain separate |
-| Native ROS checks | 99 passed across control, scene, objects, map, gripper, grasp and ownership tests | Passed with test owners; no physical execution |
+| Software suite | System Python: 1008 passed, 46 skipped (17.34s, after depth/worker/shape integration) | Software passed; skipped checks remain separate |
+| Native ROS checks | Prior broad subset72passed; latest tracking/validation/worker subset60passed in domain75 | Passed with test owners; no physical execution |
 | Clean package installation | All 17 packages built in a fresh integration prefix; separate startup worker verified a non-symlink install and installed plane-module import | Passed |
 | MoveIt planning | Mock start state valid, no collision; seven-point trajectory saved | Planning only; physical scene not qualified |
 | Single station startup | One camera launch and one resident follower owner; calibrated jaw path forwarded through both launch layers | Implemented; live cold starts pending |
@@ -20,22 +20,31 @@ records commands, limitations and decisions.
 | Teleop ≥100 Hz for 30 minutes | Uncapped profile regression retained; no qualifying endurance run this session | Pending |
 | Twenty consecutive physical sorting cycles, ≥5 per color | No physical sorting cycle executed | Pending |
 | Failure recovery and reconnect | Software tests cover stop/ownership paths; transport failure observed while torque was last verified off | Physical behavior unqualified |
-| Camera-guided automatic arm recovery | Bounded inward planner checks fresh, identity-matched RGB-D/encoder state and complete path clearance | Planner only; live scene adapter, owner admission/watchdog and physical tests pending |
-| Three successful cold starts | Camera repeat starts failed; complete station starts not attempted | Pending |
+| Camera-guided automatic arm recovery | Bounded planner, conservative depth adapter and owner admission/watchdog implemented and tested; production provider rejects without qualified geometry/registration | Live physical recovery pending |
+| Three successful cold starts | Three camera-only starts passed after reconnection; complete station cold-start gate not exercised | Pending |
 | Release artifacts and publication | Local camera/USB logs retained; implementation branch not a release | Pending |
 
 ## Current hardware boundary
 
-The D435i is SDK serial `243322071783`, firmware `5.17.0.10`. One native ROS
-capture produced paired RGB8 and aligned Z16 frames at zero timestamp skew.
-Repeated runs failed with UVC `-71` errors and USB re-enumeration. A successful
-frame does not establish a reliable camera stream or camera-to-arm registration.
+The D435i is SDK serial `243322071783`, firmware `5.17.0.10`. After the
+recorded USB outage, three native ROS camera starts each delivered approximately
+200 paired frames over15seconds with zero saved-pair timestamp skew. The live
+camera, RViz and sole follower owner are running. These camera-only cycles do
+not prove full station cold starts or camera-to-arm registration.
 
-The arm connected for read-only telemetry. The elbow measured 91.56 degrees,
-outside its configured 90-degree bound; all six torque states were zero. No
-recovery or grasp command was sent. The USB hub carrying both arm adapters and
-the EV3 then disappeared, and the resident process exited with a serial write
-timeout. Physical access must be restored and verified before further motion.
+Fresh read-only arm telemetry still reports elbow raw2993/91.56degrees,
+outside its configured90degree bound, with all six torque states zero. The
+recovery owner derives a bounded inward target but production lacks a qualified
+camera scene provider; no recovery or grasp motion has been sent. Physical
+camera/base/TCP/jaw qualification remains a prerequisite for execution.
+
+Full-view color tracking now separates observation, support and pickup admission.
+Contact/pregrasp previews outside pickup bounds do not authorize execution.
+Depth support and final-child shape checks reject floating fragments without a
+fixed workspace exclusion. A fresh12-second capture preserved all eight real
+bricks in60/60tracking reports; five reports still included one false yellow
+chair fragment. That residual is under investigation; perception is not fully
+accepted. Captures are in `tracking-shape-live/` under the evidence directory.
 
 Evidence is under
 `~/.local/share/exciting-science/station/evidence/2026-10-16-sorting/`, including
