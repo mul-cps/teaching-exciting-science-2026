@@ -85,6 +85,41 @@ def _placement_rect_from_pixels(corners_xy, image_shape, *, min_extent_px=4):
     return [int(x0), int(y0), int(x1), int(y1)]
 
 
+def _line_segment_colors(color, count):
+    """Repeat one RGB color for both endpoints of each Viser line segment."""
+    rgb = np.asarray(color, dtype=np.uint8)
+    if rgb.shape != (3,) or int(count) < 1:
+        raise ValueError("a line color must be RGB and segment count positive")
+    return np.broadcast_to(rgb, (int(count), 2, 3)).copy()
+
+
+def _root_polygon_on_camera_plane(points_root, camera_frame, distance_m):
+    """Project a tracked root-frame polygon onto the visible RGB image plane."""
+    if not camera_frame or camera_frame.get("root_from_camera") is None:
+        return None
+    points = np.asarray(points_root, dtype=float)
+    if points.ndim != 2 or points.shape[1] != 3 or not np.isfinite(points).all():
+        raise ValueError("tracked polygon must contain finite root-frame 3D points")
+    root_from_camera = np.asarray(camera_frame["root_from_camera"], dtype=float).reshape(4, 4)
+    intrinsics = np.asarray(camera_frame["camera_matrix"], dtype=float).reshape(3, 3)
+    if (not np.isfinite(root_from_camera).all() or not np.isfinite(intrinsics).all()
+            or intrinsics[0, 0] <= 0 or intrinsics[1, 1] <= 0
+            or not np.isfinite(distance_m) or distance_m <= 0):
+        raise ValueError("camera image plane requires finite transform, intrinsics, and distance")
+    camera_from_root = np.linalg.inv(root_from_camera)
+    points_camera = (points - root_from_camera[:3, 3]) @ camera_from_root[:3, :3].T
+    if np.any(points_camera[:, 2] <= 1e-6):
+        return None
+    pixels = np.column_stack((
+        intrinsics[0, 0] * points_camera[:, 0] / points_camera[:, 2] + intrinsics[0, 2],
+        intrinsics[1, 1] * points_camera[:, 1] / points_camera[:, 2] + intrinsics[1, 2]))
+    plane_camera = np.column_stack((
+        (pixels[:, 0] - intrinsics[0, 2]) / intrinsics[0, 0] * distance_m,
+        (pixels[:, 1] - intrinsics[1, 2]) / intrinsics[1, 1] * distance_m,
+        np.full(len(points), distance_m)))
+    return plane_camera @ root_from_camera[:3, :3].T + root_from_camera[:3, 3]
+
+
 def _pose_matrix_in_root(snapshot, frame_id, local_pose=None):
     """Compose a frame-local ROS pose into the configured twin root frame."""
     root = snapshot.get("root_frame", "charuco_board")
@@ -221,6 +256,7 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
     camera_plane = {"handle": None, "frame": None, "generation": None,
                     "last_update": 0.}
     selection_state = {"mode": None, "generation": None, "corners": [],
+                       "pending_action": None, "pending_request_id": None,
                        "notice_until": 0.}
     snapshot_cache = {}
     camera_plane_distance_m = .35
@@ -248,26 +284,35 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
         if frame is None or camera_plane["handle"] is None:
             placement_notice("**Placement goal observation**\nNo live camera image is available yet.")
             return
-        age = time.monotonic() - float(frame.get("received_monotonic", 0.))
-        if age < 0 or age > .4:
-            placement_notice(("**Placement goal observation · STALE**\n"
-                "Wait for a fresh RGB-D frame, then select again."))
-            return
         goal_state = snapshot_cache.get("placement_goal", {})
         if (action == "select_placement_area"
                 and not (goal_state.get("anchor_tracking_valid") or goal_state.get("valid"))):
             placement_notice("**Placement goal observation**\n"
                 "Select and track the feeder anchor before selecting its placement area.")
             return
-        frame = dict(frame)
+        request_id = uuid.uuid4().hex
+        selection_state.update(mode=None, generation=None, corners=[],
+            pending_action=action, pending_request_id=request_id)
         _write_placement_selection_request(state_file, {"request_id": uuid.uuid4().hex,
-            "action": "pin_frame", "generation": frame["generation"]})
-        selection_state.update(mode=action, generation=frame["generation"], corners=[])
-        selection_ui_action = ("feeder anchor" if action == "select_feeder_anchor"
-                               else "placement area")
-        placement_notice((f"**Select {selection_ui_action}**\n"
-            "Click two opposite corners on the displayed camera image. The acquisition is "
-            "pinned for a bounded interval; expired selections are rejected."))
+            "action": "pin_latest_frame", "mode": action,
+            "request_id": request_id})
+        selection_ui_action = ("feeder anchor" if action == "select_feeder_anchor" else
+                               "placement area")
+        placement_notice((f"**Pinning {selection_ui_action} frame**\n"
+            "Waiting for the ROS bridge to pin its newest fresh synchronized RGB-D frame. "
+            "The image will freeze before corner clicks are enabled."))
+
+    def activate_pinned_selection(frame):
+        action = selection_state.get("pending_action")
+        if action is None:
+            return
+        selection_state.update(mode=action, generation=frame["generation"], corners=[],
+            pending_action=None, pending_request_id=None)
+        selection_ui_action = ("feeder anchor" if action == "select_feeder_anchor" else
+                               "placement area")
+        placement_notice((f"**Select {selection_ui_action}** · frame `{frame['generation']}` pinned\n"
+            "Click two opposite corners on this frozen RGB-D image. The selection expires "
+            "after the displayed timeout."))
         for client in server.get_clients().values():
             focus_camera(client, frame)
 
@@ -276,13 +321,19 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
         if generation:
             _write_placement_selection_request(state_file, {"request_id": uuid.uuid4().hex,
                 "action": "unpin_frame", "generation": generation})
-        selection_state.update(mode=None, generation=None, corners=[])
+        pending_request_id = selection_state.get("pending_request_id")
+        if pending_request_id:
+            _write_placement_selection_request(state_file, {"request_id": uuid.uuid4().hex,
+                "action": "cancel_pin", "pin_request_id": pending_request_id})
+        selection_state.update(mode=None, generation=None, corners=[],
+            pending_action=None, pending_request_id=None)
         placement_ui.content = "**Placement goal observation**\nSelection cancelled."
 
     def clear_placement_selection(_event=None):
         generation = (selection_state.get("generation") or
                       (camera_plane.get("frame") or {}).get("generation", ""))
         selection_state.update(mode=None, generation=None, corners=[])
+        selection_state.update(pending_action=None, pending_request_id=None)
         _write_placement_selection_request(state_file, {"request_id": uuid.uuid4().hex,
             "action": "clear_selection", "generation": generation})
         placement_ui.content = "**Placement goal observation**\nClearing selected feeder and area."
@@ -379,30 +430,56 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
             if not fresh and snapshot_age > 0.5:
                 diagnostic["freshness"] = "stale_bridge_snapshot"
             camera_frame = snapshot.get("placement_camera_frame")
+            pinned_frame = snapshot.get("placement_selection_frame")
+            pending_request_id = selection_state.get("pending_request_id")
+            pinned_ack = bool(pinned_frame and pending_request_id and
+                pinned_frame.get("request_id") == pending_request_id and
+                pinned_frame.get("mode") == selection_state.get("pending_action"))
+            if (selection_state.get("mode") is not None and
+                    (pinned_frame is None or
+                     pinned_frame.get("generation") != selection_state.get("generation"))):
+                selection_state.update(mode=None, generation=None, corners=[])
+                placement_notice("**Placement goal observation · EXPIRED**\n"
+                    "The pinned RGB-D generation expired. Select again on a fresh image.")
+            display_frame = pinned_frame if pinned_ack else camera_frame
             camera_age = (float("inf") if not camera_frame else
                           max(0., now - float(camera_frame.get("received_monotonic", now))))
-            if (camera_frame and camera_age <= .5 and selection_state["mode"] is None
-                    and camera_frame.get("generation") != camera_plane["generation"]
-                    and now - camera_plane["last_update"] >= .2):
-                image_path = Path(camera_frame.get("image_path", ""))
+            display_age = (float("inf") if not display_frame else
+                           max(0., now - float(display_frame.get("received_monotonic", now))))
+            needs_pinned_display = pinned_ack and display_frame.get("generation") != camera_plane["generation"]
+            needs_live_display = (not pinned_ack and display_frame and camera_age <= .5 and
+                display_frame.get("generation") != camera_plane["generation"] and
+                now - camera_plane["last_update"] >= .2)
+            if (selection_state["mode"] is None and display_frame and
+                    (needs_pinned_display or needs_live_display) and
+                    (pinned_ack or display_age <= .5)):
+                image_path = Path(display_frame.get("image_path", ""))
                 try:
                     rgb = np.asarray(Image.open(image_path).convert("RGB"))
-                    spec = _camera_image_plane_spec(camera_frame, camera_plane_distance_m)
+                    spec = _camera_image_plane_spec(display_frame, camera_plane_distance_m)
                     previous = camera_plane.get("handle")
                     if previous is not None:
                         previous.remove()
-                    path = "/placement/camera_preview/" + str(camera_frame["generation"])
+                    path = "/placement/camera_preview/" + str(display_frame["generation"])
                     handle = server.scene.add_image(path, rgb, spec["render_width"],
                         spec["render_height"], format="jpeg", jpeg_quality=78,
                         cast_shadow=False, receive_shadow=False,
                         position=spec["position"], wxyz=spec["wxyz"])
-                    frozen = dict(camera_frame)
+                    frozen = dict(display_frame)
                     handle.on_click(lambda event, frame=frozen: on_camera_click(frame, event))
                     camera_plane.update(handle=handle, frame=frozen,
-                        generation=camera_frame["generation"], last_update=now)
+                        generation=display_frame["generation"], last_update=now)
+                    if pinned_ack:
+                        activate_pinned_selection(frozen)
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     placement_ui.content = ("**Placement goal observation**\n"
                         f"Live camera image unavailable: `{error}`")
+            elif pinned_ack and display_frame.get("generation") == camera_plane["generation"]:
+                # The newest fresh frame happened to be the one already shown. Its
+                # acquisition metadata and image are identical, so acknowledge it
+                # without recreating the scene node.
+                camera_plane["frame"] = dict(display_frame)
+                activate_pinned_selection(camera_plane["frame"])
             joint = snapshot.get("joint_state") or {}
             if model is not None and fresh:
                 applied = apply_ros_state(model, data, snapshot, require_fresh=True)
@@ -487,16 +564,26 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                 goal_corners = goal_status.get("goal_corners_root")
                 if goal_status.get("valid") and goal_corners is not None:
                     corners = np.asarray(goal_corners, dtype=float).reshape(4, 3)
-                    points = np.stack([corners[[0, 1]], corners[[1, 2]],
-                                       corners[[2, 3]], corners[[3, 0]]])
-                    if placement_line is None:
-                        placement_line = server.scene.add_line_segments(
-                            "/placement/tracked_goal_region", points,
-                            np.tile([40, 235, 135], (4, 1)), thickness=.003,
-                            thickness_units="world")
+                    # Goal geometry is measured at the feeder depth, behind the
+                    # synthetic RGB image plane. Project the tracked polygon onto
+                    # that exact displayed image plane so the outline stays visible.
+                    outline = _root_polygon_on_camera_plane(corners,
+                        snapshot.get("placement_camera_frame"),
+                        camera_plane_distance_m - .001)
+                    if outline is None:
+                        if placement_line is not None:
+                            placement_line.visible = False
                     else:
-                        placement_line.points = points
-                    placement_line.visible = True
+                        points = np.stack([outline[[0, 1]], outline[[1, 2]],
+                                           outline[[2, 3]], outline[[3, 0]]])
+                        if placement_line is None:
+                            placement_line = server.scene.add_line_segments(
+                                "/placement/tracked_goal_region", points,
+                                _line_segment_colors((40, 235, 135), len(points)), thickness=.003,
+                                thickness_units="world")
+                        else:
+                            placement_line.points = points
+                        placement_line.visible = True
                 elif placement_line is not None:
                     placement_line.visible = False
                 if (goal_status and selection_state["mode"] is None

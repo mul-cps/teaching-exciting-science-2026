@@ -150,6 +150,37 @@ def test_camera_area_selection_rejects_tiny_or_nonfinite_rectangles():
         ros_viewer._placement_rect_from_pixels([(0., 0.), (np.nan, 4.)], (80, 100))
 
 
+def test_tracked_goal_line_colors_match_viser_segment_endpoint_shape():
+    colors = ros_viewer._line_segment_colors((40, 235, 135), 4)
+    assert colors.shape == (4, 2, 3)
+    assert np.all(colors == np.array([40, 235, 135], dtype=np.uint8))
+
+
+def test_tracked_goal_outline_is_projected_in_front_of_camera_image_plane():
+    root_from_camera = transform_matrix((.3, -.2, .4),
+        Rotation.from_euler("xyz", [12, -8, 31], degrees=True).as_quat())
+    intrinsics = np.array([[604., 0., 327.36], [0., 604., 247.2], [0., 0., 1.]])
+    points_camera = np.array([[-.04, -.03, .55], [.04, -.03, .62],
+                              [.04, .03, .60], [-.04, .03, .53]])
+    points_root = points_camera @ root_from_camera[:3, :3].T + root_from_camera[:3, 3]
+    frame = {"root_from_camera": root_from_camera.tolist(),
+             "camera_matrix": intrinsics.tolist()}
+
+    projected = ros_viewer._root_polygon_on_camera_plane(points_root, frame, .348)
+
+    projected_camera = (projected - root_from_camera[:3, 3]) @ root_from_camera[:3, :3]
+    original_pixels = np.column_stack((
+        intrinsics[0, 0] * points_camera[:, 0] / points_camera[:, 2] + intrinsics[0, 2],
+        intrinsics[1, 1] * points_camera[:, 1] / points_camera[:, 2] + intrinsics[1, 2]))
+    projected_pixels = np.column_stack((
+        intrinsics[0, 0] * projected_camera[:, 0] / projected_camera[:, 2] + intrinsics[0, 2],
+        intrinsics[1, 1] * projected_camera[:, 1] / projected_camera[:, 2] + intrinsics[1, 2]))
+    assert projected_camera[:, 2] == pytest.approx(np.full(4, .348))
+    assert projected_pixels == pytest.approx(original_pixels)
+    assert ros_viewer._root_polygon_on_camera_plane(points_root, {
+        "root_from_camera": None, "camera_matrix": intrinsics.tolist()}, .348) is None
+
+
 def test_placement_request_is_atomic_and_carries_exact_frozen_generation(tmp_path):
     state = tmp_path / "ros-twin-state.json"
     request = {"request_id": "request-1", "action": "select_feeder_anchor",

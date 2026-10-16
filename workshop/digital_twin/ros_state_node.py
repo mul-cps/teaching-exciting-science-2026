@@ -65,6 +65,8 @@ class RosStatePublisher(Node):
         self.placement_last_request_id = None
         self.placement_pinned_frame = None
         self.placement_pin_expires = None
+        self.placement_selection_request_id = None
+        self.placement_selection_mode = None
         self.placement_status = {"state": "waiting_for_rgbd", "valid": False,
             "reason": "waiting_for_rgbd", "placement_motion_qualified": False}
         self.placement_frame = None
@@ -279,6 +281,51 @@ class RosStatePublisher(Node):
         self._process_placement_request(request)
 
     def _process_placement_request(self, request):
+        if request.get("action") == "cancel_pin":
+            pin_request_id = str(request.get("pin_request_id", ""))
+            if pin_request_id and pin_request_id == self.placement_selection_request_id:
+                self.placement_pinned_frame = None
+                self.placement_pin_expires = None
+                self.placement_selection_request_id = None
+                self.placement_selection_mode = None
+            self.placement_status = {"state": "selection_cancelled", "valid": False,
+                "reason": "selection_cancelled", "placement_motion_qualified": False}
+            return
+        if request.get("action") == "pin_latest_frame":
+            mode = str(request.get("mode", ""))
+            request_id = str(request.get("request_id", ""))
+            if mode not in {"select_feeder_anchor", "select_placement_area"} or not request_id:
+                self.placement_status = {"state": "invalid", "valid": False,
+                    "reason": "selection_pin_request_invalid",
+                    "placement_motion_qualified": False}
+                return
+            if (mode == "select_placement_area"
+                    and not (self.placement_status.get("anchor_tracking_valid")
+                             or self.placement_status.get("valid"))):
+                self.placement_status = {"state": "invalid", "valid": False,
+                    "reason": "no_feeder_anchor_selected",
+                    "placement_motion_qualified": False}
+                return
+            now = time.monotonic()
+            fresh_frames = [item for item in self.placement_frames
+                if 0. <= now - float(item.get("received_monotonic", 0.)) <= .5]
+            if not fresh_frames:
+                self.placement_status = {"state": "invalid", "valid": False,
+                    "reason": "no_fresh_rgbd_frame_to_pin",
+                    "placement_motion_qualified": False}
+                return
+            frame = max(fresh_frames, key=lambda item: int(item["stamp_ns"]))
+            self.placement_pinned_frame = frame
+            self.placement_pin_expires = now + self.placement_selection_timeout_s
+            self.placement_selection_request_id = request_id
+            self.placement_selection_mode = mode
+            self.placement_status = {"state": "selection_frame_pinned", "valid": False,
+                "reason": "selection_frame_pinned", "generation": frame["generation"],
+                "stamp_ns": int(frame["stamp_ns"]), "frame_id": frame["frame_id"],
+                "selection_request_id": request_id, "selection_mode": mode,
+                "selection_expires_in_s": self.placement_selection_timeout_s,
+                "placement_motion_qualified": False}
+            return
         generation = str(request.get("generation", ""))
         if request.get("action") == "clear_selection":
             self.placement_tracker = PlacementRegionTracker(
@@ -287,6 +334,8 @@ class RosStatePublisher(Node):
             self.placement_plane_metrics = None
             self.placement_pinned_frame = None
             self.placement_pin_expires = None
+            self.placement_selection_request_id = None
+            self.placement_selection_mode = None
             self.placement_status = {"state": "selection_cleared", "valid": False,
                 "reason": "selection_cleared", "generation": generation,
                 "placement_motion_qualified": False,
@@ -309,8 +358,12 @@ class RosStatePublisher(Node):
                 return
             self.placement_pinned_frame = frame
             self.placement_pin_expires = time.monotonic() + self.placement_selection_timeout_s
+            self.placement_selection_request_id = str(request.get("request_id", ""))
+            self.placement_selection_mode = str(request.get("mode", ""))
             self.placement_status = {"state": "selection_frame_pinned", "valid": False,
-                "reason": "selection_frame_pinned_for_10s", "generation": generation,
+                "reason": "selection_frame_pinned", "generation": generation,
+                "selection_request_id": self.placement_selection_request_id,
+                "selection_mode": self.placement_selection_mode,
                 "selection_expires_in_s": self.placement_selection_timeout_s,
                 "placement_motion_qualified": False}
             return
@@ -318,6 +371,8 @@ class RosStatePublisher(Node):
             if self.placement_pinned_frame is not None and self.placement_pinned_frame["generation"] == generation:
                 self.placement_pinned_frame = None
                 self.placement_pin_expires = None
+                self.placement_selection_request_id = None
+                self.placement_selection_mode = None
             self.placement_status = {"state": "selection_cancelled", "valid": False,
                 "reason": "selection_cancelled", "generation": generation,
                 "placement_motion_qualified": False}
@@ -345,6 +400,8 @@ class RosStatePublisher(Node):
         if pin_valid:
             self.placement_pinned_frame = None
             self.placement_pin_expires = None
+            self.placement_selection_request_id = None
+            self.placement_selection_mode = None
         try:
             rectangle = request["rect_xyxy"]
             if request.get("action") == "select_feeder_anchor":
@@ -509,6 +566,8 @@ class RosStatePublisher(Node):
         if (self.placement_pin_expires is not None and now > self.placement_pin_expires):
             self.placement_pinned_frame = None
             self.placement_pin_expires = None
+            self.placement_selection_request_id = None
+            self.placement_selection_mode = None
         elif self.placement_status.get("state") in {"tracked", "anchor_tracked"}:
             age = now - float(self.placement_status.get("received_monotonic", now))
             if age > self.placement_tracker.max_age_s:
@@ -521,6 +580,15 @@ class RosStatePublisher(Node):
         snapshot["root_frame"] = self.root_frame
         snapshot["placement_camera_frame"] = self.placement_frame
         snapshot["placement_goal"] = self.placement_status
+        pinned = self.placement_pinned_frame
+        if pinned is None or self.placement_pin_expires is None or now > self.placement_pin_expires:
+            snapshot["placement_selection_frame"] = None
+        else:
+            snapshot["placement_selection_frame"] = dict(
+                placement_camera_frame_summary(pinned),
+                request_id=self.placement_selection_request_id,
+                mode=self.placement_selection_mode,
+                expires_in_s=max(0., self.placement_pin_expires - now))
         parent = os.path.dirname(self.output) or "."
         os.makedirs(parent, exist_ok=True)
         fd, temporary = tempfile.mkstemp(prefix=".ros-twin-", dir=parent)

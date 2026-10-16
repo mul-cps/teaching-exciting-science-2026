@@ -1,5 +1,6 @@
 """Native ROS contract test for the camera placement selection service."""
 import time
+import json
 
 import numpy as np
 import pytest
@@ -12,6 +13,44 @@ import rclpy
 from so101_station_workflow.srv import SelectPlacementRegion
 
 from workshop.digital_twin.ros_state_node import RosStatePublisher
+
+
+def test_ui_pins_latest_fresh_frame_and_publishes_exact_display_ack(tmp_path):
+    if not rclpy.ok():
+        rclpy.init(args=None)
+    node = RosStatePublisher(str(tmp_path / "state.json"), root_frame="charuco_board",
+        placement_directory=str(tmp_path / "placement-camera"))
+    try:
+        now = time.monotonic()
+        base = {"stamp_ns": 1_000_000_000, "received_monotonic": now - 1.0,
+            "frame_id": "camera_color_optical_frame", "root_frame": "charuco_board",
+            "root_from_camera": None, "base_from_camera": None,
+            "camera_matrix": np.eye(3), "rgb": np.zeros((8, 12, 3), dtype=np.uint8),
+            "depth_m": np.ones((8, 12), dtype=np.float32),
+            "image_shape": [8, 12], "image_path": str(tmp_path / "old.jpg")}
+        node.placement_frames.append(dict(base, generation="old-frame"))
+        fresh = dict(base, generation="fresh-frame", stamp_ns=2_000_000_000,
+            received_monotonic=time.monotonic(), image_path=str(tmp_path / "fresh.jpg"))
+        node.placement_frames.append(fresh)
+
+        node._process_placement_request({"request_id": "ui-1",
+            "action": "pin_latest_frame", "mode": "select_feeder_anchor"})
+
+        assert node.placement_status["state"] == "selection_frame_pinned"
+        assert node.placement_pinned_frame["generation"] == "fresh-frame"
+        assert node.placement_status["selection_request_id"] == "ui-1"
+        node._write()
+        snapshot = json.loads((tmp_path / "state.json").read_text())
+        ack = snapshot["placement_selection_frame"]
+        assert ack["request_id"] == "ui-1"
+        assert ack["mode"] == "select_feeder_anchor"
+        assert ack["generation"] == "fresh-frame"
+        assert ack["image_path"] == fresh["image_path"]
+        assert ack["image_shape"] == [8, 12]
+        assert "rgb" not in ack and "depth_m" not in ack
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
 
 
 def test_selection_service_uses_pinned_rgbd_frame_and_returns_identity(tmp_path):
