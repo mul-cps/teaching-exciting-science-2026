@@ -151,3 +151,13 @@ within 100 ms. Process teardown closes the transport explicitly without the
 normal all-servo stop path. Failures latch bridge admission until explicit
 verified stop. This produces experimental evidence for camera jaw-gap/TCP
 calibration; it does not mark calibration qualified or enable automatic sorting.
+
+A component control fault deliberately terminates the resident owner after scoped
+cleanup; a later stop request can therefore report owner-exited rather than a
+new correlated stop acknowledgement. Earlier all-off log samples prove only
+those acquisition times. Reconnect the owner read-only and obtain fresh six-joint
+torque/encoder observations before authorizing another experiment. The raw
+observation log is written before guard rejection, and single-register command
+logs preserve intended value, actual scalar readback/type and write/read timing.
+These diagnostics distinguish the rejected observation from subsequent cleanup;
+they do not convert unexpected torque into an admitted state or retry a command.

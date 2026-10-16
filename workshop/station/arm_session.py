@@ -1738,6 +1738,15 @@ class ArmSession:
             torque = self._read("Torque_Enable")
             torque_stamp, torque_utc = self.clock(), self.wall_clock()
             now = self.clock()
+            # Preserve the actual failed observation before any guard can reject
+            # it. A rejected sample must not disappear behind later all-off
+            # cleanup snapshots or be mistaken for a missing hardware read.
+            self._event("component_raw_observation", raw=raw, torque=torque,
+                expected_gripper_torque=int(enabled),
+                expected_body_torque=0,
+                position_monotonic=position_stamp, torque_monotonic=torque_stamp,
+                observed_monotonic=now, target_raw=target, elapsed_s=now-started)
+            now = self.clock()  # include diagnostic I/O in admission timing
             if now - started >= 2.0:
                 raise TimeoutError("component gripper step 2 second deadline exceeded")
             if now - previous_at > .100000001:
@@ -1753,7 +1762,9 @@ class ArmSession:
             if any(torque[j] != 0 for j in JOINTS if j != "gripper"):
                 raise RuntimeError("component passive body torque is not zero")
             if torque["gripper"] != int(enabled):
-                raise RuntimeError("component gripper torque readback differs")
+                raise RuntimeError("component gripper torque readback differs: "
+                    f"expected={int(enabled)} actual={torque['gripper']} "
+                    f"position_stamp={position_stamp:.9f} torque_stamp={torque_stamp:.9f}")
             if baseline is None:
                 baseline = dict(raw)
             if any(abs(raw[j] - baseline[j]) > 2 for j in JOINTS if j != "gripper"):
@@ -1769,6 +1780,7 @@ class ArmSession:
         def write(register, value):
             # Refresh the passive guard before every potentially enabling write.
             sample()
+            self._event("component_write_intent", register=register, requested_raw_value=value)
             # Snapshot/log I/O can block or receive a stop after sampling.
             # Recheck immediately before the single-shot hardware write.
             self._poll_busy_input()
@@ -1777,9 +1789,19 @@ class ArmSession:
                 raise TimeoutError("component gripper step 2 second deadline exceeded")
             if self.clock() - min(previous_at, position_read_at) > .100000001:
                 raise RuntimeError("component write admission feedback exceeded 100 ms")
+            write_started = self.clock()
             self.bus.write(register, "gripper", value, normalize=False, num_retry=0)
-            if self.bus.read(register, "gripper", normalize=False, num_retry=0) != value:
-                raise RuntimeError("component RAM readback differs: " + register)
+            write_ended = self.clock()
+            actual = self.bus.read(register, "gripper", normalize=False, num_retry=0)
+            read_ended = self.clock()
+            self._event("component_write_readback", register=register,
+                requested_raw_value=value, actual_raw_value=actual,
+                actual_type=type(actual).__name__,
+                write_started_monotonic=write_started, write_ended_monotonic=write_ended,
+                readback_monotonic=read_ended)
+            if actual != value:
+                raise RuntimeError("component RAM readback differs: " + register +
+                                   f" expected={value} actual={actual!r}")
             if register in RAM_REGISTERS:
                 self._component_profile_readback[register] = value
                 self._event("component_profile_readback", register=register, raw_value=value, restoring=False)

@@ -302,3 +302,45 @@ def test_component_write_guards_encoder_age_including_torque_read_and_snapshot(t
         session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})
     assert ('Torque_Enable', 'gripper', 1) not in bus.writes
     jaw_only(bus)
+
+
+def test_component_rejected_torque_sample_and_goal_write_survive_cleanup_log(tmp_path):
+    import json
+    session, bus, _ = setup(tmp_path)
+    original_write = bus.write
+    def write(register, joint, value, **kwargs):
+        original_write(register, joint, value, **kwargs)
+        # Synthetic unexpected state only; does not assert real firmware does it.
+        if register == 'Goal_Position': bus.data['Torque_Enable']['gripper'] = 1
+    bus.write = write
+    with pytest.raises(RuntimeError, match='expected=0 actual=1'):
+        session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})
+    events = [json.loads(line) for line in session.log_path.read_text().splitlines()]
+    failed = [e for e in events if e['event'] == 'component_raw_observation' and e['torque']['gripper'] == 1]
+    assert len(failed) == 1
+    assert failed[0]['expected_gripper_torque'] == 0
+    assert set(failed[0]['raw']) == set(bus.motors)
+    assert failed[0]['position_monotonic'] <= failed[0]['torque_monotonic']
+    goal = [e for e in events if e['event'] == 'component_write_readback' and e['register'] == 'Goal_Position']
+    assert len(goal) == 1 and goal[0]['actual_raw_value'] == 2008
+    assert goal[0]['actual_type'] == 'int'
+    assert not any(e['event'] == 'component_write_intent' and e['register'] == 'Torque_Enable' for e in events)
+    assert events[-1]['event'] == 'component_shutdown'
+    assert not any(events[-1]['torque'].values())
+    jaw_only(bus)
+
+
+@pytest.mark.parametrize('failure', ['slow', 'cancel'])
+def test_component_new_write_diagnostics_cannot_bypass_admission(tmp_path, monkeypatch, failure):
+    session, bus, clock = setup(tmp_path)
+    original = session._event
+    def event(name, **fields):
+        original(name, **fields)
+        if name == 'component_write_intent' and fields['register'] == 'Torque_Enable':
+            if failure == 'slow': clock.value += .101
+            else: session._cancel('cancel_during_write_diagnostic')
+    monkeypatch.setattr(session, '_event', event)
+    with pytest.raises((RuntimeError, ArmSessionCancelled)):
+        session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})
+    assert ('Torque_Enable', 'gripper', 1) not in bus.writes
+    jaw_only(bus)
