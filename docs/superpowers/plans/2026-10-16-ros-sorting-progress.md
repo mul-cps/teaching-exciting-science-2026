@@ -82,3 +82,9 @@ Ruling: do not infer successful recovery from encoder-only motion, stale images 
 - New actual CLI subprocess tests exercise native ROS services/actions end to end: complete synthetic pick/place; lost localization before any arm goal; interruption during lift with terminal canceled goal and retained scene attachment. Native result:3passed in5.80seconds. Synthetic calibration records are test fixtures only.
 - SIGINT previously shut down the ROS context before the CLI could confirm action cancellation. Execution now handles SIGINT/SIGTERM through Python interruption, keeps ROS alive during cancellation, and shuts it down afterward. The native interruption regression passes.
 - Recovery now checks encoder acquisition freshness throughout collision evaluation as well as camera freshness. Focused camera/grasp geometry tests:34passed2skipped; camera planner alone15passed. Physical acceptance gates and live recovery integration remain incomplete.
+
+## Repeated camera startup evidence
+
+- Three sequential real native ROS camera starts after USB reconnection each ran15seconds and exited cleanly. Color/depth/aligned counts were201/205/200,201/206/201 and201/203/200. Each saved pair had zero color/depth timestamp skew. Durable local manifest: `rgbd-reconnection-cycles.json` beside the three `rgbd_reconnected*` capture folders.
+- These are camera-driver start/stop cycles, not the plan's three complete station cold starts. No robot motion or EV3 dispensing occurred during them.
+- Root independently ran current depth-scene/planner tests:43passed in0.42seconds. The new adapter remains under development; representative real-CAD checks exposed unresolved self-contact and unknown clearance, so no live recovery admission is claimed.
