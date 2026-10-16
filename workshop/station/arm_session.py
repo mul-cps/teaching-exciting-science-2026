@@ -9,6 +9,7 @@ the RAM profile that was present before this session's first motion.
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -23,6 +24,7 @@ import uuid
 from workshop.safe_home import load_home
 from .config import JOINTS, load_config
 from .locking import station_lock, station_lock_path
+from .camera_recovery import plan_bound_reentry
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
                              ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S,
                              path_digest, prepare_trajectory)
@@ -93,6 +95,15 @@ class ArmPlanPreflightError(ValueError):
     """A move plan rejected before any profile, goal, or torque write."""
 
 
+@dataclass(frozen=True)
+class CameraRecoveryPolicy:
+    """Trusted in-process identities; never populated from a motion command."""
+    model_sha256: str
+    calibration_sha256: str
+    camera_serial: str
+    arm_calibration_sha256: str
+
+
 class ArmSession:
     """One serialized owner of a connected follower bus.
 
@@ -103,7 +114,8 @@ class ArmSession:
 
     def __init__(self, arm, state_file, logdir, *, clock=time.monotonic,
                  wall_clock=lambda: datetime.now(timezone.utc), sleep=time.sleep,
-                 idle_timeout=60.0, recover_sag=False, persistent_idle=False):
+                 idle_timeout=60.0, recover_sag=False, persistent_idle=False,
+                 camera_scene_provider=None, camera_recovery_policy=None):
         self.arm = arm
         self.bus = arm.bus
         self.state_file = Path(state_file)
@@ -141,6 +153,14 @@ class ArmSession:
         self._read_diagnostics = {}
         self._teleop = None
         self._teleop_skip_next_sample = False
+        # This callback must be nonblocking latest-observation/cache access.
+        # It receives (measured_raw_copy, exact_encoder_stamp_monotonic) and
+        # supplies a qualified scene paired to that encoder observation.
+        # A Python callback cannot be forcibly time bounded here: elapsed-time
+        # guards reject a slow return before any subsequent motion update.
+        # Production startup deliberately supplies neither provider nor policy.
+        self.camera_scene_provider = camera_scene_provider
+        self.camera_recovery_policy = camera_recovery_policy
 
     @staticmethod
     def _six_ints(values, label):
@@ -1388,6 +1408,200 @@ class ArmSession:
                 error.add_note("arm session cleanup failed: " + str(cleanup_error))
             raise
 
+    def _camera_recovery_check(self, raw, stamp, target=None):
+        """Acquire/recheck trusted vision without accepting caller motion proof."""
+        policy = self.camera_recovery_policy
+        self._poll_busy_input()
+        acquired = self.clock()
+        scene = self.camera_scene_provider(dict(raw), stamp)
+        self._poll_busy_input()
+        if self.clock() - acquired > PERIOD_S:
+            raise ValueError("camera scene provider exceeded nonblocking access budget")
+        if scene is None or getattr(scene, "arm_stamp_monotonic", None) != stamp:
+            raise ValueError("camera scene must match the exact owner encoder observation stamp")
+        bounds = {j: (self.admitted_min[j], self.admitted_max[j]) for j in JOINTS}
+        firmware = {j: (self.firmware_min[j], self.firmware_max[j]) for j in JOINTS}
+        plan = plan_bound_reentry(raw, bounds, firmware, scene=scene, now=self.clock(),
+            expected_model_sha256=policy.model_sha256,
+            expected_calibration_sha256=policy.calibration_sha256,
+            expected_camera_serial=policy.camera_serial)
+        if target is not None:
+            # Once an encoder enters the admitted interval, the planner's
+            # no-excursion target is its current pose. Still prove the remaining
+            # original inward segment through the two-count interior target.
+            for clearance in (scene.minimum_clearance_m(dict(target)),
+                              scene.minimum_segment_clearance_m(dict(raw), dict(target))):
+                if type(clearance) not in (int, float) or not math.isfinite(clearance) or clearance < .010:
+                    raise ValueError("remaining camera recovery segment clearance is unknown or insufficient")
+        self._poll_busy_input()
+        now = self.clock()
+        if (now - stamp > MAX_FEEDBACK_GAP_S or now - acquired > MAX_FEEDBACK_GAP_S
+                or not 0 <= now - scene.stamp_monotonic <= .5
+                or not 0 <= now - scene.arm_stamp_monotonic <= .5):
+            raise ValueError("camera recovery vision or encoder feedback expired while checking geometry")
+        return plan
+
+    def _camera_recovery_match(self, raw, stamp, scene_stamp, started):
+        """Reject pose changes or expiry during proof before the next write."""
+        self._poll_busy_input()
+        if self._read("Present_Position") != raw:
+            raise RuntimeError("camera recovery measured pose changed during scene proof")
+        self._check_cancel()
+        now = self.clock()
+        if (now - stamp > MAX_FEEDBACK_GAP_S or not 0 <= now - scene_stamp <= .5):
+            raise RuntimeError("camera recovery observation expired before goal update")
+        if now - started >= LEG_DEADLINE_S:
+            raise TimeoutError("camera recovery six-second operation deadline expired")
+
+    def _camera_recovery_hold(self, error):
+        if isinstance(error, ArmSessionCancelled) and self._cancel_reason != "trajectory_cancel_hold":
+            self.shutdown(reason=self._cancel_reason or "camera_recovery_cancelled")
+            raise error
+        try:
+            held = self.cancel_hold()
+        except BaseException as hold_error:
+            try:
+                self.shutdown(reason="camera_recovery_hold_error")
+            except BaseException as cleanup_error:
+                hold_error.add_note("camera recovery hold cleanup failed: " + str(cleanup_error))
+            raise
+        self._active_leg = None
+        cancelled = isinstance(error, ArmSessionCancelled)
+        if cancelled:
+            self._cancel_requested = False
+        self._event("camera_recovery_held", error=str(error), cancelled=cancelled, raw=held["raw"])
+        return {"ok": False, "state": held, "cancelled": cancelled,
+                "recovery": {"status": "cancelled" if cancelled else "held", "error": str(error)}}
+
+    def recover_camera(self):
+        """Camera-checked ≤32-count soft-bound re-entry; no recovery-to-home.
+
+        The synchronous provider is trusted, nonblocking in-process code. The
+        six-second operation and provider/geometry elapsed checks apply after
+        callbacks return; arbitrary blocking Python callbacks cannot be given
+        a hard execution deadline by this bus owner.
+        """
+        self._require_initialized()
+        policy = self.camera_recovery_policy
+        if (not callable(self.camera_scene_provider) or not isinstance(policy, CameraRecoveryPolicy)):
+            raise ArmPlanPreflightError("trusted camera scene provider and recovery policy required")
+        if self._teleop is not None:
+            raise ArmPlanPreflightError("camera recovery is unavailable during active teleop")
+        started = self.clock()
+        try:
+            if policy.arm_calibration_sha256 != self.calibration_digest:
+                raise ValueError("camera recovery policy does not match resident arm calibration")
+            self._calibration_guard()
+            if (self._read("Min_Position_Limit") != self.firmware_min
+                    or self._read("Max_Position_Limit") != self.firmware_max):
+                raise ValueError("firmware limits changed since owner admission")
+            start = self._read("Present_Position")
+            stamp = self.clock()
+            plan = self._camera_recovery_check(start, stamp)
+            target = self._validate_target(plan.target_raw, "camera_reentry")
+            if target == start:
+                raise ValueError("camera re-entry requires a measured soft-bound excursion")
+        except ArmSessionCancelled as error:
+            return self._camera_recovery_hold(error)
+        except Exception as error:
+            raise ArmPlanPreflightError(str(error)) from error
+        self._event("camera_recovery_start", start_raw=start, target_raw=target,
+                    path_sha256=plan.path_sha256)
+        self._active_leg = "camera_reentry"
+        self._completed_leg_records = []
+        active = {j for j in JOINTS if start[j] != target[j]}
+        previous = dict(start)
+        previous_stamp = stamp
+        missed_total = 0
+        quiet_samples = 0
+        try:
+            self._ensure_profile()
+            current = self._read("Present_Position")
+            stamp = self.clock()
+            if current != start:
+                raise RuntimeError("measured camera recovery start changed during setup")
+            checked = self._camera_recovery_check(current, stamp, target)
+            self._check_leg_deadline(started, "camera_reentry")
+            self._camera_recovery_match(current, stamp, checked.scene_stamp_monotonic, started)
+            # Never enable torque against an old goal, including an old home
+            # goal that would move this out-of-bounds arm without camera proof.
+            self._enable_current_goal(current, started, "camera_reentry")
+            commanded = dict(current)
+            previous_stamp = self.clock()
+            while True:
+                self._check_leg_deadline(started, "camera_reentry")
+                read_started = self.clock()
+                actual = self._read("Present_Position")
+                stamp = self.clock()
+                self._poll_busy_input()
+                gap, missed, missed_total = self._check_feedback_freshness(
+                    label="camera_reentry", phase="camera_recovery", previous_read_at=previous_stamp,
+                    read_started=read_started, read_ended=stamp, total_missed=missed_total,
+                    previous_tick_timing=None)
+                for joint in JOINTS:
+                    value = actual[joint]
+                    if not self.firmware_min[joint] <= value <= self.firmware_max[joint]:
+                        raise RuntimeError("camera recovery observation outside firmware limits: " + joint)
+                    frame_limit = FRAME_GRIPPER_COUNTS if joint == "gripper" else FRAME_BODY_COUNTS
+                    if abs(value - previous[joint]) > frame_limit:
+                        raise RuntimeError("camera recovery per-frame movement exceeded: " + joint)
+                    if joint in active:
+                        direction = 1 if target[joint] > start[joint] else -1
+                        if (value - previous[joint]) * direction < 0:
+                            raise RuntimeError("camera recovery observed outward movement: " + joint)
+                        if abs(value - start[joint]) > 32 or (value - target[joint]) * direction > 2:
+                            raise RuntimeError("camera recovery exceeded bounded inward path: " + joint)
+                    elif abs(value - start[joint]) > QUIET_COUNTS:
+                        raise RuntimeError("camera recovery held joint drift: " + joint)
+                self._poll_busy_input()
+                if self._read("Goal_Position") != commanded:
+                    raise RuntimeError("camera recovery goal changed or was clamped")
+                torque = self._read("Torque_Enable")
+                if any(value != 1 for value in torque.values()):
+                    raise RuntimeError("camera recovery torque state changed")
+                checked = self._camera_recovery_check(actual, stamp, target)
+                self._check_leg_deadline(started, "camera_reentry")
+                self.publish_state(event="sample", raw=actual, torque=torque,
+                    phase="camera_recovery", label="camera_reentry", position_monotonic=stamp,
+                    position_utc=self.wall_clock(), feedback_timing={"feedback_gap_s": gap,
+                        "missed_ticks": missed, "missed_ticks_total": missed_total})
+                arrived = all(actual[j] == target[j] for j in active)
+                quiet_samples = quiet_samples + 1 if arrived else 0
+                if quiet_samples >= 3:
+                    self._camera_recovery_match(actual, stamp, checked.scene_stamp_monotonic, started)
+                    held = self.cancel_hold()
+                    if held["raw"] != target:
+                        raise RuntimeError("camera recovery measured terminal pose changed before hold")
+                    self._active_leg = None
+                    self._sag_recovery_available = False
+                    state = self.publish_state(event="camera_recovery_complete", raw=held["raw"],
+                        torque=held["torque"], phase="camera_recovery", label="camera_reentry")
+                    self._event("camera_recovery_complete", raw=held["raw"], target_raw=target)
+                    return {"ok": True, "state": state, "recovery": {"status": "completed",
+                        "target_raw": target, "path_sha256": plan.path_sha256}}
+                revised = dict(start)
+                for joint in active:
+                    delta = target[joint] - actual[joint]
+                    revised[joint] = actual[joint] + max(-2, min(2, delta))
+                # The provider and every remaining continuous segment have
+                # been rechecked against this exact measured pose. Recheck
+                # freshness once more immediately before the bounded write.
+                self._camera_recovery_match(actual, stamp, checked.scene_stamp_monotonic, started)
+                if revised != commanded:
+                    self.bus.sync_write("Goal_Position", revised, normalize=False, num_retry=0)
+                    self._poll_busy_input()
+                    if self._read("Goal_Position") != revised:
+                        raise RuntimeError("camera recovery goal readback mismatch")
+                    commanded = revised
+                previous = actual
+                previous_stamp = stamp
+                self.sleep(max(0., stamp + PERIOD_S - self.clock()))
+        except BaseException as error:
+            if not isinstance(error, Exception):
+                self.shutdown(reason="camera_recovery_interrupted")
+                raise
+            return self._camera_recovery_hold(error)
+
     def shutdown(self, *, reason="stop"):
         """Disable and verify each servo, then restore saved volatile RAM only."""
         if self._shutdown_complete:
@@ -1436,7 +1650,7 @@ class ArmSession:
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
-        if self._teleop is not None and name in ("move_plan", "move_gripper", "home", "execute_trajectory"):
+        if self._teleop is not None and name in ("move_plan", "move_gripper", "recover_camera", "home", "execute_trajectory"):
             raise ArmPlanPreflightError("finite motion is unavailable during active teleop")
         if name == "read_state":
             if set(command) != {"command"}:
@@ -1450,6 +1664,10 @@ class ArmSession:
             if set(command) != {"command", "target_raw"}:
                 raise ArmPlanPreflightError("move_gripper requires exactly command and target_raw")
             return {"ok": True, "state": self.move_gripper(command["target_raw"])}
+        if name == "recover_camera":
+            if set(command) != {"command"}:
+                raise ArmPlanPreflightError("recover_camera accepts no caller target, path, clearance or policy")
+            return self.recover_camera()
         if name == "execute_trajectory":
             required = {"command", "goal_id", "joint_names", "points", "path_sha256"}
             allowed = required | {"calibration_endpoint"}
@@ -1566,7 +1784,7 @@ class ArmSession:
                     command = json.loads(line)
                     name = command.get("command") if isinstance(command, dict) else None
                     previous_idle_handled = self._idle_handled
-                    if name in ("move_plan", "move_gripper", "home", "execute_trajectory"):
+                    if name in ("move_plan", "move_gripper", "recover_camera", "home", "execute_trajectory"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None
@@ -1614,7 +1832,7 @@ class ArmSession:
                         self._motion_busy = False
                     emit(result)
                     self.last_command = self.clock()
-                    if name in ("move_plan", "move_gripper", "home", "execute_trajectory"):
+                    if name in ("move_plan", "move_gripper", "recover_camera", "home", "execute_trajectory"):
                         self._idle_handled = False
                     elif name == "stop" and self.persistent_idle:
                         self._idle_handled = True
