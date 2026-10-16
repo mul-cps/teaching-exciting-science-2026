@@ -8,19 +8,19 @@ records commands, limitations and decisions.
 
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
-| Software suite | System Python: 1299 passed, 75 skipped, 6 subtests (24.29s, combined system/native-EV3 suite); trusted CGAL/mesh-audit subset44passed | Software passed; skipped checks remain separate |
-| Native ROS checks | Root camera/GPU/domain subset42passed in domain75; typed object-depth launch subset23passed; earlier tracking/validation/worker subset94passed and station-venv twin subset19passed | Passed with test owners; no physical execution |
-| Clean package installation | All 17 packages built in a fresh integration prefix; separate startup worker verified a non-symlink install and installed plane-module import | Passed |
+| Software suite | Latest combined suite: 1402 passed, 80 skipped, 6 subtests (26.26s); trusted CGAL/mesh-audit subset 44 passed | Software passed; skipped checks remain separate |
+| Native ROS checks | Recovery API/status/factory subset 62 passed independently, plus two delayed-terminal timestamp regressions and one separate positive ROS-to-production-factory/FakeBus run; root camera/GPU/domain subset42passed in domain75; typed object-depth launch subset23passed; earlier tracking/validation/worker subset94passed and station-venv twin subset19passed | Passed with test owners; no physical execution |
+| Clean package installation | Latest canonical build: all 19 packages passed; earlier all 17 packages built in a fresh integration prefix; separate startup worker verified a non-symlink install and installed plane-module import | Passed |
 | MoveIt planning | Mock start state valid, no collision; seven-point trajectory saved | Planning only; physical scene not qualified |
 | Single station startup | One camera launch and one resident follower owner; calibrated jaw path forwarded through both launch layers | Implemented; live cold starts pending |
 | Calibration | Available reports are explicitly unqualified; no held-out evidence supports a further 180-degree mount correction | Not accepted |
 | Plane residual ≤3 mm / pickup position error ≤5 mm | No current held-out physical measurements prove these bounds | Pending |
 | Passive twin | Live viewer renders correct root-frame TF/marker semantics; raw RSP/MoveIt hashes match; bridge interruption visibly marks STALE and restart restores FRESH | Stationary live display and stale/reconnect checked; physical registration remains separate |
 | Twin error ≤1 mm / ≤0.5 degrees | One fresh synchronized stationary sample: tool disagreement1.24e-16m/0degrees; all-link/root-geometry nonidentity-transform regressions pass | Stationary mathematical parity passed; moving physical qualification pending |
-| Teleop ≥100 Hz for 30 minutes | Uncapped profile regression retained; no qualifying endurance run this session | Pending |
+| Teleop ≥100 Hz for 30 minutes | ACK wakeup fix retained uncapped profile and one-inflight admission; real bridge/production owner with FakeBus measured 108–109 Hz at 8.5 ms added ACK delay. No qualifying physical endurance run | Pending |
 | Twenty consecutive physical sorting cycles, ≥5 per color | No physical sorting cycle executed | Pending |
 | Failure recovery and reconnect | Software tests cover stop/ownership paths; transport failure observed while torque was last verified off | Physical behavior unqualified |
-| Camera-guided automatic arm recovery | Bounded planner, conservative depth adapter and owner admission/watchdog implemented and tested; production provider rejects without qualified geometry/registration | Live physical recovery pending |
+| Camera-guided automatic arm recovery | Trusted runtime factory and explicit ROS recovery/status API reviewed and pushed. Native factory fixture completed 12 bounded goal writes with zero EEPROM writes, ending held with all six torque bits on and home invalid. Live depth cache integration is in progress; actual geometry/registration remain unqualified | Live physical recovery pending |
 | ROS isolation and rendering | Full station and twin restarted on domain76; wrapper defaults76/rejects0; localhost discovery; actual RViz amdgpu counter increments | Live checked; rebuilt container image remains separate |
 | Native EV3 commissioning | Exact identity and updated source hash checked; current-session switch reference established; latest critical-query target12 completed measured13 in737ms. Return0 hit encoder-1 and correctly faulted the unchanged0degree soft bound; coordinated stop confirmed | Explicit reset plus switch-home recovered measured0/touchtrue in240ms; exact-boundary position requests reject before job mutation; feeder reference/ejection and broader qualification pending |
 | ROS workflow and quick actions | Reviewed resident API, private one-use EV3 command admission, bounded cycles/cancel/stop; root combined native subset43passed; live typed status/diagnostics and sole EV3 connection work on domain76 | API connected idle after explicit switch-home recovery; failed return evidence and terminal stop acknowledged; commissioning config absent; physical cycles pending |
@@ -41,7 +41,7 @@ not prove full station cold starts or camera-to-arm registration.
 Fresh read-only arm telemetry still reports elbow raw2993/91.56degrees,
 outside its configured90degree bound, with all six torque states zero. The
 recovery owner derives a bounded inward target but production lacks a qualified
-camera scene provider; no recovery or grasp motion has been sent. Physical
+camera scene provider. The trusted factory and ROS API exist in source, while the live owner still runs the earlier passive-reconnect build. No body recovery or grasp cycle has been sent. Physical
 camera/base/TCP/jaw qualification remains a prerequisite for execution.
 
 Full-view color tracking now separates observation, support and pickup admission.
@@ -104,11 +104,15 @@ experiments compared with synchronized camera data. Keep nominal estimates, fit
 uncertainty and separate held-out validation explicit; external metrology is not
 assumed available. Current STEP contact geometry is nominal only.
 
-The gripper-only commissioning API has software coverage and review, but its first
-two +8-count trials faulted before observed displacement. The instrumented second
-trial captured jaw torque enabled immediately after the goal-position write, with
-all five body joints off. Cleanup verified all six off; the owner then exited, so
-that last snapshot is historical. Write/enable ordering is being corrected against
-this evidence. Neither trial qualifies jaw gap, contact position, camera recovery
-or a physical sort. See the progress log and local evidence directories
-`gripper-component-step-8-00e3b22` and `gripper-component-step-8-634fa3e`.
+The gripper-only commissioning API has software coverage and review. The first
+two +8-count trials exposed goal-write energization and correctly faulted with all
+five body joints off. After correcting the write/enable expectation, one bounded
++8 trial succeeded (raw 1936 to 1945), followed by a +16 trial that reached 1959
+but failed its unchanged two-second deadline. Cleanup verified all six torque
+bits off and restored the RAM profile. No automatic retry or force/deadline
+increase followed. Small image changes were insufficient to identify physical
+jaw scale. Fresh passive camera/owner captures bind serial, calibration and
+acquisition time; they remain explicitly unqualified. These experiments do not
+qualify jaw gap, TCP, camera recovery or physical sorting. See the progress log
+and evidence directories `gripper-component-step-8-8c80fce`,
+`gripper-component-step-16-8c80fce`, and `camera-current-visibility-check`.
