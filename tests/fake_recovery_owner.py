@@ -23,6 +23,7 @@ def main():
     parser.add_argument('--external-depth',action='store_true',
                         help='serve immediately; bridge ROS collector is the only depth producer')
     parser.add_argument('--wait-fault',choices=('drift','torque'))
+    parser.add_argument('--predispatch-proof-barrier',action='store_true')
     args=parser.parse_args()
     config,arm,_,_=fixture(args.fixture_root)
     goal_observations=[];health_observations=[];session_ref={}
@@ -60,6 +61,35 @@ def main():
                     return result
                 provider.recapture_health=health
 
+        def recover_camera(self):
+            self.fake_recovery_started=time.monotonic()
+            return super().recover_camera()
+
+        def _wait_camera_predispatch_acquisition(self,started,previous_stamp):
+            path=args.fixture_root/'fake-predispatch-phase.json'
+            before=list(arm.bus.writes)
+            def observe(state,error=None):
+                context=getattr(self,'_camera_recovery_predispatch_context',None)
+                item=dict(state=state,observed_monotonic=time.monotonic(),previous_encoder_stamp=previous_stamp,
+                    operation_started_monotonic=started,operation_deadline_monotonic=started+6.,
+                    context_entered_monotonic=context['entered'] if context else None,
+                    context_deadline_monotonic=context['deadline'] if context else None,
+                    raw=dict(arm.bus.data['Present_Position']),torque=dict(arm.bus.data['Torque_Enable']),
+                    goal_writes=len(arm.bus.goal_history),bus_write_count=len(arm.bus.writes),error=error)
+                if not hasattr(self,'fake_predispatch_observations'):self.fake_predispatch_observations=[]
+                self.fake_predispatch_observations.append(item)
+                item=dict(item,first_entry=self.fake_predispatch_observations[0])
+                temporary=path.with_suffix('.tmp');temporary.write_text(json.dumps(item));temporary.replace(path)
+            observe('entered')
+            try:
+                result=super()._wait_camera_predispatch_acquisition(started,previous_stamp)
+            except BaseException as error:
+                observe('failed',str(error));raise
+            else:
+                observe('exited')
+                assert arm.bus.writes==before,'passive acquisition wrote a motor register'
+                return result
+
         def _wait_camera_recapture(self,held_raw,hold_stamp,initial,started,camera_generation):
             path=args.fixture_root/'fake-wait-phase.json'
             def phase(state,error=None):
@@ -94,6 +124,18 @@ def main():
         def _camera_recovery_check(self,raw,stamp,target=None):
             started=time.monotonic()
             item=dict(check_started_monotonic=started,encoder_stamp_monotonic=stamp)
+            index=len(getattr(self,'fake_proof_observations',[]))
+            def proof_phase(state):
+                if index>1:return
+                path=args.fixture_root/'fake-proof-phase.json'
+                entry=dict(index=index,state=state,observed_monotonic=time.monotonic(),
+                    check_started_monotonic=started,encoder_stamp_monotonic=stamp,raw=dict(raw),
+                    goal_writes=len(arm.bus.goal_history))
+                if not hasattr(self,'fake_proof_entries'):self.fake_proof_entries={}
+                if state=='entered':self.fake_proof_entries[str(index)]=dict(entry)
+                entry['entries']=dict(self.fake_proof_entries)
+                temporary=path.with_suffix('.tmp');temporary.write_text(json.dumps(entry));temporary.replace(path)
+            proof_phase('entered')
             def provider_audit():
                 provider=self.camera_scene_provider
                 scene=getattr(provider,'_latest',None)
@@ -106,8 +148,41 @@ def main():
             item['provider_before']=provider_audit()
             try:
                 plan=super()._camera_recovery_check(raw,stamp,target)
+                if args.predispatch_proof_barrier and index==1:
+                    # Fixture-only synchronization. Keep the ORIGINAL proof and
+                    # encoder clocks; actual new reads are observations only.
+                    deadline=min(time.monotonic()+.025,stamp+.045,
+                        self._camera_recovery_valid_until_monotonic,self.fake_recovery_started+6.)
+                    item['coordination_samples']=[]
+                    while True:
+                        self._poll_busy_input();self._check_cancel()
+                        measured=self._read('Present_Position');pstamp,putc=self.clock(),self.wall_clock()
+                        torque=self._read('Torque_Enable');tstamp,tutc=self.clock(),self.wall_clock()
+                        if measured!=raw or any(value!=0 for value in torque.values()):
+                            raise RuntimeError('fixture passive proof coordination pose/torque changed')
+                        self._publish_camera_observation(measured,pstamp,putc,
+                            torque_observation=(torque,tstamp,tutc))
+                        self._poll_busy_input();self._check_cancel()
+                        now=time.monotonic()
+                        if now>=deadline or now-stamp>.045 or now-min(pstamp,tstamp)>.050:
+                            raise TimeoutError('fixture passive proof coordination budget exceeded')
+                        item['coordination_samples'].append(dict(position_monotonic=pstamp,
+                            torque_monotonic=tstamp,raw=dict(measured),torque=dict(torque)))
+                        health=self.camera_scene_provider.recapture_health(self._camera_recovery_command_generation)
+                        if health is None:raise RuntimeError('fixture passive proof coordination health unavailable')
+                        marker=health.get('same_generation_refresh_request_started_monotonic')
+                        if marker is not None and marker==health.get('identity_request_started_monotonic'):
+                            break
+                        self.sleep(min(.010,max(0.,deadline-time.monotonic())))
                 item['scene_stamp_monotonic']=plan.scene_stamp_monotonic
                 item['scene_valid_until_monotonic']=getattr(self,'_camera_recovery_valid_until_monotonic',None)
+                acquisition=getattr(getattr(self,'_camera_recovery_scene',None),'acquisition',None)
+                provenance=getattr(acquisition,'acquisition_clock_provenance',{})
+                identity=provenance.get('camera_identity',{})
+                item['original_declared_depth_stamp_monotonic']=provenance.get('declared_depth_stamp_monotonic')
+                item['camera_identity_confirmed_monotonic']=identity.get('confirmed_monotonic')
+                item['camera_identity_request_started_monotonic']=identity.get('request_started_monotonic')
+                item['camera_generation']=identity.get('generation')
                 return plan
             except Exception as error:
                 item['error']=str(error)
@@ -117,6 +192,7 @@ def main():
                 item['provider_after']=provider_audit()
                 if not hasattr(self,'fake_proof_observations'):self.fake_proof_observations=[]
                 self.fake_proof_observations.append(item)
+                proof_phase('exited')
 
         def serve(self,**kwargs):
             if args.external_depth:
@@ -165,6 +241,7 @@ def main():
                     goal_history=arm.bus.goal_history,eeprom_writes=arm.bus.eeprom_writes,
                     goal_write_observations=goal_observations,health_observations=health_observations,
                     proof_observations=getattr(self,'fake_proof_observations',[]),
+                    predispatch_observations=getattr(self,'fake_predispatch_observations',[]),
                     wait_observations=getattr(self,'fake_wait_observations',[]),
                     final_raw=arm.bus.data['Present_Position'],final_torque=arm.bus.data['Torque_Enable'])))
     return run_locked_session(config,args.state_file,args.logdir,lock_path=args.lock,

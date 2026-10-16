@@ -3,6 +3,9 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import socket
+import sys
+from types import SimpleNamespace
 import threading
 import time
 from collections import deque
@@ -27,6 +30,7 @@ from so101_station_control import recovery_depth_cache
     'drift_during_wait', 'torque_loss_during_wait',
     'delayed_full_recovery_required'])
 def test_native_ros_depth_reaches_actual_station_owner(tmp_path,monkeypatch,scenario):
+    prepare_transaction = scenario == 'arm_prepare_required'
     expire_before_request = scenario == 'expired_acquisition_aborts'
     wait_negative = scenario.endswith('_during_wait')
     transport_delay = .080 if scenario == 'delayed_full_recovery_required' else 0.
@@ -39,11 +43,15 @@ def test_native_ros_depth_reaches_actual_station_owner(tmp_path,monkeypatch,scen
     prepare="from pathlib import Path;import json,sys;from test_recovery_runtime import fixture;p=Path(sys.argv[1]);c,*_=fixture(p);(p/'config.json').write_text(json.dumps(c))"
     subprocess.run([python,'-c',prepare,str(folder)],cwd=root,env=env,check=True,capture_output=True,text=True)
     config=json.loads((folder/'config.json').read_text())
+    if prepare_transaction:
+        config.update(enabled=True,commissioned=True,automatic_start=False)
+        (folder/'bridge-config.json').write_text(json.dumps(config))
     dependency_provenance={}
     for name,relative in [('rclpy','rclpy-publisher-gid-7.1.12/install/share/rclpy_gid_overlay/provenance.json'),
                           ('rmw_cyclonedds','rmw-cyclonedds-gid-2.2.4/install/share/rmw_gid_overlay/provenance.json')]:
         marker=root/'ros2/.cache'/relative
         if marker.is_file():dependency_provenance[name]=json.loads(marker.read_text())
+    api_process=None;ev3_listener=None;station_job=None
     processes=[];publications=[];callbacks=[];camera_frames=[]
     terminal=dict(success=None,message="no recovery request completed")
     intervention = None
@@ -73,7 +81,17 @@ def test_native_ros_depth_reaches_actual_station_owner(tmp_path,monkeypatch,scen
             sample=node._read_state()
             if sample:
                 node._expected_arm_id=sample['arm_id'];node._expected_calibration_sha256=sample['calibration_sha256']
-                if sample.get('event')=='sample':return
+                if sample.get('event')=='sample':
+                    if prepare_transaction:
+                        from so101_station_control.trajectory_server import _load_measured_home
+                        from so101_station_control.gripper_action import validate_jaw_calibration
+                        node._prepare_config_path=folder/'bridge-config.json'
+                        node._saved_home_pose,node._saved_home_tolerance=_load_measured_home(
+                            config,root,node._expected_arm_id,node._expected_calibration_sha256)
+                        node._gripper_jaw=validate_jaw_calibration(dict(
+                            schema='so101-jaw-gap-calibration-v1',qualified=True,
+                            closed_gap_m=.004,open_gap_m=.075,closed_percent=0.,open_percent=100.))
+                    return
             time.sleep(.005)
         raise TimeoutError('actual owner initialization')
     monkeypatch.setattr(TrajectoryBridge,'_start_owner',start)
@@ -144,6 +162,13 @@ def test_native_ros_depth_reaches_actual_station_owner(tmp_path,monkeypatch,scen
                     all(type(readiness.get(key)) in (int,float) and
                         0<=now-readiness[key]<.100 for key in
                         ('scene_stamp_monotonic','acquisition_arm_stamp_monotonic')))
+                if prepared and scenario == 'publisher_loss_during_wait':
+                    identity = node._recovery_camera_identity.snapshot()
+                    request = identity.get('request_started_monotonic')
+                    confirmation = identity.get('confirmed_monotonic')
+                    prepared = (identity.get('valid') is True and type(request) in (int,float) and type(confirmation) in (int,float) and
+                        0 <= now-request < .250 and
+                        readiness['scene_stamp_monotonic'] > confirmation)
                 if prepared:break
             except (OSError,ValueError,KeyError,TypeError):pass
             time.sleep(.002)
@@ -152,8 +177,21 @@ def test_native_ros_depth_reaches_actual_station_owner(tmp_path,monkeypatch,scen
         if expire_before_request:
             timer.cancel()
             time.sleep(.300)  # Deliberate simulated camera outage, beyond original250ms expiry.
-        client=camera.create_client(Trigger,'/follower/recover_camera');assert client.wait_for_service(timeout_sec=2)
-        began=time.monotonic();future=client.call_async(Trigger.Request());until=began+10
+        if prepare_transaction:
+            # Actual resident API/job machinery; the EV3 destination is an
+            # isolated local listener, never the real station/tunnel port.
+            ev3_listener=socket.socket();ev3_listener.bind(('127.0.0.1',0))
+            ev3_listener.listen();ev3_listener.setblocking(False)
+            api_env=dict(os.environ,PYTHONPATH=os.pathsep.join((str(root),os.environ.get('PYTHONPATH',''))),XDG_STATE_HOME=str(folder/'api-state'))
+            api_process=subprocess.Popen([sys.executable,'-c',
+                'from pathlib import Path;from tools import ros_station_api as api;'
+                'assert Path(api.__file__).resolve()==Path.cwd()/"tools/ros_station_api.py";api.main()',
+                '--ros-args','-p','evidence_dir:='+str(folder/'station-jobs'),
+                '-p','ev3_port:='+str(ev3_listener.getsockname()[1])],
+                cwd=root,env=api_env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+        endpoint='/station/arm/prepare' if prepare_transaction else '/follower/recover_camera'
+        client=camera.create_client(Trigger,endpoint);assert client.wait_for_service(timeout_sec=8 if prepare_transaction else 2)
+        began=time.monotonic();future=client.call_async(Trigger.Request());until=began+(105 if prepare_transaction else 10)
         if wait_negative:
             wait_path = folder/'fake-wait-phase.json'
             wait_observation = None
@@ -191,18 +229,47 @@ def test_native_ros_depth_reaches_actual_station_owner(tmp_path,monkeypatch,scen
                 assert wait_observation['state'] == 'entered', wait_observation
                 timer.cancel()
         while not future.done() and time.monotonic()<until:time.sleep(.005)
-        assert future.done();result=future.result();elapsed=time.monotonic()-began
+        assert future.done();result=future.result()
+        if prepare_transaction:
+            assert result.success,result.message
+            receipt=json.loads(result.message)
+            status_client=camera.create_client(Trigger,'/station/status')
+            assert status_client.wait_for_service(timeout_sec=2)
+            while time.monotonic()<until:
+                status_future=status_client.call_async(Trigger.Request())
+                response_until=min(until,time.monotonic()+2)
+                while not status_future.done() and time.monotonic()<response_until:time.sleep(.005)
+                assert status_future.done()
+                status=json.loads(status_future.result().message)
+                assert status['ev3']['connected'] is False
+                station_job=status['workflow']
+                assert station_job['job_id']==receipt['job_id']
+                if station_job['state'] in {'idle','fault'}:break
+                time.sleep(.025)
+            assert station_job['state']=='idle',station_job
+            assert any(event.get('operation')=='arm_prepare' and event.get('event')=='complete'
+                       for event in station_job['events'])
+            result=SimpleNamespace(success=True,message=json.dumps(station_job['result']))
+            with pytest.raises(BlockingIOError):ev3_listener.accept()
+        elapsed=time.monotonic()-began
         # A stationary-only cohort may safely hold during movement. Preserve deadlines.
-        assert elapsed<8
+        assert elapsed<(100 if prepare_transaction else 8)
         if scenario == 'stop_during_wait':
             assert len(commands) == 2 and commands[0] == {'command':'recover_camera'}
             assert commands[1]['command'] == 'stop' and set(commands[1]) == {'command','request_id'}
+        elif prepare_transaction:
+            assert commands==[{'command':'recover_camera'},{'command':'home'}]
         else:
             assert commands==[{'command':'recover_camera'}]
         operation_commands=list(commands)
-        assert node._home_completed_owner_started is None
+        assert (node._home_completed_owner_started is not None) is prepare_transaction
+        if prepare_transaction:
+            assert node._sorting_ready(Trigger.Request(),Trigger.Response()).success
+            value=json.loads(result.message)
+            assert value["phases"]==["recover_camera","home"] and value["state"]=="ready"
+            assert value["observation"]["raw"]==dict.fromkeys(TELEOP_JOINTS,2000)
         terminal=dict(success=result.success,message=result.message,elapsed_s=elapsed,provider_before_request=readiness,
-                      intervention=intervention,
+                      intervention=intervention,station_job=station_job,
                       producer=node._recovery_depth_cache.snapshot(),identity=node._recovery_camera_identity.snapshot())
     finally:
         terminal['intervention'] = intervention
@@ -215,6 +282,14 @@ def test_native_ros_depth_reaches_actual_station_owner(tmp_path,monkeypatch,scen
                 if node._recovery_depth_cache is not None else None)
             terminal['final_identity'] = (node._recovery_camera_identity.snapshot()
                 if node._recovery_camera_identity is not None else None)
+        if api_process is not None:
+            api_process.terminate()
+            try:api_output=api_process.communicate(timeout=15)[0]
+            except subprocess.TimeoutExpired:
+                api_process.kill();api_output=api_process.communicate()[0]
+                terminal['api_shutdown_timeout']=True
+            terminal['api_process_output']=api_output
+        if ev3_listener is not None:ev3_listener.close()
         if executor:executor.shutdown()
         if thread:thread.join(2)
         if node:node.destroy_node()
@@ -295,9 +370,9 @@ def test_native_ros_depth_reaches_actual_station_owner(tmp_path,monkeypatch,scen
             assert all(frame['published_monotonic']-frame['captured_monotonic'] >= transport_delay
                        for frame in camera_frames)
     assert audit['eeprom_writes']==[]
-    assert not terminal['home_completed_before_cleanup']
+    assert terminal['home_completed_before_cleanup'] is prepare_transaction
     if terminal['success']:
-        assert audit['goal_history'][-1]['elbow_flex']==2973
+        assert audit['goal_history'][-1]['elbow_flex']==(2000 if prepare_transaction else 2973)
         assert not terminal['owner_faulted_before_cleanup']
     elif scenario == 'stop_during_wait':
         assert terminal['message'] and terminal['intervention']['stop_success']
@@ -307,7 +382,7 @@ def test_native_ros_depth_reaches_actual_station_owner(tmp_path,monkeypatch,scen
         assert terminal['message'] and terminal['owner_faulted_before_cleanup']
     previous=dict.fromkeys(TELEOP_JOINTS,2000);previous['elbow_flex']=2993
     for goal in audit['goal_history']:
-        assert 0<=previous['elbow_flex']-goal['elbow_flex']<=2
+        assert 0<=previous['elbow_flex']-goal['elbow_flex']<=(100 if prepare_transaction and previous['elbow_flex']<=2973 else 2)
         assert all(goal[joint]==2000 for joint in TELEOP_JOINTS if joint!='elbow_flex')
         previous=goal
     assert all(value==0 for value in audit['final_torque'].values())

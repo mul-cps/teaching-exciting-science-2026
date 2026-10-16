@@ -12,6 +12,11 @@ class CameraRecoveryPolicy:
 
 
 
+# Existing bounded camera-reentry policy, shared by planning and observation.
+CAMERA_RECOVERY_MAX_DISPLACEMENT_COUNTS = 32
+CAMERA_RECOVERY_INWARD_COUNTS = 2
+
+
 OWNER_SOURCE_MODULES = ('arm', 'arm_session', 'recovery_runtime', 'recovery_types', 'recovery_runtime_config', 'camera_recovery')
 
 

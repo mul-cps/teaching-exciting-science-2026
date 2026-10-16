@@ -10,6 +10,8 @@ import json
 import math
 import time
 
+from .recovery_types import CAMERA_RECOVERY_MAX_DISPLACEMENT_COUNTS, CAMERA_RECOVERY_INWARD_COUNTS
+
 
 JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper")
 
@@ -91,10 +93,10 @@ def plan_bound_reentry(raw, admitted_bounds, firmware_bounds, *, scene, now,
         if not low <= value <= high:
             if joint == "gripper":
                 raise ValueError("gripper recovery requires a separate contact-aware procedure")
-            if high-low < 4:
+            if high-low < 2*CAMERA_RECOVERY_INWARD_COUNTS:
                 raise ValueError("insufficient admitted range for inward recovery")
-            target[joint] = low+2 if value < low else high-2
-            if abs(target[joint]-value) > 32:
+            target[joint] = low+CAMERA_RECOVERY_INWARD_COUNTS if value < low else high-CAMERA_RECOVERY_INWARD_COUNTS
+            if abs(target[joint]-value) > CAMERA_RECOVERY_MAX_DISPLACEMENT_COUNTS:
                 raise ValueError("re-entry exceeds the bounded camera recovery envelope")
     if getattr(scene, "arm_raw", None) != raw:
         raise ValueError("camera scene must be paired to the exact measured encoder pose")

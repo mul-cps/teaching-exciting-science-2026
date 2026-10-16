@@ -127,3 +127,38 @@ then verified all six torque bits off and cleared the resulting owner fault.
 Camera recovery remains not configured; station commissioning and automatic
 start remain disabled. No physical recovery, home or sort is qualified by this
 checkpoint. Evidence: `recovery-live-79d4234/RESULTS.md` and `final-status.json`.
+
+
+### ROS arm preparation software checkpoint
+
+The isolated preparation package adds zero-argument `/follower/prepare`,
+`/station/arm/prepare`, `arm-prepare`, and `arm-stop`. One follower reservation
+spans optional qualified camera recovery, measured home and readiness. Explicit
+preparation does not connect or wake EV3. Automatic sorting reuses preparation
+inside its existing station job and retains its independent EV3/reference gates.
+
+Source-pinned native recovery:9cases passed18.90s, including the complete original
+2993-to2973 target,15Hz/80ms camera transport, six negative cases, and genuine
+identity renewal before the first write. The latter retains original clocks,
+all-six torque-off/unchanged raw and zero writes during acquisition.
+
+Resident station API composition:1case passed21.33s using actual ROS, bridge and
+station-interpreter owner processes with an explicitly synthetic bus/model/jaw
+and temporary qualified configuration. Job
+`9b730042-1b80-46eb-8f9a-f2dcc948293a` completed recovery then measured home once,
+reported actual raw2000/normal bounds/readiness, and made no EV3 connection.
+Cleanup verified all torque off; disconnected-EV3 shutdown diagnostics remain
+recorded separately and do not qualify full station stop.
+
+Evidence: `arm-prepare-bounds/native-complete-nine*`,
+`PREDISPATCH-NATIVE-AUDIT.json`, and
+`arm-prepare-integration/native-owner-prepare*`. Final source validation passed: system1678tests/89skips/6subtests, station
+interpreter536tests, focusedAPI230tests and broad native658tests/3skips.
+The independent clean prefix built19packages and passed import smoke. Native
+skips are the EGL renderer and two optional local-overlay wrapper checks; actual
+publisher-GID/interop checks passed against the validated read-only overlays.
+One earlier broad unit failed its positive fake-home setup before NaN injection;
+the same-order diagnostic replay passed, and the cause remains unproven. This is
+not claimed as a production fault fix. Source/index evidence is saved alongside
+the final logs and import/dependency provenance. This is software evidence; actual arm recovery,
+home, gripping, placing and physical acceptance remain unqualified.

@@ -107,3 +107,36 @@ shared by an explicit arm preparation API and authorized sorting-run preflight:
 
 This closes an actual missing composition; API availability alone does not prove
 an autonomous startup or sorting workflow.
+
+
+## Recovery replanning: identity renewal before dispatch
+
+Native replay exposed a genuine same-generation camera identity renewal during
+the initial proof. An old cohort must still reject at final matching. Before
+any potentially energizing write, permit one bounded read-only acquisition
+phase only after a concrete trusted proof and a genuine matching renewal:
+
+- Preserve the exact original six-joint raw baseline with all torque bits zero.
+  Check actual position/torque ages and observation cadence at most50ms, including
+  after health accessors and logging. No Goal, enable or profile writes occur
+  inside this phase, and it makes no verified-hold claim.
+- Keep one immutable500ms phase deadline capped by the original6s operation.
+  Repeated renewal cannot reset either deadline. Initial unavailable qualification,
+  unknown geometry, identity/stream/preparation faults or drift still abort.
+- Discard the old plan. Require an original stationary exposure strictly after
+  phase entry and current confirmation, then a fresh full proof and final checks.
+  A ready newer cohort may trigger this phase only when actual final matching
+  proves the prior cohort is old and the genuine renewal context matches.
+- Clear acquisition context before the first potentially energizing attempt.
+  Failure must retain verified disarm and RAM restoration semantics. Validate
+  actual renewal inside a native pre-dispatch proof, zero writes throughout the
+  phase, and completion of the unchanged2993-to2973 synthetic recovery target.
+
+Explicit arm preparation follows existing physical admission: enabled and
+commissioned must be true; automatic_start must be Boolean but may be false.
+Automatic sorting retains its existing all-three-true requirement. Private stop
+cleanup may report local verified evidence; only a correlated station callback
+may update the shared station stop acknowledgement. Logging and client disposal
+failures must not bypass physical cleanup or invent an unknown disarm outcome.
+
+These software changes do not replace any original physical acceptance gate.

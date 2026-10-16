@@ -9,6 +9,7 @@ import time
 
 from workshop.station.ev3_live_client import EV3LiveClient
 from workshop.station.ros_workflow import StationWorkflow
+from workshop.station.ros_arm_prepare import prepare_arm_once
 from workshop.station.locking import station_lock, state_dir
 
 
@@ -21,6 +22,64 @@ def consume_operation_ticket(tickets, lock, capability, *, job_id, operation,
         raise RuntimeError('private single-use EV3 operation capability required')
     if operation != 'stop' and (cancel.is_set() or stop_pending):
         raise InterruptedError('station cancellation/stop prohibits EV3 mutation')
+
+
+def retain_cleanup_barrier(error, stop_state):
+    """Notes from other cycle cleanup remain conservatively unresolved."""
+    if (getattr(error, '__notes__', None) and
+            getattr(error, 'arm_prepare_stop_verified', None) is not True):
+        stop_state['pending'] = True
+
+
+def request_station_stop(workflow, stop_state, ev3, follower_stop, record, trigger_type):
+    """Announce one correlation before cancellation; dispatch arm before EV3 wait."""
+    import uuid
+    request_id = str(uuid.uuid4())
+    stop_state.update(pending=True, ev3_stopped=False, arm_disarmed=False, request_id=request_id)
+    workflow.stop()
+    errors = []
+    def update_pending():
+        if stop_state.get('request_id') == request_id:
+            stop_state['pending'] = not (stop_state['ev3_stopped'] and stop_state['arm_disarmed'])
+    def stopped(future):
+        if stop_state.get('request_id') != request_id:
+            return
+        try:
+            response = future.result()
+            if stop_state.get('request_id') != request_id:
+                return
+            stop_state['arm_disarmed'] = response is not None and response.success is True
+            event = dict(event='arm_stop_ack', success=stop_state['arm_disarmed'],
+                         message=response.message if response is not None else 'no response')
+        except Exception as error:
+            if stop_state.get('request_id') == request_id:
+                stop_state['arm_disarmed'] = False
+            event = dict(event='arm_stop_ack', success=False, message=str(error))
+        update_pending()
+        try:
+            record(event)
+        except Exception as error:
+            # Logging cannot reverse a physical ACK or skip the other stop.
+            stop_state['logging_error'] = str(error)[:512]
+    try:
+        if not follower_stop.service_is_ready():
+            raise RuntimeError('resident /follower/stop unavailable')
+        follower_stop.call_async(trigger_type.Request()).add_done_callback(stopped)
+    except Exception as error:
+        errors.append(str(error))
+    try:
+        acknowledgement = ev3.call('stop')
+        if stop_state.get('request_id') == request_id:
+            stop_state['ev3_stopped'] = acknowledgement.get('stopped') is True
+            if not stop_state['ev3_stopped']:
+                errors.append('EV3 stop acknowledgement missing')
+    except Exception as error:
+        errors.append(str(error))
+    update_pending()
+    if errors:
+        raise RuntimeError('; '.join(errors))
+    return dict(cancel_requested=True, arm_stop_ack_pending=not stop_state['arm_disarmed'],
+                job_id=workflow.job_id)
 
 
 def main():
@@ -225,50 +284,21 @@ def main():
                         # Explicit run admission may wake; read-only check_ready never does.
                         proxy.call('wake')
                         log({'event': 'explicit_run_wake_complete'})
+                        devices._require_native_ready(time.monotonic()+8., cancel)
+                        prepare_arm_once(worker, cancel, stop_state, log)
                         result = run_sorting(devices, destinations=settings['destinations'],
                                              cycles=request.cycles, log=log, cancel=cancel)
                         (output/'result.json').write_text(json.dumps(result, allow_nan=False)+'\n')
                         return result
                 except BaseException as error:
-                    if getattr(error, '__notes__', None):
-                        stop_state['pending'] = True
+                    retain_cleanup_barrier(error, stop_state)
                     raise
             return worker_task('sorting', sorting)
         return reply(response, admit)
     node.create_service(RunCycles, '/station/run_cycles', run)
 
     def stop():
-        workflow.stop()
-        import uuid
-        stop_request = str(uuid.uuid4())
-        stop_state.update(pending=True, ev3_stopped=False, arm_disarmed=False, request_id=stop_request)
-        # Immediate EV3 braking; cycle worker independently cancels arm actions.
-        errors = []
-        try:
-            acknowledgement = ev3.call('stop')
-            stop_state['ev3_stopped'] = acknowledgement.get('stopped') is True
-            if not stop_state['ev3_stopped']:
-                errors.append('EV3 stop acknowledgement missing')
-        except Exception as error:
-            errors.append(str(error))
-        if follower_stop.service_is_ready():
-            future = follower_stop.call_async(Trigger.Request())
-            def stopped(future):
-                if stop_state.get('request_id') != stop_request:
-                    return
-                try:
-                    response = future.result()
-                    stop_state['arm_disarmed'] = response.success
-                    stop_state['pending'] = not (response.success and stop_state['ev3_stopped'])
-                    record({'event': 'arm_stop_ack', 'success': response.success, 'message': response.message})
-                except Exception as error:
-                    record({'event': 'arm_stop_ack', 'success': False, 'message': str(error)})
-            future.add_done_callback(stopped)
-        else:
-            errors.append('resident /follower/stop unavailable')
-        if errors:
-            raise RuntimeError('; '.join(errors))
-        return {'cancel_requested': True, 'arm_stop_ack_pending': True, 'job_id': workflow.job_id}
+        return request_station_stop(workflow, stop_state, ev3, follower_stop, record, Trigger)
 
     def simple_ev3(operation):
         def work(worker, proxy, cancel):
@@ -407,6 +437,10 @@ def main():
         return reply(response, action)
     node.create_service(SelectDestination, '/station/select_destination', select)
 
+    def arm_prepare():
+        return worker_task('arm_prepare', lambda worker, proxy, cancel:
+            prepare_arm_once(worker, cancel, stop_state, record))
+
     def arm_home():
         def home(worker, proxy, cancel):
             client = worker.create_client(Trigger, '/follower/home')
@@ -460,7 +494,7 @@ def main():
                            'cancel': stop, 'stop': stop, 'reset_fault': reset_fault,
                            'ev3/connect': connect, 'ev3/home': lambda: simple_ev3('home_touch'),
                            'wake': lambda: simple_ev3('wake'), 'sleep': lambda: simple_ev3('power_save'),
-                           'arm/home': arm_home}.items():
+                           'arm/home': arm_home, 'arm/prepare': arm_prepare}.items():
         node.create_service(Trigger, '/station/'+name, lambda request, response, fn=function: reply(response, fn))
     node.create_timer(.5, refresh)
     try:

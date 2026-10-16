@@ -13,7 +13,8 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     for name in ('status', 'diagnostics', 'check-ready', 'cancel', 'stop', 'reset-fault',
-                 'connect', 'wake', 'sleep', 'ev3-home', 'arm-home', 'arm-connect', 'arm-recover', 'arm-status'):
+                 'connect', 'wake', 'sleep', 'ev3-home', 'arm-home', 'arm-connect', 'arm-recover', 'arm-status',
+                 'arm-prepare', 'arm-stop'):
         commands.add_parser(name)
     jaw = commands.add_parser('gripper-step')
     jaw.add_argument('delta_counts', type=int)
@@ -61,7 +62,8 @@ def main(argv=None):
         service_type = Trigger
         request = Trigger.Request()
         names = {'arm-connect': '/follower/reconnect', 'arm-recover': '/follower/recover_camera',
-                 'arm-status': '/follower/status', 'connect': 'ev3/connect', 'ev3-home': 'ev3/home', 'arm-home': 'arm/home'}
+                 'arm-status': '/follower/status', 'arm-stop': '/follower/stop', 'arm-prepare': 'arm/prepare',
+                 'connect': 'ev3/connect', 'ev3-home': 'ev3/home', 'arm-home': 'arm/home'}
         name = names.get(args.command, args.command.replace('-', '_'))
         if args.command == 'gripper-step':
             from so101_station_workflow.srv import CommissionGripperStep
@@ -92,7 +94,7 @@ def main(argv=None):
         if not client.wait_for_service(timeout_sec=3.):
             raise RuntimeError(service_name+' unavailable; start station_live.launch.py')
         future = client.call_async(request)
-        deadline = time.monotonic()+({'arm-connect': 25., 'arm-recover': 10.}.get(args.command, 5.))
+        deadline = time.monotonic()+({'arm-connect': 25., 'arm-recover': 10., 'arm-stop': 12.}.get(args.command, 5.))
         while not future.done():
             if time.monotonic() >= deadline:
                 raise TimeoutError('ROS service result unknown; inspect status before retrying')

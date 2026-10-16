@@ -39,6 +39,31 @@ from .gripper_action import gap_to_percent, percent_to_gap, validate_jaw_calibra
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 
 
+def _arm_bounds_observation(state):
+    """Validate the owner's classification; never reproduce its raw-bound math."""
+    value = state.get("arm_bounds") if isinstance(state, dict) else None
+    if (not isinstance(value, dict) or value.get("schema") != "arm-bounds-observation-v1" or
+            not isinstance(value.get("classification"), str) or
+            value.get("classification") not in
+            {"normal", "bounded_reentry_required", "unrecoverable", "unknown"} or
+            type(value.get("position_monotonic")) not in (int, float) or
+            not math.isfinite(value["position_monotonic"]) or
+            value["position_monotonic"] != state.get("monotonic")):
+        return None
+    keys = ("admitted_min", "admitted_max", "firmware_min", "firmware_max")
+    for key in keys:
+        bounds = value.get(key)
+        if (not isinstance(bounds, dict) or set(bounds) != set(TELEOP_JOINTS) or
+                any(type(v) is not int or not 0 <= v <= 4095 for v in bounds.values())):
+            return None
+    if any(not value["firmware_min"][j] <= value["admitted_min"][j] <=
+           value["admitted_max"][j] <= value["firmware_max"][j] for j in TELEOP_JOINTS):
+        return None
+    return {"schema": value["schema"], "classification": value["classification"],
+            "position_monotonic": value["position_monotonic"],
+            **{key: dict(value[key]) for key in keys}}
+
+
 def _arm_session_command(station_python, config, state_file, log_dir, lock, idle_timeout_s,
                          recover_sag=False, observe_only=False):
     timeout = float(idle_timeout_s)
@@ -216,9 +241,13 @@ def _control_callback(callback):
             if self._stop_latched:
                 if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
                     return GoalResponse.REJECT
-                if callback.__name__ in {"_home", "_recover_camera", "_commission_gripper_step", "_calibration_ready", "_set_teleop_enabled"}:
+                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_calibration_ready", "_set_teleop_enabled"}:
                     response = args[1]
                     response.success, response.message = False, "owner stop remains latched"
+                    if callback.__name__ == "_prepare":
+                        response.message = json.dumps(dict(schema=1, kind="arm_prepare", state="rejected",
+                            error="owner stop remains latched", command_delivery="not_sent",
+                            phases=[], stop_verified=None, home_completed_this_session=False))
                     return response
                 if callback.__name__ == "_teleop_tick":
                     return None
@@ -289,6 +318,7 @@ class TrajectoryBridge(Node):
         self._writer_faulted = False
         self._stop_pending = None
         self._stop_ack = None
+        self._stop_requested = None
         self._control_callbacks = 0
         self._action_group = ReentrantCallbackGroup()
         self._response_queue = queue.Queue()
@@ -328,6 +358,10 @@ class TrajectoryBridge(Node):
         self._saved_home_pose = None
         self._saved_home_tolerance = None
         self._home_completed_owner_started = None
+        self._prepare_reservation = None
+        self._prepare_cohort = None
+        self._prepare_phase = None
+        self._prepare_config_path = None
         self._state_cache_lock = threading.Lock()
         self._cached_owner_state = None
         self._cached_owner_generation = None
@@ -396,6 +430,9 @@ class TrajectoryBridge(Node):
         self._recover_camera_service = self.create_service(
             Trigger, "/follower/recover_camera", self._recover_camera,
             callback_group=self._teleop_service_group)
+        self._prepare_service = self.create_service(
+            Trigger, "/follower/prepare", self._prepare,
+            callback_group=self._action_group)
         self._status_group = MutuallyExclusiveCallbackGroup()
         self._status_service = self.create_service(
             Trigger, "/follower/status", self._status, callback_group=self._status_group)
@@ -505,6 +542,7 @@ class TrajectoryBridge(Node):
         if (not expected_arm_id or len(expected_calibration_sha256) != 64 or
                 any(character not in "0123456789abcdef" for character in expected_calibration_sha256)):
             raise RuntimeError("station_config has invalid arm identity or calibration SHA256")
+        self._prepare_config_path = config_path
         option = config_data.get("arm", {}).get("camera_recovery")
         if isinstance(option, dict) and option.get("enabled") is True:
             try:
@@ -768,7 +806,8 @@ class TrajectoryBridge(Node):
                 with self._stop_condition:
                     self._stop_pending = request_id
                     self._stop_ack = None
-                requested = time.monotonic()
+                    requested = time.monotonic()
+                    self._stop_requested = requested
                 self._write_stop({"command": "stop", "request_id": request_id}, deadline)
             finally:
                 self._write_lock.release()
@@ -821,6 +860,7 @@ class TrajectoryBridge(Node):
         finally:
             with self._stop_condition:
                 self._stop_pending = None
+                self._stop_requested = None
             self._stop_lock.release()
         return response
 
@@ -1199,6 +1239,296 @@ class TrajectoryBridge(Node):
             response.message = str(error)
         return response
 
+    def _assert_owner_reservation(self, reservation, process, generation):
+        with self._active_lock:
+            own_prepare = (reservation is not None and reservation is self._prepare_reservation and
+                           self._active_goal == "prepare")
+            own_operation = (isinstance(reservation, str) and self._active_goal == reservation)
+            if (not (own_prepare or own_operation) or self._closed or self._stop_latched or
+                    self._cancel_before_start or self._process is not process or
+                    self._owner_started != generation or process.poll() is not None):
+                raise RuntimeError("owner reservation cancelled, stopped or replaced")
+            if own_prepare and self._prepare_cohort != (
+                    self._expected_arm_id, self._expected_calibration_sha256, self._owner_source_expected):
+                raise RuntimeError("owner identity/calibration/source cohort changed during prepare")
+
+    def _reserved_owner_reply(self, command, process, generation, deadline, reservation):
+        """Exactly one existing owner command under the caller's reservation."""
+        self._assert_owner_reservation(reservation, process, generation)
+        while True:
+            try:
+                self._response_queue.get_nowait()
+            except queue.Empty:
+                break
+        self._assert_owner_reservation(reservation, process, generation)
+        if reservation is self._prepare_reservation:
+            # Conservative: any exception once submission starts has unknown delivery.
+            self._prepare_delivery_possible = True
+        self._send({"command": command})
+        while True:
+            self._assert_owner_reservation(reservation, process, generation)
+            remaining = deadline-time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(command + " result unknown; verified stop required")
+            try:
+                reply = self._response_queue.get(timeout=min(.05, remaining))
+                self._assert_owner_reservation(reservation, process, generation)
+                return reply
+            except queue.Empty:
+                continue
+
+    def _prepare_owner_state(self, state, process, generation, *, after=None, torque=None):
+        now = time.monotonic()
+        freshness = min(.1, float(self.get_parameter("state_freshness_s").value))
+        if (self._closed or self._external_state_only or self._process is not process or
+                process is None or process.poll() is not None or
+                type(generation) not in (int, float) or not math.isfinite(generation) or generation <= 0 or
+                self._owner_started != generation or self._reconnect_observe or self._owner_faulted or
+                self._stop_latched or self._cancel_before_start or not isinstance(state, dict) or
+                state.get("observe_only") is not False or
+                state.get("arm_id") != self._expected_arm_id or
+                state.get("calibration_sha256") != self._expected_calibration_sha256 or
+                not isinstance(self._owner_source_expected, dict) or not self._owner_source_expected or
+                state.get("owner_source_sha256") != self._owner_source_expected):
+            raise RuntimeError("fresh matching non-observing owner without fault/stop is required")
+        lower = max(generation, now-freshness, after if after is not None else generation)
+        for key in ("monotonic", "torque_monotonic"):
+            stamp = state.get(key)
+            if type(stamp) not in (int, float) or not math.isfinite(stamp) or not lower <= stamp <= now:
+                raise RuntimeError("prepare requires original fresh position/torque acquisition")
+        for key, upper in (("raw", 4095), ("torque", 1)):
+            values = state.get(key)
+            if (not isinstance(values, dict) or set(values) != set(TELEOP_JOINTS) or
+                    any(type(v) is not int or not 0 <= v <= upper for v in values.values())):
+                raise RuntimeError("prepare requires exact six-joint measurements")
+        if torque is not None and any(v != torque for v in state["torque"].values()):
+            raise RuntimeError("prepare completion lacks verified torque-on hold")
+        bounds = _arm_bounds_observation(state)
+        if bounds is None or bounds["classification"] not in {"normal", "bounded_reentry_required"}:
+            raise RuntimeError("owner bounds classification is unknown or unrecoverable")
+        return bounds["classification"]
+
+    def _prepare_configuration(self):
+        # Finite-operation admission only; status/ticks never read configuration.
+        path = self._prepare_config_path
+        if path is None:
+            raise RuntimeError("prepare requires trusted station configuration")
+        config = json.loads(Path(path).read_text())
+        if not isinstance(config, dict):
+            raise ValueError("prepare station configuration must be an object")
+        arm = config.get("arm")
+        if not isinstance(arm, dict) or not isinstance(arm.get("calibration"), dict):
+            raise ValueError("prepare arm and calibration configuration must be objects")
+        if (any(config.get(k) is not True for k in ("enabled", "commissioned")) or
+                type(config.get("automatic_start")) is not bool or
+                arm.get("id") != self._expected_arm_id or
+                arm.get("calibration", {}).get("sha256") != self._expected_calibration_sha256):
+            raise RuntimeError("prepare station configuration/identity is not commissioned and admitted")
+
+    def _prepare_stop(self, process, generation):
+        """Physical stop ACK only. Public stop alone clears quiescent barriers."""
+        self._stop_latched = True
+        self._owner_faulted = True
+        self._home_completed_owner_started = None
+        timeout = float(self.get_parameter("stop_timeout_s").value)
+        if not math.isfinite(timeout) or not 0 < timeout <= 10:
+            raise RuntimeError("invalid stop cleanup deadline; stop remains latched")
+        deadline = time.monotonic()+timeout
+        owns_stop = self._stop_lock.acquire(blocking=False)
+        request_id = None
+        try:
+            if owns_stop:
+                if not self._write_lock.acquire(timeout=max(0., deadline-time.monotonic())):
+                    raise TimeoutError("prepare stop writer unavailable; stop remains latched")
+                try:
+                    with self._stop_condition:
+                        request_id = uuid.uuid4().hex
+                        requested = time.monotonic()
+                        self._stop_pending, self._stop_ack = request_id, None
+                        self._stop_requested = requested
+                    self._write_stop({"command": "stop", "request_id": request_id}, deadline)
+                finally:
+                    self._write_lock.release()
+            with self._stop_condition:
+                while True:
+                    # A public stop may own the lock but still be waiting for
+                    # the writer. Never borrow an old ACK before its new ID exists.
+                    pending, ack, requested = self._stop_pending, self._stop_ack, self._stop_requested
+                    if (pending is not None and requested is not None and ack is not None and
+                            ack.get("request_id") == pending and
+                            (not owns_stop or pending == request_id)):
+                        break
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("prepare stop acknowledgement unresolved; stop remains latched")
+                    self._stop_condition.wait(min(.02, deadline-time.monotonic()))
+            state = ack.get("state", ack.get("final_state"))
+            now = time.monotonic()
+            if (ack.get("ok") is not True or ack.get("stopped") is not True or
+                    self._process is not process or self._owner_started != generation or
+                    process.poll() is not None or not isinstance(state, dict) or
+                    state.get("arm_id") != self._expected_arm_id or
+                    state.get("calibration_sha256") != self._expected_calibration_sha256 or
+                    state.get("owner_source_sha256") != self._owner_source_expected):
+                raise RuntimeError("prepare stop lacks current identity/source-bound acknowledgement")
+            for key in ("monotonic", "torque_monotonic"):
+                stamp = state.get(key)
+                if (type(stamp) not in (int, float) or not math.isfinite(stamp) or
+                        not max(requested, now-min(.1, timeout)) <= stamp <= now):
+                    raise RuntimeError("prepare stop lacks fresh actual acquisition")
+            for key, upper in (("raw", 4095), ("torque", 0)):
+                values = state.get(key)
+                if (not isinstance(values, dict) or set(values) != set(TELEOP_JOINTS) or
+                        any(type(v) is not int or not 0 <= v <= upper for v in values.values())):
+                    raise RuntimeError("prepare stop lacks six-joint verified disarm")
+            self._cache_owner_state(state, generation=generation, process=process)
+            return True
+        finally:
+            if owns_stop:
+                with self._stop_condition:
+                    if self._stop_pending == request_id:
+                        self._stop_pending = None
+                        self._stop_requested = None
+                self._stop_lock.release()
+
+    @_control_callback
+    def _prepare(self, _request, response):
+        """One follower reservation, existing recovery/home commands, no retry."""
+        response.success = False
+        process, generation = self._process, self._owner_started
+        reservation = object()
+        reserved = False
+        delivery_possible = False
+        stop_verified = None
+        phases = []
+        try:
+            self._prepare_configuration()
+            initial = self._read_state()
+            classification = self._prepare_owner_state(initial, process, generation)
+            expected_raw = dict(initial["raw"])
+            if (self._gripper_jaw is None or not isinstance(self._saved_home_pose, dict) or
+                    set(self._saved_home_pose) != set(TELEOP_JOINTS) or
+                    any(type(v) not in (int, float) or not math.isfinite(v)
+                        for v in self._saved_home_pose.values()) or
+                    type(self._saved_home_tolerance) not in (int, float) or
+                    not math.isfinite(self._saved_home_tolerance) or self._saved_home_tolerance <= 0):
+                raise RuntimeError("qualified jaw and measured home configuration are required")
+            home_timeout = float(self.get_parameter("home_timeout_s").value)
+            if not math.isfinite(home_timeout) or not 0 < home_timeout <= 90:
+                raise ValueError("home_timeout_s must be in (0, 90] seconds")
+            with self._active_lock:
+                if self._active_goal is not None or self._teleop_state != "disabled":
+                    raise RuntimeError("another follower operation is active")
+                self._active_goal = "prepare"
+                self._prepare_reservation = reservation
+                self._prepare_cohort = (self._expected_arm_id, self._expected_calibration_sha256,
+                                        dict(self._owner_source_expected))
+                self._prepare_phase = "admission"
+                self._prepare_delivery_possible = False
+                reserved = True
+            self._assert_owner_reservation(reservation, process, generation)
+            admitted = self._read_state()
+            self._prepare_owner_state(admitted, process, generation)
+            if admitted["raw"] != expected_raw:
+                raise RuntimeError("owner raw changed during prepare admission")
+            if (classification == "normal" and
+                    self._sorting_ready_value(admitted, reservation=reservation) and
+                    _measured_home_error(admitted, arm_id=self._expected_arm_id,
+                        calibration_sha256=self._expected_calibration_sha256,
+                        home_pose=self._saved_home_pose, tolerance=self._saved_home_tolerance) is None):
+                fresh = admitted
+                result_state = "already_ready"
+            else:
+                self._home_completed_owner_started = None
+                if classification == "bounded_reentry_required":
+                    if self._recovery_cache_config is None:
+                        raise RuntimeError("qualified camera recovery configuration is unavailable")
+                    self._prepare_phase = "recover_camera"
+                    began = time.monotonic()
+                    reply = self._reserved_owner_reply("recover_camera", process, generation,
+                                                       began+8., reservation)
+                    completion = self._prepare_completion(reply, "camera_recovery_complete",
+                                                         process, generation, began)
+                    if self._home_completed_owner_started is not None:
+                        raise RuntimeError("recovery cannot establish home provenance")
+                    self._cache_owner_state(completion, generation=generation, process=process)
+                    expected_raw = dict(completion["raw"])
+                    phases.append("recover_camera")
+                self._assert_owner_reservation(reservation, process, generation)
+                pre_home = self._read_state()
+                if self._prepare_owner_state(pre_home, process, generation) != "normal":
+                    raise RuntimeError("measured home requires owner's normal bounds classification")
+                if pre_home["raw"] != expected_raw:
+                    raise RuntimeError("held owner raw changed before measured home")
+                self._prepare_phase = "home"
+                began = time.monotonic()
+                reply = self._reserved_owner_reply("home", process, generation,
+                                                   began+home_timeout, reservation)
+                completion = self._prepare_completion(reply, "home_complete", process, generation, began)
+                error = _measured_home_error(completion, arm_id=self._expected_arm_id,
+                    calibration_sha256=self._expected_calibration_sha256,
+                    home_pose=self._saved_home_pose, tolerance=self._saved_home_tolerance)
+                if error:
+                    raise RuntimeError(error)
+                self._home_completed_owner_started = generation
+                self._cache_owner_state(completion, generation=generation, process=process)
+                phases.append("home")
+                self._prepare_phase = "readiness"
+                self._assert_owner_reservation(reservation, process, generation)
+                fresh = self._read_state()
+                self._prepare_owner_state(fresh, process, generation, after=began, torque=1)
+                if fresh["raw"] != completion["raw"]:
+                    raise RuntimeError("measured home raw changed before final readiness")
+                error = _measured_home_error(fresh, arm_id=self._expected_arm_id,
+                    calibration_sha256=self._expected_calibration_sha256,
+                    home_pose=self._saved_home_pose, tolerance=self._saved_home_tolerance)
+                if error:
+                    raise RuntimeError(error)
+                if not self._sorting_ready_value(fresh, reservation=reservation):
+                    raise RuntimeError("prepared follower failed final sorting readiness")
+                result_state = "ready"
+            self._assert_owner_reservation(reservation, process, generation)
+            response.success = True
+            response.message = json.dumps(dict(schema=1, kind="arm_prepare", state=result_state,
+                home_completed_this_session=True, phases=phases, owner_started_monotonic=generation,
+                observation={key: fresh[key] for key in ("arm_id", "calibration_sha256",
+                    "owner_source_sha256", "raw", "torque", "monotonic", "torque_monotonic", "arm_bounds")}))
+        except (OSError, RuntimeError, TimeoutError, TypeError, ValueError, KeyError) as error:
+            delivery_possible = reserved and self._prepare_delivery_possible
+            if delivery_possible:
+                self._prepare_phase = "stopping"
+                try:
+                    stop_verified = self._prepare_stop(process, generation)
+                except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as stop_error:
+                    stop_verified = False
+                    error.add_note(str(stop_error))
+            response.message = json.dumps(dict(schema=1, kind="arm_prepare", state="failed" if delivery_possible else "rejected",
+                error=str(error), cleanup_errors=getattr(error, "__notes__", []), phases=phases,
+                command_delivery="may_have_been_sent" if delivery_possible else "not_sent",
+                stop_verified=stop_verified, home_completed_this_session=False))
+        finally:
+            if reserved:
+                with self._active_lock:
+                    if self._prepare_reservation is reservation:
+                        if not response.success:
+                            self._home_completed_owner_started = None
+                        self._prepare_reservation = None
+                        self._prepare_cohort = None
+                        self._prepare_phase = None
+                        self._active_goal = None
+        return response
+
+    def _prepare_completion(self, reply, event, process, generation, began):
+        if (not isinstance(reply, dict) or reply.get("ok") is not True or
+                reply.get("stopped") or reply.get("cancelled")):
+            raise RuntimeError(reply.get("error", "owner preparation command failed")
+                               if isinstance(reply, dict) else "malformed preparation acknowledgement")
+        state = reply.get("state")
+        if not isinstance(state, dict) or state.get("event") != event:
+            raise RuntimeError("preparation completion event mismatch")
+        if self._prepare_owner_state(state, process, generation, after=began, torque=1) != "normal":
+            raise RuntimeError("preparation completion remains outside normal bounds")
+        return state
+
     @_control_callback
     def _home(self, _request, response):
         """Run the existing measured-home operation through the resident owner."""
@@ -1230,25 +1560,8 @@ class TrajectoryBridge(Node):
             return response
         deadline = time.monotonic() + timeout_s
         try:
-            # With the exclusive service reservation, no other bridge command can
-            # be in flight. Discard any stale unsolicited reply before sending home.
-            while True:
-                try:
-                    self._response_queue.get_nowait()
-                except queue.Empty:
-                    break
-            self._send({"command": "home"})
-            while True:
-                if process.poll() is not None:
-                    raise RuntimeError("ArmSession owner stopped before home completed")
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("ArmSession home did not complete within timeout")
-                try:
-                    result = self._response_queue.get(timeout=min(0.05, remaining))
-                    break
-                except queue.Empty:
-                    continue
+            result = self._reserved_owner_reply("home", process, self._owner_started,
+                                                deadline, "home")
             if not isinstance(result, dict):
                 raise RuntimeError("ArmSession returned a malformed home acknowledgement")
             home_state = result.get("state")
@@ -1304,25 +1617,8 @@ class TrajectoryBridge(Node):
             self._home_completed_owner_started = None
         started = time.monotonic()
         try:
-            while True:
-                try:
-                    self._response_queue.get_nowait()
-                except queue.Empty:
-                    break
-            self._send({"command": "recover_camera"})
-            deadline = started + 8.0  # owner bounds its admitted operation to six seconds
-            while True:
-                if (self._process is not process or self._owner_started != generation or
-                        process.poll() is not None):
-                    raise RuntimeError("owner generation changed during camera recovery")
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("camera recovery result unknown; verified stop required before retry")
-                try:
-                    result = self._response_queue.get(timeout=min(.05, remaining))
-                    break
-                except queue.Empty:
-                    continue
+            result = self._reserved_owner_reply("recover_camera", process, generation,
+                                                started+8., "recover_camera")
             if not isinstance(result, dict):
                 raise RuntimeError("camera recovery acknowledgement is not an object")
             if (result.get("ok") is not True or result.get("cancelled") or result.get("stopped")):
@@ -1372,6 +1668,7 @@ class TrajectoryBridge(Node):
             return value if type(value) in (int, float) and math.isfinite(value) else None
         position, torque_stamp = stamp("monotonic"), stamp("torque_monotonic")
         runtime_started = stamp("camera_recovery_runtime_started_monotonic")
+        bounds = _arm_bounds_observation(state)
         reason = None
         if type(generation) not in (int, float) or not math.isfinite(generation) or generation <= 0:
             reason = "owner_generation_unconfirmed"
@@ -1383,7 +1680,7 @@ class TrajectoryBridge(Node):
                     len(state[key]) <= 128 else None
                     for key in ("event", "arm_id", "calibration_sha256",
                                 "timestamp_utc", "torque_timestamp_utc")}
-        retained.update(monotonic=position, torque_monotonic=torque_stamp,
+        retained.update(arm_bounds=bounds, monotonic=position, torque_monotonic=torque_stamp,
                         observe_only=state.get("observe_only") if
                         type(state.get("observe_only")) is bool else None,
                         camera_recovery_runtime_started_monotonic=runtime_started)
@@ -1668,6 +1965,8 @@ class TrajectoryBridge(Node):
             "calibration_sha256": state.get("calibration_sha256"),
             "owner_source_sha256": actual_sources,
             "expected_owner_source_sha256": expected_sources if isinstance(expected_sources, dict) else None,
+            "arm_bounds": state.get("arm_bounds") if trusted else None,
+            "prepare_phase": self._prepare_phase,
             "camera_recovery": (state.get("camera_recovery_observation") if trusted else
                 {"supported": False, "phase": None, "held_raw": None,
                  "hold_stamp_monotonic": None, "wait_deadline_monotonic": None,
@@ -1762,22 +2061,36 @@ class TrajectoryBridge(Node):
                     self._active_goal = None
         return response
 
-    def _sorting_ready(self, _request, response):
-        """Read-only admission check for sorting; this service never homes the arm."""
+    def _sorting_ready_value(self, state, *, reservation=None):
         process = self._process
-        state = self._read_state()
         with self._active_lock:
-            active = self._active_goal is not None
+            own_prepare = (reservation is not None and reservation is self._prepare_reservation and
+                           self._active_goal == "prepare")
+            active = self._active_goal is not None and not own_prepare
             teleop_state = self._teleop_state
-        valid = (not self._external_state_only and process is not None and process.poll() is None and
-                 not self._owner_faulted and not active and teleop_state == "disabled" and
-                 self._gripper_jaw is not None and state is not None and
-                 self._home_completed_owner_started == self._owner_started and
-                 state.get("arm_id") == self._expected_arm_id and
-                 state.get("calibration_sha256") == self._expected_calibration_sha256)
-        response.success = bool(valid)
+        try:
+            if self._prepare_owner_state(state, process, self._owner_started, torque=1) != "normal":
+                return False
+            if _measured_home_error(state, arm_id=self._expected_arm_id,
+                    calibration_sha256=self._expected_calibration_sha256,
+                    home_pose=self._saved_home_pose, tolerance=self._saved_home_tolerance) is not None:
+                return False
+        except (RuntimeError, TypeError, ValueError, KeyError):
+            return False
+        return bool(not self._external_state_only and not self._closed and
+            process is not None and process.poll() is None and not self._owner_faulted and
+            not self._stop_latched and not self._reconnect_observe and not active and
+            teleop_state == "disabled" and self._gripper_jaw is not None and state is not None and
+            self._home_completed_owner_started is not None and
+            self._home_completed_owner_started == self._owner_started and
+            state.get("arm_id") == self._expected_arm_id and
+            state.get("calibration_sha256") == self._expected_calibration_sha256)
+
+    def _sorting_ready(self, _request, response):
+        """Read-only admission; an external caller cannot exempt preparation."""
+        response.success = self._sorting_ready_value(self._read_state())
         response.message = ("sorting readiness confirmed from fresh identity-matched resident state; no motion commanded"
-                            if valid else
+                            if response.success else
                             "sorting not ready: require fresh matching owner, completed home in this session, "
                             "qualified jaw calibration, idle trajectory and disabled teleoperation")
         return response

@@ -21,7 +21,7 @@ ros2/scripts/station-action.sh ev3-home
 ros2/scripts/station-action.sh sorter-position 200
 # Only after physically checking the indicated reference:
 ros2/scripts/station-action.sh confirm-reference feeder --physically-verified
-ros2/scripts/station-action.sh arm-home
+ros2/scripts/station-action.sh arm-prepare
 ros2/scripts/station-action.sh check-ready
 ros2/scripts/station-action.sh run 1
 ros2/scripts/station-action.sh run 20
@@ -89,6 +89,8 @@ Bindings stay fixed throughout a running job. The executor resolves the selected
 | `/station/reset_fault` | `std_srvs/srv/Trigger` | Explicit reset after worker termination and stop acknowledgement |
 | `/station/ev3/connect` | `std_srvs/srv/Trigger` | Explicit connect/reconnect; no automatic retry of unknown delivery |
 | `/station/wake`, `/station/sleep`, `/station/ev3/home` | `std_srvs/srv/Trigger` | Bounded EV3 lifecycle jobs |
+| `/station/arm/prepare` | `std_srvs/srv/Trigger` | Zero arguments; one arm-only preparation job, no EV3 wake or reference changes |
+| `/follower/prepare` | `std_srvs/srv/Trigger` | Zero arguments; serialized recovery/home/readiness transaction |
 | `/station/arm/home` | `std_srvs/srv/Trigger` | Qualified resident measured home/recovery |
 | `/station/ev3/sorter_position` | `so101_station_workflow/srv/SorterPosition` | Absolute `target_deg`, fixed conservative profile; returns bounded job UUID |
 | `/station/ev3/confirm_reference` | `so101_station_workflow/srv/ConfirmReference` | `name`, `reference`, `physically_verified` |
@@ -448,3 +450,13 @@ motion requires a genuinely post-confirmation/post-hold acquisition; neither the
 1s request lease nor any image/pose250ms deadline is extended. A refresh arriving
 after proof but before dispatch rejects that write and conservatively fails held;
 there is no generic retry or reset of the original500ms/6s deadlines.
+
+## Arm preparation transaction
+
+`arm-prepare` calls `/station/arm/prepare` and returns the existing station workflow job receipt. Standalone preparation does not connect or wake the EV3, change references, reset faults, or retry a command. An explicitly authorized `run` calls the same preparation function inside its current sorting job, after its existing EV3 admission. The full sorting readiness checks still run before dispensing. `arm-stop` directly requests the resident `/follower/stop`; use station `stop` to coordinate both devices.
+
+The follower reserves one operation across the entire transaction. A fresh owner-computed `arm_bounds` observation selects measured home directly for `normal`, or exactly one qualified bounded camera recovery for `bounded_reentry_required`, followed by measured home exactly once. Unknown or unrecoverable classifications reject. Explicit preparation requires `enabled: true` and `commissioned: true`; `automatic_start` must be Boolean and may remain false. Automatic sorting retains its existing requirement that all three flags are true. Preparation success does not qualify a twenty-cycle sorting release. A fresh already-homed and ready owner is a no-op. Recovery never establishes home provenance; its fresh held completion must remain in the same owner, identity, calibration and six-source cohort before home can begin. Ordinary home/recovery/teleop/trajectory/reconnect requests cannot enter that reservation; stop retains priority. All existing commissioning, camera identity, scene and motion qualification gates apply.
+
+The bridge terminal JSON has `schema: 1`, `kind: arm_prepare`, state, completed phases and home provenance. Success also carries the actual `observation`: arm identity, calibration and selected owner-source hashes, six raw positions, six torque states, original position/torque monotonic acquisition clocks and typed bounds observation. `/follower/status` exposes the cached bounds observation and current `prepare_phase`; status is observation, not motion permission.
+
+Local admission failure or a structured bridge rejection proving no command was sent requires no cleanup motion. Any possible delivery followed by cancellation, malformed/unknown result, or failure requires correlated resident stop and verified callback quiescence. Cleanup event logging cannot skip this stop. Missing acknowledgement leaves a pending stop/fault barrier; no success or automatic retry is inferred.

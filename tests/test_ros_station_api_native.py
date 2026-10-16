@@ -31,6 +31,8 @@ def test_resident_one_connection_reference_status_fault_and_cancel(tmp_path):
     refs = {'sorter': None, 'feeder': None}
     axis = {'angle': 0., 'job': None, 'last_job': None, 'hold': False, 'power': 'awake'}
     axis_arguments = []
+    arm_stop_seen = threading.Event()
+    arm_stop_times, ev3_stop_response_times, preparations = [], [], []
     def serve():
         while not halt.is_set():
             try:
@@ -61,6 +63,9 @@ def test_resident_one_connection_reference_status_fault_and_cancel(tmp_path):
                     if op in ('status', 'critical_status'):
                         result = status
                     elif op == 'stop':
+                        if axis.get('wait_for_arm_stop'):
+                            assert arm_stop_seen.wait(.6), 'arm stop queued behind blocking EV3 RPC'
+                            ev3_stop_response_times.append(time.monotonic())
                         if axis['job']:
                             axis['last_job'] = dict(axis['job'], state='aborted')
                             axis['job'] = None
@@ -100,6 +105,8 @@ class FakeDevices:
             (self.output/'readiness-entered').write_text('ready')
             if cancel.wait(1.2):
                 raise InterruptedError('readiness cancelled')
+        return self._require_native_ready(deadline, cancel)
+    def _require_native_ready(self, deadline, cancel):
         from workshop.station.ev3_readiness import require_fresh_stationary
         return require_fresh_stationary(self.ev3, session=self.ev3.session, deadline=deadline,
             cancel=cancel, spin=lambda deadline, cancel: time.sleep(.01))
@@ -134,8 +141,17 @@ main()
     process = subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     rclpy.init()
     node = Node('synthetic_station_api_client')
+    def stopped(request, response):
+        arm_stop_times.append(time.monotonic())
+        arm_stop_seen.set()
+        return _success(response, 'all six torque bits zero')
     stop_service = node.create_service(Trigger, '/follower/stop',
-        lambda req, res: _success(res, 'all six torque bits zero'))
+        stopped)
+    def prepared(request, response):
+        preparations.append(time.monotonic())
+        return _success(response, json.dumps(dict(schema=1,kind='arm_prepare',state='ready',
+            owner_started_monotonic=time.monotonic()-1,home_completed_this_session=True)))
+    prepare_service = node.create_service(Trigger, '/follower/prepare', prepared)
     def call(type_, name, request=None):
         client = node.create_client(type_, '/station/'+name)
         if not client.wait_for_service(timeout_sec=8):
@@ -149,6 +165,14 @@ main()
         assert future.done(), name
         return future.result()
     try:
+        admission = call(Trigger, 'arm/prepare')
+        assert admission.success
+        until=time.monotonic()+3
+        while time.monotonic()<until:
+            standalone=json.loads(call(Trigger,'status').message)['workflow']
+            if standalone['state']=='idle':break
+        assert standalone['result']['state']=='ready'
+        assert len(preparations)==1 and connections==[] and operations==[]
         assert call(Trigger, 'ev3/connect').success
         assert call(Trigger, 'ev3/connect').success
         assert len(connections) == 1
@@ -174,6 +198,12 @@ main()
         assert call(ConfirmReference, 'ev3/confirm_reference',
                     ConfirmReference.Request(name='sorter', reference='home', physically_verified=True)).success
         configured = json.loads(config_path.read_text())
+        configured['automatic_start'] = False
+        config_path.write_text(json.dumps(configured))
+        before_auto_rejection = (list(operations),len(preparations))
+        assert not call(RunCycles,'run_cycles',RunCycles.Request(cycles=1)).success
+        assert (operations,len(preparations)) == before_auto_rejection
+        configured['automatic_start'] = True
         configured['synthetic_readiness_block'] = True
         config_path.write_text(json.dumps(configured))
         readiness = call(Trigger, 'check_ready')
@@ -209,6 +239,7 @@ main()
             time.sleep(.05)
         assert state['result'] is not None, state
         assert state['result']['completed'] == 2
+        assert len(preparations)==2  # once in the same sorting job, not per cycle
         assert axis['power'] == 'awake'
         assert operations.count('wake') == wakes_before_run+1
         assert operations.index('wake') < operations.index('eject')
@@ -223,6 +254,8 @@ main()
         while not (tmp_path/cancelled_job_id/'entered-wait-clear').exists() and time.monotonic() < until:
             rclpy.spin_once(node, timeout_sec=.02)
         assert (tmp_path/cancelled_job_id/'entered-wait-clear').exists()
+        arm_stop_seen.clear()
+        axis['wait_for_arm_stop']=True
         before_injection = operations.count('eject')
         rejected = call(EV3Command, 'ev3/command', EV3Command.Request(operation='eject',
             arguments_json='{"cycles":100}', job_id=cancelled_job_id))
@@ -239,6 +272,7 @@ main()
         for _ in range(20):
             rclpy.spin_once(node, timeout_sec=.02)
         state = json.loads(call(Trigger, 'status').message)
+        assert arm_stop_times[-1] <= ev3_stop_response_times[-1]
         assert state['stop']['ev3_stopped']
         assert state['stop']['arm_disarmed']
         assert not state['stop']['pending']
