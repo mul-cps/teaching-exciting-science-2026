@@ -1,0 +1,13 @@
+diff --git a/rclpy/src/rclpy/subscription.cpp b/rclpy/src/rclpy/subscription.cpp
+index c0a377f..0f24652 100644
+--- a/rclpy/src/rclpy/subscription.cpp
++++ b/rclpy/src/rclpy/subscription.cpp
+@@ -182,6 +182,8 @@ Subscription::take_message(py::object pymsg_type, bool raw)
+     pytaken_msg, py::dict(
+       "source_timestamp"_a = message_info.source_timestamp,
+       "received_timestamp"_a = message_info.received_timestamp,
++      "publisher_gid"_a = py::bytes(
++        reinterpret_cast<const char *>(message_info.publisher_gid.data), RMW_GID_STORAGE_SIZE),
+       "publication_sequence_number"_a = pub_seq_number,
+       "reception_sequence_number"_a = rec_seq_number));
+ }

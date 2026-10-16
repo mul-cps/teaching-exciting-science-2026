@@ -1,4 +1,5 @@
 import os
+import json
 import subprocess
 from pathlib import Path
 
@@ -16,6 +17,8 @@ def run_wrapper(*args: str, env: dict[str, str] | None = None, cwd=None):
     test_env = os.environ.copy()
     if env is None or "ROS_DOMAIN_ID" not in env:
         test_env.pop("ROS_DOMAIN_ID", None)
+    if env is None or "RMW_IMPLEMENTATION" not in env:
+        test_env.pop("RMW_IMPLEMENTATION", None)
     test_env.update(env or {})
     return subprocess.run(
         [str(WRAPPER), *args],
@@ -84,6 +87,10 @@ def test_conda_run_clears_inherited_ros_python_and_loader_environment(tmp_path: 
         "LD_LIBRARY_PATH": "/opt/ros/iron/lib",
         "DISPLAY": ":77",
         "XAUTHORITY": "/tmp/test.xauth",
+        "CONDA_PREFIX": "/invented/nested",
+        "CONDA_PREFIX_7": "/invented/outer",
+        "CONDA_SHLVL": "8",
+        "CONDA_DEFAULT_ENV": "outer",
     }
 
     result = run_wrapper("run", "ros2", "pkg", "list", env=env)
@@ -105,6 +112,10 @@ def test_conda_run_clears_inherited_ros_python_and_loader_environment(tmp_path: 
         "PYTHONHOME",
         "ROS_DISTRO",
         "LD_LIBRARY_PATH",
+        "CONDA_PREFIX",
+        "CONDA_PREFIX_7",
+        "CONDA_SHLVL",
+        "CONDA_DEFAULT_ENV",
     ):
         assert name not in clean_environment
     assert clean_environment["ROS_AUTOMATIC_DISCOVERY_RANGE"] == expected
@@ -284,3 +295,32 @@ def test_clean_build_discards_only_ros_overlay_prefixes_before_rebuild():
     assert 'clean-build)' in source
     assert 'rm -rf -- "$BUILD_BASE" "$INSTALL_BASE" "$LOG_BASE"' in source
     assert 'exec "$0" build' in source
+
+
+def test_wrapper_selects_validated_isolated_gid_overlay_when_available():
+    prefix = ROOT / 'ros2/.cache/rclpy-publisher-gid-7.1.12/install'
+    if not (prefix / 'share/rclpy_gid_overlay/provenance.json').is_file():
+        pytest.skip('build the pinned optional rclpy GID dependency first')
+    result = run_wrapper('run', 'python', '-c',
+        'import json,os; from rclpy.impl.implementation_singleton import rclpy_implementation as r; '
+        'print(json.dumps(dict(extension=r.__file__,ament=os.getenv("AMENT_PREFIX_PATH"),loader=os.getenv("LD_LIBRARY_PATH"),backend=os.getenv("RMW_IMPLEMENTATION"))))',
+        env={'ROS_DOMAIN_ID': '75','RMW_IMPLEMENTATION':'rmw_cyclonedds_cpp'})
+    assert result.returncode == 0, result.stderr
+    actual=json.loads(result.stdout)
+    assert str(prefix / 'lib/python3.12/site-packages/rclpy') in actual['extension']
+    rmw_prefix=ROOT/'ros2/.cache/rmw-cyclonedds-gid-2.2.4/install'
+    if (rmw_prefix/'share/rmw_gid_overlay/provenance.json').is_file():
+        assert actual['ament'].split(':')[0]==str(rmw_prefix)
+        assert actual['loader'].split(':')[0]==str(rmw_prefix/'lib')
+        assert actual['backend']=='rmw_cyclonedds_cpp_so101_gid'
+
+
+def test_nested_conda_wrapper_preserves_validated_overlay():
+    prefix=ROOT/'ros2/.cache/rclpy-publisher-gid-7.1.12/install'
+    if not (prefix/'share/rclpy_gid_overlay/provenance.json').is_file():
+        pytest.skip('build the pinned optional rclpy GID dependency first')
+    result=run_wrapper('run',str(WRAPPER),'run','python','-c',
+        'from rclpy.impl.implementation_singleton import rclpy_implementation as r; print(r.__file__)',
+        env={'ROS_DOMAIN_ID':'75','RMW_IMPLEMENTATION':'rmw_cyclonedds_cpp'})
+    assert result.returncode==0,result.stderr
+    assert str(prefix/'lib/python3.12/site-packages/rclpy') in result.stdout

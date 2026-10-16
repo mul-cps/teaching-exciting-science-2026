@@ -1,0 +1,89 @@
+diff --git a/rmw_cyclonedds_cpp/CMakeLists.txt b/rmw_cyclonedds_cpp/CMakeLists.txt
+index cc98f39..c3c96d9 100644
+--- a/rmw_cyclonedds_cpp/CMakeLists.txt
++++ b/rmw_cyclonedds_cpp/CMakeLists.txt
+@@ -110,6 +110,11 @@ if(CMAKE_COMPILER_IS_GNUCXX AND TARGET_ARCH MATCHES "^(riscv|RISCV)64$")
+ endif()
+ 
+ configure_rmw_library(rmw_cyclonedds_cpp)
++# Explicit pinned fork: avoid Conda RPATH selecting the installed backend.
++set_target_properties(rmw_cyclonedds_cpp PROPERTIES OUTPUT_NAME rmw_cyclonedds_cpp_so101_gid)
++ament_index_register_resource("rmw_typesupport"
++  PACKAGE_NAME "rmw_cyclonedds_cpp_so101_gid"
++  CONTENT "rosidl_typesupport_c;rosidl_typesupport_introspection_c;rosidl_typesupport_cpp;rosidl_typesupport_introspection_cpp")
+ 
+ target_compile_definitions(${PROJECT_NAME}
+   PRIVATE
+diff --git a/rmw_cyclonedds_cpp/src/rmw_node.cpp b/rmw_cyclonedds_cpp/src/rmw_node.cpp
+index 090b1b2..47a2545 100644
+--- a/rmw_cyclonedds_cpp/src/rmw_node.cpp
++++ b/rmw_cyclonedds_cpp/src/rmw_node.cpp
+@@ -124,7 +124,7 @@ using namespace std::literals::chrono_literals;
+ 
+ using rmw_dds_common::msg::ParticipantEntitiesInfo;
+ 
+-const char * const eclipse_cyclonedds_identifier = "rmw_cyclonedds_cpp";
++const char * const eclipse_cyclonedds_identifier = "rmw_cyclonedds_cpp_so101_gid";
+ const char * const eclipse_cyclonedds_serialization_format = "cdr";
+ 
+ /* instance handles are unsigned 64-bit integers carefully constructed to be as close to uniformly
+@@ -3269,14 +3269,18 @@ extern "C" rmw_ret_t rmw_destroy_subscription(rmw_node_t * node, rmw_subscriptio
+ }
+ 
+ static void message_info_from_sample_info(
+-  const dds_sample_info_t & info, rmw_message_info_t * message_info)
++  CddsSubscription * sub, const dds_sample_info_t & info, rmw_message_info_t * message_info)
+ {
+   message_info->publisher_gid.implementation_identifier = eclipse_cyclonedds_identifier;
+   memset(message_info->publisher_gid.data, 0, sizeof(message_info->publisher_gid.data));
+-  assert(sizeof(info.publication_handle) <= sizeof(message_info->publisher_gid.data));
+-  memcpy(
+-    message_info->publisher_gid.data, &info.publication_handle,
+-    sizeof(info.publication_handle));
++  // A Cyclone instance handle is not the publisher's RTPS GUID. Resolve the
++  // actual writer matched by this reader. Missing/disappeared metadata leaves
++  // an unavailable (all-zero) GID, never a fabricated handle-based identity.
++  auto endpoint = dds_get_matched_publication_data(sub->enth, info.publication_handle);
++  if (endpoint != nullptr) {
++    convert_guid_to_gid(endpoint->key, message_info->publisher_gid);
++    dds_builtintopic_free_endpoint(endpoint);
++  }
+   message_info->source_timestamp = info.source_timestamp;
+   // TODO(iluetkeb) get received_timestamp from Cyclone when implemented there
+   message_info->received_timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
+@@ -3308,7 +3312,7 @@ static rmw_ret_t rmw_take_int(
+     if (info.valid_data) {
+       *taken = true;
+       if (message_info) {
+-        message_info_from_sample_info(info, message_info);
++        message_info_from_sample_info(sub, info, message_info);
+       }
+ #if REPORT_LATE_MESSAGES > 0
+       dds_time_t tnow = dds_time();
+@@ -3403,7 +3407,7 @@ static rmw_ret_t rmw_take_seq(
+       taken_msg.push_back(message);
+       (*taken)++;
+       if (message_info) {
+-        message_info_from_sample_info(info, message_info);
++        message_info_from_sample_info(sub, info, message_info);
+       }
+     } else {
+       not_taken_msg.push_back(message);
+@@ -3445,7 +3449,7 @@ static rmw_ret_t rmw_take_ser_int(
+   while (dds_takecdr(sub->enth, &d, 1, &info, DDS_ANY_STATE) == 1) {
+     if (info.valid_data) {
+       if (message_info) {
+-        message_info_from_sample_info(info, message_info);
++        message_info_from_sample_info(sub, info, message_info);
+       }
+ 
+       // taking a serialized msg from shared memory
+@@ -3558,7 +3562,7 @@ static rmw_ret_t rmw_take_loan_int(
+   while (dds_takecdr(cdds_subscription->enth, &d, 1, &info, DDS_ANY_STATE) == 1) {
+     if (info.valid_data) {
+       if (message_info) {
+-        message_info_from_sample_info(info, message_info);
++        message_info_from_sample_info(cdds_subscription, info, message_info);
+       }
+       if (d->iox_chunk != nullptr) {
+         // the iox chunk has data, based on the kind of the data return the data accordingly to

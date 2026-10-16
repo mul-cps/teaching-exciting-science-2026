@@ -52,14 +52,53 @@ ROS_DOMAIN_ID_NUMBER=$((10#$ROS_DOMAIN_ID_VALUE))
 
 [[ -x "$CONDA_EXE" ]] || fail "Conda executable is not available: $CONDA_EXE"
 
+# Dependency provenance is checked once here, never by status/image/control ticks.
+GID_PREFIX="$ROS2_DIR/.cache/rclpy-publisher-gid-7.1.12/install"
+GID_SITE=""
+if [[ -r "$GID_PREFIX/share/rclpy_gid_overlay/provenance.json" && -x "$ENV_PREFIX/bin/python" ]]; then
+  if ! GID_SITE="$(env -u PYTHONHOME -u PYTHONPATH -u LD_LIBRARY_PATH "$ENV_PREFIX/bin/python" \
+      "$ROS2_DIR/conda/record-rclpy-gid-overlay.py" --env-prefix "$ENV_PREFIX" \
+      --validate-prefix "$GID_PREFIX")"; then
+    GID_SITE=""
+  fi
+fi
+
+RMW_GID_PREFIX="$ROS2_DIR/.cache/rmw-cyclonedds-gid-2.2.4/install"
+GID_LIB=""
+if [[ -r "$RMW_GID_PREFIX/share/rmw_gid_overlay/provenance.json" && -x "$ENV_PREFIX/bin/python" ]]; then
+  if ! GID_LIB="$(env -u PYTHONHOME -u PYTHONPATH -u LD_LIBRARY_PATH "$ENV_PREFIX/bin/python" \
+      "$ROS2_DIR/conda/record-rmw-gid-overlay.py" --env-prefix "$ENV_PREFIX" \
+      --validate-prefix "$RMW_GID_PREFIX")"; then
+    GID_LIB=""
+  fi
+fi
+
 clean_conda() {
-  local -a rmw_env=()
-  if [[ -n "${RMW_IMPLEMENTATION:-}" ]]; then
+  local -a rmw_env=() gid_env=() conda_context=()
+  local context_name
+  while IFS= read -r context_name; do
+    case "$context_name" in
+      CONDA_PREFIX|CONDA_PREFIX_[0-9]*|CONDA_SHLVL|CONDA_DEFAULT_ENV|CONDA_PROMPT_MODIFIER)
+        conda_context+=(-u "$context_name") ;;
+    esac
+  done < <(compgen -e)
+  if [[ -n "$GID_SITE" ]]; then
+    gid_env+=("PYTHONPATH=$GID_SITE" "AMENT_PREFIX_PATH=$GID_PREFIX")
+  fi
+  if [[ -n "$GID_LIB" ]]; then
+    gid_env+=("LD_LIBRARY_PATH=$GID_LIB" "AMENT_PREFIX_PATH=$RMW_GID_PREFIX${GID_SITE:+:$GID_PREFIX}")
+  fi
+  if [[ -n "$GID_LIB" && ( -z "${RMW_IMPLEMENTATION:-}" || "$RMW_IMPLEMENTATION" == rmw_cyclonedds_cpp ) ]]; then
+    # Separately pinned Cyclone fork, with a matching public/internal alias.
+    # The camera may keep its stock Cyclone backend and the same wire protocol.
+    rmw_env=("RMW_IMPLEMENTATION=rmw_cyclonedds_cpp_so101_gid")
+  elif [[ -n "${RMW_IMPLEMENTATION:-}" ]]; then
     rmw_env=("RMW_IMPLEMENTATION=$RMW_IMPLEMENTATION")
   elif [[ -f "$ENV_PREFIX/lib/librmw_cyclonedds_cpp.so" ]]; then
     rmw_env=("RMW_IMPLEMENTATION=rmw_cyclonedds_cpp")
   fi
   env \
+    "${conda_context[@]}" \
     -u AMENT_PREFIX_PATH \
     -u COLCON_PREFIX_PATH \
     -u CMAKE_PREFIX_PATH \
@@ -73,6 +112,7 @@ clean_conda() {
     -u LD_LIBRARY_PATH \
     -u LD_PRELOAD \
     -u PKG_CONFIG_PATH \
+    "${gid_env[@]}" \
     ROS_DOMAIN_ID="$ROS_DOMAIN_ID_NUMBER" \
     ROS_AUTOMATIC_DISCOVERY_RANGE="${ROS_AUTOMATIC_DISCOVERY_RANGE:-LOCALHOST}" \
     "${rmw_env[@]}" \
@@ -86,16 +126,19 @@ clean_conda() {
 }
 
 conda_run() {
-  clean_conda run --no-capture-output --prefix "$ENV_PREFIX" "$@"
+  # Conda activation prepends its own site-packages; restore the validated
+  # dependency ahead of it after activation, without validating again.
+  clean_conda run --no-capture-output --prefix "$ENV_PREFIX" \
+    bash --noprofile --norc -c 'if [[ -n "$1" ]]; then export PYTHONPATH="$1${PYTHONPATH:+:$PYTHONPATH}"; fi; if [[ -n "$2" ]]; then export LD_LIBRARY_PATH="$2${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; export AMENT_PREFIX_PATH="${2%/lib}${AMENT_PREFIX_PATH:+:$AMENT_PREFIX_PATH}"; fi; shift 2; exec "$@"' \
+    so101-gid-overlay "$GID_SITE" "$GID_LIB" "$@"
 }
 
 ros_run() {
-  if [[ -r "$INSTALL_BASE/local_setup.bash" ]]; then
-    conda_run bash --noprofile --norc -c 'source "$1"; shift; exec "$@"' \
-      so101-overlay "$INSTALL_BASE/local_setup.bash" "$@"
-  else
-    conda_run "$@"
-  fi
+  # Workspace setup can prepend the base rclpy path too. Apply the isolated
+  # dependency last, immediately before launching the requested process.
+  conda_run bash --noprofile --norc -c \
+    '[[ ! -r "$1" ]] || source "$1"; if [[ -n "$2" ]]; then export PYTHONPATH="$2${PYTHONPATH:+:$PYTHONPATH}"; fi; if [[ -n "$3" ]]; then export LD_LIBRARY_PATH="$3${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; export AMENT_PREFIX_PATH="${3%/lib}${AMENT_PREFIX_PATH:+:$AMENT_PREFIX_PATH}"; fi; shift 3; exec "$@"' \
+    so101-overlay "$INSTALL_BASE/local_setup.bash" "$GID_SITE" "$GID_LIB" "$@"
 }
 
 case "$ACTION" in
@@ -145,12 +188,7 @@ case "$ACTION" in
     ros_run "$@"
     ;;
   shell)
-    if [[ -r "$INSTALL_BASE/local_setup.bash" ]]; then
-      conda_run bash --noprofile --norc -c 'source "$1"; exec bash --noprofile --norc -i' \
-        so101-overlay "$INSTALL_BASE/local_setup.bash"
-    else
-      conda_run bash --noprofile --norc -i
-    fi
+    ros_run bash --noprofile --norc -i
     ;;
   real)
     fail "real hardware remains gated; Conda adds no device-access or actuation authorization"
