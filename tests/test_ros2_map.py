@@ -125,3 +125,75 @@ def test_cached_surface_fades_across_tracking_gap_and_expires_at_ttl():
     assert voxel_map.clear_expired(2.99) == 0
     assert voxel_map.clear_expired(3.01) == 2
     assert voxel_map.display_alphas(3.01).shape == (0,)
+
+
+def test_cloud_callback_looks_up_transform_at_acquisition_stamp():
+    pytest.importorskip("rclpy", reason="native ROS map callback test")
+    from rclpy.time import Time
+    from so101_station_map.node import SurfaceVoxelMapNode
+    from so101_station_map.surface_map import SurfaceVoxelMap
+
+    stamp = Time(nanoseconds=10_250_000_000).to_msg()
+    query = {}
+    transform = SimpleNamespace(transform=SimpleNamespace(
+        translation=SimpleNamespace(x=.2, y=0., z=0.),
+        rotation=SimpleNamespace(x=0., y=0., z=0., w=1.)))
+
+    class Buffer:
+        def lookup_transform(self, target, source, at_time, *, timeout):
+            query.update(target=target, source=source, time=at_time, timeout=timeout)
+            return transform
+
+    class Clock:
+        def now(self):
+            return SimpleNamespace(nanoseconds=10_500_000_000)
+
+    class FakeNode:
+        get_clock = lambda self: Clock()
+        _tracking_is_fresh = lambda self, now, cloud_stamp: True
+        _status = lambda self, state, **details: None
+
+    node = FakeNode()
+    node.target_frame = "charuco_board"
+    node.max_age = .5
+    node.last_cloud_mono = 0.
+    node.publish_period = .01
+    node.buffer = Buffer()
+    node.max_points_per_cloud = 10
+    node.max_range = 1.2
+    node.map = SurfaceVoxelMap(resolution=.01, ttl_s=1., max_voxels=10,
+                               bounds=((-1., 1.), (-1., 1.), (-1., 1.)))
+    node.last_output_stamp = None
+    message = cloud([(0.1, 0., 0.4)], height=1, width=1)
+    message.header = SimpleNamespace(frame_id="camera_color_optical_frame", stamp=stamp)
+
+    SurfaceVoxelMapNode._cloud(node, message)
+
+    assert query["target"] == "charuco_board"
+    assert query["source"] == "camera_color_optical_frame"
+    assert query["time"].nanoseconds == 10_250_000_000
+    assert node.last_output_stamp == stamp
+    np.testing.assert_allclose(node.map.centers(), [[.305, .005, .405]])
+
+
+def test_native_tf_buffer_applies_static_transform_at_historical_cloud_time():
+    pytest.importorskip("rclpy", reason="native ROS tf2 test")
+    from geometry_msgs.msg import TransformStamped
+    from rclpy.duration import Duration
+    from rclpy.time import Time
+    from tf2_ros import Buffer
+
+    buffer = Buffer(cache_time=Duration(seconds=.01))
+    transform = TransformStamped()
+    transform.header.frame_id = "charuco_board"
+    transform.child_frame_id = "camera_color_optical_frame"
+    transform.header.stamp = Time(nanoseconds=20_000_000_000).to_msg()
+    transform.transform.translation.x = .2
+    transform.transform.rotation.w = 1.
+    buffer.set_transform_static(transform, "test_static_tf")
+
+    historical = buffer.lookup_transform(
+        "charuco_board", "camera_color_optical_frame",
+        Time(nanoseconds=1_000_000_000))
+
+    assert historical.transform.translation.x == pytest.approx(.2)

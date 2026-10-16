@@ -8,6 +8,53 @@ The report includes every detected AprilTag 25h9 observation (including repeated
 
 This utility is strictly an offline diagnostic. It does not invoke ROS, access hardware, change the live model, or apply a candidate. It does not jointly optimize global pose, body joint zeros, jaw geometry, or tag mounting. Treat all outputs as unqualified until independent review of held-out per-link metrics and overlays. It refuses a bundle set with fewer than three training poses, insufficient independent motion, or a held-out pose too close to training.
 
+## Read-only capture and held-out comparison
+
+`tools/capture_ros_robot_registration.py` records one settled snapshot from
+already-running ROS topics. It does not start the camera or command arm motion.
+It requires fresh color, aligned depth, CameraInfo, ChArUco tracking, joint
+states, the expanded RSP description, and TF. It rejects RGB-D skew above
+40 ms, stale data, and joint movement above 0.004 rad over the preceding
+250 ms. Capture only after the arm has independently reached a stable pose.
+
+For a comparison, collect at least four snapshots: three distinct training
+poses followed by a separate held-out pose. Use the same camera, board
+placement, station, and effective robot-description hash throughout. Capture
+the held-out pose after selecting the candidate training set, and do not use
+its results to pick the roll hypothesis. For example, with the camera and
+read-only ROS state already running, a ROS container can capture each pose
+without passing through a serial device:
+
+```sh
+ros2/scripts/runtime.sh run -- bash -lc '
+  set -e
+  source /opt/ros/jazzy/setup.bash
+  source /ws/install/setup.bash
+  cd /ws
+  python3 tools/capture_ros_robot_registration.py \
+    --output-directory /ws/runtime/evidence/gripper-roll/train-a --timeout 30
+'
+```
+
+Repeat that command with a new output directory at each settled pose; each
+directory must be new. Keep the first three paths as training inputs and the
+last path held out. Then run the offline comparison with those paths in order:
+
+```sh
+python tools/fit_ros_gripper_registration.py \
+  runtime/evidence/gripper-roll/train-a \
+  runtime/evidence/gripper-roll/train-b \
+  runtime/evidence/gripper-roll/train-c \
+  runtime/evidence/gripper-roll/heldout \
+  --holdout-index 3 --output /tmp/gripper-roll-comparison --samples 10000
+```
+
+The report must retain its `qualified: false` status. A 180-degree correction
+requires a consistent held-out improvement across per-link depth residuals and
+CAD-to-depth visibility, a clearly separated competing hypothesis, and review
+of the held-out overlay. This offline comparison is evidence for review; it
+does not promote the result into RSP, MoveIt, RViz, or MuJoCo.
+
 Example:
 
 ```sh
