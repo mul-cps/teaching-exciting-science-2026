@@ -15,3 +15,33 @@ python tools/fit_ros_gripper_registration.py \
   evidence/baseline evidence/wrist-roll-plus evidence/holdout-combination \
   --output /tmp/gripper-registration --samples 10000
 ```
+# Resident `GripperCommand` action
+
+The resident trajectory bridge exposes the standard
+`control_msgs/action/GripperCommand` action at
+`/follower/gripper_controller/gripper_cmd`. Its `command.position` and result
+`position` are jaw opening in metres. Internally, the bridge converts through a
+qualified jaw-gap calibration into the station owner's native gripper percent
+and then into the identity-matched raw encoder interval. It shares the existing
+ArmSession command owner and admission lock; it never starts a second bus owner.
+
+The bridge requires the `gripper_jaw_calibration` parameter to name a JSON file
+with this schema:
+
+```json
+{
+  "schema": "so101-jaw-gap-calibration-v1",
+  "qualified": true,
+  "closed_gap_m": 0.004,
+  "open_gap_m": 0.075,
+  "closed_percent": 0.0,
+  "open_percent": 100.0
+}
+```
+
+The example values are illustrative and are not a station calibration. Do not
+enable this action with them. `max_effort` is only accepted as zero because the
+servo has no calibrated force limit. A successful result means the jaw reached
+the requested calibrated gap; it does not mean an object was grasped. Pickup
+verification requires separate scene evidence that the selected tracked object
+moved with the gripper during lift.
