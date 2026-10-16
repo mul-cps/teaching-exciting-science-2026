@@ -222,3 +222,23 @@ def test_critical_read_never_dispatches_due_phase_and_checks_fresh_other_axis(op
         assert all(motor.target is None for motor in harness.motors.values())
     else:
         assert result['busy']
+
+
+def test_critical_blocking_read_crossing_shake_end_brakes_without_reversal():
+    from tools.benchmark_ev3_live_api import Harness
+    harness = Harness()
+    harness.api.connect()
+    harness.start_shake()
+    harness.clock.ms = harness.api.job['_end']-5
+    harness.api.last_heartbeat = harness.clock.ms
+    original = harness.motors['sorter'].angle
+    def crossing():
+        harness.clock.ms += 10
+        return original()
+    harness.motors['sorter'].angle = crossing
+    dispatches = harness.motors['sorter'].dispatches
+    result = harness.request('critical_status')['result']
+    assert not result['busy']
+    assert 'Shake duration expired' in result['last_error']['message']
+    assert harness.motors['sorter'].target is None
+    assert harness.motors['sorter'].dispatches == dispatches

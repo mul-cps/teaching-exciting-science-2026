@@ -256,6 +256,8 @@ class LiveAPI:
             if self.job and self.clock() - self.last_heartbeat >= HEARTBEAT_MS:
                 self.disconnect('heartbeat_expired')
                 return
+            if self.job and self.job['operation'] == 'shake' and self.clock() >= self.job['_end']:
+                raise ValueError('Shake duration expired during critical sampling')
             if check_positions:
                 self.job_tick(self.clock(), guard_only=True)
             elif (self.job and self.job['_stage'] == 'moving'
