@@ -465,6 +465,7 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                 # background surfaces separated by a depth discontinuity.
                 component = np.zeros((box_height, box_width), dtype=np.uint8)
                 component[pixels[inside, 1] - y0, pixels[inside, 0] - x0] = 1
+                observed_component = component.copy()
                 component = cv2.morphologyEx(component, cv2.MORPH_CLOSE,
                                              np.ones((3, 3), dtype=np.uint8))
                 contours, _ = cv2.findContours(component, cv2.RETR_EXTERNAL,
@@ -477,15 +478,17 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                 # only inside this already depth-coherent component.
                 contours = _split_elongated_contours(contours)
                 for contour in contours:
+                    contour_mask = np.zeros((box_height, box_width), dtype=np.uint8)
+                    cv2.drawContours(contour_mask, [contour], -1, 1, thickness=cv2.FILLED)
                     validation_diagnostics["silhouette_checks"] += 1
-                    silhouette = validate_brick_silhouette(contour, min_rect_fill=0.45)
+                    silhouette = validate_brick_silhouette(
+                        contour, observed_mask=observed_component & contour_mask,
+                        min_rect_fill=0.45)
                     if not silhouette.accepted:
                         reject_component(color, silhouette.reason, piece.parent_pixels,
                                          component_pixels, silhouette.metrics)
                         continue
                     validation_diagnostics["silhouette_accepted"] += 1
-                    contour_mask = np.zeros((box_height, box_width), dtype=np.uint8)
-                    cv2.drawContours(contour_mask, [contour], -1, 1, thickness=cv2.FILLED)
                     selected = inside & (contour_mask[pixels[:, 1] - y0,
                                                        pixels[:, 0] - x0] != 0)
                     if int(selected.sum()) < 8:
