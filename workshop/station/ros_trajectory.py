@@ -11,11 +11,19 @@ from dataclasses import dataclass
 import math
 import hashlib
 import json
+from types import MappingProxyType
 
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 MAX_POINTS = 1000
 START_TOLERANCE_RAD = math.radians(1.0)
-POSITION_LIMIT_RAD = math.pi / 2
+# The pinned SO-ARM101 model admits elbow ±1.69 rad. The other four
+# conservative station planning limits remain ±90 degrees. Owner execution
+# additionally intersects these limits with its calibrated/configured/firmware
+# raw admission; this model envelope never grants hardware authority.
+POSITION_LIMITS_RAD = MappingProxyType({
+    joint: (-1.69, 1.69) if joint == "elbow_flex" else (-math.pi / 2, math.pi / 2)
+    for joint in ARM_JOINTS
+})
 ROS_MAX_VELOCITY_RAD_S = 0.125
 ROS_MAX_ACCELERATION_RAD_S2 = 0.2
 ROS_MAX_JERK_RAD_S3 = 2.0
@@ -156,7 +164,9 @@ def _poly_roots(coefficients, low, high):
     return sorted(set(roots))
 
 
-def _check_limits(coeffs, durations, joint, max_velocity, max_acceleration, max_jerk):
+def _check_limits(coeffs, durations, joint, max_velocity, max_acceleration, max_jerk,
+                  position_limits):
+    position_min, position_max = position_limits
     for coeff, duration in zip(coeffs, durations):
         velocity_coeff = [i * coeff[i] for i in range(1, len(coeff))]
         acceleration_coeff = [i * velocity_coeff[i] for i in range(1, len(velocity_coeff))]
@@ -170,7 +180,7 @@ def _check_limits(coeffs, durations, joint, max_velocity, max_acceleration, max_
         jmax = max(abs(_evaluate(jerk_coeff, x)) for x in jerk_points)
         position_points = [0.0, duration, *_poly_roots(velocity_coeff, 0.0, duration)]
         positions = [_evaluate(coeff, x) for x in position_points]
-        if min(positions) < -POSITION_LIMIT_RAD - 1e-9 or max(positions) > POSITION_LIMIT_RAD + 1e-9:
+        if min(positions) < position_min - 1e-9 or max(positions) > position_max + 1e-9:
             raise ValueError(f"interpolated position limit exceeded: {joint}")
         if vmax > max_velocity + 1e-9:
             raise ValueError(f"velocity limit exceeded: {joint} {vmax:.6g} > {max_velocity:.6g} rad/s")
@@ -180,14 +190,39 @@ def _check_limits(coeffs, durations, joint, max_velocity, max_acceleration, max_
             raise ValueError(f"jerk limit exceeded: {joint} {jmax:.6g} > {max_jerk:.6g} rad/s^3")
 
 
+def _position_limits(admitted):
+    if admitted is None:
+        return POSITION_LIMITS_RAD
+    if not isinstance(admitted, dict) or set(admitted) != set(ARM_JOINTS):
+        raise ValueError("position_limits must contain exactly the five arm joints")
+    effective = {}
+    for joint in ARM_JOINTS:
+        bounds = admitted[joint]
+        if not isinstance(bounds, (list, tuple)) or len(bounds) != 2:
+            raise ValueError("position_limits require a minimum/maximum pair: " + joint)
+        low, high = (_number(value, "position_limits/" + joint) for value in bounds)
+        if low >= high:
+            raise ValueError("position_limits are inverted or empty: " + joint)
+        model_low, model_high = POSITION_LIMITS_RAD[joint]
+        low, high = max(low, model_low), min(high, model_high)
+        if low >= high:
+            raise ValueError("position_limits do not intersect model envelope: " + joint)
+        effective[joint] = (low, high)
+    return effective
+
+
 def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
-                       max_acceleration, max_jerk=ROS_MAX_JERK_RAD_S3, period=0.05):
+                       max_acceleration, max_jerk=ROS_MAX_JERK_RAD_S3, period=0.05,
+                       position_limits=None):
     """Validate a ROS-like position trajectory and generate 20 Hz spline samples.
 
     Input derivatives are preserved but intentionally not commanded. `start`
     must agree with fresh measured state; the measured values become the exact
-    first knot so the path does not begin with a discontinuity.
+    first knot so the path does not begin with a discontinuity. Optional
+    `position_limits` are already admitted joint bounds in radians; they can
+    narrow, but never widen, the per-joint model envelope.
     """
+    limits = _position_limits(position_limits)
     names = tuple(joint_names)
     if len(names) != len(ARM_JOINTS) or set(names) != set(ARM_JOINTS):
         raise ValueError("joint_names must contain exactly the five arm joints")
@@ -218,7 +253,8 @@ def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
                    for name, value in zip(names, raw_positions)}
         values = [by_name[j] for j in ARM_JOINTS]
         for joint, value in zip(ARM_JOINTS, values):
-            if abs(value) > POSITION_LIMIT_RAD:
+            low, high = limits[joint]
+            if not low <= value <= high:
                 raise ValueError(f"position limit exceeded: {joint}")
         derivatives = {}
         for field in ("velocities", "accelerations"):
@@ -243,7 +279,8 @@ def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
     segment_durations = [times[i + 1] - times[i] for i in range(len(times) - 1)]
     for index, joint in enumerate(ARM_JOINTS):
         coeffs = _spline(times, [row[index] for row in ordered])
-        _check_limits(coeffs, segment_durations, joint, max_velocity, max_acceleration, max_jerk)
+        _check_limits(coeffs, segment_durations, joint, max_velocity, max_acceleration,
+                      max_jerk, limits[joint])
         coeff_by_joint.append(coeffs)
     count = int(math.ceil(duration / period - 1e-12))
     # Keep writes on the 20 Hz grid. If the trajectory ends between ticks,
