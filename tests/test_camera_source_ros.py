@@ -15,7 +15,8 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'ros2/src/so101_station_perception'),str(ROOT/'tests')]
 
 
-def test_actual_metadata_dds_rpc_exact_tf_and_generation_replacement(tmp_path,monkeypatch):
+@pytest.mark.parametrize('private_executor',[False,True])
+def test_actual_metadata_dds_rpc_exact_tf_and_generation_replacement(tmp_path,monkeypatch,private_executor):
     assert os.environ.get('ROS_DOMAIN_ID')=='177','isolated domain177 required'
     import rclpy
     from rclpy.node import Node
@@ -35,7 +36,7 @@ def test_actual_metadata_dds_rpc_exact_tf_and_generation_replacement(tmp_path,mo
     def subscribe(self,typ,topic,*args,**kwargs):return original_subscribe(self,typ,prefix+topic if topic in canonical else topic,*args,**kwargs)
     def lookup(self,topic,*args,**kwargs):return original_lookup(self,prefix+topic if topic in canonical else topic,*args,**kwargs)
     monkeypatch.setattr(Node,'create_subscription',subscribe);monkeypatch.setattr(Node,'get_publishers_info_by_topic',lookup)
-    rclpy.init();source=Node('camera_'+suffix);producer=Node('producer_'+suffix);consumer=None;consumer2=None;thread=None
+    rclpy.init();source=Node('camera_'+suffix);producer=Node('producer_'+suffix);consumer=None;consumer2=None;thread=None;capture_executor=None
     executor=SingleThreadedExecutor();executor.add_node(source);executor.add_node(producer)
     try:
         specs={**{k:(source,Image if k in ('depth','color') else CameraInfo,t) for k,t in TOPICS.items()},
@@ -76,7 +77,10 @@ def test_actual_metadata_dds_rpc_exact_tf_and_generation_replacement(tmp_path,mo
         timer=producer.create_timer(.03,emit)
         thread=threading.Thread(target=executor.spin,daemon=True);thread.start()
         consumer=CameraSourceCapture(serial=value['source']['serial_number']);output=tmp_path/'camera.json'
-        started=time.monotonic();result=consumer.capture(timeout=2.,output=output);elapsed=time.monotonic()-started
+        if private_executor:
+            capture_executor=SingleThreadedExecutor(context=consumer.context)
+            capture_executor.add_node(consumer)
+        started=time.monotonic();result=consumer.capture(timeout=2.,output=output,executor=capture_executor);elapsed=time.monotonic()-started
         assert state['requests']==1 and result['schema']=='so101-camera-source-v1'
         from so101_station_perception.derived_lineage import validate_graph
         times=[];selected=result['camera_evidence']['lineage']['statement']
@@ -95,6 +99,8 @@ def test_actual_metadata_dds_rpc_exact_tf_and_generation_replacement(tmp_path,mo
         # Only two native Info and lineage subscriptions; no image/cloud payload.
         assert all(pubs[k].get_subscription_count()==0 for k in ('depth','color','aligned','cloud'))
         assert len(consumer.core.infos['depth'])<=4 and len(consumer.core.ledger.entries)<=8
+        if capture_executor:
+            capture_executor.remove_node(consumer);capture_executor.shutdown(timeout_sec=1.);capture_executor=None
         consumer.destroy_node();consumer=None
         state['replace']=True;consumer2=CameraSourceCapture(serial=value['source']['serial_number'])
         rejected=tmp_path/'rejected.json'
@@ -102,11 +108,25 @@ def test_actual_metadata_dds_rpc_exact_tf_and_generation_replacement(tmp_path,mo
         assert not rejected.exists() and not rejected.with_name('rejected.evidence.json').exists()
         assert state['requests']==2 and consumer2.core.ledger.invalid_reason
     finally:
+        if capture_executor:capture_executor.shutdown(timeout_sec=1.)
         if consumer:consumer.destroy_node()
         if consumer2:consumer2.destroy_node()
         executor.shutdown(timeout_sec=1.)
         if thread:thread.join(timeout=1.)
         source.destroy_node();producer.destroy_node();rclpy.shutdown()
+
+
+def test_private_context_can_suppress_parent_global_node_remap():
+    from rclpy.context import Context
+    from so101_station_perception.camera_source import CameraSourceCapture
+    context=Context();context.init(args=['--ros-args','-r','__node:=parent_recovery'],domain_id=177)
+    node=None
+    try:
+        node=CameraSourceCapture(context=context,use_global_arguments=False)
+        assert node.get_name()=='camera_capture_sources'
+    finally:
+        if node:node.destroy_node()
+        context.shutdown()
 
 
 def test_camera_only_artifact_is_not_physical_registration_source(tmp_path):

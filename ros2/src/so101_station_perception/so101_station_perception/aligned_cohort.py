@@ -86,7 +86,9 @@ class AlignedCohorts:
         return token
 
     def check(self,token,*,now_ns,now_mono,lookup,color_from_depth):
+        from .admission_proof import require_current_lineage
         self._open();require(token.get('epoch') is self.epoch,'token predates explicit reset');value=token['statement']
+        require_current_lineage(self,now_ns=now_ns,now_mono=now_mono)
         require(self.ledger.pin==self._pin(value),'token immutable source changed')
         validate_statement(value,now_ns=now_ns,now_mono=now_mono,receipt_mono=token['lineage_receipt'])
         for kind,record in token['records'].items():
