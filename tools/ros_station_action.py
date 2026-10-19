@@ -18,6 +18,7 @@ PERCEPTION_SERVICES = {
     'perception-supervisor-disable': '/so101_perception_supervisor/disable',
     'perception-supervisor-status': '/so101_perception_supervisor/status',
     'perception-supervisor-reset-fault': '/so101_perception_supervisor/reset_fault',
+    'perception-supervisor-reconcile-consumers': '/so101_perception_supervisor/reconcile_consumers',
 }
 
 
@@ -66,6 +67,12 @@ def _diagnostic_payload(command, result):
             if (status.get('accepted') is not True or not isinstance(job_id, str)
                     or len(job_id) != 32 or any(c not in '0123456789abcdef' for c in job_id)):
                 raise ValueError('recovery acceptance requires accepted job_id')
+    if command=='perception-supervisor-reconcile-consumers' and result.success:
+        identity=status.get('reconciliation_id')
+        if (status.get('accepted') is not True or status.get('enabled') is not False or status.get('ready_now') is not False
+                or status.get('operation_success') is not False or type(identity) is not str or len(identity)!=32
+                or any(c not in '0123456789abcdef' for c in identity)):
+            raise ValueError('reconciliation acceptance requires disabled pending operator identity, not readiness')
     return dict(success=result.success, rpc_success=result.success, command=command,
                 service=PERCEPTION_SERVICES[command], message=result.message, status=status,
                 operation_success=status.get('operation_success', False),

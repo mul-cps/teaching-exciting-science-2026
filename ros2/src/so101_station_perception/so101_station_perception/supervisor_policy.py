@@ -37,8 +37,16 @@ class SupervisorPolicy:
             job=history['inflight']
             if job is not None:
                 require(type(job) is dict and job.get('state') in ('dispatch_unknown','accepted') and
-                    hex_value(job.get('outage_id'),32) and finite(job.get('reserved_monotonic')) and job['reserved_monotonic']>=0,
+                    finite(job.get('reserved_monotonic')) and job['reserved_monotonic']>=0,
                     'invalid persisted in-flight authority')
+                if job.get('origin')=='operator_reconciliation':
+                    keys={'state','reserved_monotonic','origin','reconciliation_id'}
+                    if job['state']=='accepted':keys.update(('job_id','deadline'))
+                    require(set(job)==keys and hex_value(job.get('reconciliation_id'),32),
+                        'invalid persisted operator reconciliation identity')
+                else:
+                    require('origin' not in job and hex_value(job.get('outage_id'),32),
+                        'invalid persisted automatic outage identity')
                 if job['state']=='accepted':
                     require(hex_value(job.get('job_id'),32) and finite(job.get('deadline')) and
                         job['reserved_monotonic']<job['deadline']<=job['reserved_monotonic']+42.,'invalid persisted accepted authority')
@@ -51,7 +59,7 @@ class SupervisorPolicy:
         self.enabled=False;self.state='disabled';self.latched=None
         self.events=deque(maxlen=128);self.handled=deque(history.get('handled',()),maxlen=128)
         require(len(history.get('handled',()))<=128 and all(hex_value(x,32) for x in self.handled),'invalid outage journal')
-        self.fault=None;self.job=deepcopy(history.get('inflight'));self.stable_since=None;self.last_mono=history.get('last_mono')
+        self.fault=None;self.reconciliation_id=None;self.job=deepcopy(history.get('inflight'));self.stable_since=None;self.last_mono=history.get('last_mono')
         if history.get('inflight'):self.fail('persisted in-flight job completion unknown')
         if history.get('latched'):self.fail(str(history['latched'])[:512])
 
@@ -68,12 +76,13 @@ class SupervisorPolicy:
         self.events.append(dict(event=name,monotonic=now,**data))
 
     def enable(self,now):
-        require(not self.latched and self.job is None,'supervisor latch/job requires explicit resolution')
+        require(not self.latched and self.job is None and self.reconciliation_id is None,'supervisor latch/job/reconciliation requires explicit resolution')
         self.enabled=True;self.state='warming';self.stable_since=None;self.event('enabled',now)
 
     def disable(self,now):
         self.enabled=False;self.stable_since=None
-        if self.job is None:self.state='disabled' if not self.latched else 'latched'
+        if self.job is None:
+            self.reconciliation_id=None;self.state='disabled' if not self.latched else 'latched'
         self.event('disabled',now,accepted_job_continues=self.job is not None)
 
     def healthy(self,now,valid):
@@ -98,6 +107,21 @@ class SupervisorPolicy:
         self.attempts.append(utc);self.job={'state':'dispatch_unknown','reserved_monotonic':now,'outage_id':self.fault['fault_id']}
         self.state='recovering';self.event('attempt_reserved',now,outage_id=self.fault['fault_id'])
 
+    def begin_reconciliation(self,identity,now):
+        require(not self.enabled and self.state=='disabled' and not self.latched and self.job is None
+            and self.reconciliation_id is None and hex_value(identity,32),'operator reconciliation requires disabled terminal policy')
+        self.reconciliation_id=identity;self.state='operator_preflight';self.stable_since=None
+        self.event('operator_reconciliation_requested',now,reconciliation_id=identity)
+
+    def reserve_reconciliation(self,identity,now,utc):
+        self.clocks(now,utc)
+        require(not self.enabled and self.state=='operator_preflight' and not self.latched and self.job is None
+            and identity==self.reconciliation_id,'operator reconciliation reservation not attributable')
+        require(len(self.attempts)<3 and (not self.attempts or utc-self.attempts[-1]>=30.),'automatic quota/cooldown exhausted')
+        self.attempts.append(utc)
+        self.job=dict(state='dispatch_unknown',reserved_monotonic=now,origin='operator_reconciliation',reconciliation_id=identity)
+        self.state='recovering';self.event('operator_reconciliation_reserved',now,reconciliation_id=identity)
+
     def accepted(self,job_id,deadline,now):
         require(self.job is not None and self.job['state']=='dispatch_unknown' and hex_value(job_id,32), 'unknown recovery acceptance')
         require(finite(deadline) and now<deadline<=self.job['reserved_monotonic']+42.,'coordinator deadline invalid')
@@ -105,7 +129,7 @@ class SupervisorPolicy:
 
     def completed(self,now):
         require(self.job is not None and self.job['state']=='accepted','no owned accepted job')
-        self.event('own_job_completed',now,job_id=self.job['job_id']);self.job=None;self.fault=None
+        self.event('own_job_completed',now,job_id=self.job['job_id']);self.job=None;self.fault=None;self.reconciliation_id=None
         self.state='warming' if self.enabled else 'disabled';self.stable_since=None
 
     def fail(self,reason):
@@ -113,7 +137,7 @@ class SupervisorPolicy:
 
     def reset_fault(self,now,*,terminal_proven):
         require(terminal_proven and self.job is None,'active or unknown job cannot reset latch')
-        self.latched=None;self.state='disabled';self.enabled=False;self.stable_since=None;self.event('fault_reset',now)
+        self.latched=None;self.state='disabled';self.enabled=False;self.stable_since=None;self.reconciliation_id=None;self.event('fault_reset',now)
 
     def journal(self):
         return dict(schema='so101-perception-supervisor-journal-v1',attempts=list(self.attempts),
