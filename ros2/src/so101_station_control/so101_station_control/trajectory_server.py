@@ -241,7 +241,7 @@ def _control_callback(callback):
             if self._stop_latched:
                 if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
                     return GoalResponse.REJECT
-                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_calibration_ready", "_set_teleop_enabled"}:
+                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_gripper_diagnostics", "_calibration_ready", "_set_teleop_enabled"}:
                     response = args[1]
                     response.success, response.message = False, "owner stop remains latched"
                     if callback.__name__ == "_prepare":
@@ -439,6 +439,9 @@ class TrajectoryBridge(Node):
         self._commission_gripper_service = self.create_service(
             CommissionGripperStep, "/follower/commission_gripper_step",
             self._commission_gripper_step, callback_group=self._teleop_service_group)
+        self._gripper_diagnostics_service = self.create_service(
+            Trigger, "/follower/gripper_diagnostics", self._gripper_diagnostics,
+            callback_group=self._teleop_service_group)
         self._sorting_ready_service = self.create_service(
             Trigger, "/follower/sorting_ready", self._sorting_ready,
             callback_group=self._teleop_service_group)
@@ -1979,6 +1982,123 @@ class TrajectoryBridge(Node):
             "reasons": reasons}
         response.success = True
         response.message = json.dumps(payload, allow_nan=False)
+        return response
+
+    @_control_callback
+    def _gripper_diagnostics(self, _request, response):
+        """Finite, diagnostic-only read through the existing sole-owner reservation."""
+        response.success = False
+        process, generation = self._process, self._owner_started
+        cohort = (self._expected_arm_id, self._expected_calibration_sha256,
+                  dict(self._owner_source_expected or {}))
+        started = time.monotonic()
+
+        def observation(value, *, after, max_age=.1):
+            now = time.monotonic()
+            freshness = min(max_age, float(self.get_parameter("state_freshness_s").value)) if max_age == .1 else max_age
+            if not isinstance(value, dict):
+                raise ValueError("jaw diagnostic six-joint observation is missing")
+            for key in ("monotonic", "torque_monotonic"):
+                stamp = value.get(key)
+                if (type(stamp) not in (int, float) or not math.isfinite(stamp) or
+                        not max(generation, after, now-freshness) <= stamp <= now):
+                    raise ValueError("jaw diagnostic original acquisition is stale")
+            for key, upper in (("raw", 4095), ("torque", 0)):
+                values = value.get(key)
+                if (not isinstance(values, dict) or set(values) != set(TELEOP_JOINTS) or
+                        any(type(v) is not int or not 0 <= v <= upper for v in values.values())):
+                    raise ValueError("jaw diagnostic requires exact raw six-joint all-off observations")
+
+        try:
+            if (self._external_state_only or self._closed or process is None or
+                    process.poll() is not None or self._owner_faulted or self._reconnect_observe or
+                    type(generation) not in (int, float) or not math.isfinite(generation) or
+                    generation <= 0 or not cohort[2]):
+                raise ValueError("initialized non-observing owner is unavailable")
+            state = self._read_state()
+            if (not isinstance(state, dict) or state.get("observe_only") is not False or
+                    (state.get("arm_id"), state.get("calibration_sha256"),
+                     state.get("owner_source_sha256")) != cohort):
+                raise ValueError("jaw diagnostic owner identity/source mismatch")
+            observation(state, after=generation)
+            with self._active_lock:
+                if self._active_goal is not None or self._teleop_state != "disabled":
+                    raise ValueError("jaw diagnostics require idle owner")
+                self._active_goal = "jaw_diagnostics"
+            result = self._reserved_owner_reply("jaw_diagnostics", process, generation,
+                                                started+1., "jaw_diagnostics")
+            self._assert_owner_reservation("jaw_diagnostics", process, generation)
+            if cohort != (self._expected_arm_id, self._expected_calibration_sha256,
+                          self._owner_source_expected):
+                raise RuntimeError("jaw diagnostic identity/source cohort replaced")
+            diagnostic = result.get("diagnostic") if isinstance(result, dict) else None
+            if (not isinstance(diagnostic, dict) or
+                    diagnostic.get("schema") != "jaw-register-diagnostics-v1" or
+                    diagnostic.get("diagnostic_only") is not True or
+                    diagnostic.get("calibration_authority") is not False or
+                    diagnostic.get("motion_authority") is not False or
+                    diagnostic.get("motor_id") != 6 or
+                    (diagnostic.get("arm_id"), diagnostic.get("calibration_sha256"),
+                     diagnostic.get("owner_source_sha256")) != cohort):
+                raise RuntimeError("jaw diagnostic acknowledgement lacks original owner cohort")
+            payload = dict(diagnostic, owner_started_monotonic=generation)
+            if result.get("ok") is not True or diagnostic.get("available") is not True:
+                response.message = json.dumps(payload, allow_nan=False)
+                return response
+            for key in ("started_monotonic", "ended_monotonic"):
+                stamp = diagnostic.get(key)
+                if (type(stamp) not in (int, float) or not math.isfinite(stamp) or
+                        not started <= stamp <= time.monotonic()):
+                    raise RuntimeError("jaw diagnostic acquisition clock is invalid")
+            if diagnostic["ended_monotonic"] < diagnostic["started_monotonic"]:
+                raise RuntimeError("jaw diagnostic clock order changed")
+            observation(diagnostic.get("after"), after=started)
+            observation(diagnostic.get("before"), after=started, max_age=.5)
+            expected = (("CW_Dead_Zone", 26, 1), ("CCW_Dead_Zone", 27, 1),
+                ("P_Coefficient", 21, 1), ("D_Coefficient", 22, 1),
+                ("I_Coefficient", 23, 1), ("Minimum_Startup_Force", 24, 2),
+                ("Max_Torque_Limit", 16, 2), ("Torque_Limit", 48, 2),
+                ("Present_Load", 60, 2), ("Present_Current", 69, 2),
+                ("Status", 65, 1), ("Moving", 66, 1))
+            rows = diagnostic.get("registers")
+            if (not isinstance(rows, list) or len(rows) != len(expected) or
+                    any(not isinstance(row, dict) or row.get("register") != name or
+                        type(row.get("motor_id")) is not int or row["motor_id"] != 6 or
+                        type(row.get("address")) is not int or row["address"] != address or
+                        type(row.get("width_bytes")) is not int or row["width_bytes"] != width or
+                        type(row.get("value")) is not int or
+                        not (-1023 if name == "Present_Load" else 0) <= row["value"] <=
+                            (1023 if name == "Present_Load" else 2**(8*width)-1) or
+                        row.get("units") != "raw register value" or
+                        type(row.get("started_monotonic")) not in (int, float) or
+                        type(row.get("ended_monotonic")) not in (int, float) or
+                        not diagnostic["started_monotonic"] <= row["started_monotonic"] <=
+                            row["ended_monotonic"] <= diagnostic["ended_monotonic"]
+                        for row, (name, address, width) in zip(rows, expected)) or rows[-1]["value"] != 0):
+                raise RuntimeError("jaw diagnostic fixed ID 6 inventory is invalid")
+            # The initial acquisition may be older than final feedback. Keep its
+            # original clocks and require exact equality, never a drift tolerance.
+            before, after = diagnostic.get("before"), diagnostic["after"]
+            if (not isinstance(before, dict) or before.get("raw") != after["raw"] or
+                    before.get("torque") != after["torque"]):
+                raise RuntimeError("jaw diagnostic six-joint snapshot changed")
+            response.message = json.dumps(payload, allow_nan=False)
+            response.success = True
+        except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as error:
+            response.success = False
+            # Pure read failures do not authorize any cleanup/profile/goal write.
+            # Unknown delivery poisons admission until a separately explicit stop.
+            if isinstance(error, (RuntimeError, OSError)):
+                self._owner_faulted = True
+            response.message = json.dumps(dict(schema="jaw-register-diagnostics-v1",
+                diagnostic_only=True, calibration_authority=False, motion_authority=False,
+                available=False, error=str(error), error_type=type(error).__name__,
+                owner_started_monotonic=(generation if type(generation) in (int, float)
+                    and math.isfinite(generation) else None)), allow_nan=False)
+        finally:
+            with self._active_lock:
+                if self._active_goal == "jaw_diagnostics":
+                    self._active_goal = None
         return response
 
     @_control_callback

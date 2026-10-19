@@ -460,3 +460,56 @@ The follower reserves one operation across the entire transaction. A fresh owner
 The bridge terminal JSON has `schema: 1`, `kind: arm_prepare`, state, completed phases and home provenance. Success also carries the actual `observation`: arm identity, calibration and selected owner-source hashes, six raw positions, six torque states, original position/torque monotonic acquisition clocks and typed bounds observation. `/follower/status` exposes the cached bounds observation and current `prepare_phase`; status is observation, not motion permission.
 
 Local admission failure or a structured bridge rejection proving no command was sent requires no cleanup motion. Any possible delivery followed by cancellation, malformed/unknown result, or failure requires correlated resident stop and verified callback quiescence. Cleanup event logging cannot skip this stop. Missing acknowledgement leaves a pending stop/fault barrier; no success or automatic retry is inferred.
+
+### Passive jaw register diagnostics
+
+`ros2/scripts/station-action.sh gripper-diagnostics` calls the zero-argument
+`std_srvs/Trigger` service `/follower/gripper_diagnostics`. The bridge reserves
+one finite operation on its existing owner and sends only `jaw_diagnostics`.
+There is no caller-selected joint, motor ID, address, register, target or policy.
+The owner must already be initialized, idle, identity/source/calibration matched,
+and all six measured torque bits must be zero. An explicitly stopped idle owner
+is eligible without changing its shutdown, fault, home or profile state.
+
+The fixed ID 6 (gripper) inventory is `CW_Dead_Zone` (26, u8), `CCW_Dead_Zone`
+(27, u8), `P_Coefficient` (21, u8), `D_Coefficient` (22, u8), `I_Coefficient`
+(23, u8), `Minimum_Startup_Force` (24, u16), `Max_Torque_Limit` (16, u16),
+`Torque_Limit` (48, u16), `Present_Load` (60, two bytes), `Present_Current`
+(69, u16), `Status` (65, u8), and `Moving` (66, u8). Names, addresses and widths
+come from installed LeRobot 0.6.1's STS3215 `STS_SMS_SERIES_CONTROL_TABLE`.
+The driver's `Minimum_Startup_Force` read spans bytes 24–25. The current generic
+[ST vendor memory-map explanation](https://docs.waveshare.com/Memory_Map_Explanation/ST_Servo_Memory_Map_Explanation)
+labels byte 24 minimum starting torque and byte 25 integral limit separately.
+This diagnostic reports the driver's raw two-byte word; interpretation for the
+installed model/firmware remains unproven and is not an actual torque measurement.
+With `normalize=False`, LeRobot still decodes `Present_Load` sign magnitude
+at bit 10; the response declares that encoding. Values use raw register units.
+The dead-zone fields are not asserted to mean encoder counts, and load/current
+are not converted to physical force or amperes.
+
+Every transaction uses `normalize=False, num_retry=0`. The diagnostic makes no
+bus writes, connect/reconnect calls, torque changes or recovery attempts. Exact
+six-joint raw counts (integer 0..4095) and all-off torque are acquired before
+and after the twelve register reads; even one count of drift makes the snapshot
+unavailable. A nonzero `Moving`, unreadable register, changed cohort, invalid
+value or expired 500 ms owner acquisition budget also returns unavailable.
+The bridge waits at most one second under its existing reservation and rejects
+stale final feedback, changed owner generation, stop barriers or identity changes.
+The operation polls control input between transactions. A single SDK transaction
+cannot be preempted; its return is checked against the absolute deadline.
+
+The JSON response uses `jaw-register-diagnostics-v1`, includes actual register
+values and each read's original start/end monotonic and UTC clocks, original
+before/after all-off feedback, owner identity/source hashes and bridge owner
+start generation. Final feedback retains its acquisition clocks in the owner's
+state file. Cached motion-bound classifications remain observations, including
+passive positions outside ordinary motion bounds. `diagnostic_only=true`,
+`calibration_authority=false`, and `motion_authority=false` apply to every result;
+an unavailable result may contain partial observations. This snapshot does not
+identify the cause of a failed jaw step or qualify jaw calibration.
+
+Read/validation failure returns unavailable without diagnostic cleanup writes.
+Independently received stop, cancel, exit, EOF, watchdog expiry and transport
+termination retain their existing disarm/restore authority; diagnostic failure
+does not generate those commands or clear their barriers. Unknown bridge delivery
+remains faulted until a separately explicit verified stop.
