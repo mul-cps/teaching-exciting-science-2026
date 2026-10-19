@@ -13,7 +13,8 @@ pytest.importorskip('rclpy')
 from test_derived_registration import fixture
 
 
-def test_actual_dds_private_pinner_full_recovery_and_original_expiry(tmp_path,monkeypatch):
+@pytest.mark.parametrize('heartbeat_gap', [0., .45], ids=['normal', 'lineage-before-heartbeat'])
+def test_actual_dds_private_pinner_full_recovery_and_original_expiry(tmp_path,monkeypatch,heartbeat_gap):
     assert os.environ.get('ROS_DOMAIN_ID')=='177','isolated domain177 required'
     import rclpy
     from rclpy.node import Node
@@ -59,11 +60,11 @@ def test_actual_dds_private_pinner_full_recovery_and_original_expiry(tmp_path,mo
         broadcaster=StaticTransformBroadcaster(source);tf=TransformStamped()
         tf.header.frame_id=value['original']['depth_frame'];tf.child_frame_id=value['original']['color_frame']
         tf.transform.rotation.w=1.;tf.transform.translation.x=-.015;broadcaster.sendTransform(tf)
-        requests={'device':0,'reset':0};reset={'id':None}
+        requests={'device':0,'reset':0};reset={'id':None,'started':None,'suppressed':0}
         def device(req,response):requests['device']+=1;response.serial_number=serial;return response
         source.create_service(DeviceInfo,'/'+source.get_name()+'/device_info',device)
         def producer_reset(req,response):
-            requests['reset']+=1;reset['id']=uuid.uuid4().hex;value['producer_generation']=uuid.uuid4().hex;value['sequence']=0
+            requests['reset']+=1;reset['started']=time.monotonic();reset['id']=uuid.uuid4().hex;value['producer_generation']=uuid.uuid4().hex;value['sequence']=0
             response.success=True;response.message=json.dumps(dict(accepted=True,ready=False,
                 accepted_reset_id=reset['id'],new_producer_generation=value['producer_generation']))
             return response
@@ -103,6 +104,11 @@ def test_actual_dds_private_pinner_full_recovery_and_original_expiry(tmp_path,mo
                 fx,fy,cx,cy=value['calibration'][kind+'_K'];msg.k=[fx,0.,cx,0.,fy,cy,0.,0.,1.];msg.d=[0.]*5;msg.distortion_model='plumb_bob'
                 pubs[kind+'_info'].publish(msg)
             pubs['status'].publish(String(data=json.dumps(value)))
+            # Independent DDS ordering: native/lineage keep advancing while a
+            # rebuilding producer has no fresh heartbeat for >250ms.
+            if reset['started'] is not None and mono-reset['started'] < heartbeat_gap:
+                reset['suppressed']+=1
+                return
             pubs['heartbeat'].publish(String(data=json.dumps(dict(schema='so101-derived-rocm-rgbd-v1',qualified=False,
                 execution_enabled=False,state='ready' if value['sequence']>=2 else 'preparing',producer_generation=value['producer_generation'],reset=dict(
                 accepted_reset_id=reset['id'],new_producer_generation=value['producer_generation'],
@@ -122,11 +128,13 @@ def test_actual_dds_private_pinner_full_recovery_and_original_expiry(tmp_path,mo
         accepted=json.loads(future.result().message);assert future.result().success and accepted['ready_now'] is False
         duplicate=starter.call_async(Trigger.Request());wait(duplicate.done);assert not duplicate.result().success
         wait(lambda:coordinator.result['state'] in ('completed','failed'),seconds=10.)
-        assert coordinator.result['state']=='completed',coordinator.result
+        assert coordinator.result['state']=='completed',json.dumps(coordinator.result,sort_keys=True)
         future=status_client.call_async(Trigger.Request());wait(future.done)
         completed=json.loads(future.result().message)
         assert completed['operation_success'] is True and completed['ready_now'] is True
         assert requests=={'device':1,'reset':1} and all(v['resets']==1 for v in state.values())
+        if heartbeat_gap:
+            assert reset['suppressed']>=2 and time.monotonic()-reset['started']>=heartbeat_gap
         artifact=json.loads(Path(completed['artifact']).read_text())
         assert artifact['camera_evidence']['independent_device_info']['serial_number']==serial
         assert artifact['derived_source']['pin']['producer_generation']==value['producer_generation']
