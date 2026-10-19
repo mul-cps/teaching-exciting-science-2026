@@ -183,7 +183,7 @@ def test_native_derived_source_original_stamps_dedup_and_replacement(tmp_path):
                 previous = node.buffers[stream][-1]
                 message = deepcopy(previous[2]); original_ns = fresh_now+(20_000_000 if stream.endswith('info') else 0)
                 message.header.stamp.sec, message.header.stamp.nanosec = divmod(original_ns, 1_000_000_000)
-                node.buffers[stream].clear(); node.buffers[stream].append((original_ns, previous[1], message))
+                node.buffers[stream].clear(); node.buffers[stream].append((original_ns, previous[1], message, previous[3]))
             with pytest.raises(ValueError, match='CameraInfo exposure'): node._admit()
         finally:
             for key, values in saved_buffers.items(): node.buffers[key] = deque(values, maxlen=4)
@@ -233,7 +233,7 @@ def test_constructor_failure_always_shuts_down_context(monkeypatch):
 def test_unproven_distortion_shape_not_reported_as_five_zero_coefficients(shape, model):
     info = CameraInfo(); info.header.frame_id = 'camera_depth_optical_frame'; info.width = 4; info.height = 3
     info.k = [4., 0., 2., 0., 4., 1., 0., 0., 1.]; info.d = shape; info.distortion_model = model
-    fake = NS(buffers={'depth_info': [(1_000_000_000, 'a'*32, info)]},
+    fake = NS(buffers={'depth_info': [(1_000_000_000, 'a'*32, info, time.monotonic())]},
         binding={'endpoints': {'depth_info': {'gid': 'a'*32}}})
     with pytest.raises(ValueError): module.ROCmRGBD._info(fake, 'depth_info', 1_000_000_000, (4, 3), [4., 4., 2., 1.], info.header.frame_id)
 
@@ -266,15 +266,15 @@ def delayed_info_fixture():
             message.data = bytes(message.step*message.height)
         gid = ('%02x' % (list(module.TOPICS).index(stream)+1))*16
         fake.binding['endpoints'][stream] = {'gid': gid}
-        fake.buffers[stream] = deque([(image_ns, gid, message)], maxlen=4)
+        fake.buffers[stream] = deque([(image_ns, gid, message, fake.last_receipt[stream])], maxlen=4)
     fake._info = lambda *args: module.ROCmRGBD._info(fake, *args)
     return fake, offers, records, now, image_ns
 
 
 def set_replay_stamp(fake, stream, stamp):
-    _, gid, message = fake.buffers[stream][-1]; message = deepcopy(message)
+    _, gid, message, receipt = fake.buffers[stream][-1]; message = deepcopy(message)
     message.header.stamp.sec, message.header.stamp.nanosec = divmod(stamp, 1_000_000_000)
-    fake.buffers[stream].append((stamp, gid, message))
+    fake.buffers[stream].append((stamp, gid, message, receipt))
 
 
 def test_recorded_100ms_delayed_info_waits_then_admits_original_cohort():
@@ -286,7 +286,7 @@ def test_recorded_100ms_delayed_info_waits_then_admits_original_cohort():
     # Recover the message from the independent fresh fixture, preserving storage.
     message = delayed_info_fixture()[0].buffers['color_info'][0][2]
     message.header.stamp.sec, message.header.stamp.nanosec = divmod(info_ns, 1_000_000_000)
-    fake.buffers['color_info'].append((info_ns, fake.binding['endpoints']['color_info']['gid'], message))
+    fake.buffers['color_info'].append((info_ns, fake.binding['endpoints']['color_info']['gid'], message, fake.last_receipt['color_info']))
     module.ROCmRGBD._admit(fake)
     assert offers == records == [] and fake.counters['admitted'] == 0
     # A distinct actual Info exposure within the unchanged40ms window arrives.
@@ -303,12 +303,12 @@ def test_recorded_100ms_delayed_info_waits_then_admits_original_cohort():
 def test_delayed_info_does_not_hide_real_immutable_mutation(mutation):
     fake, offers, _, now, image_ns = delayed_info_fixture()
     set_replay_stamp(fake, 'color_info', image_ns-100_065_918)
-    stamp, gid, info = fake.buffers['color_info'][-1]
+    stamp, gid, info, receipt = fake.buffers['color_info'][-1]
     if mutation == 'K': info.k[0] += 1.
     elif mutation == 'D': info.d[0] = .01
     elif mutation == 'profile': info.width += 1
     elif mutation == 'frame': info.header.frame_id = 'changed_frame'
-    else: fake.buffers['color_info'][-1] = (stamp, 'f'*32, info)
+    else: fake.buffers['color_info'][-1] = (stamp, 'f'*32, info, receipt)
     # Ensure the mutated delayed item is the only candidate.
     fake.buffers['color_info'] = deque([fake.buffers['color_info'][-1]], maxlen=4)
     with pytest.raises(ValueError, match='calibration/profile/cohort changed'):
