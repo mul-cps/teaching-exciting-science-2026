@@ -14,7 +14,12 @@ joint_limits:
     max_acceleration: 0.8
     has_jerk_limits: true
     max_jerk: 2.0
-  shoulder_lift: *station_arm_limits
+  # Official pinned URDF envelope; owner admission remains narrowed by calibration,
+  # configuration and resident firmware limits before any execution.
+  shoulder_lift:
+    <<: *station_arm_limits
+    min_position: -1.74533
+    max_position: 1.74533
   # Pinned SO-ARM101 URDF elbow model bound; the owner still enforces its
   # narrower calibrated/configured/firmware raw intersection before execution.
   elbow_flex:
