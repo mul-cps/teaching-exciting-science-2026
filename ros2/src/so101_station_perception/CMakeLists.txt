@@ -37,6 +37,7 @@ install(PROGRAMS
   scripts/marker_pipeline
   scripts/rocm_rgbd
   scripts/perception_recovery
+  scripts/perception_supervisor
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
