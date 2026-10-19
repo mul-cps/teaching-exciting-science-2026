@@ -18,6 +18,7 @@ def test_whole_metadata_health_status_and_transition_journal(supervisor,monkeypa
     node,value=supervisor;graph=endpoints(value)
     monkeypatch.setattr(module,'time',NS(monotonic=lambda:100.12,time=time.time))
     monkeypatch.setattr(node,'get_clock',lambda:NS(now=lambda:NS(nanoseconds=10_120_000_000)))
+    node.producer=({},None,100.11)
     monkeypatch.setattr(node,'_producer_now',lambda:dict(state='ready',fault=None,producer_generation=node.pin['producer_generation']))
     monkeypatch.setattr(node,'get_publishers_info_by_topic',graph.__getitem__)
     for sequence in range(1,9):
@@ -36,6 +37,7 @@ def test_whole_metadata_health_status_and_transition_journal(supervisor,monkeypa
         selected=tuple((100.1,value['original'][k+'_info_stamp_ns']) for k in ('depth','color')),request=100.,received=100.01)
     def native_final():node._native_final()
     def health():node._current_health()
+    def completion_guard_metadata():node._current_health(start_requests=False)
     def status():module.bounded_json(node._snapshot())
     def context():module.same_auto_context(node.original_pin,node.pin)
     # Whole finite journal serialization/fsync/rename/readback; no ROS RPC.
@@ -47,7 +49,7 @@ def test_whole_metadata_health_status_and_transition_journal(supervisor,monkeypa
             start=time.perf_counter_ns();call();values.append((time.perf_counter_ns()-start)/1000.)
         values.sort();return dict(samples=count,mean_us=statistics.mean(values),p95_us=values[int(.95*(count-1))],max_us=max(values))
     result=dict(scope='CPU synthetic metadata only; fake graph lookup, no DDS/GPU/payload; journal real temp filesystem',
-        bounded_sizes=dict(ledger=8,events=128,event_job_id_chars=32),health_validation=measure(health,1000),final_original_native_witness=measure(native_final,1000),status_snapshot_json=measure(status,1000),
+        bounded_sizes=dict(ledger=8,events=128,event_job_id_chars=32),health_validation=measure(health,1000),completion_guard_metadata=measure(completion_guard_metadata,1000),final_original_native_witness=measure(native_final,1000),status_snapshot_json=measure(status,1000),
         immutable_context_comparison=measure(context,1000),cold_journal_transition=measure(journal,20))
     if os.environ.get('SUPERVISOR_BENCHMARK_OUTPUT'):
         path=Path(os.environ['SUPERVISOR_BENCHMARK_OUTPUT']);path.open('x').write(json.dumps(result,indent=2)+'\n')

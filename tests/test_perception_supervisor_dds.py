@@ -125,7 +125,7 @@ def test_actual_automatic_supervisor_with_real_coordinator(tmp_path,monkeypatch)
         def wait(predicate,seconds=6.):
             until=time.monotonic()+seconds
             while time.monotonic()<until and not predicate():executor.spin_once(timeout_sec=.005)
-            assert predicate(),coordinator.result
+            assert predicate(),dict(coordinator=coordinator.result,supervisor=supervisor._snapshot() if supervisor is not None else None)
         enabler=probe.create_client(Trigger,'/so101_perception_supervisor/enable')
         wait(enabler.service_is_ready)
         wait(lambda:supervisor.producer is not None and len(supervisor.ledger.entries)>=2)
@@ -162,6 +162,10 @@ def test_actual_automatic_supervisor_with_real_coordinator(tmp_path,monkeypatch)
                 requests=requests,consumer_resets={k:v['resets'] for k,v in state.items()},
                 completed=coordinator.result,supervisor=supervisor._snapshot(),expired_historical_operation=old_operation),indent=2))
     finally:
+        if supervisor and os.environ.get('SUPERVISOR_DDS_EVIDENCE') and not Path(os.environ['SUPERVISOR_DDS_EVIDENCE']).exists():
+            Path(os.environ['SUPERVISOR_DDS_EVIDENCE']).write_text(json.dumps(dict(
+                scope='failed isolatedDDS177 diagnostic; noGPU/SDK/arm/pixels',requests=requests,
+                supervisor=supervisor._snapshot(),coordinator=coordinator.result if coordinator else None),indent=2))
         if supervisor:
             supervisor.close();executor.remove_node(supervisor);supervisor.destroy_node()
         if coordinator:
