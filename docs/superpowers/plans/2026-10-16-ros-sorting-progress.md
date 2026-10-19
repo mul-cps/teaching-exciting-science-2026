@@ -523,3 +523,19 @@ Live timing initially hid the nominal crosshair because the latest joint stamp w
 RViz was restarted with enabled NOMINAL Virtual Gripper Camera image panel. The old GUI required SIGTERM after SIGINT stalled; no robot processes were involved. New RViz2625438 subscribes to the actual annotated topic with matching best-effort QoS. Its amdgpu graphics counter advanced23288815ns over one second; process-local hardware rendering settings are retained. Browser viewer was absent and its shared snapshot was stale, so browser restoration still needs a fresh read-only ROS-state bridge; stale data is not shown as live.
 
 Evidence:2026-10-19-sorting/elbow-bounds-software/,elbow-bounds-review/,easy-pick-place/,collision-model-analysis/,gripper-ego-view/. Full physical calibration and sorting acceptance remain open.
+
+
+## 2026-10-19 supervised commissioning trials
+
+- Landed bounded commissioning and explicit measured-HOME refresh in `1c921a1` (owner/helper/bridge exact reviewed pins). System 1809 passed/94 skipped, station 634 passed, mandatory native 279 passed; two earlier broad-native runs each retained a different failing existing fixture, subsequently passing in isolation. No full-native green claim.
+- One zero-displacement supervised hold completed: all six raw counts unchanged, all six torque on. Captured actual held pose and atomically saved measured HOME, preserving geometry/grasp commissioning false; explicit HOME completed.
+- Strict collision-checked wrist trials: requested -1 degree measured -3 raw counts (0.264 degree); a further requested -4 degrees produced a total -39 raw counts (3.429 degrees) from HOME. Other body joints stayed fixed. These are observed responses, not TCP calibration.
+- Strict elbow -4 degree trial failed final tolerance: actual -23 raw counts (2.022 degrees), terminal error 2.031710 degrees vs unchanged 2 degree limit. All 57 settle reads were unchanged; timing remained about 50 ms. Owner shut down and verified all six torque off; arm subsequently sagged. No pickup/place occurred. Do not retry this trial or promote calibration.
+- Reconnected observation-only, explicitly stopped, retained failure logs. User subsequently raised the arm; fresh camera and MoveIt state validity confirmed the new raised pose is clear in the nominal model. All six remain torque off. Shoulder -92.879 degrees is rejected by generic +/-90 configuration but lies within official URDF and calibration/firmware intersection; correction and failed-endpoint hold are under independent review.
+- Restored camera RGB/depth 640x480x15. Exact 1080p object analysis took 1.027 s, exceeding unchanged 500 ms freshness; 640 profile restored fresh grasp status (8 objects, 4 pickup candidates). Execution remains disabled/unqualified.
+- Landed RGB/CAD virtual feed `c8d1423`; actual GPU feed now includes observed packed RGB plus all three nominal gripper visuals. Three matched six-topic cohorts captured, raw unknown pixels remain zero and provenance distinguishes unknown/observed/model. Actual first live readback 25.87 ms is retained separately from offline p95 0.475 ms; no live timing equivalence claim.
+- Physical gripping-center observation remains unresolved: candidate inner rims are edge-on, and aligned depth fills the dark channel. No pad midpoint or qualified TCP was fabricated.
+
+Evidence: `~/.local/share/exciting-science/station/evidence/2026-10-19-sorting/commissioning-live/OUTCOME.json`, original owner log, bound captures, inner-pad analysis, body-limit intersection; `pick-place-now/camera640-status/`; `gripper-ego-view/live-view-rgb-mesh/`.
+
+Remaining acceptance: reliable failure handling/control response, genuine jaw/TCP/base calibration with separate validation, then one supervised pickup/lift/place; later the plan's 20 physical sorts, teleoperation/watchdog/fault matrix and cold-start qualification.
