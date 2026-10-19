@@ -16,12 +16,13 @@ from types import MappingProxyType
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 MAX_POINTS = 1000
 START_TOLERANCE_RAD = math.radians(1.0)
-# The pinned SO-ARM101 model admits elbow ±1.69 rad. The other four
-# conservative station planning limits remain ±90 degrees. Owner execution
+# The pinned SO-ARM101 model admits lift ±1.74533 and elbow ±1.69 rad.
+# The other three conservative planning limits remain ±90 degrees. Owner execution
 # additionally intersects these limits with its calibrated/configured/firmware
 # raw admission; this model envelope never grants hardware authority.
 POSITION_LIMITS_RAD = MappingProxyType({
-    joint: (-1.69, 1.69) if joint == "elbow_flex" else (-math.pi / 2, math.pi / 2)
+    joint: ((-1.74533, 1.74533) if joint == "shoulder_lift" else
+            (-1.69, 1.69) if joint == "elbow_flex" else (-math.pi / 2, math.pi / 2))
     for joint in ARM_JOINTS
 })
 ROS_MAX_VELOCITY_RAD_S = 0.125
