@@ -1,0 +1,234 @@
+"""Optional synthetic ROS camera from observed depth points; no hardware writes."""
+import json
+import os
+import math
+import time
+from pathlib import Path
+import hashlib
+
+import numpy as np
+from scipy.spatial.transform import Rotation
+import rclpy
+from rclpy.duration import Duration
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from rclpy.time import Time
+from geometry_msgs.msg import TransformStamped
+from sensor_msgs.msg import CameraInfo, Image, PointCloud2, JointState
+from std_msgs.msg import String
+from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener
+
+from so101_station_perception_tag_tracking.virtual_camera import (
+    optical_projection, tool_from_virtual_optical, virtual_intrinsics,
+    validate_pinch_overlay, project_pinch_overlay)
+from .diagnostic_cloud import quaternion_matrix
+from .virtual_camera_gpu import GpuPointCamera
+
+
+def sampled_xyz(message, max_points=20000):
+    """Decode XYZ exactly once for admitted frames; vectorized bounded sampling."""
+    height, width, step = int(message.height), int(message.width), int(message.point_step)
+    count = height * width
+    if min(height, width, step) <= 0 or count > 1280 * 720 or not 1 <= max_points <= 20000:
+        raise ValueError("cloud dimensions or sample bound invalid")
+    row_step = int(message.row_step)
+    if height == 1 and len(message.data) == width * step:
+        row_step = width * step
+    if row_step < width * step or len(message.data) < row_step * height:
+        raise ValueError("malformed cloud layout")
+    fields = {field.name: field for field in message.fields}
+    stride = math.ceil(count / max_points)
+    indices = np.arange(0, count, stride)
+    rows, cols = indices // width, indices % width
+    points = np.empty((len(indices), 3), dtype=np.float32)
+    for axis, name in enumerate(("x", "y", "z")):
+        field = fields.get(name)
+        if field is None or int(field.datatype) != 7 or int(field.count) != 1 or not 0 <= field.offset <= step - 4:
+            raise ValueError("scalar float32 XYZ fields required")
+        view = np.ndarray((height, width), buffer=message.data,
+            dtype=(">f4" if message.is_bigendian else "<f4"),
+            offset=int(field.offset), strides=(row_step, step))
+        points[:, axis] = view[rows, cols]
+    return np.ascontiguousarray(points[np.isfinite(points).all(axis=1)])
+
+
+class VirtualGripperCamera(Node):
+    """Single-threaded EGL/ROS owner; depth stamp is the acquisition time."""
+
+    def __init__(self):
+        super().__init__("virtual_gripper_camera")
+        defaults = {"enabled": False, "input_topic": "/camera/depth/color/points",
+            "output_namespace": "/so101/synthetic_gripper_camera", "width": 320,
+            "height": 240, "max_hz": 3., "max_points": 20000,
+            "vertical_fov_deg": 60., "forward_axis": "+Z", "backoff_m": .04,
+            "near_m": .01, "far_m": 2., "max_age_s": .5, "pinch_artifact": "",
+            "publish_annotation": False, "joint_states_topic": "/follower/joint_states"}
+        for name, value in defaults.items(): self.declare_parameter(name, value)
+        p = lambda name: self.get_parameter(name).value
+        self.renderer = None
+        self.status_publisher = self.create_publisher(String, p("output_namespace") + "/status", 2)
+        if not p("enabled"):
+            self._status("disabled")
+            return
+        self.width, self.height, self.max_points = int(p("width")), int(p("height")), int(p("max_points"))
+        rate, self.max_age = float(p("max_hz")), float(p("max_age_s"))
+        if not math.isfinite(rate) or not 0 < rate <= 3 or not 0 < self.max_age <= .5:
+            raise ValueError("synthetic rate must be <=3 Hz, acquisition age <=0.5 s")
+        self.period, self.last_attempt, self.last_stamp = 1 / rate, -float("inf"), -1
+        self.mount = tool_from_virtual_optical(str(p("forward_axis")), float(p("backoff_m")))
+        self.optical_from_tool = np.linalg.inv(self.mount)
+        self.mount_quat = Rotation.from_matrix(self.mount[:3, :3]).as_quat()
+        self.tool_frame, self.optical_frame = "gripper_frame_link", "synthetic_gripper_camera_optical"
+        self.k = virtual_intrinsics(self.width, self.height, float(p("vertical_fov_deg")))
+        self.near, self.far = float(p("near_m")), float(p("far_m"))
+        self.projection = optical_projection(self.k, self.width, self.height, self.near, self.far)
+        self.pinch, self.pinch_sha, self.opening = None, None, None
+        if p("pinch_artifact"):
+            raw = Path(p("pinch_artifact")).read_bytes()
+            self.pinch = validate_pinch_overlay(json.loads(raw))
+            self.pinch_sha = hashlib.sha256(raw).hexdigest()
+        self.publish_annotation = bool(p("publish_annotation"))
+        self.renderer = GpuPointCamera(self.width, self.height, self.max_points)
+        self.buffer = Buffer()
+        self.listener = TransformListener(self.buffer, self)
+        self.tf_publisher = TransformBroadcaster(self)
+        namespace = p("output_namespace")
+        self.images = self.create_publisher(Image, namespace + "/image_raw", qos_profile_sensor_data)
+        self.infos = self.create_publisher(CameraInfo, namespace + "/camera_info", qos_profile_sensor_data)
+        self.annotated = self.create_publisher(Image, namespace + "/image_annotated", qos_profile_sensor_data)
+        self.annotation_masks = self.create_publisher(Image, namespace + "/annotation_mask", qos_profile_sensor_data)
+        self.joints = self.create_subscription(JointState, p("joint_states_topic"),
+            self._joints, qos_profile_sensor_data)
+        self.subscription = self.create_subscription(PointCloud2, p("input_topic"),
+            self._cloud, qos_profile_sensor_data)
+        self._status("ready", renderer=self.renderer.renderer)
+
+    def _joints(self, message):
+        if "gripper" not in message.name:
+            self.opening = None
+            return
+        index = message.name.index("gripper")
+        if index >= len(message.position) or not math.isfinite(message.position[index]):
+            self.opening = None
+            return
+        stamp_ns = message.header.stamp.sec * 10**9 + message.header.stamp.nanosec
+        if not 0 <= self.get_clock().now().nanoseconds - stamp_ns <= 500_000_000:
+            self.opening = None
+            return
+        self.opening = (stamp_ns, float(message.position[index]))
+
+    def _annotation(self, image, rgba, stamp_ns):
+        import cv2
+        uv, reason = None, "pinch_unconfigured"
+        if self.pinch is not None:
+            joint_stamp, angle = self.opening or (None, None)
+            uv, reason = project_pinch_overlay(self.pinch, self.mount, self.k,
+                self.width, self.height, opening_angle_rad=angle, joint_stamp_ns=joint_stamp,
+                acquisition_stamp_ns=stamp_ns, now_ns=self.get_clock().now().nanoseconds,
+                near=self.near, far=self.far)
+        rgb = rgba[:, :, :3].copy()
+        mask = np.zeros((self.height, self.width), dtype=np.uint8)
+        if uv is not None:
+            x, y = np.rint(uv).astype(int)
+            x, y = min(self.width - 1, x), min(self.height - 1, y)
+            cv2.drawMarker(mask, (int(x), int(y)), 255, cv2.MARKER_CROSS, 13, 1)
+        label = "NOMINAL / UNCALIBRATED" if uv is not None else "NOMINAL CENTER UNAVAILABLE"
+        cv2.putText(mask, label, (4, 14), cv2.FONT_HERSHEY_SIMPLEX, .35, 255, 1)
+        rgb[mask != 0] = [255, 190, 30]
+        annotated, annotation_mask = Image(), Image()
+        for output in (annotated, annotation_mask):
+            output.header = image.header
+            output.width, output.height = self.width, self.height
+        annotated.encoding, annotated.step, annotated.data = "rgb8", self.width * 3, rgb.tobytes()
+        annotation_mask.encoding, annotation_mask.step, annotation_mask.data = "mono8", self.width, mask.tobytes()
+        self.annotated.publish(annotated)
+        self.annotation_masks.publish(annotation_mask)
+        return {"state": reason, "pixel_xy": None if uv is None else uv.tolist(),
+                "qualified": False, "artifact_sha256": self.pinch_sha,
+                "annotation_is_depth": False}
+
+    def _status(self, state, **extra):
+        message = String()
+        message.data = json.dumps({"state": state, "synthetic": True,
+            "calibration_qualified": False, "unknown_pixels": "rgba alpha=0",
+            "observed_samples": "one-pixel uniform-color points; no hole filling", **extra})
+        self.status_publisher.publish(message)
+
+    def _cloud(self, message):
+        start = time.monotonic()
+        if start - self.last_attempt < self.period:
+            return
+        self.last_attempt = start
+        stamp_ns = message.header.stamp.sec * 10**9 + message.header.stamp.nanosec
+        age = (self.get_clock().now().nanoseconds - stamp_ns) / 1e9
+        if stamp_ns <= self.last_stamp or stamp_ns <= 0 or not 0 <= age <= self.max_age:
+            self._status("rejected_stamp", age_s=age)
+            return
+        try:
+            # Exact acquisition-time TF, never latest/time-zero. Interpolated TF
+            # must exist at this stamp; timeout bounded to 20 ms.
+            transform = self.buffer.lookup_transform(self.tool_frame, message.header.frame_id,
+                Time.from_msg(message.header.stamp), timeout=Duration(seconds=.02))
+            t, q = transform.transform.translation, transform.transform.rotation
+            tool_from_cloud = np.eye(4)
+            tool_from_cloud[:3, :3] = quaternion_matrix(q.x, q.y, q.z, q.w)
+            tool_from_cloud[:3, 3] = [t.x, t.y, t.z]
+            points = sampled_xyz(message, self.max_points)
+            optical_from_cloud = self.optical_from_tool @ tool_from_cloud
+            render_start = time.monotonic()
+            rgba = self.renderer.render(points, self.projection @ optical_from_cloud)
+            readback_ms = (time.monotonic() - render_start) * 1000
+            age = (self.get_clock().now().nanoseconds - stamp_ns) / 1e9
+            if not 0 <= age <= self.max_age:
+                self._status("rejected_after_render", age_s=age)
+                return
+            image = Image()
+            image.header.stamp = message.header.stamp
+            image.header.frame_id = self.optical_frame
+            image.width, image.height = self.width, self.height
+            image.encoding, image.is_bigendian, image.step = "rgba8", 0, self.width * 4
+            image.data = rgba.tobytes()
+            info = CameraInfo()
+            info.header = image.header
+            info.width, info.height = self.width, self.height
+            info.distortion_model, info.d = "plumb_bob", [0.] * 5
+            info.k = self.k.reshape(-1).tolist()
+            info.r = np.eye(3).reshape(-1).tolist()
+            info.p = np.column_stack((self.k, np.zeros(3))).reshape(-1).tolist()
+            mount_tf = TransformStamped()
+            mount_tf.header.stamp, mount_tf.header.frame_id = message.header.stamp, self.tool_frame
+            mount_tf.child_frame_id = self.optical_frame
+            mt = mount_tf.transform.translation
+            mt.x, mt.y, mt.z = map(float, self.mount[:3, 3])
+            mq = mount_tf.transform.rotation
+            mq.x, mq.y, mq.z, mq.w = map(float, self.mount_quat)
+            self.tf_publisher.sendTransform(mount_tf)
+            self.infos.publish(info)
+            self.images.publish(image)
+            self.last_stamp = stamp_ns
+            annotation = self._annotation(image, rgba, stamp_ns) if self.publish_annotation else {"state": "disabled"}
+            self._status("published", annotation=annotation, stamp_ns=stamp_ns, age_s=age, points=len(points),
+                gpu_render_readback_ms=readback_ms, callback_ms=(time.monotonic()-start)*1000,
+                readback_bytes=rgba.nbytes, renderer=self.renderer.renderer)
+        except (TransformException, ValueError, RuntimeError) as error:
+            self._status("rejected", reason=str(error))
+
+    def destroy_node(self):
+        if self.renderer is not None:
+            self.renderer.close()
+        return super().destroy_node()
+
+
+def main(args=None):
+    if int(os.environ.get("ROS_DOMAIN_ID", "76")) == 0:
+        raise ValueError("synthetic camera requires a nonzero ROS_DOMAIN_ID")
+    os.environ.setdefault("ROS_DOMAIN_ID", "76")
+    os.environ.setdefault("ROS_LOCALHOST_ONLY", "1")
+    rclpy.init(args=args)
+    node = None
+    try:
+        node = VirtualGripperCamera()
+        rclpy.spin(node)
+    finally:
+        if node is not None: node.destroy_node()
+        rclpy.shutdown()

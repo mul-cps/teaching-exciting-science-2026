@@ -189,3 +189,59 @@ def test_placement_request_is_atomic_and_carries_exact_frozen_generation(tmp_pat
     path = tmp_path / "placement-region-request.json"
     assert __import__("json").loads(path.read_text()) == request
     assert list(tmp_path.glob(".placement-request-*")) == []
+
+
+def test_virtual_gripper_eye_follows_tool_translation_rotation_and_explicit_axis():
+    pose = transform_matrix((.2, -.1, .4),
+        Rotation.from_euler("xyz", [17, -29, 43], degrees=True).as_quat())
+    snapshot = {"root_frame": "world", "transforms": {"tool": {
+        "parent": "world", "child": "gripper_frame_link", "matrix": pose.tolist()}},
+        "transform_fresh": {"gripper_frame_link": True}}
+    for axis, forward in (("+Z", [0, 0, 1]), ("-X", [-1, 0, 0]), ("+Y", [0, 1, 0])):
+        eye, target, up = ros_viewer._gripper_camera_pose(snapshot, forward_axis=axis)
+        direction = pose[:3, :3] @ forward
+        assert eye == pytest.approx(pose[:3, 3] - direction * .04)
+        assert target == pytest.approx(pose[:3, 3] + direction * .20)
+        assert np.dot(up, target - eye) == pytest.approx(0., abs=1e-12)
+        assert np.linalg.norm(up) == pytest.approx(1.)
+    snapshot["transform_fresh"]["gripper_frame_link"] = False
+    with pytest.raises(KeyError, match="no TF chain"):
+        ros_viewer._gripper_camera_pose(snapshot)
+
+
+@pytest.mark.parametrize("axis,retreat", [("invalid", .04), ("+Z", -.01),
+                                          ("+Z", .16), ("+Z", np.nan)])
+def test_virtual_gripper_eye_rejects_invalid_controls(axis, retreat):
+    with pytest.raises(ValueError, match="virtual eye"):
+        ros_viewer._gripper_camera_pose({}, forward_axis=axis, backoff_m=retreat)
+
+
+@pytest.mark.parametrize("received,expected", [(10., True), (9.5, True), (9.49, False),
+    (10.01, False), (None, False), (np.nan, False), (np.inf, False)])
+def test_virtual_view_requires_current_depth_receipt(received, expected):
+    assert ros_viewer._cloud_is_fresh({"received_monotonic": received}, 10.) == expected
+    assert ros_viewer._cloud_is_fresh(None, 10.) is False
+
+
+def test_virtual_eye_does_not_accept_tf_without_freshness_metadata():
+    snapshot = {"root_frame": "world", "transforms": {"tool": {
+        "parent": "world", "child": "gripper_frame_link", "matrix": np.eye(4).tolist()}}}
+    with pytest.raises(KeyError, match="no TF chain"):
+        ros_viewer._gripper_camera_pose(snapshot)
+
+
+def test_virtual_eye_hot_path_has_no_render_cloud_processing_or_per_point_loop():
+    import ast
+    import inspect
+    tree = ast.parse(inspect.getsource(ros_viewer._gripper_camera_pose))
+    assert not any(isinstance(node, (ast.For, ast.While, ast.ListComp,
+                                    ast.GeneratorExp)) for node in ast.walk(tree))
+    calls = {ast.unparse(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
+    assert calls <= {"tool_from_virtual_optical", "np.isfinite", "ValueError", "transform_between", "snapshot.get",
+                     "np.asarray", "pose.all", "np.isfinite(pose).all", "np.array",
+                     "forward_axis.endswith"}
+    source = inspect.getsource(ros_viewer.serve_ros_twin)
+    # Ego mode reuses the existing scene. Never introduce a second renderer or
+    # a server-side render per client when adding a virtual perspective.
+    assert source.count("_render(model, data, base)") == 1
+    assert source.count("server.scene.add_point_cloud(") == 1
