@@ -138,7 +138,7 @@ def test_annotation_does_not_change_unknown_rgba_or_admit_overlay_as_depth():
     result=VirtualGripperCamera._annotation(n,image,rgba,10_000_000_000)
     assert np.array_equal(rgba,original)
     assert result['state']=='nominal_uncalibrated' and result['annotation_is_depth'] is False
-    assert result['pixel_xy'][0]>159.5
+    assert result['pixel_xy'][0]<159.5  # Shared optical roll moves +toolX left.
     assert n.annotated.messages[0].encoding=='rgb8'
     assert n.annotation_masks.messages[0].encoding=='mono8'
     assert np.count_nonzero(np.frombuffer(n.annotation_masks.messages[0].data,dtype=np.uint8))>0

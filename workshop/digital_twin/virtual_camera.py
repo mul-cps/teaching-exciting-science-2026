@@ -14,7 +14,8 @@ def tool_from_virtual_optical(forward_axis="+Z", backoff_m=.04):
     up = np.array([0., 0., 1.]) if forward_axis.endswith("Y") else np.array([0., -1., 0.])
     result = np.eye(4)
     # ROS optical axes: X right, Y down, Z forward.
-    result[:3, :3] = np.column_stack((np.cross(forward, up), -up, forward))
+    # Roll 180 degrees about optical +Z in place: eye and forward stay fixed.
+    result[:3, :3] = np.column_stack((-np.cross(forward, up), up, forward))
     result[:3, 3] = -forward * backoff_m
     return result
 
