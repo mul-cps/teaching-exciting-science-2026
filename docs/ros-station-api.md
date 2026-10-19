@@ -600,3 +600,12 @@ Subsequent explicitly requested motion must pass the existing fresh-state and pa
 pose outside admitted bounds gains no recovery permission from this feature.
 Other trajectory faults and unstable endpoints retain existing shutdown behavior;
 the supervised commissioning and calibration-endpoint opt-in paths are unchanged.
+
+
+### Resident idle timeout
+
+The resident follower defaults to `owner_idle_timeout_s:=3600.0` (one hour). This
+changes only the inactive-session cutoff; feedback freshness, motion deadlines,
+STOP, EOF and transport/fault cleanup keep their existing limits. The timeout is
+passed when the sole owner starts, so changing it requires a controller restart.
+At timeout the existing torque-off policy still applies and the arm may sag.
