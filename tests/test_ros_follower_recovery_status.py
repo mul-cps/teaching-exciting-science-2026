@@ -416,19 +416,19 @@ def test_cache_and_control_hot_paths_static_guard():
     assert 'response.get("command") != "teleop_step"' in reader
 
 
-def test_bridge_owner_source_map_uses_shared_six_module_contract():
+def test_bridge_owner_source_map_uses_shared_seven_module_contract():
     from so101_station_control.trajectory_server import _load_owner_source_hashes
     from workshop.station.recovery_types import OWNER_SOURCE_MODULES, owner_source_sha256
     root = Path(__file__).resolve().parents[1]
     expected = owner_source_sha256(root/'workshop/station')
     assert set(expected) == set(OWNER_SOURCE_MODULES)
     assert set(expected) == {'arm', 'arm_session', 'recovery_runtime', 'recovery_types',
-                             'recovery_runtime_config', 'camera_recovery'}
+                             'recovery_runtime_config', 'camera_recovery', 'idle_telemetry'}
     assert _load_owner_source_hashes(root) == expected
 
 
 @pytest.mark.parametrize('module', ['arm', 'arm_session', 'recovery_runtime', 'recovery_types',
-                                    'recovery_runtime_config', 'camera_recovery'])
+                                    'recovery_runtime_config', 'camera_recovery', 'idle_telemetry'])
 def test_status_and_recovery_reject_each_source_pin_mismatch(ready, module):
     node, process = ready
     observed = state(node)
