@@ -18,6 +18,8 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../config/realsense.yaml"
   DESTINATION share/${PROJECT_NAME}/config)
 install(PROGRAMS
   scripts/calibration_tf_publisher
+  scripts/periodic_registration
+  scripts/registration_capture_sources
   scripts/virtual_gripper_camera
   scripts/diagnostic_pointcloud
   scripts/tag_observations
