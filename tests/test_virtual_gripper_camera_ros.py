@@ -1,5 +1,6 @@
 """Native ROS message contract tests, no DDS or robot connection."""
 import sys
+import json
 import types
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -47,8 +48,10 @@ def test_xyz_sampling_caps_filters_nonfinite_and_handles_padded_rows():
 
 
 class Publisher:
-    def __init__(self):self.messages=[]
-    def publish(self, message):self.messages.append(message)
+    def __init__(self, on_publish=None):self.messages=[];self.on_publish=on_publish
+    def publish(self, message):
+        self.messages.append(message)
+        if self.on_publish is not None:self.on_publish(message)
     def sendTransform(self, message):self.messages.append(message)
 
 
@@ -56,7 +59,11 @@ def fixture_node():
     tf = TransformStamped()
     tf.transform.rotation.w = 1.
     lookups=[]
-    def lookup(*args, **kwargs):lookups.append((args,kwargs));return tf
+    def lookup(*args, **kwargs):
+        lookups.append((args,kwargs))
+        tf.header.stamp.sec,tf.header.stamp.nanosec=divmod(args[2].nanoseconds,10**9)
+        tf.header.frame_id,tf.child_frame_id=args[:2]
+        return tf
     rendered=[]
     def render_layers(points,matrix,colors=None,mesh_matrices=None):
         rendered.append((points,matrix,colors,mesh_matrices))
@@ -66,15 +73,43 @@ def fixture_node():
     states=[]
     n = NS(period=1/3, last_attempt=-float('inf'),last_stamp=-1,max_age=.5,
         get_clock=lambda:NS(now=lambda:NS(nanoseconds=10_100_000_000)),
-        _status=lambda state,**kw:states.append((state,kw)),
         buffer=NS(lookup_transform=lookup),tool_frame='gripper_frame_link',
         optical_frame='synthetic_gripper_camera_optical',mount=np.eye(4),optical_from_tool=np.eye(4),mount_quat=[0.,0.,0.,1.],max_points=20000,
         renderer=NS(render_layers=render_layers,renderer='FAKE-MESSAGE-TEST-NOT-GPU',readback_bytes=614400),
         render_gripper_mesh=False,meshes=[],mesh_provenance={'state':'disabled'},
         projection=optical_projection(k,320,240),width=320,height=240,k=k,
         images=Publisher(),infos=Publisher(),tf_publisher=Publisher(),publish_annotation=False,
-        opening_history=JointOpeningHistory(),scenes=Publisher(),provenance_masks=Publisher())
+        opening_history=JointOpeningHistory(),scenes=Publisher(),provenance_masks=Publisher(),
+        annotated=Publisher(),annotation_masks=Publisher(),last_valid_stamp_ns=None,
+        last_valid_tool_tf_stamp_ns=None,last_valid_monotonic=None,
+        display_valid=False,invalid_frame_sent=False,invalid_reason='waiting_for_first_render')
+    def record_status(message):
+        value=json.loads(message.data)
+        states.append((value['state'],value))
+    n.status_publisher=Publisher(record_status)
+    # Execute real production transitions/status/watchdog with native ROS messages.
+    # Only TF lookup and GPU rendering are fake: this fixture never initializes DDS/EGL.
+    for name in ('_mark_valid','_invalidate','_watchdog','_status'):
+        setattr(n,name,types.MethodType(getattr(VirtualGripperCamera,name),n))
     return n,states,lookups,rendered
+
+
+def assert_invalid_display(n,states,*,stamp_ns=0,last_valid_stamp_ns=None):
+    assert states[-1][0]=='invalid' and states[-1][1]['visual_valid'] is False
+    assert states[-1][1]['last_valid_acquisition_stamp_ns']==last_valid_stamp_ns
+    assert n.display_valid is False and n.invalid_frame_sent is True
+    for publisher,encoding,step in ((n.images,'rgba8',1280),(n.scenes,'rgba8',1280),
+                                    (n.provenance_masks,'mono8',320),(n.annotation_masks,'mono8',320)):
+        image=publisher.messages[-1]
+        assert image.encoding==encoding and image.step==step
+        assert image.width==320 and image.height==240 and len(image.data)==step*240
+        assert not any(image.data)
+        assert image.header.frame_id==n.optical_frame
+        assert image.header.stamp.sec*10**9+image.header.stamp.nanosec==stamp_ns
+    diagnostic=n.annotated.messages[-1]
+    assert diagnostic.encoding=='rgb8' and diagnostic.step==960
+    assert diagnostic.header==n.images.messages[-1].header
+    assert len(diagnostic.data)==320*240*3 and any(diagnostic.data) # rendered STALE text only
 
 
 def test_synthetic_image_info_and_mount_tf_preserve_exact_acquisition_stamp():
@@ -93,23 +128,33 @@ def test_synthetic_image_info_and_mount_tf_preserve_exact_acquisition_stamp():
     assert args[2].nanoseconds==10_000_000_000
     assert kwargs['timeout'].nanoseconds==20_000_000
     assert len(rendered)==1
+    assert n.display_valid and not n.invalid_frame_sent
+    assert n.last_valid_stamp_ns==n.last_valid_tool_tf_stamp_ns==10_000_000_000
+    assert states[-1][1]['visual_valid'] is True
+    assert states[-1][1]['last_valid_acquisition_stamp_ns']==10_000_000_000
+    assert n.annotated.messages[-1].encoding=='rgb8' # display restores even with pinch disabled
 
 
 @pytest.mark.parametrize('stamp',[0, 9_000_000_000, 10_200_000_000])
-def test_stale_future_zero_stamp_drops_before_decode_tf_render_publish(stamp):
+def test_stale_future_zero_stamp_blanks_before_decode_tf_render_without_renewal(stamp):
     n,states,lookups,rendered=fixture_node()
     VirtualGripperCamera._cloud(n,cloud(stamp_ns=stamp))
-    assert states[-1][0]=='rejected_stamp'
-    assert not lookups and not rendered and not n.images.messages
+    assert_invalid_display(n,states)
+    assert states[-1][1]['reason']=='rejected_stamp'
+    assert not lookups and not rendered
+    assert len(n.images.messages)==len(n.annotated.messages)==1
+    assert not n.infos.messages and not n.tf_publisher.messages
 
 
-def test_missing_acquisition_time_tf_drops_without_output():
+def test_missing_acquisition_time_tf_blanks_without_render_info_or_tf_renewal():
     from tf2_ros import LookupException
     n,states,lookups,rendered=fixture_node()
     def missing(*a,**kw):raise LookupException('missing exact TF')
     n.buffer.lookup_transform=missing
     VirtualGripperCamera._cloud(n,cloud())
-    assert states[-1][0]=='rejected' and not rendered and not n.images.messages
+    assert_invalid_display(n,states)
+    assert 'missing exact TF' in states[-1][1]['reason']
+    assert not rendered and not n.infos.messages and not n.tf_publisher.messages
 
 
 def test_cloud_duplicate_and_rate_limit_do_not_decode_or_render_twice():
@@ -119,7 +164,13 @@ def test_cloud_duplicate_and_rate_limit_do_not_decode_or_render_twice():
     assert len(rendered)==1
     n.last_attempt=-float('inf')
     VirtualGripperCamera._cloud(n,msg)
-    assert states[-1][0]=='rejected_stamp' and len(rendered)==1
+    assert_invalid_display(n,states,stamp_ns=10_000_000_000,last_valid_stamp_ns=10_000_000_000)
+    assert states[-1][1]['reason']=='rejected_stamp' and len(rendered)==1
+    assert len(n.images.messages)==2 # accepted render, then one invalid-transition diagnostic
+    assert len(n.infos.messages)==len(n.tf_publisher.messages)==1
+    n.last_attempt=-float('inf')
+    VirtualGripperCamera._cloud(n,msg)
+    assert len(n.images.messages)==2 and len(rendered)==1 # no repeated blank pixels
 
 
 def test_annotation_does_not_change_unknown_rgba_or_admit_overlay_as_depth():
@@ -241,7 +292,9 @@ def test_present_malformed_color_drops_before_gpu_without_uniform_substitution()
     n,states,lookups,rendered=fixture_node()
     msg=cloud();msg.fields.append(PointField(name='rgb',offset=8,datatype=2,count=1))
     VirtualGripperCamera._cloud(n,msg)
-    assert states[-1][0]=='rejected' and not rendered and not n.images.messages
+    assert_invalid_display(n,states)
+    assert states[-1][1]['reason'].startswith('render_or_acquisition_tf_failed:')
+    assert not rendered and not n.infos.messages and not n.tf_publisher.messages
 
 
 def test_robot_description_mesh_work_runs_only_on_changed_description(monkeypatch):
@@ -257,3 +310,35 @@ def test_robot_description_mesh_work_runs_only_on_changed_description(monkeypatc
     msg.data='<fixture description="two"/>'
     VirtualGripperCamera._description(n,msg)
     assert len(loads)==len(uploads)==2
+
+
+def test_fault_after_valid_render_and_fresh_restore_use_real_transitions():
+    from tf2_ros import LookupException
+    n,states,lookups,rendered=fixture_node()
+    VirtualGripperCamera._cloud(n,cloud())
+    original_lookup=n.buffer.lookup_transform
+    def missing(*args,**kwargs):raise LookupException('exact TF unavailable')
+    n.buffer.lookup_transform=missing;n.last_attempt=-float('inf')
+    VirtualGripperCamera._cloud(n,cloud(stamp_ns=10_010_000_000))
+    assert_invalid_display(n,states,stamp_ns=10_000_000_000,last_valid_stamp_ns=10_000_000_000)
+    assert len(rendered)==1 and len(n.infos.messages)==len(n.tf_publisher.messages)==1
+    n.buffer.lookup_transform=original_lookup;n.last_attempt=-float('inf')
+    fresh=cloud(stamp_ns=10_050_000_000);VirtualGripperCamera._cloud(n,fresh)
+    assert states[-1][0]=='published' and states[-1][1]['visual_valid'] is True
+    assert n.display_valid and not n.invalid_frame_sent
+    assert n.last_valid_stamp_ns==n.last_valid_tool_tf_stamp_ns==10_050_000_000
+    assert n.images.messages[-1].header.stamp==n.infos.messages[-1].header.stamp==fresh.header.stamp
+    assert n.annotated.messages[-1].header==n.images.messages[-1].header
+    assert len(n.images.messages)==3 and len(rendered)==2
+
+
+def test_real_watchdog_blanks_once_on_receipt_expiry_without_tf_info_or_gpu(monkeypatch):
+    import so101_station_perception.virtual_gripper_camera as module
+    n,states,lookups,rendered=fixture_node();VirtualGripperCamera._cloud(n,cloud())
+    accepted=n.last_valid_monotonic
+    monkeypatch.setattr(module,'time',NS(monotonic=lambda:accepted+.501))
+    n._watchdog();n._watchdog()
+    assert_invalid_display(n,states,stamp_ns=10_000_000_000,last_valid_stamp_ns=10_000_000_000)
+    assert len(n.images.messages)==2 and len(n.annotated.messages)==2
+    assert len(n.infos.messages)==len(n.tf_publisher.messages)==len(lookups)==len(rendered)==1
+    assert states[-1][1]['reason']=='last_render_expired_or_clock_invalid'
