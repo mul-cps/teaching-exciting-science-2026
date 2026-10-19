@@ -152,3 +152,23 @@ def test_new_action_static_guard_has_one_bounded_rpc_and_no_device_paths():
  source=inspect.getsource(action._perception_action)
  assert source.index('_perception_domain()')<source.index('import rclpy')<source.index('rclpy.init()')
  assert source.index('remaining()\n        print(encoded)')>source.index('json.dumps(payload')
+
+
+@pytest.mark.parametrize('domain,localhost',[('76','1'),('0','1'),('177','0'),('177',None)])
+def test_actual_dds_guard_rejects_wrong_domain_before_init(monkeypatch,domain,localhost):
+ from test_perception_quick_actions_ros import _require_isolated_domain
+ monkeypatch.setenv('ROS_DOMAIN_ID',domain)
+ if localhost is None:monkeypatch.delenv('ROS_LOCALHOST_ONLY',raising=False)
+ else:monkeypatch.setenv('ROS_LOCALHOST_ONLY',localhost)
+ with pytest.raises(RuntimeError,match='DDS177 localhost1'):_require_isolated_domain()
+
+
+def test_actual_dds_guard_precedes_init_static():
+ import ast
+ from pathlib import Path
+ tree=ast.parse(Path(__file__).with_name('test_perception_quick_actions_ros.py').read_text())
+ fixture=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='test_actual_dds_fixed_recovery_and_supervisor_routes')
+ calls=[n for n in ast.walk(fixture) if isinstance(n,ast.Call)]
+ guard=next(n for n in calls if isinstance(n.func,ast.Name) and n.func.id=='_require_isolated_domain')
+ init=next(n for n in calls if isinstance(n.func,ast.Attribute) and n.func.attr=='init')
+ assert guard.lineno<init.lineno
