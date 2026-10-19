@@ -54,15 +54,11 @@ def fit_depth_plane(depth_m, camera_matrix, distortion, optical_from_board,
     if depth.ndim != 2 or not np.isfinite(depth).any():
         raise ValueError("aligned depth is empty or not a single-channel image")
     h, w = depth.shape
-    vivid = np.zeros((h, w), dtype=bool)
+    color = None
     if color_image is not None:
         color = np.asarray(color_image)
         if color.shape != (h, w, 3) or color.dtype != np.uint8:
             raise ValueError("color image must be uint8 and match aligned depth dimensions")
-        # Saturation from channel spread avoids an HSV image allocation/conversion.
-        high = color.max(axis=2).astype(np.int16)
-        spread = high - color.min(axis=2).astype(np.int16)
-        vivid = (high >= 40) & (spread >= 35) & (spread / np.maximum(high, 1) >= 0.28)
     k = np.asarray(camera_matrix, dtype=np.float64).reshape(3, 3)
     d = np.asarray(distortion, dtype=np.float64).reshape(-1, 1)
     pose = np.asarray(optical_from_board, dtype=np.float64).reshape(4, 4)
@@ -87,8 +83,16 @@ def fit_depth_plane(depth_m, camera_matrix, distortion, optical_from_board,
     sample_area = max(0, sample_x1-sample_x0) * max(0, sample_y1-sample_y0)
     stride = max(1, int(math.ceil(math.sqrt(sample_area / (max_points * 4)))))
     ys, xs = np.mgrid[sample_y0:sample_y1:stride, sample_x0:sample_x1:stride]
-    sampled_vivid = int(np.count_nonzero((mask[ys, xs] != 0) & vivid[ys, xs]))
-    valid = (mask[ys, xs] != 0) & ~vivid[ys, xs] & np.isfinite(depth[ys, xs])
+    # Only these pixels participate in the fit. Keep the exact channel-spread
+    # rule, evaluated after sampling rather than over the entire RGB image.
+    vivid = np.zeros(xs.shape, dtype=bool)
+    if color is not None:
+        sampled_color = color[ys, xs]
+        high = sampled_color.max(axis=2).astype(np.int16)
+        spread = high - sampled_color.min(axis=2).astype(np.int16)
+        vivid = (high >= 40) & (spread >= 35) & (spread / np.maximum(high, 1) >= 0.28)
+    sampled_vivid = int(np.count_nonzero((mask[ys, xs] != 0) & vivid))
+    valid = (mask[ys, xs] != 0) & ~vivid & np.isfinite(depth[ys, xs])
     z = depth[ys, xs]
     valid &= (z > 0.08) & (z < 3.0)
     # PnP bounds the search volume, rejecting nearby colored bricks before
