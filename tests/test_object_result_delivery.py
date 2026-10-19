@@ -89,3 +89,23 @@ def test_result_guard_keeps_timer_for_cold_faults_and_default_group():
     take=next(n for n in ast.walk(method) if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute) and n.func.attr=='take_result')
     failure=next(n for n in method.body if isinstance(n,ast.If) and isinstance(n.test,ast.Compare) and isinstance(n.test.left,ast.Name) and n.test.left.id=='error')
     assert take in list(ast.walk(failure))  # Only failed wakeup discards; no routine result polling.
+
+
+@pytest.mark.parametrize('domain,localhost',[('76','1'),('0','1'),('177','0'),('177',None)])
+def test_native_fixture_domain_guard_fails_before_any_ros_init(monkeypatch,domain,localhost):
+    from test_object_result_delivery_ros import _require_isolated_domain
+    monkeypatch.setenv('ROS_DOMAIN_ID',domain)
+    if localhost is None:monkeypatch.delenv('ROS_LOCALHOST_ONLY',raising=False)
+    else:monkeypatch.setenv('ROS_LOCALHOST_ONLY',localhost)
+    with pytest.raises(RuntimeError,match='DDS177 localhost1'):_require_isolated_domain()
+
+
+def test_native_fixture_guard_precedes_ros_init_static():
+    import ast
+    path=Path(__file__).with_name('test_object_result_delivery_ros.py')
+    tree=ast.parse(path.read_text())
+    fixture=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='node')
+    calls=[n for n in ast.walk(fixture) if isinstance(n,ast.Call)]
+    guard=next(n for n in calls if isinstance(n.func,ast.Name) and n.func.id=='_require_isolated_domain')
+    init=next(n for n in calls if isinstance(n.func,ast.Attribute) and n.func.attr=='init')
+    assert guard.lineno < init.lineno
