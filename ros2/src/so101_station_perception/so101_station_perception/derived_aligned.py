@@ -29,7 +29,7 @@ def received_gid(info):
 
 
 class DerivedAligned:
-    def __init__(self,node,buffer,callback,*,callback_group=None,period_s=0.):
+    def __init__(self,node,buffer,callback,*,callback_group=None,health_callback_group=None,period_s=0.):
         self.node=node;self.buffer=buffer;self.callback=callback
         self.lock=RLock();self.closed=False;self.fault=None
         self.period=max(.2,float(period_s)) if period_s else 0.
@@ -47,7 +47,8 @@ class DerivedAligned:
             qos_profile_sensor_data,callback_group=callback_group))
         self.reset_service=node.create_service(Trigger,'~/reset_derived_source',self._reset)
         self.status_service=node.create_service(Trigger,'~/derived_source_status',self._admission_status)
-        self.health_service=node.create_service(Trigger,'~/derived_source_health',self._source_health)
+        self.health_service=node.create_service(Trigger,'~/derived_source_health',self._source_health,
+                                                callback_group=health_callback_group)
         self.timer=node.create_timer(.01,self.drain) if self.period else None
 
     def reload(self):
@@ -235,6 +236,33 @@ class DerivedAligned:
             require(finite(record[2]) and 0<=now_mono-record[2]<=.250,'original native CameraInfo receipt expired/future')
         return records
 
+    def _info_diagnostics(self):
+        # Caller holds lock. Scalar snapshots only: no messages retained/copied.
+        core=self.core
+        entry=core.ledger.entries[-1] if core.ledger.entries else None
+        value=entry[0] if entry else {}
+        original=value.get('original',{})
+        result={'consumer_epoch':self.consumer_epoch,'latest_sequence':value.get('sequence'),
+                'original_header_stamps_ns':{key:original.get(key) for key in
+                    ('depth_stamp_ns','color_stamp_ns','depth_info_stamp_ns','color_info_stamp_ns')},
+                'streams':{}}
+        for kind in ('depth_info','color_info'):
+            target=original.get(kind+'_stamp_ns');records=core.streams[kind]
+            stamps=[record[3] for record in records]
+            receipts=[record[2] for record in records]
+            if not stamps:classification='empty'
+            elif target is None:classification='target_unavailable'
+            elif target in stamps:classification='present'
+            elif target>max(stamps):classification='not_yet'
+            elif target<min(stamps):classification='older_than_oldest'
+            else:classification='interior_missing'
+            result['streams'][kind]={'target_stamp_ns':target,'classification':classification,
+                'retained_count':len(records),'oldest_stamp_ns':min(stamps) if stamps else None,
+                'newest_stamp_ns':max(stamps) if stamps else None,
+                'first_unique_receipt_min_monotonic':min(receipts) if receipts else None,
+                'first_unique_receipt_max_monotonic':max(receipts) if receipts else None}
+        return result
+
     def _source_health(self,request,response):
         # Source binding is deliberately independent of selected images/analysis.
         # No token is taken or admitted and no image/progress proof is updated.
@@ -272,6 +300,7 @@ class DerivedAligned:
             except Exception as error:
                 result.update(state='unavailable',reason=str(error)[:512],
                     binding_invalidated=bool(core.ledger.invalid_reason or self.core is not core or self.consumer_epoch!=epoch))
+                result['native_info_diagnostics']=self._info_diagnostics()
                 response.success=False;response.message=json.dumps(result,allow_nan=False)
         return response
 
