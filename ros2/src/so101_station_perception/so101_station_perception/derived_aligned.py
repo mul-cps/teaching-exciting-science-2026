@@ -4,6 +4,7 @@ Only metadata and references enter the collector. Direct camera subscriptions
 are owned by callers and are unchanged when this adapter is not constructed.
 """
 import json
+import struct
 from pathlib import Path
 from threading import RLock
 import time
@@ -17,7 +18,8 @@ from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
 from .aligned_cohort import AlignedCohorts
-from .derived_lineage import TOPICS, ALIGNED_TOPIC, LINEAGE_TOPIC, SCHEMA, require
+from .derived_lineage import (TOPICS, ALIGNED_TOPIC, LINEAGE_TOPIC, SCHEMA, require,
+    finite, statement_pin, validate_statement, validate_graph, validate_camera)
 from .diagnostic_cloud import quaternion_matrix
 from .admission_proof import AdmissionProof,pin_digest
 
@@ -45,6 +47,7 @@ class DerivedAligned:
             qos_profile_sensor_data,callback_group=callback_group))
         self.reset_service=node.create_service(Trigger,'~/reset_derived_source',self._reset)
         self.status_service=node.create_service(Trigger,'~/derived_source_status',self._admission_status)
+        self.health_service=node.create_service(Trigger,'~/derived_source_health',self._source_health)
         self.timer=node.create_timer(.01,self.drain) if self.period else None
 
     def reload(self):
@@ -87,7 +90,9 @@ class DerivedAligned:
             try:
                 clocks={'now_ns':self.node.get_clock().now().nanoseconds,'now_mono':time.monotonic()}
                 if kind=='lineage':self.core.lineage(message.data,gid,**clocks)
-                else:self.core.receive(kind,message,gid,**clocks)
+                else:
+                    if kind in ('depth_info','color_info'):self._validate_received_info(kind,message)
+                    self.core.receive(kind,message,gid,**clocks)
                 if not self.period:token=self.core.take(**clocks)
             except (ValueError,KeyError,TypeError,AttributeError) as error:
                 self.core.clear_observations();self.fault=str(error)
@@ -158,6 +163,115 @@ class DerivedAligned:
                 response.success=True;response.message=message
             except Exception as error:
                 result.update(state='unavailable',reason=str(error)[:512])
+                response.success=False;response.message=json.dumps(result,allow_nan=False)
+        return response
+
+    def _validate_received_info(self,kind,message):
+        # Info-only immutable metadata guard, including duplicate acquisitions.
+        # The core still owns all high-water marks, receipts and buffer bounds.
+        self.core._open()
+        camera='depth' if kind=='depth_info' else 'color'
+        try:
+            pin=self.core.ledger.pin;cal=pin['calibration']
+            expected=cal[camera+'_K']
+            require(len(expected)==4 and len(message.k)==9
+                    and len(message.d)==len(cal[camera+'_D'])<=8,'bounded native CameraInfo arrays required')
+            k=[float(x) for x in message.k];d=[float(x) for x in message.d]
+            frame=pin['outputs']['cloud_frame' if camera=='depth' else 'aligned_frame']
+            valid=(message.header.frame_id==frame and [message.width,message.height]==cal[camera+'_size']
+                and len(k)==9 and all(finite(x) and abs(x)<=100000 for x in k)
+                and [k[1],k[3],*k[6:]]==[0.,0.,0.,0.,1.]
+                and [struct.pack('f',x) for x in (k[0],k[4],k[2],k[5])]
+                    ==[struct.pack('f',x) for x in expected]
+                and len(d)==len(cal[camera+'_D']) and all(finite(x) and x==0 for x in d))
+        except (ValueError,TypeError,KeyError,AttributeError,OverflowError):valid=False
+        if not valid:
+            self.core.clear_observations()
+            self.core.ledger.invalidate('native CameraInfo immutable calibration/profile changed; explicit repin/reset required')
+
+    def _check_source_binding(self,entry,core,epoch):
+        require(not self.closed and self.core is core and self.consumer_epoch==epoch,
+                'source health predates close/reset')
+        core._open()
+        require(bool(core.ledger.entries) and core.ledger.entries[-1] is entry,
+                'current newest source lineage unavailable/changed')
+        value,gid,receipt=entry
+        require(finite(receipt) and 0<=time.monotonic()-receipt<=.250,
+                'original consumer lineage receipt expired/future')
+        if statement_pin(value)!=core.ledger.pin:
+            core.clear_observations();core.ledger.invalidate('source health immutable pin changed; explicit repin/reset required')
+        validate_statement(value,now_ns=self.node.get_clock().now().nanoseconds,
+                           now_mono=time.monotonic(),receipt_mono=receipt)
+        records={}
+        for kind in ('depth_info','color_info'):
+            stamp=value['original'][kind+'_stamp_ns']
+            record=next((item for item in reversed(core.streams[kind]) if item[3]==stamp),None)
+            require(record is not None,'exact native CameraInfo unavailable; no nearest/fallback')
+            require(finite(record[2]) and 0<=time.monotonic()-record[2]<=.250,
+                    'original native CameraInfo receipt expired/future')
+            records[kind]=record
+        # TF lookup is exact and nonblocking. Missing TF is unavailable, not a contradiction.
+        original=value['original']
+        tf=self.buffer.lookup_transform(original['color_frame'],original['depth_frame'],Time(nanoseconds=original['depth_stamp_ns']))
+        t,q=tf.transform.translation,tf.transform.rotation
+        matrix=np.eye(4);matrix[:3,:3]=quaternion_matrix(q.x,q.y,q.z,q.w);matrix[:3,3]=[t.x,t.y,t.z]
+        try:
+            for kind,record in records.items():
+                camera='depth' if kind=='depth_info' else 'color'
+                require(len(record[0].k)==9 and len(record[0].d)==len(value['calibration'][camera+'_D'])<=8,
+                        'bounded exact native CameraInfo arrays required')
+                core.ledger.observe_gid(kind,record[1])
+            validate_graph(value,self.node.get_publishers_info_by_topic,lineage_gid=gid)
+            validate_camera(value,records['depth_info'][0],records['color_info'][0],matrix)
+        except (ValueError,TypeError,KeyError,AttributeError):
+            core.clear_observations();core.ledger.invalidate('source health graph/calibration changed; explicit repin/reset required')
+        require(not self.closed and self.core is core and self.consumer_epoch==epoch
+                and bool(core.ledger.entries) and core.ledger.entries[-1] is entry,
+                'current source health changed during access')
+        now_ns,now_mono=self.node.get_clock().now().nanoseconds,time.monotonic()
+        validate_statement(value,now_ns=now_ns,now_mono=now_mono,receipt_mono=receipt)
+        require(finite(receipt) and 0<=now_mono-receipt<=.250,'original consumer lineage receipt expired/future')
+        for record in records.values():
+            require(finite(record[2]) and 0<=now_mono-record[2]<=.250,'original native CameraInfo receipt expired/future')
+        return records
+
+    def _source_health(self,request,response):
+        # Source binding is deliberately independent of selected images/analysis.
+        # No token is taken or admitted and no image/progress proof is updated.
+        with self.lock:
+            core,epoch=self.core,self.consumer_epoch
+            result={'schema':'so101-derived-source-binding-health-v1','state':'unavailable',
+                'image_admitted':False,'processing_progress':False,'qualified':False,'execution_enabled':False,
+                'binding_invalidated':bool(core.ledger.invalid_reason),
+                'consumer_epoch':epoch,'source_pin_sha256':self.source_pin_sha256,
+                'producer_generation':core.ledger.pin['producer_generation'],
+                'camera_info_validation':'independent_native_info',
+                'identity_validation':'producer_attested_device_info_no_new_rpc',
+                'optical_tf_validation':'local_exact_depth_timestamp',
+                'scope':'current source binding only; not image admission, analyzer progress or physical qualification'}
+            try:
+                require(bool(core.ledger.entries),'current newest source lineage unavailable')
+                entry=core.ledger.entries[-1]
+                records=self._check_source_binding(entry,core,epoch)
+                value,_,receipt=entry;original=value['original']
+                deadlines={'consumer_lineage':receipt+.250}
+                deadlines.update({'source_'+k:r+.250 for k,r in value['health']['source_receipts_monotonic'].items()})
+                deadlines.update({'consumer_'+k:r[2]+.250 for k,r in records.items()})
+                receipt_expiry=min(deadlines.values());identity_expiry=value['identity']['expires_monotonic']
+                headers={k:original[k] for k in ('depth_stamp_ns','color_stamp_ns','depth_info_stamp_ns','color_info_stamp_ns')}
+                result.update(state='ready',sequence=value['sequence'],depth_stamp_ns=original['depth_stamp_ns'],
+                    color_stamp_ns=original['color_stamp_ns'],receipt_deadlines_monotonic=deadlines,
+                    original_receipt_expiry_monotonic=receipt_expiry,
+                    original_identity_expiry_monotonic=identity_expiry,
+                    effective_health_expiry_monotonic=min(receipt_expiry,identity_expiry),
+                    original_header_stamps_ns=headers,original_header_expiry_ros_ns=min(headers.values())+500_000_000,
+                    checked_ros_ns=self.node.get_clock().now().nanoseconds,checked_monotonic=time.monotonic())
+                message=json.dumps(result,allow_nan=False)
+                self._check_source_binding(entry,core,epoch)
+                response.success=True;response.message=message
+            except Exception as error:
+                result.update(state='unavailable',reason=str(error)[:512],
+                    binding_invalidated=bool(core.ledger.invalid_reason or self.core is not core or self.consumer_epoch!=epoch))
                 response.success=False;response.message=json.dumps(result,allow_nan=False)
         return response
 
