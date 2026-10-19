@@ -62,12 +62,12 @@ def test_actual_automatic_supervisor_with_real_coordinator(tmp_path,monkeypatch)
         broadcaster=StaticTransformBroadcaster(source);tf=TransformStamped()
         tf.header.frame_id=value['original']['depth_frame'];tf.child_frame_id=value['original']['color_frame']
         tf.transform.rotation.w=1.;tf.transform.translation.x=-.015;broadcaster.sendTransform(tf)
-        availability={'fault':None}
+        availability={'fault':None,'pause_lineage':False}
         requests={'device':0,'reset':0};reset={'id':None,'started':None,'suppressed':0}
         def device(req,response):requests['device']+=1;response.serial_number=serial;return response
         source.create_service(DeviceInfo,'/'+source.get_name()+'/device_info',device)
         def producer_reset(req,response):
-            availability['fault']=None
+            availability['fault']=None;availability['pause_lineage']=False
             requests['reset']+=1;reset['started']=time.monotonic();reset['id']=uuid.uuid4().hex;value['producer_generation']=uuid.uuid4().hex;value['sequence']=0
             response.success=True;response.message=json.dumps(dict(accepted=True,ready=False,
                 accepted_reset_id=reset['id'],new_producer_generation=value['producer_generation']))
@@ -130,7 +130,7 @@ def test_actual_automatic_supervisor_with_real_coordinator(tmp_path,monkeypatch)
                 msg.header.frame_id=value['original'][kind+'_frame'];msg.width,msg.height=value['calibration'][kind+'_size']
                 fx,fy,cx,cy=value['calibration'][kind+'_K'];msg.k=[fx,0.,cx,0.,fy,cy,0.,0.,1.];msg.d=[0.]*5;msg.distortion_model='plumb_bob'
                 pubs[kind+'_info'].publish(msg)
-            if availability['fault'] is None:pubs['status'].publish(String(data=json.dumps(value)))
+            if availability['fault'] is None and not availability['pause_lineage']:pubs['status'].publish(String(data=json.dumps(value)))
             # Independent DDS ordering: native/lineage keep advancing while a
             # rebuilding producer has no fresh heartbeat for >250ms.
             if reset['started'] is not None and mono-reset['started'] < heartbeat_gap:
@@ -158,6 +158,12 @@ def test_actual_automatic_supervisor_with_real_coordinator(tmp_path,monkeypatch)
         assert supervisor.policy.state=='armed',supervisor._snapshot()
         assert requests['reset']==0 and coordinator.result['state']=='idle'
         assert all(v['image_calls']==0 and v['health_calls']>=25 for v in state.values())
+        # Real typed receipt-loss faults occur AFTER the250ms original source
+        # lease has expired, not instantly while fresh healthy proofs exist.
+        availability['pause_lineage']=True;gap_started=time.monotonic()
+        wait(lambda:time.monotonic()-gap_started>=.30)
+        assert supervisor.policy.state=='warming' and supervisor.health_coverage_end is None
+        assert supervisor.pre_outage.status(now=time.monotonic())['pre_outage_history_available'] is True
         fault_id=uuid.uuid4().hex
         availability['fault']=dict(code='private_source_stream_lost',fault_id=fault_id,
             producer_generation=value['producer_generation'],producer_node_sha256=value['implementation']['producer_node_sha256'],

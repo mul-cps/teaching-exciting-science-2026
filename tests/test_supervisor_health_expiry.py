@@ -19,13 +19,13 @@ def fake_node(monkeypatch,receipt=100.11):
     proof=binding_fixture(value,checked=100.11,checked_ns=10_110_000_000)
     proof['consumer_epoch']='b'*32
     ledger=LineageBuffer(pin);ledger.add(json.dumps(value),bytes.fromhex('6'*32),now_ns=10_120_000_000,now_mono=100.11)
-    node=NS(policy=policy,closed=False,reset_pending=False,pin=pin,epochs={},rpc={},health_progress={},health_error=None,
+    node=NS(policy=policy,pre_outage=m.PreOutageHistory(),closed=False,reset_pending=False,pin=pin,epochs={c:'b'*32 for c in m.CONSUMERS},rpc={},health_progress={},health_error=None,
         ledger=ledger,health_cache={},health_next_request={},health_request_starts={},health_rpc_clocks={},
         health_coverage_end=None,health_candidate_end=None,health_gap_reason=None,health_rejections={},health_guard_consumes=0,health_guard_wakeups=0,
         producer=({},None,100.3),_producer_now=lambda:dict(state='ready',fault=None,producer_generation=pin['producer_generation']),
         _graph=lambda:None,_take=lambda _: (True,proof,receipt),_request=lambda *a:requests.append(a),
         get_clock=lambda:NS(now=lambda:NS(nanoseconds=int(10_000_000_000+(clock[0]-100.)*1e9))),_fail=lambda error:policy.fail(str(error)))
-    for name in ('_current_health','_health_queries','_retained_health_statement','_reject_health','_apply_current_health','_health_wakeup'):
+    for name in ('_history_context','_history_final','_current_health','_health_queries','_retained_health_statement','_reject_health','_apply_current_health','_health_wakeup'):
         setattr(node,name,MethodType(getattr(m.PerceptionSupervisor,name),node))
     return node,proof,clock,requests
 

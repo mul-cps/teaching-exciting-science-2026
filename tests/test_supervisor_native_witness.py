@@ -31,6 +31,7 @@ def test_selected_info_cannot_expire_during_last_pre_dispatch_access(monkeypatch
         _take=lambda _: (True,{'state':'idle'},clock[0]),_baseline_unchanged=lambda:None,_persist=lambda:None,
         _request=lambda *a:starts.append(a))
     node._native_proof=lambda:m.PerceptionSupervisor._native_proof(node)
+    node._history_final=lambda:102.
     node._native_final=lambda:m.PerceptionSupervisor._native_final(node)
     try:m.PerceptionSupervisor._dispatch(node)
     except ValueError:pass
@@ -46,6 +47,7 @@ def test_service_readiness_stall_cannot_dispatch_expired_original_witness(monkey
     client=NS(service_is_ready=readiness,call_async=lambda _:calls.append('start'))
     node=NS(rpc={},rpc_clients={m.COORDINATOR+'/start_recovery':client},native_witness=witness,
         get_clock=lambda:NS(now=lambda:NS(nanoseconds=10_100_000_000)))
+    node._history_final=lambda:102.
     node._native_final=lambda:m.PerceptionSupervisor._native_final(node)
     with pytest.raises(ValueError):m.PerceptionSupervisor._request(node,m.COORDINATOR+'/start_recovery',2.)
     assert not calls and not node.rpc
@@ -58,4 +60,5 @@ def test_final_original_deadline_and_identity_leases_checked(field,value,monkeyp
         selected=((100.,10_000_000_000),)*2,request=100.,received=100.1)
     witness[field]=value
     node=NS(native_witness=witness,get_clock=lambda:NS(now=lambda:NS(nanoseconds=10_100_000_000)))
+    node._history_final=lambda:102.
     with pytest.raises(ValueError):m.PerceptionSupervisor._native_final(node)

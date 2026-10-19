@@ -28,6 +28,7 @@ from .perception_recovery import read_artifact,PRODUCER,PRODUCER_STATUS,CONSUMER
 from .rocm_rgbd import extrinsic_matrix
 from .supervisor_policy import SupervisorPolicy,transient_fault
 from .supervisor_journal import SupervisorJournal
+from .pre_outage_history import PreOutageHistory
 from .supervisor_health import HealthNotCurrent,statement_coverage
 from .source_binding_health import SourceBindingProgress,binding_context,binding_coverage
 
@@ -83,7 +84,7 @@ class PerceptionSupervisor(Node):
             self.native_infos={k:deque(maxlen=4) for k in ('depth','color')}
             self.identity=None;self.identity_rpc=None;self.expected_generation=None;self.accepted_reset_id=None
             self.dispatch_ros_ns=None;self.health_error='supervisor disabled';self.health_progress={}
-            self.rpc={};self.reset_pending=False
+            self.rpc={};self.reset_pending=False;self.pre_outage=PreOutageHistory()
             self.health_cache={};self.health_next_request={};self.health_request_starts={};self.health_rpc_clocks={}
             self.health_coverage_end=None;self.health_candidate_end=None;self.health_gap_reason=None
             self.health_rejections={};self.health_guard_consumes=0;self.health_guard_wakeups=0
@@ -110,7 +111,7 @@ class PerceptionSupervisor(Node):
         self.journal.write(self.policy.journal(),consumer_epochs=self.epochs,adopted=self.adopted)
 
     def _fail(self,error):
-        self.reset_pending=False
+        self.pre_outage.clear();self.reset_pending=False
         self.policy.fail(str(error));self.health_error=str(error)[:512]
         try:self._persist()
         except Exception as failure:self.health_error+='; journal failure: '+str(failure)[:160]
@@ -146,7 +147,7 @@ class PerceptionSupervisor(Node):
                 if self.ledger.add(message.data,gid,now_ns=self.get_clock().now().nanoseconds,now_mono=receipt):
                     v,g,_=self.ledger.entries[-1];self.ledger.entries[-1]=(v,g,receipt)
         except (ValueError,TypeError,KeyError) as error:
-            self.ledger.entries.clear();self.health_error=str(error)[:512]
+            self.pre_outage.clear();self.ledger.entries.clear();self.health_error=str(error)[:512]
             if any(word in str(error) for word in ('context changed','generation','external')):self._fail(error)
 
     def _info(self,kind):
@@ -321,6 +322,15 @@ class PerceptionSupervisor(Node):
         self.health_candidate_end=min(ends) if ready else None
         return ready
 
+    def _history_context(self):
+        require(set(self.epochs)==set(CONSUMERS) and all(hex_value(v,32) for v in self.epochs.values()),
+            'both source-binding epochs required for pre-outage history')
+        return dict(pin_sha256=pin_digest(self.pin),consumer_epochs=deepcopy(self.epochs))
+
+    def _history_final(self):
+        # Diagnostic eligibility only: current source health can remain false.
+        return self.pre_outage.check_active(self._history_context(),now=time.monotonic(),ns=self.get_clock().now().nanoseconds)
+
     def _apply_current_health(self,valid):
         now=time.monotonic();end=self.health_candidate_end
         if not valid or end is None or now>=end:
@@ -330,14 +340,19 @@ class PerceptionSupervisor(Node):
             self.health_gap_reason='original health coverage gap'
             self.policy.healthy(now,False)
         self.health_coverage_end=end;self.policy.healthy(now,True)
+        if self.policy.state=='armed':
+            self.pre_outage.observe(self._history_context(),now=now,ns=self.get_clock().now().nanoseconds,coverage_end=end,armed=True)
 
     def _health_wakeup(self):
         self.health_guard_wakeups+=1
         if self.closed or not self.policy.enabled or self.policy.latched or self.policy.job is not None or self.policy.state not in ('warming','armed'):return
         try:
             self.policy.clocks(time.monotonic(),time.time())
+            if self.pre_outage.token is not None or self.pre_outage.active is not None:
+                self.pre_outage.validate(self._history_context(),now=time.monotonic(),ns=self.get_clock().now().nanoseconds)
             # The timer retains sole ownership of typed source-outage dispatch.
-            if self._producer_now().get('state')=='unavailable':return
+            if self._producer_now().get('state')=='unavailable':
+                self.health_candidate_end=None;self._apply_current_health(False);return
             valid=self._current_health(start_requests=False)
             self.health_error=None if valid else 'waiting for current source bindings'
             self._apply_current_health(valid)
@@ -347,7 +362,7 @@ class PerceptionSupervisor(Node):
         except Exception as error:self._fail(error)
 
     def _native_proof(self):
-        now=time.monotonic();require(now<=self.native_started+2.,'postfault native preflight2s expired')
+        now=time.monotonic();require(now<=min(self.native_started+2.,self._history_final()),'postfault native preflight2s/original history expired')
         self._graph();graph=native_graph(self.get_publishers_info_by_topic)
         require(all(graph['endpoints'][k]['gid']==self.pin['source'][k+'_publisher_gid'] for k in TOPICS),'native source replacement forbids automatic recovery')
         if not self.native.select(graph,now_ns=self.get_clock().now().nanoseconds,now_mono=now):
@@ -384,6 +399,7 @@ class PerceptionSupervisor(Node):
         # accesses and again after service readiness immediately before RPC.
         witness=self.native_witness;now=time.monotonic();ns=self.get_clock().now().nanoseconds
         require(0<=now-witness['started']<=2.,'postfault native preflight2s expired')
+        self._history_final()
         require(len(witness['pairs'])==2 and all(0<=now-r['receipt']<=.250 and
             0<=ns-r['stamp']<=500_000_000 for pair in witness['pairs'] for r in pair),
             'original postfault native pairs expired/future')
@@ -395,7 +411,10 @@ class PerceptionSupervisor(Node):
     def _begin_outage(self,status):
         fault=transient_fault(status,self.pin['producer_generation'],self.pin['implementation']['producer_node_sha256'],
                               now_mono=time.monotonic(),now_ns=self.get_clock().now().nanoseconds)
-        self.policy.outage(fault,time.monotonic());self._clear_health_queries();self.native_started=time.monotonic()
+        self._baseline_unchanged();self._graph()
+        require(not self.ledger.invalid_reason,'source lineage invalidated before outage')
+        self.pre_outage.claim(self._history_context(),fault,now=time.monotonic(),ns=self.get_clock().now().nanoseconds)
+        self.policy.outage(fault,time.monotonic(),history_verified=True);self._clear_health_queries();self.native_started=time.monotonic()
         self.native=NativePairs(start_ns=self.get_clock().now().nanoseconds,start_mono=self.native_started)
         self.native_infos={k:deque(maxlen=4) for k in ('depth','color')};self.identity_rpc=None
         self._persist()
@@ -456,7 +475,7 @@ class PerceptionSupervisor(Node):
             if ledger.add(raw,gid,now_ns=now_ns,now_mono=now):
                 a,b,_=ledger.entries[-1];ledger.entries[-1]=(a,b,receipt)
         require(bool(ledger.entries),'no current attributable generation lineage')
-        self.pin=deepcopy(pin);self.epochs=epochs;self.ledger=ledger;self.health_progress={};self.health_cache={};self.health_coverage_end=None
+        self.pre_outage.clear();self.pin=deepcopy(pin);self.epochs=epochs;self.ledger=ledger;self.health_progress={};self.health_cache={};self.health_coverage_end=None
         self.adopted=dict(job_id=self.policy.job['job_id'],artifact_sha256=digest,producer_generation=pin['producer_generation'])
         self.policy.completed(time.monotonic());self.native=None;self._persist()
 
@@ -496,6 +515,8 @@ class PerceptionSupervisor(Node):
         if self.closed:return
         try:
             self.policy.clocks(time.monotonic(),time.time())
+            if self.pre_outage.token is not None or self.pre_outage.active is not None:
+                self.pre_outage.validate(self._history_context(),now=time.monotonic(),ns=self.get_clock().now().nanoseconds)
             if self.reset_pending:self._finish_reset();return
             if self.policy.latched:return
             if self.policy.job is not None:self._monitor_job();return
@@ -503,13 +524,13 @@ class PerceptionSupervisor(Node):
             if self.policy.state=='verifying_native':
                 try:self._dispatch()
                 except (NativeProofPending,TransformException) as error:
-                    if self.policy.job is None and time.monotonic()<=self.native_started+2.:
+                    if self.policy.job is None and time.monotonic()<=min(self.native_started+2.,self._history_final()):
                         self.health_error=str(error)[:512];return
                     raise
                 return
             status=self._producer_now()
             if status.get('state')=='unavailable':
-                if self.policy.state=='armed':self._begin_outage(status)
+                if self.policy.state=='armed' or self.pre_outage.status(now=time.monotonic())['pre_outage_history_available']:self._begin_outage(status)
                 else:self.health_error='unavailable producer is not a new armed outage';self.policy.healthy(time.monotonic(),False)
                 return
             try:valid=self._current_health();self.health_error=None if valid else 'waiting for two current source bindings'
@@ -525,14 +546,14 @@ class PerceptionSupervisor(Node):
 
     def _enable(self,request,response):
         try:
-            self._baseline_unchanged();self._graph();self._producer_now()
+            self.pre_outage.clear();self._baseline_unchanged();self._graph();self._producer_now()
             self.policy.clocks(time.monotonic(),time.time());self.policy.enable(time.monotonic());self._persist()
             response.success=True
         except Exception as error:self._fail(error);response.success=False
         response.message=bounded_json(self._snapshot());return response
 
     def _disable(self,request,response):
-        self.policy.disable(time.monotonic())
+        self.pre_outage.clear();self.policy.disable(time.monotonic())
         try:self._persist();response.success=True
         except Exception as error:self._fail(error);response.success=False
         response.message=bounded_json(dict(self._snapshot(),accepted_job_continues=self.policy.job is not None));return response
@@ -547,6 +568,7 @@ class PerceptionSupervisor(Node):
         self.policy.reset_fault(time.monotonic(),terminal_proven=True);self.reset_pending=False;self._persist()
 
     def _reset_fault(self,request,response):
+        self.pre_outage.clear()
         # API acceptance requests a bounded terminal-state check; never clears
         # an unknown job, rewinds quota or implicitly enables supervision.
         try:
@@ -557,7 +579,7 @@ class PerceptionSupervisor(Node):
         response.message=bounded_json(dict(self._snapshot(),reset_check_accepted=response.success));return response
 
     def _snapshot(self):
-        return dict(self.policy.status(),reset_check_pending=self.reset_pending,health_reason=self.health_error,current_producer_generation=self.pin['producer_generation'],
+        return dict(self.policy.status(),**self.pre_outage.status(now=time.monotonic()),reset_check_pending=self.reset_pending,health_reason=self.health_error,current_producer_generation=self.pin['producer_generation'],
                     current_pin_sha256=pin_digest(self.pin),health_observation=dict(coverage_end_monotonic=self.health_coverage_end,
                         gap_reason=self.health_gap_reason,request_starts=self.health_request_starts,guard_consumes=self.health_guard_consumes,
                         guard_wakeups=self.health_guard_wakeups,rpc_clocks=self.health_rpc_clocks,rejected=self.health_rejections),health_scope='continuous source binding only',image_admitted=False,processing_progress=False,scope='source-binding health only; never image progress, motion or physical qualification')
@@ -566,7 +588,7 @@ class PerceptionSupervisor(Node):
         response.success=True;response.message=bounded_json(self._snapshot());return response
 
     def close(self):
-        self.closed=True
+        self.closed=True;self.pre_outage.clear()
         for name,record in self.rpc.items():
             try:self.rpc_clients[name].remove_pending_request(record['future'])
             except (KeyError,RuntimeError):pass
