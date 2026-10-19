@@ -283,7 +283,7 @@ class TrajectoryBridge(Node):
         self.declare_parameter("log_dir", "")
         self.declare_parameter("trajectory_log_dir", "")
         self.declare_parameter("station_lock", "")
-        self.declare_parameter("owner_idle_timeout_s", 300.0)
+        self.declare_parameter("owner_idle_timeout_s", 3600.0)
         self.declare_parameter("recover_sag", False)
         self.declare_parameter("action_name", "/follower/arm_trajectory_controller/follow_joint_trajectory")
         self.declare_parameter("gripper_action_name", "/follower/gripper_controller/gripper_cmd")
