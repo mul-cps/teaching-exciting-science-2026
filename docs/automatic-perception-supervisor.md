@@ -31,11 +31,11 @@ Status topic `~/status` and service JSON use schema `so101-perception-supervisor
 
 Only the two original producer receipt-gap/lost checks emit typed transient fault codes. Fault ID, original clocks, generation and node-code SHA are latched at first failure. Matching error text is insufficient. Unknown, calibration, source replacement, graph, TF, code and reset failures cannot authorize automatic recovery.
 
-Before one automatic dispatch, the supervisor must have observed five continuous seconds of current healthy producer and both consumer admissions. A new typed outage then requires two advancing native CameraInfo pairs acquired after the fault, original receipt/age/pair leases, actual seven fixed graph GIDs, native K/D/profile/frame, independent DeviceInfo serial and exact optical TF. Old derived lineage is not freshened while the producer is unavailable. Original selected pairs/Info receipts, identity request/completion and the two-second preflight budget are checked again after all graph/TF/result access and service-readiness access, immediately before dispatch. No witness is reread or renewed. The sole dispatch target is `/so101_perception_recovery/start_recovery`; the coordinator independently verifies recovery.
+Before one automatic dispatch, the supervisor must have observed five continuous seconds of current healthy producer and both consumer SOURCE-BINDING health proofs. A new typed outage then requires two advancing native CameraInfo pairs acquired after the fault, original receipt/age/pair leases, actual seven fixed graph GIDs, native K/D/profile/frame, independent DeviceInfo serial and exact optical TF. Old derived lineage is not freshened while the producer is unavailable. Original selected pairs/Info receipts, identity request/completion and the two-second preflight budget are checked again after all graph/TF/result access and service-readiness access, immediately before dispatch. No witness is reread or renewed. The sole dispatch target is `/so101_perception_recovery/start_recovery`; the coordinator independently verifies recovery.
 
 The supervisor reserves its attempt in an exclusive, fsynced/read-back journal before sending the start RPC. Limits are three attempts per rolling hour and thirty seconds between attempts. Clock rollback/discontinuity, boot change, unknown in-flight completion, journal ambiguity or changed baseline fails closed. Existing journal files require the complete outer/policy schema and typed quota/handled/in-flight/latch/clock fields; omitted authority never defaults to an empty budget. Explicit first run without a journal is supported. Disable and manual fault reset preserve quotas and handled outages. Existing journal bytes must not be removed to bypass a limit. Boot/baseline changes require an explicit reviewed bootstrap, not automatic journal replacement.
 
-Only the supervisor's own exact job/reset IDs, new private producer generation, immutable artifact hash, unchanged complete source/code/calibration/graph pin and two new consumer epochs may be adopted. No arbitrary file, PID or service comes from a ROS request. All seven GIDs remain unchanged automatically. Actual fresh lineage and both consumer admissions must remain healthy for five seconds after completion; the thirty-second cooldown also applies. Historical coordinator `ready_now` expiry does not cause an outage.
+Only the supervisor's own exact job/reset IDs, new private producer generation, immutable artifact hash, unchanged complete source/code/calibration/graph pin and two new consumer epochs may be adopted. No arbitrary file, PID or service comes from a ROS request. All seven GIDs remain unchanged automatically. Actual fresh lineage and both consumer SOURCE-BINDING health proofs must remain continuously healthy for five seconds after completion; the thirty-second cooldown also applies. Historical coordinator `ready_now` expiry does not cause an outage.
 
 Failed, partial, late or unknown jobs latch without retry. An accepted job is not canceled by disable or shutdown. Shutdown records the unknown/in-flight outcome without claiming cancellation. An unresolved in-flight journal cannot be erased through `/reset_fault`; explicit operator reconciliation is required. Consumer/heartbeat expiry can inhibit/latch observation but never independently authorize recovery. No image/cloud payload subscriptions exist: at most eight raw lineage strings, eight parsed ledger entries and four references per native Info stream are retained; events/handled history are bounded128; public status exposes the latest64 events.
 
@@ -79,3 +79,36 @@ that coverage; the supervisor correctly stays warming and does not recover or
 qualify the station. Higher polling rates or changed stability semantics require
 separate evidence/review. Status includes bounded `health_observation` coverage
 end/gap, request/guard counters, and original RPC/proof clocks for diagnosis.
+
+## Separate source binding and selected-image admission
+
+Supervisor warmup/rearm calls only each consumer's `~/derived_source_health`
+Trigger API with schema `so101-derived-source-binding-health-v1`. This is the
+explicit source-health acceptance amendment after the recorded 5/20/50Hz matrix
+showed selected-image proofs could not establish continuous coverage. The old
+`~/derived_source_status` API remains selected-image admission; the coordinator
+still requires two actual advancing IMAGE proofs after recovery. Metadata source
+health cannot substitute those proofs.
+
+A source-health proof always declares `image_admitted=false`,
+`processing_progress=false`, `qualified=false`, and `execution_enabled=false`.
+It may be healthy while analysis is stalled; it establishes no detections or
+physical readiness. `binding_invalidated` must be a strict boolean: true is a
+persistent/context contradiction and fatal; false unavailable proofs merely
+inhibit/reset stability. No reason strings grant authority.
+
+Both proofs pin the consumer epoch, reviewed source pin, private generation,
+latest exact original lineage and seven actual publisher GIDs. They explicitly
+require independently received native CameraInfos, local optical TF at the exact
+original depth timestamp, and producer-attested original DeviceInfo identity
+(no new consumer DeviceInfo RPC). All four original header stamps and seven
+original receipt deadlines are retained. Receipt expiry is their exact minimum;
+identity expiry stays separate; effective expiry is the minimum of both. The
+supervisor also checks its own original lineage/RPC receipts, current producer
+heartbeat and all original 500ms headers. No checked timestamp renews evidence.
+
+The same 5Hz request cap, completion-only guard and strict five-second continuous
+coverage remain. Short proofs and actual gaps correctly prevent arming; installing
+the new API does not establish actual-station coverage or automatic recovery.
+The recorded synthetic metadata-only DDS fixture is replayed at its ORIGINAL
+client-take clocks, never retimestamped as live qualification.

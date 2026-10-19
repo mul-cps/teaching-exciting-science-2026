@@ -1,0 +1,205 @@
+{
+  "scope": "actual seven UUID DDS endpoints+metadata-only Trigger; no source pixels/DeviceInfo/GPU/hardware qualification",
+  "response": {
+    "schema": "so101-derived-source-binding-health-v1",
+    "state": "ready",
+    "image_admitted": false,
+    "processing_progress": false,
+    "qualified": false,
+    "execution_enabled": false,
+    "binding_invalidated": false,
+    "consumer_epoch": "b26d8768497b4611bc70c6b0157238bd",
+    "source_pin_sha256": "8cedfc660b195480f8483077a18d953dc620d0183071d130dccd0a0b0bbbe052",
+    "producer_generation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "camera_info_validation": "independent_native_info",
+    "identity_validation": "producer_attested_device_info_no_new_rpc",
+    "optical_tf_validation": "local_exact_depth_timestamp",
+    "scope": "current source binding only; not image admission, analyzer progress or physical qualification",
+    "sequence": 2,
+    "depth_stamp_ns": 1792448857546532516,
+    "color_stamp_ns": 1792448857546532516,
+    "receipt_deadlines_monotonic": {
+      "consumer_lineage": 315365.513946724,
+      "source_depth": 315365.513072366,
+      "source_color": 315365.513072366,
+      "source_depth_info": 315365.513072366,
+      "source_color_info": 315365.513072366,
+      "consumer_depth_info": 315365.513895888,
+      "consumer_color_info": 315365.513765152
+    },
+    "original_receipt_expiry_monotonic": 315365.513072366,
+    "original_identity_expiry_monotonic": 315366.243072366,
+    "effective_health_expiry_monotonic": 315365.513072366,
+    "original_header_stamps_ns": {
+      "depth_stamp_ns": 1792448857546532516,
+      "color_stamp_ns": 1792448857546532516,
+      "depth_info_stamp_ns": 1792448857546532516,
+      "color_info_stamp_ns": 1792448857546532516
+    },
+    "original_header_expiry_ros_ns": 1792448858046532516,
+    "checked_ros_ns": 1792448857549661058,
+    "checked_monotonic": 315365.265209274
+  },
+  "matching_lineage": {
+    "schema": "so101-derived-rocm-rgbd-cohort-v1",
+    "qualified": false,
+    "execution_enabled": false,
+    "direct_camera_attestation": false,
+    "producer_generation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sequence": 2,
+    "source_generation": "f3b8b4a99232d6a4020f1352d66d5d2e9d392e8b2c46f94de6c33db59696ca8f",
+    "original": {
+      "depth_stamp_ns": 1792448857546532516,
+      "color_stamp_ns": 1792448857546532516,
+      "depth_info_stamp_ns": 1792448857546532516,
+      "color_info_stamp_ns": 1792448857546532516,
+      "depth_frame": "depth",
+      "color_frame": "color",
+      "pair_delta_ns": 0
+    },
+    "source": {
+      "camera_node": "/source_487eaf953fa84444ba458d96090d7139",
+      "serial_number": "actual_serial",
+      "depth_topic": "/camera/depth/image_rect_raw",
+      "color_topic": "/camera/color/image_raw",
+      "depth_publisher_gid": "0110c5501f5b8dead059f1b600003603",
+      "color_publisher_gid": "0110c5501f5b8dead059f1b600003703",
+      "depth_info_publisher_gid": "0110c5501f5b8dead059f1b600003803",
+      "color_info_publisher_gid": "0110c5501f5b8dead059f1b600003903"
+    },
+    "identity": {
+      "source_generation": "f3b8b4a99232d6a4020f1352d66d5d2e9d392e8b2c46f94de6c33db59696ca8f",
+      "serial_number": "actual_serial",
+      "request_started_monotonic": 315365.243072366,
+      "confirmed_monotonic": 315365.253072366,
+      "confirmed_ros_ns": 1792448857546532515,
+      "expires_monotonic": 315366.243072366,
+      "device_info_request_source": {
+        "node": "/source_487eaf953fa84444ba458d96090d7139",
+        "endpoints": {
+          "depth": {
+            "node": "/source_487eaf953fa84444ba458d96090d7139",
+            "gid": "0110c5501f5b8dead059f1b600003603"
+          },
+          "color": {
+            "node": "/source_487eaf953fa84444ba458d96090d7139",
+            "gid": "0110c5501f5b8dead059f1b600003703"
+          },
+          "depth_info": {
+            "node": "/source_487eaf953fa84444ba458d96090d7139",
+            "gid": "0110c5501f5b8dead059f1b600003803"
+          },
+          "color_info": {
+            "node": "/source_487eaf953fa84444ba458d96090d7139",
+            "gid": "0110c5501f5b8dead059f1b600003903"
+          }
+        }
+      }
+    },
+    "outputs": {
+      "cloud_topic": "/so101_perception/rocm/points",
+      "status_topic": "/so101_perception/rocm/lineage",
+      "cloud_publisher_gid": "0110c5501f5b8dead059f1b600003a03",
+      "status_publisher_gid": "0110c5501f5b8dead059f1b600003b03",
+      "aligned_publisher_gid": "0110c5501f5b8dead059f1b600003c03",
+      "aligned_topic": "/so101_perception/rocm/aligned_depth",
+      "cloud_stamp_ns": 1792448857546532516,
+      "cloud_frame": "depth",
+      "aligned_stamp_ns": 1792448857546532516,
+      "aligned_frame": "color"
+    },
+    "calibration": {
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "depth_size": [
+        320,
+        240
+      ],
+      "color_size": [
+        640,
+        480
+      ],
+      "depth_K": [
+        200.0,
+        200.0,
+        160.0,
+        120.0
+      ],
+      "color_K": [
+        400.0,
+        400.0,
+        320.0,
+        240.0
+      ],
+      "depth_D": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "color_D": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation_column_major": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "translation_m": [
+        0.015,
+        0.0,
+        0.0
+      ],
+      "depth_scale_m": 0.001,
+      "depth_scale_source": "existingROS16UC1millimetercontract; notindependentphysicalmeasurement"
+    },
+    "implementation": {
+      "source_sha256": {
+        "rocm_transport.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "rocm_client.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "rocm_worker.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "rocm_projection.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "rocm_projection_backend.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "rocm_projection_kernels.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "producer_node_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "worker_python": "/actual/python",
+      "worker_python_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "compatibility_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "hardware": {
+        "name": "actual GPU"
+      }
+    },
+    "health": {
+      "state": "valid",
+      "source_receipts_monotonic": {
+        "depth": 315365.263072366,
+        "color": 315365.263072366,
+        "depth_info": 315365.263072366,
+        "color_info": 315365.263072366
+      },
+      "source_expiry_monotonic": 315365.513072366,
+      "original_max_age_ns": 500000000,
+      "observation_ros_ns": 1792448857546532516
+    },
+    "metrics": {
+      "points": 2,
+      "cloud_bytes": 40,
+      "backend_ms": 8.0,
+      "worker_ms": 10.0
+    }
+  },
+  "consumer_lineage_receipt_monotonic": 315365.263946724,
+  "response_received_monotonic": 315365.26613615,
+  "response_received_ros_ns": 1792448857550591461
+}

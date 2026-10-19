@@ -76,12 +76,13 @@ def test_actual_automatic_supervisor_with_real_coordinator(tmp_path,monkeypatch)
         state={}
         for name in CONSUMERS:
             node=Node(name[1:]);node.declare_parameter('derived_source_cohort',str(baseline_path));consumers.append(node)
-            state[name]={'epoch':uuid.uuid4().hex,'pin':baseline['derived_source']['pin'],'resets':0}
+            state[name]={'epoch':uuid.uuid4().hex,'pin':baseline['derived_source']['pin'],'resets':0,'health_calls':0,'image_calls':0}
             def reset_consumer(req,response,node=node,name=name):
                 artifact,_=read_artifact(node.get_parameter('derived_source_cohort').value)
                 state[name].update(epoch=uuid.uuid4().hex,pin=artifact['derived_source']['pin'])
                 state[name]['resets']+=1;response.success=True;response.message='reloaded; not readiness';return response
             def status(req,response,node=node,name=name):
+                state[name]['image_calls']+=1
                 pin=state[name]['pin'];ready=pin==statement_pin(value) and value['sequence']>=2
                 data=dict(schema='so101-derived-admission-status-v1',qualified=False,execution_enabled=False,
                     consumer_epoch=state[name]['epoch'],source_pin_sha256=pin_digest(pin),
@@ -92,6 +93,28 @@ def test_actual_automatic_supervisor_with_real_coordinator(tmp_path,monkeypatch)
                         original_receipt_expiry_monotonic=value['health']['source_expiry_monotonic'],
                         original_header_expiry_ros_ns=value['original']['depth_stamp_ns']+500_000_000)
                 response.success=ready;response.message=json.dumps(data);return response
+            def health(req,response,node=node,name=name):
+                from so101_station_perception.source_binding_health import SCHEMA,HEADERS
+                state[name]['health_calls']+=1
+                pin=state[name]['pin'];ready=pin==statement_pin(value) and value['sequence']>=2
+                data=dict(schema=SCHEMA,state='ready' if ready else 'unavailable',binding_invalidated=False,
+                    image_admitted=False,processing_progress=False,qualified=False,execution_enabled=False,
+                    consumer_epoch=state[name]['epoch'],source_pin_sha256=pin_digest(pin),producer_generation=pin['producer_generation'])
+                if ready:
+                    source_receipts=value['health']['source_receipts_monotonic']
+                    deadlines={**{'source_'+k:v+.25 for k,v in source_receipts.items()},
+                        'consumer_lineage':min(source_receipts.values())+.25,
+                        'consumer_depth_info':source_receipts['depth_info']+.25,'consumer_color_info':source_receipts['color_info']+.25}
+                    headers={k:value['original'][k] for k in HEADERS};identity=value['identity']['expires_monotonic'];receipt=min(deadlines.values())
+                    data.update(sequence=value['sequence'],depth_stamp_ns=headers['depth_stamp_ns'],color_stamp_ns=headers['color_stamp_ns'],
+                        checked_ros_ns=node.get_clock().now().nanoseconds,checked_monotonic=time.monotonic(),
+                        original_header_stamps_ns=headers,original_header_expiry_ros_ns=min(headers.values())+500_000_000,
+                        receipt_deadlines_monotonic=deadlines,original_receipt_expiry_monotonic=receipt,
+                        original_identity_expiry_monotonic=identity,effective_health_expiry_monotonic=min(receipt,identity),
+                        camera_info_validation='independent_native_info',identity_validation='producer_attested_device_info_no_new_rpc',
+                        optical_tf_validation='local_exact_depth_timestamp')
+                response.success=ready;response.message=json.dumps(data);return response
+            node.create_service(Trigger,name+'/derived_source_health',health)
             node.create_service(Trigger,name+'/reset_derived_source',reset_consumer)
             node.create_service(Trigger,name+'/derived_source_status',status)
         def emit():
@@ -134,6 +157,7 @@ def test_actual_automatic_supervisor_with_real_coordinator(tmp_path,monkeypatch)
         wait(lambda:supervisor.policy.state in ('armed','latched'),seconds=9.)
         assert supervisor.policy.state=='armed',supervisor._snapshot()
         assert requests['reset']==0 and coordinator.result['state']=='idle'
+        assert all(v['image_calls']==0 and v['health_calls']>=25 for v in state.values())
         fault_id=uuid.uuid4().hex
         availability['fault']=dict(code='private_source_stream_lost',fault_id=fault_id,
             producer_generation=value['producer_generation'],producer_node_sha256=value['implementation']['producer_node_sha256'],
@@ -142,6 +166,7 @@ def test_actual_automatic_supervisor_with_real_coordinator(tmp_path,monkeypatch)
         wait(lambda:supervisor.adopted is not None or supervisor.policy.latched,seconds=12.)
         assert supervisor.adopted is not None,dict(supervisor=supervisor._snapshot(),coordinator=coordinator.result)
         assert coordinator.result['state']=='completed' and coordinator.result['operation_success'] is True
+        assert all(v['image_calls']>=2 for v in state.values())
         assert requests=={'device':2,'reset':1} and all(x['resets']==1 for x in state.values())
         assert supervisor.pin['producer_generation']==value['producer_generation']
         assert len(supervisor.policy.attempts)==1 and fault_id in supervisor.policy.handled
@@ -159,7 +184,7 @@ def test_actual_automatic_supervisor_with_real_coordinator(tmp_path,monkeypatch)
         if os.environ.get('SUPERVISOR_DDS_EVIDENCE'):
             Path(os.environ['SUPERVISOR_DDS_EVIDENCE']).write_text(json.dumps(dict(
                 scope='isolatedDDS177; fake nativecamera/producer/consumer, REAL coordinator+privatepinner+supervisor; noGPU/SDK/arm/pixels',
-                requests=requests,consumer_resets={k:v['resets'] for k,v in state.items()},
+                requests=requests,consumer_api_calls={k:dict(health=v['health_calls'],images=v['image_calls']) for k,v in state.items()},consumer_resets={k:v['resets'] for k,v in state.items()},
                 completed=coordinator.result,supervisor=supervisor._snapshot(),expired_historical_operation=old_operation),indent=2))
     finally:
         if supervisor and os.environ.get('SUPERVISOR_DDS_EVIDENCE') and not Path(os.environ['SUPERVISOR_DDS_EVIDENCE']).exists():
