@@ -28,8 +28,8 @@ from .diagnostic_cloud import quaternion_matrix
 
 
 class CameraSourceCapture(Node):
-    def __init__(self,*,serial='243322071783'):
-        super().__init__('camera_capture_sources')
+    def __init__(self,*,serial='243322071783',context=None,use_global_arguments=True):
+        super().__init__('camera_capture_sources',context=context,use_global_arguments=use_global_arguments)
         self.serial=serial;self.core=CameraPins();self.last_error='two advancing original source pairs unavailable'
         self.buffer=Buffer();self.listener=TransformListener(self.buffer,self)
         self.client=None;self.future=None;self.rpc_snapshot=None;self.rpc_started=None;self.identity=None;self.graph_bound=False
@@ -112,12 +112,14 @@ class CameraSourceCapture(Node):
         self.core.check_leases(selected,self.identity,**self._clocks())
         require(time.monotonic()<=deadline,'camera source capture deadline expired')
 
-    def capture(self,*,timeout=4.,output=None):
+    def capture(self,*,timeout=4.,output=None,executor=None):
         require(type(timeout) in (int,float) and math.isfinite(timeout) and 0<timeout<=4.,'timeout must be finite in (0,4] seconds')
         deadline=time.monotonic()+timeout
         while time.monotonic()<deadline:
             if self.core.ledger.invalid_reason:raise ValueError(self.core.ledger.invalid_reason)
-            rclpy.spin_once(self,timeout_sec=min(.005,max(0.,deadline-time.monotonic())))
+            wait=min(.005,max(0.,deadline-time.monotonic()))
+            if executor is None:rclpy.spin_once(self,timeout_sec=wait)
+            else:executor.spin_once(timeout_sec=wait)
             try:
                 self._device()
                 if self.identity is None:continue
