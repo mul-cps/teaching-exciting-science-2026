@@ -208,7 +208,8 @@ def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distort
     _, _, axes = np.linalg.svd(points-center, full_matrices=False)
     principal = (points-center) @ axes.T
     metrics['centroid_camera_m'] = center.tolist()
-    metrics['visible_extents_m'] = (np.percentile(principal, 95, axis=0)-np.percentile(principal, 5, axis=0)).tolist()
+    limits = np.percentile(principal, [5, 95], axis=0)
+    metrics['visible_extents_m'] = (limits[1]-limits[0]).tolist()
     metrics['plane_residual_p95_m'] = float(np.percentile(np.abs(principal[:, 2]), 95))
     depths = np.sort(depth[y, x])
     gaps = np.diff(depths)

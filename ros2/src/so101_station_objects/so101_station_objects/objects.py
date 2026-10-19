@@ -110,9 +110,12 @@ def _orient_plane_up(plane):
 
 
 def _fit_world_support(depth, valid_depth, rgb, intrinsics, distortion,
-                       board_from_camera, support_roi, *, stride=8, max_points=MAX_SUPPORT_POINTS):
+                       board_from_camera, support_roi, *, stride=8, max_points=MAX_SUPPORT_POINTS, masks=None):
     height, width = depth.shape
-    vivid = np.logical_or.reduce(tuple(color_masks(rgb).values()))
+    # Reuse the identical full-image masks already needed by detection. This
+    # avoids a second HSV conversion without changing support/pixel semantics.
+    masks = color_masks(rgb) if masks is None else masks
+    vivid = np.logical_or.reduce(tuple(masks.values()))
     excluded = cv2.dilate(vivid.astype(np.uint8), np.ones((7, 7), np.uint8)) > 0
     yy, xx = np.mgrid[0:height:stride, 0:width:stride]
     sampled = valid_depth[yy, xx] & ~excluded[yy, xx]
@@ -332,8 +335,8 @@ def _visible_component_geometry(pixel_points, depth_values, intrinsics, distorti
     axes[:, 2] = np.cross(axes[:, 0], axes[:, 1])
     axes[:, 2] /= np.linalg.norm(axes[:, 2])
     principal = centered @ axes
-    extents = np.maximum(0.001, np.percentile(principal, 95, axis=0)
-                         - np.percentile(principal, 5, axis=0))
+    limits = np.percentile(principal, [5, 95], axis=0)
+    extents = np.maximum(0.001, limits[1]-limits[0])
     long_axis, short_axis, surface_normal = axes.T
     spread = np.maximum(0.001, np.percentile(np.abs(board - centroid), 90, axis=0))
     return {
@@ -396,9 +399,10 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                    & (depth_m <= max_observation_depth_m))
     if int(valid_depth.sum()) < 100:
         raise ValueError("insufficient valid depth in camera frame")
+    masks = color_masks(rgb)
     if support_plane is None:
         plane = _fit_world_support(depth_m, valid_depth, rgb, intrinsics, distortion,
-                                   transform, support_roi)
+                                   transform, support_roi, masks=masks)
     else:
         normal = np.asarray(support_plane.get("normal"), dtype=float).reshape(3)
         offset = float(support_plane.get("d"))
@@ -407,7 +411,6 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                 or normal[2] < 0.85):
             raise ValueError("cached support plane must be finite, normalized, and upward-facing")
         plane = dict(support_plane, normal=normal, d=offset)
-    masks = color_masks(rgb)
     objects = []
     validation_diagnostics = {
         "color_parent_components": 0, "depth_components": 0,
@@ -431,7 +434,9 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
 
     for color in COLOR_NAMES:
         mask = masks[color].astype(np.uint8)
-        count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+        # Same8-connected parent pixels/stats/labels; explicit block-based
+        # GRANA avoids OpenCV5 default Spaghetti full-image scan overhead.
+        count, labels, stats, _ = cv2.connectedComponentsWithStatsWithAlgorithm(mask, 8, cv2.CV_32S, cv2.CCL_GRANA)
         for label in range(1, count):
             area = int(stats[label, cv2.CC_STAT_AREA])
             if area < min_component_pixels:
