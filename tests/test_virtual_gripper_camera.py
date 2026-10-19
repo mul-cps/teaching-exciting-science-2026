@@ -153,3 +153,43 @@ def test_xyz_decoder_and_cloud_callback_have_no_per_point_python_work():
     assert not any(name in {'open','Path','Rotation.from_matrix'} or
         name.startswith(('hashlib.','mujoco.')) or name.endswith(('.read_bytes','.read_text'))
         for name in calls)
+
+
+def test_joint_history_handles_delayed_cloud_and_out_of_order_receipts():
+    from workshop.digital_twin.virtual_camera import JointOpeningHistory
+    h=JointOpeningHistory();now=10_100_000_000
+    for stamp,angle in ((10_000_000_000,-.06),(10_090_000_000,-.06),(9_990_000_000,-.07)):
+        assert h.add(stamp,angle,now)
+    assert h.nearest(10_000_000_000,now)==(10_000_000_000,-.06)
+    assert h.nearest(9_990_000_000,now)==(9_990_000_000,-.07)
+    assert h.nearest(9_800_000_000,now) is None
+    # Timestamp matching happens before opening matching.
+    assert h.add(10_010_000_000,.1,now)
+    assert h.nearest(10_010_000_000,now)==(10_010_000_000,.1)
+
+
+def test_joint_history_rejects_future_old_nonfinite_samples_and_stale_clouds():
+    from workshop.digital_twin.virtual_camera import JointOpeningHistory
+    h=JointOpeningHistory();now=10_100_000_000
+    assert h.add(10_000_000_000,-.06,now)
+    for stamp,angle in ((10_120_000_000,-.06),(9_000_000_000,-.06),(0,-.06),(10_010_000_000,np.nan)):
+        assert not h.add(stamp,angle,now)
+    assert len(h.samples)==1
+    assert h.nearest(10_000_000_000,10_600_000_001) is None
+    assert h.nearest(10_120_000_000,now) is None
+    # Previously admitted samples also become inadmissible on a clock rewind.
+    assert h.nearest(9_990_000_000,9_990_000_000) is None
+
+
+def test_joint_history_capacity_and_static_hot_path_bound():
+    from workshop.digital_twin.virtual_camera import JointOpeningHistory
+    h=JointOpeningHistory();now=10_100_000_000
+    for i in range(100):assert h.add(10_000_000_000+i*1_000_000,-.06,now)
+    assert len(h.samples)==h.samples.maxlen==64
+    assert h.samples[0][0]==10_036_000_000
+    source=inspect.getsource(JointOpeningHistory)
+    assert 'deque(maxlen=self.CAPACITY)' in source and 'CAPACITY = 64' in source
+    add_tree=ast.parse('if True:\n'+inspect.getsource(JointOpeningHistory.add))
+    assert not any(isinstance(n,(ast.For,ast.While,ast.ListComp,ast.SetComp,
+                                ast.DictComp,ast.GeneratorExp)) for n in ast.walk(add_tree))
+    assert 'MAX_AGE_NS = 500_000_000' in source and 'MAX_SYNC_NS = 50_000_000' in source

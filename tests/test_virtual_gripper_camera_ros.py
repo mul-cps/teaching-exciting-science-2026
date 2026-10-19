@@ -17,7 +17,7 @@ sys.modules.setdefault(private.__name__, private)
 from sensor_msgs.msg import PointCloud2, PointField
 from geometry_msgs.msg import TransformStamped
 from so101_station_perception.virtual_gripper_camera import sampled_xyz, VirtualGripperCamera
-from so101_station_perception_tag_tracking.virtual_camera import virtual_intrinsics, optical_projection
+from so101_station_perception_tag_tracking.virtual_camera import virtual_intrinsics, optical_projection, JointOpeningHistory
 
 
 def cloud(points=None, stamp_ns=10_000_000_000):
@@ -70,7 +70,8 @@ def fixture_node():
         optical_frame='synthetic_gripper_camera_optical',mount=np.eye(4),optical_from_tool=np.eye(4),mount_quat=[0.,0.,0.,1.],max_points=20000,
         renderer=NS(render=render,renderer='FAKE-MESSAGE-TEST-NOT-GPU'),
         projection=optical_projection(k,320,240),width=320,height=240,k=k,
-        images=Publisher(),infos=Publisher(),tf_publisher=Publisher(),publish_annotation=False)
+        images=Publisher(),infos=Publisher(),tf_publisher=Publisher(),publish_annotation=False,
+        opening_history=JointOpeningHistory())
     return n,states,lookups,rendered
 
 
@@ -126,7 +127,7 @@ def test_annotation_does_not_change_unknown_rgba_or_admit_overlay_as_depth():
     pose=np.eye(4);pose[:3,3]=[.01,0,.1]
     n.pinch={'schema':'so101-virtual-pinch-overlay-v1','qualified':False,
         'parent_frame':'urdf:gripper_frame_link','parent_from_pinch':pose.tolist(), 'opening_angle_rad':-.06}
-    n.opening=(10_000_000_000,-.06);n.pinch_sha='artifact-test'
+    n.opening_history.samples.append((10_000_000_000,-.06));n.pinch_sha='artifact-test'
     n.near,n.far=.01,2.
     n.annotated,n.annotation_masks=Publisher(),Publisher()
     rgba=np.zeros((240,320,4),np.uint8);original=rgba.copy()
@@ -139,7 +140,7 @@ def test_annotation_does_not_change_unknown_rgba_or_admit_overlay_as_depth():
     assert n.annotated.messages[0].encoding=='rgb8'
     assert n.annotation_masks.messages[0].encoding=='mono8'
     assert np.count_nonzero(np.frombuffer(n.annotation_masks.messages[0].data,dtype=np.uint8))>0
-    n.opening=(10_000_000_000,.1)
+    n.opening_history.samples.clear();n.opening_history.samples.append((10_000_000_000,.1))
     result=VirtualGripperCamera._annotation(n,image,rgba,10_000_000_000)
     assert result['pixel_xy'] is None
 
@@ -147,11 +148,10 @@ def test_annotation_does_not_change_unknown_rgba_or_admit_overlay_as_depth():
 def test_joint_receipt_rejects_future_sample_even_within_cloud_sync_window():
     from sensor_msgs.msg import JointState
     n,states,lookups,rendered=fixture_node()
-    n.opening=None
     j=JointState();j.name=['gripper'];j.position=[-.06]
     j.header.stamp.sec=10;j.header.stamp.nanosec=120_000_000
     VirtualGripperCamera._joints(n,j)
-    assert n.opening is None
+    assert not n.opening_history.samples
 
 
 def test_future_joint_within_50ms_sync_window_hides_crosshair_and_preserves_raw():
@@ -159,10 +159,34 @@ def test_future_joint_within_50ms_sync_window_hides_crosshair_and_preserves_raw(
     pose=np.eye(4);pose[:3,3]=[.01,0,.1]
     n.pinch={'schema':'so101-virtual-pinch-overlay-v1','qualified':False,
         'parent_frame':'urdf:gripper_frame_link','parent_from_pinch':pose.tolist(),'opening_angle_rad':-.06}
-    n.opening=(10_120_000_000,-.06);n.pinch_sha='future-test';n.near,n.far=.01,2.
+    n.opening_history.samples.append((10_120_000_000,-.06));n.pinch_sha='future-test';n.near,n.far=.01,2.
     n.annotated,n.annotation_masks=Publisher(),Publisher()
     rgba=np.zeros((240,320,4),np.uint8)
     from sensor_msgs.msg import Image
     result=VirtualGripperCamera._annotation(n,Image(),rgba,10_100_000_000)
     assert result['state']=='opening_mismatch_or_stale' and result['pixel_xy'] is None
     assert np.count_nonzero(rgba)==0
+
+
+def test_delayed_cloud_selects_historical_opening_instead_of_latest_joint_sample():
+    n,states,lookups,rendered=fixture_node()
+    pose=np.eye(4);pose[:3,3]=[.01,0,.1]
+    n.pinch={'schema':'so101-virtual-pinch-overlay-v1','qualified':False,
+        'parent_frame':'urdf:gripper_frame_link','parent_from_pinch':pose.tolist(),'opening_angle_rad':-.06}
+    n.pinch_sha='history-test';n.near,n.far=.01,2.
+    n.annotated,n.annotation_masks=Publisher(),Publisher()
+    from sensor_msgs.msg import JointState, Image
+    for stamp in (10_000_000_000,10_090_000_000):
+        j=JointState();j.name=['gripper'];j.position=[-.06]
+        j.header.stamp.sec,j.header.stamp.nanosec=divmod(stamp,10**9)
+        VirtualGripperCamera._joints(n,j)
+    rgba=np.zeros((240,320,4),np.uint8)
+    result=VirtualGripperCamera._annotation(n,Image(),rgba,10_000_000_000)
+    assert result['state']=='nominal_uncalibrated'
+    assert result['joint_stamp_ns']==10_000_000_000 and result['joint_cloud_delta_ns']==0
+    assert np.count_nonzero(rgba)==0
+    # The temporally nearest opening changed: never search past it merely to
+    # find the CAD artifact's desired angle.
+    n.opening_history.samples.append((10_010_000_000,.1))
+    result=VirtualGripperCamera._annotation(n,Image(),rgba,10_010_000_000)
+    assert result['state']=='opening_mismatch_or_stale' and result['pixel_xy'] is None

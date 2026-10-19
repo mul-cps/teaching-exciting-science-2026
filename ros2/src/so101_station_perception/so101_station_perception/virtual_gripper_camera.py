@@ -20,7 +20,7 @@ from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformL
 
 from so101_station_perception_tag_tracking.virtual_camera import (
     optical_projection, tool_from_virtual_optical, virtual_intrinsics,
-    validate_pinch_overlay, project_pinch_overlay)
+    validate_pinch_overlay, project_pinch_overlay, JointOpeningHistory)
 from .diagnostic_cloud import quaternion_matrix
 from .virtual_camera_gpu import GpuPointCamera
 
@@ -82,7 +82,8 @@ class VirtualGripperCamera(Node):
         self.k = virtual_intrinsics(self.width, self.height, float(p("vertical_fov_deg")))
         self.near, self.far = float(p("near_m")), float(p("far_m"))
         self.projection = optical_projection(self.k, self.width, self.height, self.near, self.far)
-        self.pinch, self.pinch_sha, self.opening = None, None, None
+        self.pinch, self.pinch_sha = None, None
+        self.opening_history = JointOpeningHistory()
         if p("pinch_artifact"):
             raw = Path(p("pinch_artifact")).read_bytes()
             self.pinch = validate_pinch_overlay(json.loads(raw))
@@ -105,26 +106,24 @@ class VirtualGripperCamera(Node):
 
     def _joints(self, message):
         if "gripper" not in message.name:
-            self.opening = None
             return
         index = message.name.index("gripper")
         if index >= len(message.position) or not math.isfinite(message.position[index]):
-            self.opening = None
             return
         stamp_ns = message.header.stamp.sec * 10**9 + message.header.stamp.nanosec
-        if not 0 <= self.get_clock().now().nanoseconds - stamp_ns <= 500_000_000:
-            self.opening = None
-            return
-        self.opening = (stamp_ns, float(message.position[index]))
+        self.opening_history.add(stamp_ns, float(message.position[index]),
+                                 self.get_clock().now().nanoseconds)
 
     def _annotation(self, image, rgba, stamp_ns):
         import cv2
         uv, reason = None, "pinch_unconfigured"
+        now_ns = self.get_clock().now().nanoseconds
+        joint_stamp, angle = (self.opening_history.nearest(stamp_ns, now_ns)
+                              or (None, None))
         if self.pinch is not None:
-            joint_stamp, angle = self.opening or (None, None)
             uv, reason = project_pinch_overlay(self.pinch, self.mount, self.k,
                 self.width, self.height, opening_angle_rad=angle, joint_stamp_ns=joint_stamp,
-                acquisition_stamp_ns=stamp_ns, now_ns=self.get_clock().now().nanoseconds,
+                acquisition_stamp_ns=stamp_ns, now_ns=now_ns,
                 near=self.near, far=self.far)
         rgb = rgba[:, :, :3].copy()
         mask = np.zeros((self.height, self.width), dtype=np.uint8)
@@ -145,7 +144,8 @@ class VirtualGripperCamera(Node):
         self.annotation_masks.publish(annotation_mask)
         return {"state": reason, "pixel_xy": None if uv is None else uv.tolist(),
                 "qualified": False, "artifact_sha256": self.pinch_sha,
-                "annotation_is_depth": False}
+                "annotation_is_depth": False, "joint_stamp_ns": joint_stamp,
+                "joint_cloud_delta_ns": None if joint_stamp is None else joint_stamp - stamp_ns}
 
     def _status(self, state, **extra):
         message = String()
