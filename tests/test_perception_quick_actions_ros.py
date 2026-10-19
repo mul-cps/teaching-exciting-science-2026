@@ -4,10 +4,14 @@ import pytest
 from tools import ros_station_action as action
 
 
-def test_actual_dds_fixed_recovery_and_supervisor_routes(capsys):
+def _require_isolated_domain():
  if os.environ.get('ROS_DOMAIN_ID')!='177' or os.environ.get('ROS_LOCALHOST_ONLY')!='1':
-  pytest.skip('requires explicit isolated DDS177 localhost1; never use live/default domain')
+  raise RuntimeError('quick action ROS fixture requires explicit DDS177 localhost1')
+
+
+def test_actual_dds_fixed_recovery_and_supervisor_routes(capsys):
  rclpy=pytest.importorskip('rclpy')
+ _require_isolated_domain()  # Reject live/default domains before ROS init/network.
  from rclpy.context import Context
  from rclpy.node import Node
  from rclpy.executors import SingleThreadedExecutor
