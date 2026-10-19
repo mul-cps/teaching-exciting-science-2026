@@ -67,7 +67,11 @@ Topics under `/so101/synthetic_gripper_camera`:
 The corresponding TF child is `synthetic_gripper_camera_optical`, parent
 `gripper_frame_link`. Optical axes are +X right, +Y down, +Z forward and match
 the browser's selected axis/retreat convention (both default +Z/40 mm). Browser
-controls do not change ROS node parameters. Image, CameraInfo and mount TF share
+controls do not change ROS node parameters. The shared mount includes a fixed
+180° roll about optical forward: right/down are reversed together, while the
+40 mm retreat, eye position, forward axis, 320×240 image and 60° vertical FOV
+remain unchanged. ROS TF, browser up vector, mesh/point projection and nominal
+crosshair use this same mount; no image-only flip or top-side translation is applied. Image, CameraInfo and mount TF share
 the **original input cloud acquisition stamp**. The cloud-to-tool transform is
 looked up at that exact stamp. Missing TF, duplicate/future/zero/stale stamps or
 age exceeding 0.5 seconds after rendering drop the acquisition without publishing
