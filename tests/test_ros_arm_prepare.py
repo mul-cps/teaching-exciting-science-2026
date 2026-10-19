@@ -14,9 +14,22 @@ from so101_station_control.trajectory_server import TELEOP_JOINTS
 
 
 @pytest.fixture
-def prepared_owner(bridge, tmp_path):
+def prepared_owner(bridge, tmp_path, monkeypatch):
     node, process = bridge
-    node._owner_started = time.monotonic()-.01
+    # These are explicit fake acquisitions, not a continuous hardware reader.
+    # Host scheduling must not age them before the intended injected boundary.
+    # Replace ONLY this production module binding; Condition/DDS clocks remain
+    # real and deliberate freshness faults advance this independent test clock.
+    import so101_station_control.trajectory_server as server
+    class MeasurementClock:
+        value = time.monotonic()
+        def monotonic(self): return self.value
+        def advance(self, seconds): self.value += seconds
+        def __getattr__(self, name): return getattr(time, name)
+    clock = MeasurementClock()
+    monkeypatch.setattr(server, 'time', clock)
+    node._prepare_clock = clock
+    node._owner_started = clock.monotonic()-.01
     node._owner_source_expected = {'arm': '1'*64, 'arm_session': '2'*64,
         'recovery_runtime': '3'*64, 'recovery_types': '4'*64,
         'recovery_runtime_config': '5'*64, 'camera_recovery': '6'*64}
@@ -30,6 +43,7 @@ def prepared_owner(bridge, tmp_path):
     current = {}
     def sample(classification='normal', event='sample', torque=0):
         value = snapshot()
+        value['monotonic'] = clock.monotonic()
         value.update(observe_only=False, event=event, torque_monotonic=value['monotonic'],
             owner_source_sha256=dict(node._owner_source_expected),
             torque=dict.fromkeys(TELEOP_JOINTS, torque))
@@ -48,7 +62,7 @@ def prepared_owner(bridge, tmp_path):
     original = process.write
     def write(line):
         command = json.loads(line)
-        node._prepare_test_commands.append(dict(command=command,monotonic=time.monotonic(),
+        node._prepare_test_commands.append(dict(command=command,monotonic=clock.monotonic(),
             phase=node._prepare_phase,position_monotonic=current.get('monotonic'),
             torque_monotonic=current.get('torque_monotonic')))
         if command['command'] == 'stop':
@@ -286,8 +300,8 @@ def test_public_sorting_readiness_revalidates_actual_owner_observation(prepared_
     result=prepare(node)
     assert result.success,result.message
     assert node._sorting_ready(Trigger.Request(),Trigger.Response()).success
-    if case=='stale_torque':current['torque_monotonic']=time.monotonic()-1
-    if case=='future_position':current['monotonic']=time.monotonic()+1
+    if case=='stale_torque':current['torque_monotonic']=node._prepare_clock.monotonic()-1
+    if case=='future_position':current['monotonic']=node._prepare_clock.monotonic()+1
     if case=='nan_position':current['monotonic']=float('nan')
     if case=='source':current['owner_source_sha256']={}
     if case=='observe':current['observe_only']=True
@@ -374,3 +388,36 @@ def test_malformed_classification_is_unknown_on_cache_and_admission(prepared_own
     result=prepare(node)
     assert not result.success and process.commands==[]
     assert json.loads(result.message)['command_delivery']=='not_sent'
+
+
+
+def test_host_scheduling_pause_does_not_expire_fake_admission(prepared_owner):
+    node,process,current,sample=prepared_owner
+    original=current['monotonic']
+    time.sleep(.150)  # wall scheduling changes; the fake sensor has not ticked
+    result=prepare(node)
+    assert result.success,result.message
+    assert current['monotonic']==original
+    assert process.commands==[{'command':'home'}]
+
+
+def test_explicit_virtual_sensor_expiry_still_rejects_before_dispatch(prepared_owner):
+    node,process,current,sample=prepared_owner
+    original=copy.deepcopy(current)
+    node._prepare_clock.advance(.101)
+    result=prepare(node)
+    assert not result.success and 'fresh position/torque' in result.message
+    assert process.commands==[] and current==original
+
+
+def test_explicit_virtual_postrecovery_expiry_prevents_home(prepared_owner):
+    node,process,current,sample=prepared_owner
+    current.clear();current.update(sample('bounded_reentry_required'))
+    node._recovery_cache_config=object();write=process.write
+    def expire(line):
+        write(line)
+        if json.loads(line)['command']=='recover_camera':node._prepare_clock.advance(.101)
+    process.write=expire
+    result=prepare(node)
+    assert not result.success and json.loads(result.message)['phases']==[]
+    assert [c['command'] for c in process.commands]==['recover_camera','stop']
