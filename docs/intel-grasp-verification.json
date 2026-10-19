@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-19",
+  "scope": "offline synthetic ROS integration only",
+  "upstream_inspected_revision": "980b7ddd4348d9aa78c6e84c42da1984746867db",
+  "upstream_backend_built": false,
+  "physical_motion_attempted": false,
+  "tests": {
+    "passed": 37,
+    "skipped": 0,
+    "seconds": 0.99,
+    "domain": 177
+  },
+  "source_sha256": {
+    "adapter": "07978e2d4e47bac87f693200806cdd7f2bc4e3b6c3f706a4fb708f5ea15ff3c5",
+    "cli": "fc997f4bcb6493c84dd10abec3b43f98756c014a89e53a51713c91e9614a0f35",
+    "tests": "b93e52404832e9403eec9059c9a310a26922afa0ae7c03c9e278d4b78bcab533",
+    "benchmark": "821e7bfcb15fc1824486bce4c89c05b0025445c758e162813310253d6750d4d3"
+  },
+  "whole_payload_benchmark": {
+    "measured_samples_per_case": 900,
+    "excludes": [
+      "DDS transport",
+      "backend inference"
+    ],
+    "typical": {
+      "batch_size": 8,
+      "mean_us": 366.85861111111114,
+      "p95_us": 422.68600000000004,
+      "serialized_bytes_response_poses_status": [
+        2461,
+        484,
+        773
+      ]
+    },
+    "maximum": {
+      "batch_size": 32,
+      "mean_us": 2421.971688888889,
+      "p95_us": 2770.628,
+      "serialized_bytes_response_poses_status": [
+        534037,
+        1828,
+        8326
+      ]
+    }
+  },
+  "default_launch_node_count": 0,
+  "qualified": false,
+  "target_association_verified": false,
+  "tool_mapping_qualified": false,
+  "execution_enabled": false,
+  "independent_review": {
+    "reviewer": "workflow_review",
+    "new_adapter_cases_passed": 35,
+    "existing_shell_cases_passed": 2,
+    "blocking_findings": 0,
+    "typical_p95_us": 441.6,
+    "maximum_p95_us": 3208.7
+  },
+  "clean_scene_build": {
+    "packages": 1,
+    "seconds": 1.29,
+    "prefix": "ros2/.cache/intel-grasp-final/install",
+    "installed_entrypoint": "so101_station_scene intel_grasp_adapter",
+    "disabled_node_timer": null,
+    "live_changes": false
+  }
+}

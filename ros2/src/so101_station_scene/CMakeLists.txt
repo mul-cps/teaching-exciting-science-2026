@@ -9,6 +9,7 @@ install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS
   scripts/scene_updater
   scripts/grasp_validator
+  scripts/intel_grasp_adapter
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
