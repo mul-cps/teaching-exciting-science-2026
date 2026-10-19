@@ -16,7 +16,7 @@ def generate_launch_description():
         Node(package='so101_station_perception', executable='perception_recovery',
              condition=IfCondition(LaunchConfiguration('enabled')), output='screen',
              parameters=[{'enabled': ParameterValue(LaunchConfiguration('enabled'),value_type=bool),
-                'artifact_directory': LaunchConfiguration('artifact_directory'),
-                'expected_source_cohort': LaunchConfiguration('expected_source_cohort'),
-                'expected_serial': LaunchConfiguration('expected_serial')}]),
+                'artifact_directory': ParameterValue(LaunchConfiguration('artifact_directory'),value_type=str),
+                'expected_source_cohort': ParameterValue(LaunchConfiguration('expected_source_cohort'),value_type=str),
+                'expected_serial': ParameterValue(LaunchConfiguration('expected_serial'),value_type=str)}]),
     ])
