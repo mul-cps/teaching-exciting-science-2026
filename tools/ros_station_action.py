@@ -2,6 +2,7 @@
 """Typed ROS-only quick commands for the resident sorting station."""
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -9,9 +10,131 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
+# Fixed diagnostic endpoints only. No caller-provided service names or paths.
+PERCEPTION_SERVICES = {
+    'perception-recover': '/so101_perception_recovery/start_recovery',
+    'perception-status': '/so101_perception_recovery/recovery_status',
+    'perception-supervisor-enable': '/so101_perception_supervisor/enable',
+    'perception-supervisor-disable': '/so101_perception_supervisor/disable',
+    'perception-supervisor-status': '/so101_perception_supervisor/status',
+    'perception-supervisor-reset-fault': '/so101_perception_supervisor/reset_fault',
+}
+
+
+def _perception_domain():
+    try:
+        domain = int(os.environ.get('ROS_DOMAIN_ID', '76'))
+    except ValueError as error:
+        raise ValueError('ROS_DOMAIN_ID must be an integer in 1..232') from error
+    if not 1 <= domain <= 232:
+        raise ValueError('ROS_DOMAIN_ID must be in 1..232; domain 0 is forbidden')
+    os.environ['ROS_DOMAIN_ID'] = str(domain)
+    os.environ.setdefault('ROS_LOCALHOST_ONLY', '1')
+
+
+def _diagnostic_payload(command, result):
+    if type(result.success) is not bool or not isinstance(result.message, str):
+        raise ValueError('diagnostic Trigger response requires boolean success and JSON text')
+    if len(result.message.encode('utf-8')) > 16384:
+        raise ValueError('diagnostic response exceeds 16384 bytes')
+    def pairs(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise ValueError('duplicate diagnostic JSON key')
+            value[key] = item
+        return value
+    def nonfinite(value):
+        raise ValueError('nonfinite diagnostic JSON')
+    try:
+        status = json.loads(result.message, object_pairs_hook=pairs, parse_constant=nonfinite)
+    except (json.JSONDecodeError, RecursionError) as error:
+        raise ValueError('invalid diagnostic JSON') from error
+    if not isinstance(status, dict):
+        raise ValueError('diagnostic JSON must be an object')
+    if any(status.get(field, False) is not False for field in ('qualified', 'execution_enabled')):
+        raise ValueError('diagnostic API cannot claim physical qualification or execution authority')
+    for field in ('operation_success', 'ready_now', 'accepted', 'enabled',
+                  'reset_check_accepted', 'reset_check_pending'):
+        if field in status and type(status[field]) is not bool:
+            raise ValueError('diagnostic '+field+' must be boolean')
+    if command == 'perception-recover':
+        if status.get('ready_now', False) or status.get('operation_success', False):
+            raise ValueError('recovery acceptance cannot claim completed readiness')
+        if result.success:
+            job_id = status.get('job_id')
+            if (status.get('accepted') is not True or not isinstance(job_id, str)
+                    or len(job_id) != 32 or any(c not in '0123456789abcdef' for c in job_id)):
+                raise ValueError('recovery acceptance requires accepted job_id')
+    return dict(success=result.success, rpc_success=result.success, command=command,
+                service=PERCEPTION_SERVICES[command], message=result.message, status=status,
+                operation_success=status.get('operation_success', False),
+                ready_now=status.get('ready_now', False), qualified=False, execution_enabled=False)
+
+
+def _perception_action(command):
+    # One absolute budget includes discovery, RPC, access and serialization.
+    # Native ROS initialization, cleanup and output writes are not preemptible.
+    deadline = time.monotonic()+2.
+    def remaining():
+        value = deadline-time.monotonic()
+        if value <= 0:
+            raise TimeoutError('Perception RPC result unknown; inspect status explicitly before retrying')
+        return value
+    _perception_domain()  # Before ROS imports/init; parser/help needs no ROS.
+    import rclpy
+    from rclpy.node import Node
+    from std_srvs.srv import Trigger
+    remaining()
+    node = None
+    future = None
+    client = None
+    initialized = False
+    try:
+        rclpy.init()
+        initialized = True
+        remaining()
+        node = Node('station_quick_action')
+        remaining()
+        client = node.create_client(Trigger, PERCEPTION_SERVICES[command])
+        remaining()
+        if not client.wait_for_service(timeout_sec=remaining()):
+            remaining()
+            raise RuntimeError(PERCEPTION_SERVICES[command]+' unavailable; start its optional perception launch explicitly')
+        remaining()
+        future = client.call_async(Trigger.Request())
+        remaining()
+        while not future.done():
+            rclpy.spin_once(node, timeout_sec=min(.05, remaining()))
+            remaining()
+        remaining()
+        result = future.result()
+        remaining()
+        payload = _diagnostic_payload(command, result)
+        remaining()
+        encoded = json.dumps(payload, allow_nan=False)
+        remaining()
+        print(encoded)
+        remaining()
+        return 0 if payload['rpc_success'] else 1
+    except BaseException:
+        if future is not None:
+            if client is not None:
+                client.remove_pending_request(future)
+            future.cancel()
+        raise
+    finally:
+        if node is not None:
+            node.destroy_node()
+        if initialized:
+            rclpy.shutdown()
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
+    for name in PERCEPTION_SERVICES:
+        commands.add_parser(name, help='One explicit diagnostic RPC; accepted/status success is not readiness')
     for name in ('status', 'diagnostics', 'check-ready', 'cancel', 'stop', 'reset-fault',
                  'connect', 'wake', 'sleep', 'ev3-home', 'arm-home', 'arm-connect', 'arm-recover', 'arm-status',
                  'arm-prepare', 'arm-capture-home', 'arm-stop', 'gripper-diagnostics'):
@@ -56,6 +179,8 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
+    if args.command in PERCEPTION_SERVICES:
+        return _perception_action(args.command)
     if args.command == 'intel-grasp':
         from tools.ros_intel_grasp import main as intel_main
         return intel_main([args.request_json])
