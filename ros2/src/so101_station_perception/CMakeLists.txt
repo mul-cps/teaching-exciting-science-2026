@@ -36,6 +36,7 @@ install(PROGRAMS
   scripts/charuco_world
   scripts/marker_pipeline
   scripts/rocm_rgbd
+  scripts/perception_recovery
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
