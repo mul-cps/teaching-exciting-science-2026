@@ -11,6 +11,7 @@ TOPICS=dict(depth='/camera/depth/image_rect_raw',color='/camera/color/image_raw'
             depth_info='/camera/depth/camera_info',color_info='/camera/color/camera_info')
 CLOUD_TOPIC='/so101_perception/rocm/points'
 LINEAGE_TOPIC='/so101_perception/rocm/lineage'
+ALIGNED_TOPIC='/so101_perception/rocm/aligned_depth'
 MODULES=('rocm_transport.py','rocm_client.py','rocm_worker.py','rocm_projection.py',
          'rocm_projection_backend.py','rocm_projection_kernels.py')
 MAX_JSON=65536
@@ -69,7 +70,7 @@ def native_snapshot(value):
 def statement_pin(value):
     try:
         return deepcopy({key:value[key] for key in ('producer_generation','source_generation','source','calibration','implementation')} |
-            {'outputs':{key:value['outputs'][key] for key in ('cloud_topic','status_topic','cloud_publisher_gid','status_publisher_gid','cloud_frame','aligned_frame')}})
+            {'outputs':{key:value['outputs'][key] for key in ('cloud_topic','status_topic','aligned_topic','cloud_publisher_gid','status_publisher_gid','aligned_publisher_gid','cloud_frame','aligned_frame')}})
     except (KeyError,TypeError) as error:raise ValueError('derived lineage: incomplete immutable source chain') from error
 
 
@@ -98,9 +99,9 @@ def validate_statement(value,*,now_ns,now_mono,receipt_mono):
         require(all(finite(t) for t in (request,confirmed,expiry)) and 0<=request<=confirmed<=now_mono<expiry and
                 expiry==request+1. and confirmed-request<=.4,'DeviceInfo identity lease expired/invalid')
         require(integer(identity['confirmed_ros_ns']) and 0<=now_ns-identity['confirmed_ros_ns']<=1_000_000_000,'future/stale identity ROS clock')
-        require(outputs['cloud_topic']==CLOUD_TOPIC and outputs['status_topic']==LINEAGE_TOPIC,'unsupported derived topics')
-        for key in ('cloud_publisher_gid','status_publisher_gid'):canonical_gid(outputs[key])
-        require(len({source[k+'_publisher_gid'] for k in TOPICS}|{outputs['cloud_publisher_gid'],outputs['status_publisher_gid']})==6,'six distinct publisher GIDs required')
+        require(outputs['cloud_topic']==CLOUD_TOPIC and outputs['status_topic']==LINEAGE_TOPIC and outputs['aligned_topic']==ALIGNED_TOPIC,'unsupported derived topics')
+        for key in ('cloud_publisher_gid','status_publisher_gid','aligned_publisher_gid'):canonical_gid(outputs[key])
+        require(len({source[k+'_publisher_gid'] for k in TOPICS}|{outputs['cloud_publisher_gid'],outputs['status_publisher_gid'],outputs['aligned_publisher_gid']})==7,'seven distinct publisher GIDs required')
         require(type(outputs['cloud_stamp_ns']) is int and type(outputs['aligned_stamp_ns']) is int and
                 outputs['cloud_stamp_ns']==outputs['aligned_stamp_ns']==stamps[0] and
                 outputs['cloud_frame']==original['depth_frame'] and outputs['aligned_frame']==original['color_frame'],'output original stamp/frame mismatch')
@@ -122,7 +123,7 @@ def validate_statement(value,*,now_ns,now_mono,receipt_mono):
         require(calibration['depth_scale_source']=='existingROS16UC1millimetercontract; notindependentphysicalmeasurement','scale provenance required')
         implementation=value['implementation'];hashes=implementation['source_sha256']
         require(type(hashes) is dict and set(hashes)==set(MODULES) and all(hex_value(v,64) for v in hashes.values()),'fixed six core/worker hashes required')
-        require(all(hex_value(implementation[k],64) for k in ('worker_python_sha256','compatibility_sha256')) and
+        require(all(hex_value(implementation[k],64) for k in ('worker_python_sha256','compatibility_sha256','producer_node_sha256')) and
                 type(implementation['worker_python']) is str and implementation['worker_python'].startswith('/') and
                 type(implementation['hardware']) is dict and bool(implementation['hardware']),'worker/runtime provenance required')
         metrics=value['metrics'];require(type(metrics['points']) is int and 0<=metrics['points']<=921600 and
@@ -132,7 +133,7 @@ def validate_statement(value,*,now_ns,now_mono,receipt_mono):
     except (KeyError,TypeError,OverflowError) as error:raise ValueError('derived lineage: incomplete/invalid statement') from error
 
 
-def validate_graph(value,lookup,*,cloud_gid=None,lineage_gid=None):
+def validate_graph(value,lookup,*,cloud_gid=None,lineage_gid=None,aligned_gid=None):
     """Actual graph endpoints, not node-name-only source association."""
     records={}
     for stream,topic in TOPICS.items():
@@ -142,13 +143,13 @@ def validate_graph(value,lookup,*,cloud_gid=None,lineage_gid=None):
         require(gid==value['source'][stream+'_publisher_gid'] and node==value['source']['camera_node'],'native publisher generation changed')
         records[stream]=dict(node=node,gid=gid)
     derived_nodes=[]
-    for kind,received in (('cloud',cloud_gid),('status',lineage_gid)):
+    for kind,received in (('cloud',cloud_gid),('status',lineage_gid),('aligned',aligned_gid)):
         outputs=value['outputs'];endpoints=lookup(outputs[kind+'_topic'])
         require(len(endpoints)==1,'derived source graph is not unique')
         endpoint=endpoints[0];gid=canonical_gid(endpoint.endpoint_gid)
         require(gid==outputs[kind+'_publisher_gid'] and (received is None or gid==canonical_gid(received)),'derived publisher generation changed')
         derived_nodes.append(endpoint.node_namespace.rstrip('/')+'/'+endpoint.node_name)
-    require(derived_nodes[0]==derived_nodes[1],'cloud/lineage producer endpoints differ')
+    require(len(set(derived_nodes))==1,'cloud/lineage producer endpoints differ')
     return dict(node=value['source']['camera_node'],endpoints=records)
 
 
@@ -171,10 +172,10 @@ def validate_camera(value,depth_info,color_info,color_from_depth):
         stamp=message.header.stamp.sec*1_000_000_000+message.header.stamp.nanosec
         require(stamp==original[kind+'_info_stamp_ns'] and message.header.frame_id==original[kind+'_frame'],'exact native CameraInfo exposure/frame mismatch')
         require([message.width,message.height]==cal[kind+'_size'],'native CameraInfo dimensions changed')
-        k=message.k;expected=cal[kind+'_K']
+        k=[float(x) for x in message.k];d=[float(x) for x in message.d];expected=cal[kind+'_K']
         require(len(k)==9 and all(finite(x) and abs(x)<=100000 for x in k) and list(k[1:2])+list(k[3:4])+list(k[6:])==[0.,0.,0.,0.,1.],'unsupported native K layout')
         require([struct.pack('f',x) for x in (k[0],k[4],k[2],k[5])]==[struct.pack('f',x) for x in expected] and
-                len(message.d)==len(cal[kind+'_D']) and all(finite(x) and x==0 for x in message.d),'native CameraInfo calibration changed')
+                len(d)==len(cal[kind+'_D']) and all(finite(x) and x==0 for x in d),'native CameraInfo calibration changed')
     cal=value['calibration'];rotation=cal['rotation_column_major'];translation=cal['translation_m']
     require(all(abs(float(color_from_depth[i][j])-rotation[j*3+i])<=2e-6 for i in range(3) for j in range(3)) and
             all(abs(float(color_from_depth[i][3])-translation[i])<=2e-8 for i in range(3)),'exact optical TF differs from projection calibration')
@@ -182,6 +183,12 @@ def validate_camera(value,depth_info,color_info,color_from_depth):
 
 class LineageBuffer:
     def __init__(self,pin=None):
+        if pin is not None:
+            try:
+                require(hex_value(pin['implementation']['producer_node_sha256'],64),'producer node code hash required in pins')
+                require(pin['outputs']['aligned_topic']==ALIGNED_TOPIC,'aligned topic required in pins')
+                canonical_gid(pin['outputs']['aligned_publisher_gid'])
+            except (KeyError,TypeError) as error:raise ValueError('derived lineage: source pins require refreshed aligned/node-hash contract') from error
         self.pin=deepcopy(pin);self.entries=deque(maxlen=8);self.invalid_reason=None
         self.last_sequence=0;self.last_depth=0;self.last_color=0
 
@@ -192,7 +199,7 @@ class LineageBuffer:
     def observe_gid(self,kind,gid):
         if self.invalid_reason:raise ValueError(self.invalid_reason)
         if self.pin is not None:
-            expected=(self.pin['outputs'] if kind in ('cloud','status') else self.pin['source'])[kind+'_publisher_gid']
+            expected=(self.pin['outputs'] if kind in ('cloud','status','aligned') else self.pin['source'])[kind+'_publisher_gid']
             try:actual=canonical_gid(gid)
             except ValueError:self.invalidate('derived source GID unavailable; explicit repin/reset required')
             if actual!=expected:self.invalidate('derived source generation changed; explicit repin/reset required')

@@ -1,0 +1,193 @@
+{
+  "schema": "rocm-lineage-native-CPU-contract-fixture-v1",
+  "physical_camera_used": false,
+  "gpu_executed": false,
+  "qualified": false,
+  "source_snapshot": {
+    "node": "/camera",
+    "endpoints": {
+      "depth": {
+        "node": "/camera",
+        "gid": "01103d03d32164ba0d984b2700001803"
+      },
+      "color": {
+        "node": "/camera",
+        "gid": "01103d03d32164ba0d984b2700001903"
+      },
+      "depth_info": {
+        "node": "/camera",
+        "gid": "01103d03d32164ba0d984b2700001a03"
+      },
+      "color_info": {
+        "node": "/camera",
+        "gid": "01103d03d32164ba0d984b2700001b03"
+      }
+    }
+  },
+  "source_canonical_utf8": "{\"endpoints\": {\"color\": {\"gid\": \"01103d03d32164ba0d984b2700001903\", \"node\": \"/camera\"}, \"color_info\": {\"gid\": \"01103d03d32164ba0d984b2700001b03\", \"node\": \"/camera\"}, \"depth\": {\"gid\": \"01103d03d32164ba0d984b2700001803\", \"node\": \"/camera\"}, \"depth_info\": {\"gid\": \"01103d03d32164ba0d984b2700001a03\", \"node\": \"/camera\"}}, \"node\": \"/camera\"}",
+  "source_generation_recomputed": "cbf079b3e80ad23c122b1bc69bca9f3d1ba0b8044e765d093907876620e12865",
+  "configuration_utf8": "{\"schema\": \"realsense-cpu-projection-oracle-v1\", \"qualified\": false, \"align_name\": \"Align\", \"pointcloud_name\": \"Pointcloud\", \"occlusion_option\": 2.0, \"depth_scale_m\": 0.001, \"depth_size\": [4, 3], \"color_size\": [6, 4], \"depth_K\": [4.0, 4.0, 2.0, 1.0], \"color_K\": [4.0, 4.0, 3.0, 2.0], \"rotation_column_major\": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0], \"translation_m\": [0.02, 0.0, 0.0]}",
+  "configuration_sha256": "e582e7991cee504dc304434ca35581e8dec6d583db66f8fb76053bbac63ec6e2",
+  "observed_cloud_publisher_gid": "01103d03d32164ba0d984b2700002f03",
+  "observed_status_publisher_gid": "01103d03d32164ba0d984b2700003103",
+  "observed_aligned_publisher_gid": "01103d03d32164ba0d984b2700002d03",
+  "lineage": {
+    "schema": "so101-derived-rocm-rgbd-cohort-v1",
+    "qualified": false,
+    "execution_enabled": false,
+    "direct_camera_attestation": false,
+    "producer_generation": "656912020b6843e7adaf21cbef22eabe",
+    "sequence": 1,
+    "source_generation": "cbf079b3e80ad23c122b1bc69bca9f3d1ba0b8044e765d093907876620e12865",
+    "original": {
+      "depth_stamp_ns": 1792437264508515522,
+      "color_stamp_ns": 1792437264508515522,
+      "depth_info_stamp_ns": 1792437264508515522,
+      "color_info_stamp_ns": 1792437264508515522,
+      "depth_frame": "camera_depth_optical_frame",
+      "color_frame": "camera_color_optical_frame",
+      "pair_delta_ns": 0
+    },
+    "source": {
+      "camera_node": "/camera",
+      "serial_number": "243322071783",
+      "depth_topic": "/camera/depth/image_rect_raw",
+      "color_topic": "/camera/color/image_raw",
+      "depth_publisher_gid": "01103d03d32164ba0d984b2700001803",
+      "color_publisher_gid": "01103d03d32164ba0d984b2700001903",
+      "depth_info_publisher_gid": "01103d03d32164ba0d984b2700001a03",
+      "color_info_publisher_gid": "01103d03d32164ba0d984b2700001b03"
+    },
+    "identity": {
+      "source_generation": "cbf079b3e80ad23c122b1bc69bca9f3d1ba0b8044e765d093907876620e12865",
+      "serial_number": "243322071783",
+      "request_started_monotonic": 303772.147510813,
+      "confirmed_monotonic": 303772.198505073,
+      "confirmed_ros_ns": 1792437264482968980,
+      "expires_monotonic": 303773.147510813,
+      "device_info_request_source": {
+        "node": "/camera",
+        "endpoints": {
+          "depth": {
+            "node": "/camera",
+            "gid": "01103d03d32164ba0d984b2700001803"
+          },
+          "color": {
+            "node": "/camera",
+            "gid": "01103d03d32164ba0d984b2700001903"
+          },
+          "depth_info": {
+            "node": "/camera",
+            "gid": "01103d03d32164ba0d984b2700001a03"
+          },
+          "color_info": {
+            "node": "/camera",
+            "gid": "01103d03d32164ba0d984b2700001b03"
+          }
+        }
+      }
+    },
+    "outputs": {
+      "cloud_publisher_gid": "01103d03d32164ba0d984b2700002f03",
+      "status_publisher_gid": "01103d03d32164ba0d984b2700003103",
+      "aligned_publisher_gid": "01103d03d32164ba0d984b2700002d03",
+      "cloud_topic": "/so101_perception/rocm/points",
+      "status_topic": "/so101_perception/rocm/lineage",
+      "cloud_stamp_ns": 1792437264508515522,
+      "cloud_frame": "camera_depth_optical_frame",
+      "aligned_stamp_ns": 1792437264508515522,
+      "aligned_frame": "camera_color_optical_frame",
+      "aligned_topic": "/so101_perception/rocm/aligned_depth"
+    },
+    "calibration": {
+      "sha256": "e582e7991cee504dc304434ca35581e8dec6d583db66f8fb76053bbac63ec6e2",
+      "depth_size": [
+        4,
+        3
+      ],
+      "color_size": [
+        6,
+        4
+      ],
+      "depth_K": [
+        4.0,
+        4.0,
+        2.0,
+        1.0
+      ],
+      "color_K": [
+        4.0,
+        4.0,
+        3.0,
+        2.0
+      ],
+      "depth_D": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "color_D": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation_column_major": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "translation_m": [
+        0.019999999552965164,
+        0.0,
+        0.0
+      ],
+      "depth_scale_m": 0.001,
+      "depth_scale_source": "existingROS16UC1millimetercontract; notindependentphysicalmeasurement"
+    },
+    "implementation": {
+      "source_sha256": {
+        "rocm_transport.py": "425f23230c648d3a176e9d521ab96bdd08ee8083510d23839467a85f9ae1743e",
+        "rocm_client.py": "bd6148cf7797d5398da524970a65017cc0599c635f72fafeb784426ea5764230",
+        "rocm_worker.py": "3a43c67260267510fc62e5911dc96602bad9e71c61ff934f20b1ccf4afe6b033",
+        "rocm_projection.py": "664ef707acebdc78a480b680cb9661a23d97044f3b66fbb8fcbc5ce75420650c",
+        "rocm_projection_backend.py": "b4e01f29e4ce6914574cf959b28f363ce2e8571f1f83a63147b601a2cba1b9f0",
+        "rocm_projection_kernels.py": "961e7f45e330399ac1cbed6b3ada58f4cee6ca74d2bee3cd5c0956b23d4a5692"
+      },
+      "worker_python": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/python",
+      "worker_python_sha256": "40f9bb9ca21a90afb809f7dcd39a620b96024c9f07f70ec96b53bc200d885c85",
+      "compatibility_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "hardware": {
+        "test_only_cpu_protocol_fixture": true
+      },
+      "producer_node_sha256": "575e92f6955fe22acb34a56fa15c0250007cdae9b6b03b522ac92e4632d6da51"
+    },
+    "health": {
+      "state": "valid",
+      "source_receipts_monotonic": {
+        "depth": 303772.224608084,
+        "color": 303772.224643862,
+        "depth_info": 303772.224688306,
+        "color_info": 303772.224717741
+      },
+      "source_expiry_monotonic": 303772.474608084,
+      "original_max_age_ns": 500000000,
+      "observation_ros_ns": 1792437264517207529
+    },
+    "metrics": {
+      "points": 12,
+      "cloud_bytes": 240,
+      "backend_ms": 0.1,
+      "worker_ms": 0.2
+    }
+  }
+}
