@@ -119,7 +119,7 @@ def test_source_scope_cache_still_pins_current_owner_and_shared_policy(tmp_path,
     from workshop.station.recovery_types import OWNER_SOURCE_MODULES,owner_source_sha256
     session,arm,_,_=recovery_session(tmp_path)
     expected=owner_source_sha256(Path('workshop/station'))
-    assert len(OWNER_SOURCE_MODULES)==6
+    assert len(OWNER_SOURCE_MODULES)==7
     assert session._owner_source_sha256==expected
     monkeypatch.setattr(Path,'read_bytes',lambda *_:pytest.fail('tick source read'))
     monkeypatch.setattr('workshop.station.arm_session.owner_source_sha256',lambda *_:pytest.fail('tick source hash'))
