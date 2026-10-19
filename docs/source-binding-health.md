@@ -101,5 +101,5 @@ Its identity/lineage is synthetic test provenance, not actual DeviceInfo or geom
 Focused command (native wrapper must be run with the explicit isolated environment):
 
 ```
-python -m pytest -q tests/test_source_binding_health.py tests/test_source_binding_health_ros.py tests/test_admission_proof.py tests/test_aligned_cohort.py tests/test_derived_aligned_hooks.py
+python -m pytest -q tests/test_derived_source_binding_health.py tests/test_source_binding_health_ros.py tests/test_admission_proof.py tests/test_aligned_cohort.py tests/test_derived_aligned_hooks.py
 ```

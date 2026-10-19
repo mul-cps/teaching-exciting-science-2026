@@ -47,7 +47,7 @@ def test_native_defaults_disabled_and_enable_does_not_trigger_reset(supervisor):
     response=node._status(None,Trigger.Response());state=json.loads(response.message)
     assert response.success and state['qualified'] is False and state['execution_enabled'] is False
     assert node.policy.job is None and not node.rpc
-    assert set(node.rpc_clients)=={module.COORDINATOR+'/start_recovery',module.COORDINATOR+'/recovery_status',*(c+'/derived_source_status' for c in module.CONSUMERS)}
+    assert set(node.rpc_clients)=={module.COORDINATOR+'/start_recovery',module.COORDINATOR+'/recovery_status',*(c+'/derived_source_health' for c in module.CONSUMERS)}
     assert not any('reset_source' in k or 'follower' in k for k in node.rpc_clients)
 
 
@@ -180,3 +180,20 @@ def test_pending_final_proof_after_reservation_latches_without_rpc_or_infinite_w
     assert node.policy.latched and node.policy.state=='latched' and not calls
     assert len(node.policy.attempts)==1 and node.policy.job['state']=='dispatch_unknown'
     node._step();assert not calls and node.policy.latched
+
+
+def test_source_binding_metadata_cannot_substitute_coordinator_image_admission(supervisor,monkeypatch):
+    from copy import deepcopy
+    from test_source_binding_health import binding_fixture
+    node,value=supervisor;node.policy.job=dict(state='accepted',job_id='a'*32)
+    node.expected_generation='b'*32;node.accepted_reset_id='c'*32
+    pin=deepcopy(node.pin);pin['producer_generation']='b'*32
+    proof=binding_fixture(value);proof.update(producer_generation='b'*32,source_pin_sha256=module.pin_digest(pin))
+    artifact=dict(derived_source=dict(pin=pin));digest='e'*64
+    monkeypatch.setattr(node,'_baseline_unchanged',lambda:None)
+    monkeypatch.setattr(module,'read_artifact',lambda _:(artifact,digest))
+    result=dict(operation_success=True,state='completed',producer_generation='b'*32,accepted_reset_id='c'*32,
+        artifact=str(node.recovery_directory/('a'*32+'.json')),artifact_sha256=digest,source_pin_sha256=module.pin_digest(pin),
+        consumers={c:dict(latest=proof) for c in module.CONSUMERS})
+    with pytest.raises(ValueError,match='actual IMAGE admission'):node._adopt_completed(result)
+    assert node.adopted is None and node.pin['producer_generation']!=pin['producer_generation']

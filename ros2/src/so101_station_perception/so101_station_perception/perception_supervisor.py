@@ -23,12 +23,13 @@ from .derived_lineage import (TOPICS,LINEAGE_TOPIC,LineageBuffer,canonical_gid,c
     finite,hex_value,parse_lineage,require,statement_pin,validate_graph,validate_statement,validate_camera)
 from .derived_aligned import received_gid
 from .admission_proof import pin_digest
-from .recovery_core import NativePairs,ConsumerProgress,native_graph,bounded_json
+from .recovery_core import NativePairs,native_graph,bounded_json
 from .perception_recovery import read_artifact,PRODUCER,PRODUCER_STATUS,CONSUMERS
 from .rocm_rgbd import extrinsic_matrix
 from .supervisor_policy import SupervisorPolicy,transient_fault
 from .supervisor_journal import SupervisorJournal
-from .supervisor_health import HealthNotCurrent,proof_context,proof_coverage,statement_coverage
+from .supervisor_health import HealthNotCurrent,statement_coverage
+from .source_binding_health import SourceBindingProgress,binding_context,binding_coverage
 
 COORDINATOR='/so101_perception_recovery'
 TERMINAL=frozenset(('idle','completed','failed'))
@@ -90,7 +91,7 @@ class PerceptionSupervisor(Node):
             self.buffer=Buffer();self.listener=TransformListener(self.buffer,self)
             self.rpc_clients={name:self.create_client(Trigger,name) for name in
                 (COORDINATOR+'/start_recovery',COORDINATOR+'/recovery_status',
-                 *(consumer+'/derived_source_status' for consumer in CONSUMERS))}
+                 *(consumer+'/derived_source_health' for consumer in CONSUMERS))}
             self.device_client=self.create_client(DeviceInfo,self.pin['source']['camera_node']+'/device_info')
             self.subscriptions_=[self.create_subscription(String,PRODUCER_STATUS,self._producer,qos_profile_sensor_data),
                 self.create_subscription(String,LINEAGE_TOPIC,self._lineage,qos_profile_sensor_data)]
@@ -185,7 +186,7 @@ class PerceptionSupervisor(Node):
         if name in self.rpc:return
         client=self.rpc_clients[name]
         if not client.service_is_ready():
-            if name in (c+'/derived_source_status' for c in CONSUMERS):raise HealthNotCurrent('consumer metadata service unavailable')
+            if name in (c+'/derived_source_health' for c in CONSUMERS):raise HealthNotCurrent('consumer metadata service unavailable')
             raise ValueError('metadata service unavailable: '+name)
         started=time.monotonic()
         if name==COORDINATOR+'/start_recovery':self._native_final()
@@ -193,7 +194,7 @@ class PerceptionSupervisor(Node):
         record=dict(future=future,started=started,deadline=started+timeout,received=None,request_ros_ns=self.get_clock().now().nanoseconds)
         def completed(_,r=record):
             r.update(received=time.monotonic(),done_ros_ns=self.get_clock().now().nanoseconds)
-            if name in (c+'/derived_source_status' for c in CONSUMERS):self.health_guard.trigger()
+            if name in (c+'/derived_source_health' for c in CONSUMERS):self.health_guard.trigger()
         future.add_done_callback(completed)
         self.rpc[name]=record
 
@@ -205,19 +206,19 @@ class PerceptionSupervisor(Node):
             try:self.rpc_clients[name].remove_pending_request(future)
             except (KeyError,RuntimeError):pass
             future.cancel();del self.rpc[name]
-            if name in (c+'/derived_source_status' for c in CONSUMERS):raise HealthNotCurrent('consumer metadata RPC expired',request_started_monotonic=record['started'],check_monotonic=now)
+            if name in (c+'/derived_source_health' for c in CONSUMERS):raise HealthNotCurrent('consumer metadata RPC expired',request_started_monotonic=record['started'],check_monotonic=now)
             raise TimeoutError('metadata RPC expired/unknown: '+name)
         if not future.done():return None
         response=future.result();require(response is not None and record['received'] is not None and
             record['started']<=record['received']<=now<=record['deadline'],'metadata response clock invalid/late')
         value=parse_lineage(response.message)
         require(time.monotonic()<=record['deadline'],'metadata materialization expired')
-        if name in (c+'/derived_source_status' for c in CONSUMERS):
+        if name in (c+'/derived_source_health' for c in CONSUMERS):
             self.health_rpc_clocks[name]=dict(request_started_monotonic=record['started'],response_done_monotonic=record['received'],
                 take_monotonic=time.monotonic(),request_ros_ns=record.get('request_ros_ns'),done_ros_ns=record.get('done_ros_ns'),take_ros_ns=self.get_clock().now().nanoseconds,proof={
                     k:(v if type(v) in (int,float) and finite(v) or type(v) is str and len(v)<=64 else '<invalid>')
                     for k in ('checked_ros_ns','depth_stamp_ns','color_stamp_ns','original_receipt_expiry_monotonic',
-                        'original_header_expiry_ros_ns','sequence','consumer_epoch','producer_generation','source_pin_sha256')
+                        'original_header_expiry_ros_ns','checked_monotonic','original_identity_expiry_monotonic','effective_health_expiry_monotonic','sequence','consumer_epoch','producer_generation','source_pin_sha256')
                     for v in (value.get(k),)})
         del self.rpc[name]
         return response.success,value,record['received']
@@ -239,7 +240,7 @@ class PerceptionSupervisor(Node):
         # Only the fixed timer calls this. Completion guards NEVER start RPCs.
         now=time.monotonic()
         for consumer in CONSUMERS:
-            endpoint=consumer+'/derived_source_status'
+            endpoint=consumer+'/derived_source_health'
             if endpoint not in self.rpc and now>=self.health_next_request.get(endpoint,0.):
                 self._request(endpoint,2.)
                 self.health_next_request[endpoint]=time.monotonic()+.2
@@ -248,7 +249,7 @@ class PerceptionSupervisor(Node):
     def _clear_health_queries(self):
         # Read-only health futures cannot cross an explicitly owned reset.
         for consumer in CONSUMERS:
-            endpoint=consumer+'/derived_source_status';record=self.rpc.pop(endpoint,None)
+            endpoint=consumer+'/derived_source_health';record=self.rpc.pop(endpoint,None)
             if record is not None:
                 try:self.rpc_clients[endpoint].remove_pending_request(record['future'])
                 except (KeyError,RuntimeError):pass
@@ -267,7 +268,7 @@ class PerceptionSupervisor(Node):
     def _reject_health(self,consumer,error):
         self.health_cache.pop(consumer,None);self.health_progress.pop(consumer,None)
         self.health_gap_reason=str(error)[:160]
-        endpoint=consumer+'/derived_source_status'
+        endpoint=consumer+'/derived_source_health'
         self.health_rejections[consumer]=dict(reason=str(error)[:160],
             rpc=self.health_rpc_clocks.get(endpoint,{}),original_clocks=getattr(error,'clocks',{}))
 
@@ -277,12 +278,12 @@ class PerceptionSupervisor(Node):
         if start_requests:self._health_queries()
         self._graph();ready=True;ends=[]
         for consumer in CONSUMERS:
-            endpoint=consumer+'/derived_source_status'
+            endpoint=consumer+'/derived_source_health'
             try:
                 result=self._take(endpoint)
                 if result is not None:
                     success,proof,receipt=result
-                    proof_context(proof,self.pin,self.epochs.get(consumer))
+                    binding_context(proof,self.pin,self.epochs.get(consumer))
                     require(success is (proof['state']=='ready'),'consumer success/schema state contradiction')
                     if not start_requests:self.health_guard_consumes+=1
                     if not success:
@@ -291,11 +292,11 @@ class PerceptionSupervisor(Node):
                     # old proof is classified merely unavailable.
                     value,_,lineage_receipt=self._retained_health_statement(proof)
                     now=time.monotonic();ns=self.get_clock().now().nanoseconds
-                    proof_coverage(proof,value,self.pin,receipt,lineage_receipt=lineage_receipt,now=now,ns=ns)
+                    binding_coverage(proof,value,self.pin,receipt,lineage_receipt=lineage_receipt,now=now,ns=ns)
                     statement_coverage(value,self.pin,lineage_receipt,now=now,ns=ns)
                     progress=self.health_progress.get(consumer)
-                    if progress is None:progress=ConsumerProgress('0'*32,self.pin,start_ns=0);self.health_progress[consumer]=progress
-                    progress.observe(proof,value,now_ns=ns,now_mono=now)
+                    if progress is None:progress=SourceBindingProgress(self.pin);self.health_progress[consumer]=progress
+                    progress.observe(proof,value,now_ns=ns,now_mono=now,response_receipt=receipt,lineage_receipt=lineage_receipt)
                     self.epochs[consumer]=proof['consumer_epoch']
                     previous=self.health_cache.get(consumer)
                     if previous is None or proof['sequence']!=previous[0]['sequence']:
@@ -306,8 +307,8 @@ class PerceptionSupervisor(Node):
                 if cached is None:ready=False;continue
                 proof,receipt=cached;value,_,lineage_receipt=self._retained_health_statement(proof)
                 now=time.monotonic();ns=self.get_clock().now().nanoseconds
-                proof_context(proof,self.pin,self.epochs.get(consumer))
-                ends.append(proof_coverage(proof,value,self.pin,receipt,lineage_receipt=lineage_receipt,now=now,ns=ns))
+                binding_context(proof,self.pin,self.epochs.get(consumer))
+                ends.append(binding_coverage(proof,value,self.pin,receipt,lineage_receipt=lineage_receipt,now=now,ns=ns))
                 ends.append(statement_coverage(value,self.pin,lineage_receipt,now=now,ns=ns))
                 self.health_progress[consumer].check(value,now_ns=ns,now_mono=now)
                 ready=ready and self.health_progress[consumer].complete
@@ -338,7 +339,7 @@ class PerceptionSupervisor(Node):
             # The timer retains sole ownership of typed source-outage dispatch.
             if self._producer_now().get('state')=='unavailable':return
             valid=self._current_health(start_requests=False)
-            self.health_error=None if valid else 'waiting for current consumer admissions'
+            self.health_error=None if valid else 'waiting for current source bindings'
             self._apply_current_health(valid)
         except HealthNotCurrent as error:
             self.health_error=str(error)[:512];self.health_gap_reason=str(error)[:160]
@@ -435,6 +436,9 @@ class PerceptionSupervisor(Node):
         epochs={}
         for consumer in CONSUMERS:
             proof=value['consumers'][consumer]['latest'];epoch=proof.get('consumer_epoch')
+            require(proof.get('schema')=='so101-derived-admission-status-v1' and proof.get('state')=='ready' and
+                proof.get('qualified') is False and proof.get('execution_enabled') is False,
+                'coordinator completion requires actual IMAGE admission proof; source health cannot substitute')
             require(hex_value(epoch,32) and epoch!=self.epochs.get(consumer) and
                 proof.get('producer_generation')==self.expected_generation and proof.get('source_pin_sha256')==pin_digest(pin),
                 'owned completed consumer epoch/generation/pin invalid')
@@ -508,7 +512,7 @@ class PerceptionSupervisor(Node):
                 if self.policy.state=='armed':self._begin_outage(status)
                 else:self.health_error='unavailable producer is not a new armed outage';self.policy.healthy(time.monotonic(),False)
                 return
-            try:valid=self._current_health();self.health_error=None if valid else 'waiting for two current consumer admissions'
+            try:valid=self._current_health();self.health_error=None if valid else 'waiting for two current source bindings'
             except HealthNotCurrent as error:
                 self.health_error=str(error)[:512];self.health_gap_reason=str(error)[:160];valid=False
             self._apply_current_health(valid)
@@ -556,7 +560,7 @@ class PerceptionSupervisor(Node):
         return dict(self.policy.status(),reset_check_pending=self.reset_pending,health_reason=self.health_error,current_producer_generation=self.pin['producer_generation'],
                     current_pin_sha256=pin_digest(self.pin),health_observation=dict(coverage_end_monotonic=self.health_coverage_end,
                         gap_reason=self.health_gap_reason,request_starts=self.health_request_starts,guard_consumes=self.health_guard_consumes,
-                        guard_wakeups=self.health_guard_wakeups,rpc_clocks=self.health_rpc_clocks,rejected=self.health_rejections),scope='perception metadata admission only; never motion or physical qualification')
+                        guard_wakeups=self.health_guard_wakeups,rpc_clocks=self.health_rpc_clocks,rejected=self.health_rejections),health_scope='continuous source binding only',image_admitted=False,processing_progress=False,scope='source-binding health only; never image progress, motion or physical qualification')
 
     def _status(self,request,response):
         response.success=True;response.message=bounded_json(self._snapshot());return response
