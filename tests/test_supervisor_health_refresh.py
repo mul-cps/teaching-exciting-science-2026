@@ -88,3 +88,59 @@ def test_readonly_starter_cpu_microbenchmark(monkeypatch,tmp_path):
         health_refresh_period_s=.1,control_period_s=.2,starts_per_callback=2)
     if os.environ.get('HEALTH_REFRESH_BENCHMARK_OUTPUT'):
         Path(os.environ['HEALTH_REFRESH_BENCHMARK_OUTPUT']).open('x').write(json.dumps(result,indent=2)+'\n')
+
+
+@pytest.mark.parametrize("change",["closed_during_graph","disabled_during_graph","generation","ready_with_fault"])
+def test_no_readonly_rpc_after_final_producer_access_invalidates_admission(monkeypatch,change):
+    node,proof,clock,requests=fake_node(monkeypatch)
+    calls=[]
+    endpoint=m.CONSUMERS[0]+"/derived_source_health"
+    node.rpc_clients={endpoint:NS(service_is_ready=lambda:True,call_async=lambda req:calls.append(req) or NS(add_done_callback=lambda cb:None))}
+    def producer_now():
+        if change=="closed_during_graph":node.closed=True
+        if change=="disabled_during_graph":node.policy.enabled=False
+        return dict(state="ready",fault={} if change=="ready_with_fault" else None,producer_generation="f"*32 if change=="generation" else node.pin["producer_generation"])
+    node._producer_now=producer_now
+    try:m.PerceptionSupervisor._request(node,endpoint,2.)
+    except ValueError:pass
+    assert not calls
+
+
+def test_whole_production_health_starter_cpu_benchmark(monkeypatch):
+    import json,time,statistics
+    from pathlib import Path
+    node,clock,calls,resets=refresh_node(monkeypatch)
+    graph_calls=[0];starts=[0]
+    gid='a'*32
+    node.producer=(dict(state='ready',fault=None,producer_generation=node.pin['producer_generation']),gid,clock[0])
+    node.heartbeat_gid=gid
+    node.get_publishers_info_by_topic=lambda topic:graph(topic)
+    def graph(topic):
+        assert topic==m.PRODUCER_STATUS;graph_calls[0]+=1
+        namespace,name=m.PRODUCER.rsplit('/',1)
+        return [NS(node_namespace=namespace,node_name=name,endpoint_gid=bytes.fromhex(gid))]
+    node._producer_now=MethodType(m.PerceptionSupervisor._producer_now,node)
+    node._request=MethodType(m.PerceptionSupervisor._request,node)
+    class Future:
+        def add_done_callback(self,callback):self.callback=callback
+    def send(request):starts[0]+=1;return Future()
+    node.rpc_clients={c+'/derived_source_health':NS(service_is_ready=lambda:True,call_async=send) for c in m.CONSUMERS}
+    def measure(kind):
+        values=[];before_graph=graph_calls[0];before_starts=starts[0]
+        for i in range(1010):
+            clock[0]+=.101
+            node.producer=(node.producer[0],gid,clock[0])
+            if kind=='admit':node.rpc.clear()
+            elif kind=='cap':node.rpc.clear();node.health_next_request={e:clock[0]+.1 for e in node.rpc_clients}
+            began=time.perf_counter_ns();node._health_refresh();elapsed=(time.perf_counter_ns()-began)/1000.
+            if i>=10:values.append(elapsed)
+        values.sort()
+        return dict(samples=1000,mean_us=statistics.mean(values),p95_us=values[949],max_us=max(values),
+            graph_lookups_total=graph_calls[0]-before_graph,rpc_admissions_total=starts[0]-before_starts)
+    result=dict(scope='WHOLE production refresh/query/request/producer_now; fixed graph+fresh heartbeat; fake client/future only; no ROS init or actual RPC',
+        admit_two=measure('admit'),pending_skip=measure('pending'),cap_skip=measure('cap'))
+    assert result['admit_two']['graph_lookups_total']==2020 and result['admit_two']['rpc_admissions_total']==2020
+    assert result['pending_skip']['graph_lookups_total']==result['pending_skip']['rpc_admissions_total']==0
+    assert result['cap_skip']['graph_lookups_total']==result['cap_skip']['rpc_admissions_total']==0
+    if os.environ.get('HEALTH_REFRESH_WHOLE_BENCHMARK_OUTPUT'):
+        Path(os.environ['HEALTH_REFRESH_WHOLE_BENCHMARK_OUTPUT']).open('x').write(json.dumps(result,indent=2)+'\n')
