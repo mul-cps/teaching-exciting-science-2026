@@ -446,17 +446,23 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                 reject_component(color, "outside_observation_depth_range", area)
                 continue
             # Keep original RGB support, including invalid/out-of-range holes.
-            parent_mask = labels == label
+            parent_mask = labels[crop] == label
             pieces = split_depth_coherent_components(
-                parent_mask, depth_m, min_pixels=max(24, min_component_pixels),
-                max_observation_depth_m=max_observation_depth_m)
+                parent_mask, depth_m[crop], min_pixels=max(24, min_component_pixels),
+                max_observation_depth_m=max_observation_depth_m,
+                local_output=True, pixel_origin=(x, y))
             if not pieces:
                 reject_component(color, "no_depth_coherent_component", area)
                 continue
             for piece in pieces:
                 validation_diagnostics["depth_components"] += 1
+                offset_x, offset_y = piece.origin_xy
+                piece_crop = (slice(offset_y, offset_y+piece.mask.shape[0]),
+                              slice(offset_x, offset_x+piece.mask.shape[1]))
+                local_intrinsics = dict(intrinsics, ppx=intrinsics["ppx"]-offset_x,
+                                        ppy=intrinsics["ppy"]-offset_y)
                 validation = validate_colored_component(
-                    rgb, depth_m, piece.mask, intrinsics, distortion,
+                    rgb[piece_crop], depth_m[piece_crop], piece.mask, local_intrinsics, distortion,
                     support_mask=piece.support_mask,
                     max_observation_depth_m=max_observation_depth_m)
                 component_pixels = int(piece.mask.sum())
@@ -466,6 +472,7 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                     continue
                 validation_diagnostics["depth_accepted_components"] += 1
                 yy, xx = np.nonzero(piece.mask)
+                yy, xx = yy+offset_y, xx+offset_x
                 samples = depth_m[yy, xx]
                 pixels = np.column_stack((xx, yy))
                 x0, x1 = int(xx.min()), int(xx.max()) + 1
