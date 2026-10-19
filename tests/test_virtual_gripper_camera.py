@@ -1,0 +1,155 @@
+"""Synthetic camera geometry and GPU guards; never connect physical inputs."""
+import ast
+import inspect
+import os
+from pathlib import Path
+import sys
+
+import numpy as np
+import pytest
+from workshop.digital_twin.virtual_camera import (tool_from_virtual_optical,
+    virtual_intrinsics, optical_projection)
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'ros2/src/so101_station_perception'))
+sys.path.insert(0, str(ROOT / 'ros2/src/so101_station_gpu'))
+from so101_station_perception.virtual_camera_gpu import GpuPointCamera
+
+
+@pytest.mark.parametrize('axis', ['+X', '-X', '+Y', '-Y', '+Z', '-Z'])
+def test_shared_virtual_mount_is_proper_optical_frame(axis):
+    m = tool_from_virtual_optical(axis, .04)
+    assert m[:3, :3].T @ m[:3, :3] == pytest.approx(np.eye(3))
+    assert np.linalg.det(m[:3, :3]) == pytest.approx(1.)
+    assert m[:3, 3] == pytest.approx(-m[:3, 2] * .04)
+    assert np.cross(m[:3, 0], m[:3, 1]) == pytest.approx(m[:3, 2])
+
+
+def test_optical_projection_matches_camera_info_pixels_and_clips_depth():
+    w, h = 320, 240
+    k = virtual_intrinsics(w, h)
+    p = optical_projection(k, w, h, .01, 2.)
+    points = np.array([[0, 0, .5, 1], [.07, -.04, .4, 1]])
+    clip = points @ p.T
+    ndc = clip[:, :3] / clip[:, 3:]
+    pixels = np.column_stack(((ndc[:, 0] + 1)*w/2-.5, (1-ndc[:, 1])*h/2-.5))
+    expected = points[:, :3] @ k.T
+    assert pixels == pytest.approx(expected[:, :2]/expected[:, 2:], abs=1e-5)
+    for z, expected_z in ((.01, -1.), (2., 1.)):
+        clip = p @ [0, 0, z, 1]
+        assert clip[2]/clip[3] == pytest.approx(expected_z, abs=1e-6)
+
+
+@pytest.mark.parametrize('size', [(0, 240), (641, 240), (320, 481)])
+def test_renderer_image_bounds_fail_before_context_creation(size):
+    with pytest.raises(ValueError): GpuPointCamera(*size)
+
+
+def test_gpu_hot_path_is_bounded_one_readback_no_per_point_loop():
+    source = inspect.getsource(GpuPointCamera.render)
+    tree = ast.parse('if True:\n' + source)
+    assert not any(isinstance(n, (ast.For, ast.While, ast.ListComp, ast.GeneratorExp)) for n in ast.walk(tree))
+    assert source.count('glReadPixels(') == 1
+    assert 'glFinish' not in source and 'glGetBufferSubData' not in source
+    assert 'len(points) > self.max_points' in source
+    init = inspect.getsource(GpuPointCamera.__init__)
+    assert 'require_hardware_renderer' in init
+
+
+def test_ros_feed_is_opt_in_and_process_local_gpu_guarded():
+    source = (ROOT / 'ros2/src/so101_station_perception/launch/virtual_gripper_camera.launch.py').read_text()
+    assert 'default_value="false"' in source and 'condition=IfCondition(enabled)' in source
+    assert '"LIBGL_ALWAYS_SOFTWARE": "false"' in source
+    assert '"LD_PRELOAD": rviz_preload_value()' in source
+
+
+@pytest.mark.skipif(os.getenv('SO101_TEST_VIRTUAL_CAMERA_EGL') != '1', reason='opt-in GPU EGL qualification')
+def test_hardware_egl_point_pixels_unknown_mask_frustum_and_orientation():
+    r = GpuPointCamera()
+    try:
+        projection = optical_projection(virtual_intrinsics(), 320, 240)
+        # Center, upper-right, behind eye, too close, beyond far, outside FOV.
+        points = np.array([[0,0,.5], [.1,-.1,.5], [0,0,-.1],
+                           [0,0,.001], [0,0,3.], [10,0,.5]], np.float32)
+        image = r.render(points, projection)
+        mask = image[:, :, 3]
+        assert np.count_nonzero(mask) == 2
+        y, x = np.nonzero(mask)
+        assert np.any((x >= 159) & (x <= 160) & (y >= 119) & (y <= 120))
+        assert np.any((x > 160) & (y < 120))
+        assert set(np.unique(mask)) == {0, 255}
+        assert np.all(image[mask == 0] == 0)
+        assert np.count_nonzero(r.render(np.empty((0, 3)), projection)) == 0
+    finally:r.close()
+
+
+def pinch_artifact(xyz=(.02, -.01, .1)):
+    matrix = np.eye(4);matrix[:3,3]=xyz
+    return {'schema':'so101-virtual-pinch-overlay-v1', 'qualified':False,
+        'parent_frame':'urdf:gripper_frame_link', 'parent_from_pinch':matrix.tolist(),
+        'opening_angle_rad':-.06787391535533503}
+
+
+def test_nominal_crosshair_projects_configured_off_axis_pinch_not_image_center():
+    from workshop.digital_twin.virtual_camera import project_pinch_overlay
+    artifact=pinch_artifact();k=virtual_intrinsics()
+    uv,reason=project_pinch_overlay(artifact, np.eye(4), k, 320,240,
+        opening_angle_rad=artifact['opening_angle_rad'],joint_stamp_ns=10**9,acquisition_stamp_ns=10**9,now_ns=10**9)
+    expected=k @ np.array([.02,-.01,.1]);expected=expected[:2]/expected[2]
+    assert uv==pytest.approx(expected) and reason=='nominal_uncalibrated'
+    assert uv!=pytest.approx([159.5,119.5])
+
+
+@pytest.mark.parametrize('xyz,angle,stamp,reason', [
+    ((0,0,-.1),-.06787391535533503,10**9,'pinch_outside_depth_frustum'),
+    ((1,0,.1),-.06787391535533503,10**9,'pinch_outside_image'),
+    ((0,0,.1),0.,10**9,'opening_mismatch_or_stale'),
+    ((0,0,.1),-.06787391535533503,900_000_000,'opening_mismatch_or_stale'),
+    ((0,0,.1),-.06787391535533503,1_020_000_000,'opening_mismatch_or_stale')])
+def test_crosshair_hides_for_behind_outside_opening_change_and_stale_pose(xyz,angle,stamp,reason):
+    from workshop.digital_twin.virtual_camera import project_pinch_overlay
+    uv,observed=project_pinch_overlay(pinch_artifact(xyz),np.eye(4),virtual_intrinsics(),320,240,
+        opening_angle_rad=angle,joint_stamp_ns=stamp,acquisition_stamp_ns=10**9,now_ns=10**9)
+    assert uv is None and observed==reason
+
+
+def test_station_rviz_exposes_nominal_camera_with_matching_sensor_qos_and_raw_opt_in():
+    import yaml
+    config=yaml.safe_load((ROOT/'ros2/src/so101_station_perception/config/station_live.rviz').read_text())
+    displays={d['Name']:d for d in config['Visualization Manager']['Displays']}
+    annotated=displays['NOMINAL Virtual Gripper Camera']
+    raw=displays['Virtual Gripper Camera raw samples (alpha means observed)']
+    assert annotated['Class']=='rviz_default_plugins/Image' and annotated['Enabled'] is True
+    assert annotated['Topic']['Value']=='/so101/synthetic_gripper_camera/image_annotated'
+    assert raw['Topic']['Value']=='/so101/synthetic_gripper_camera/image_raw' and raw['Enabled'] is False
+    for display in (annotated,raw):
+        assert display['Topic']['Reliability Policy']=='Best Effort'
+        assert display['Topic']['Durability Policy']=='Volatile'
+        assert display['Topic']['Depth']==2
+
+
+def test_xyz_decoder_and_cloud_callback_have_no_per_point_python_work():
+    source=(ROOT/'ros2/src/so101_station_perception/so101_station_perception/virtual_gripper_camera.py').read_text()
+    tree=ast.parse(source)
+    decoder=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='sampled_xyz')
+    loops=[n for n in ast.walk(decoder) if isinstance(n,(ast.For,ast.While))]
+    assert len(loops)==1 and isinstance(loops[0],ast.For)
+    assert ast.unparse(loops[0].iter)=="enumerate(('x', 'y', 'z'))"
+    comprehensions=[n for n in ast.walk(decoder) if isinstance(n,
+        (ast.ListComp,ast.SetComp,ast.DictComp,ast.GeneratorExp))]
+    assert len(comprehensions)==1 and isinstance(comprehensions[0],ast.DictComp)
+    metadata=comprehensions[0]
+    assert ast.unparse(metadata.key)=='field.name' and ast.unparse(metadata.value)=='field'
+    assert len(metadata.generators)==1
+    assert ast.unparse(metadata.generators[0].iter)=='message.fields'
+    assert ast.unparse(metadata.generators[0].target)=='field'
+    assert not metadata.generators[0].ifs and not metadata.generators[0].is_async
+    cls=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='VirtualGripperCamera')
+    callback=next(n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name=='_cloud')
+    assert not any(isinstance(n,(ast.For,ast.While,ast.ListComp,ast.SetComp,
+                                ast.DictComp,ast.GeneratorExp)) for n in ast.walk(callback))
+    calls=[ast.unparse(n.func) for n in ast.walk(callback) if isinstance(n,ast.Call)]
+    assert calls.count('sampled_xyz')==1 and calls.count('self.renderer.render')==1
+    assert not any(name in {'open','Path','Rotation.from_matrix'} or
+        name.startswith(('hashlib.','mujoco.')) or name.endswith(('.read_bytes','.read_text'))
+        for name in calls)

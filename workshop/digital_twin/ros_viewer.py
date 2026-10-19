@@ -18,6 +18,7 @@ from PIL import Image
 from .mujoco_ros import (apply_ros_state, effective_urdf_to_mjcf_model,
                          compare_tool_frame, ros_pose_to_viewer_xyz, transform_between)
 from .placement_region import intersect_ray_with_image_plane
+from .virtual_camera import tool_from_virtual_optical
 
 
 def _camera_image_plane_spec(frame, distance_m=.35):
@@ -232,6 +233,29 @@ def _initial_camera_pose(model, data):
     return position, target, up
 
 
+def _gripper_camera_pose(snapshot, *, forward_axis="+Z", backoff_m=.04):
+    """Diagnostic virtual eye in the current tool frame; no camera calibration.
+
+    A small retreat along the chosen axis keeps the eye behind the tool origin. The
+    source cloud remains untouched and is rendered by the existing browser GPU.
+    """
+    mount = tool_from_virtual_optical(forward_axis, backoff_m)
+    pose = transform_between(snapshot["transforms"],
+        snapshot.get("root_frame", "charuco_board"), "gripper_frame_link",
+        snapshot.get("transform_fresh", {})) @ mount
+    if not np.isfinite(pose).all():
+        raise ValueError("virtual eye requires finite fresh tool TF")
+    return pose[:3, 3], pose[:3, 3] + pose[:3, 2] * .24, -pose[:3, 1]
+
+
+def _cloud_is_fresh(cloud, now):
+    if not cloud:
+        return False
+    received = cloud.get("received_monotonic")
+    return (isinstance(received, (int, float)) and np.isfinite(received)
+            and 0 <= now - received <= .5)
+
+
 def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
     state_file = Path(state_file)
     server = viser.ViserServer(host=host, port=int(port), label="SO-ARM101 · ROS Passive Twin")
@@ -239,6 +263,13 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
     status = server.gui.add_markdown("**ROS passive twin**\nWaiting for authoritative RSP inputs.")
     placement_ui = server.gui.add_markdown(
         "**Placement goal observation**\nWaiting for synchronized RGB-D camera frames.")
+    ego_toggle = server.gui.add_checkbox("Follow virtual gripper camera", False)
+    ego_axis = server.gui.add_dropdown("Virtual eye forward (tool axes)",
+        options=("+Z", "-Z", "+X", "-X", "+Y", "-Y"), initial_value="+Z")
+    ego_backoff = server.gui.add_slider("Virtual eye retreat (mm)", min=0., max=150.,
+        step=5., initial_value=40.)
+    ego_ui = server.gui.add_markdown(
+        "**Virtual gripper camera · OFF**\nUses the existing GPU scene, not a physical camera.")
     frame_camera_button = server.gui.add_button("Frame live placement camera")
     anchor_button = server.gui.add_button("Select feeder tracking anchor")
     goal_button = server.gui.add_button("Select placement area")
@@ -264,6 +295,7 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
     selection_request_path = state_file.with_name("placement-region-request.json")
 
     def focus_camera(client, frame):
+        ego_toggle.value = False
         spec = _camera_image_plane_spec(frame, camera_plane_distance_m)
         root_from_camera = (np.eye(4) if frame.get("root_from_camera") is None else
                             np.asarray(frame["root_from_camera"], dtype=float))
@@ -401,6 +433,12 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
             camera_state["pending_clients"].discard(client.client_id)
         set_initial_camera(client, pose)
 
+    @ego_toggle.on_update
+    def restore_overview(_event):
+        if not ego_toggle.value:
+            for client in server.get_clients().values():
+                frame_client_once(client)
+
     server.on_client_connect(frame_client_once)
     try:
         while True:
@@ -409,6 +447,10 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                 snapshot = json.loads(state_file.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 status.content = "**ROS passive twin · WAITING**\nNo valid ROS state snapshot yet."
+                if ego_toggle.value:
+                    ego_ui.content = "**Virtual gripper camera · STALE / WAITING**\nState snapshot unavailable; view held."
+                if cloud_handle is not None:
+                    cloud_handle.visible = False
                 time.sleep(poll_s)
                 continue
             snapshot_cache.clear()
@@ -480,6 +522,8 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                 # without recreating the scene node.
                 camera_plane["frame"] = dict(display_frame)
                 activate_pinned_selection(camera_plane["frame"])
+            if camera_plane["handle"] is not None:
+                camera_plane["handle"].visible = not ego_toggle.value
             joint = snapshot.get("joint_state") or {}
             if model is not None and fresh:
                 applied = apply_ros_state(model, data, snapshot, require_fresh=True)
@@ -495,6 +539,28 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                     for client in server.get_clients().values():
                         if client.client_id in pending:
                             frame_client_once(client)
+                cloud = snapshot.get("point_cloud")
+                ego_pose = None
+                if ego_toggle.value and _cloud_is_fresh(cloud, now):
+                    try:
+                        ego_pose = _gripper_camera_pose(snapshot,
+                            forward_axis=ego_axis.value, backoff_m=ego_backoff.value / 1000.)
+                    except (KeyError, ValueError) as error:
+                        ego_ui.content = f"**Virtual gripper camera · WAITING**\nFresh tool TF unavailable: `{error}`"
+                elif ego_toggle.value:
+                    ego_ui.content = "**Virtual gripper camera · WAITING**\nNo fresh depth cloud; view held."
+                if ego_pose is not None:
+                    for client in server.get_clients().values():
+                        set_initial_camera(client, ego_pose)
+                    ego_ui.content = (
+                        "**Virtual gripper camera · FOLLOWING**\n"
+                        f"`gripper_frame_link` · forward `{ego_axis.value}` · retreat "
+                        f"`{ego_backoff.value:.0f} mm` · 60° vertical field of view.\n"
+                        "Reprojected depth samples and diagnostic markers only. Holes, hidden "
+                        "surfaces and backsides are unknown; sparse points do not certify free space. "
+                        "Tool/camera registration is unqualified. The RGB preview plane is hidden.")
+                elif not ego_toggle.value:
+                    ego_ui.content = "**Virtual gripper camera · OFF**\nUses the existing GPU scene, not a physical camera."
                 pixels = _render(model, data, base)
                 try:
                     parity = compare_tool_frame(model, data, snapshot, description)
@@ -530,13 +596,12 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                     handle.visible = True
                     frame_rows.append(name)
                 cloud = snapshot.get("point_cloud")
-                cloud_age = (now - cloud.get("received_monotonic", now)) if cloud else float("inf")
                 if cloud_handle is not None:
                     # The camera image plane is the interaction surface. Hide the
                     # live cloud while selecting so nearer sampled points cannot
                     # occlude its pixels or intercept clicks.
-                    cloud_handle.visible = selection_state["mode"] is None
-                if cloud and cloud_age <= 0.5 and selection_state["mode"] is None:
+                    cloud_handle.visible = (selection_state["mode"] is None and _cloud_is_fresh(cloud, now))
+                if _cloud_is_fresh(cloud, now) and selection_state["mode"] is None:
                     pts = np.asarray(cloud.get("points_m", []), dtype=np.float32)
                     if len(pts):
                         root_from_cloud = transform_between(snapshot["transforms"],
@@ -583,7 +648,7 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                                 thickness_units="world")
                         else:
                             placement_line.points = points
-                        placement_line.visible = True
+                        placement_line.visible = not ego_toggle.value
                 elif placement_line is not None:
                     placement_line.visible = False
                 if (goal_status and selection_state["mode"] is None
@@ -630,6 +695,8 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                     f"point cloud: `{cloud.get('source') if cloud else 'waiting'}`\n"
                     "Passive pose display; MuJoCo never publishes joint states or commands hardware.")
             else:
+                if ego_toggle.value:
+                    ego_ui.content = "**Virtual gripper camera · STALE / WAITING**\nFresh robot pose unavailable; view held."
                 reason = diagnostic.get("freshness", "waiting_for_ros_inputs")
                 sync_basis = diagnostic.get("joint_tf_sync_basis", "dynamic_base_stamp")
                 sync_text = (f"joint/arm TF delta: `{diagnostic.get('joint_tf_delta_s')}` s; static base anchor"
