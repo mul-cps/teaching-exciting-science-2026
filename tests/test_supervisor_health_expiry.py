@@ -6,19 +6,18 @@ import json
 from types import SimpleNamespace as NS,MethodType
 import pytest
 from test_derived_registration import fixture
+from test_source_binding_health import binding_fixture
 from so101_station_perception import perception_supervisor as m
 from so101_station_perception.derived_lineage import statement_pin,LineageBuffer
 from so101_station_perception.supervisor_policy import SupervisorPolicy
 
 
-def fake_node(monkeypatch,receipt=100.):
+def fake_node(monkeypatch,receipt=100.11):
     value=fixture();pin=statement_pin(value);clock=[100.3];requests=[]
     monkeypatch.setattr(m,'time',NS(monotonic=lambda:clock[0],time=lambda:clock[0]+900.))
     policy=SupervisorPolicy();policy.clocks(100.,1000.);policy.enable(100.);policy.stable_since=100.
-    proof=dict(schema='so101-derived-admission-status-v1',qualified=False,execution_enabled=False,state='ready',
-        consumer_epoch='b'*32,source_pin_sha256=m.pin_digest(pin),producer_generation=pin['producer_generation'],
-        sequence=1,depth_stamp_ns=value['original']['depth_stamp_ns'],color_stamp_ns=value['original']['color_stamp_ns'],
-        checked_ros_ns=10_200_000_000,original_receipt_expiry_monotonic=100.35,original_header_expiry_ros_ns=10_500_000_000)
+    proof=binding_fixture(value,checked=100.11,checked_ns=10_110_000_000)
+    proof['consumer_epoch']='b'*32
     ledger=LineageBuffer(pin);ledger.add(json.dumps(value),bytes.fromhex('6'*32),now_ns=10_120_000_000,now_mono=100.11)
     node=NS(policy=policy,closed=False,reset_pending=False,pin=pin,epochs={},rpc={},health_progress={},health_error=None,
         ledger=ledger,health_cache={},health_next_request={},health_request_starts={},health_rpc_clocks={},
@@ -32,7 +31,7 @@ def fake_node(monkeypatch,receipt=100.):
 
 
 def test_known_past_consumer_response_expiry_inhibits_and_requeries_without_latching(monkeypatch):
-    node,_,_,requests=fake_node(monkeypatch)
+    node,_,clock,requests=fake_node(monkeypatch);clock[0]=100.4
     m.PerceptionSupervisor._step(node)
     assert node.policy.latched is None and node.policy.enabled and node.policy.state=='warming'
     assert node.policy.stable_since is None and node.policy.job is None and not node.policy.attempts
@@ -54,7 +53,7 @@ def test_true_future_response_clock_remains_fatal(monkeypatch):
 
 
 def test_guard_consumes_without_any_rpc_start_or_chain(monkeypatch):
-    node,_,_,requests=fake_node(monkeypatch)
+    node,_,clock,requests=fake_node(monkeypatch);clock[0]=100.4
     for _ in range(20):node._health_wakeup()
     assert not requests and node.health_guard_wakeups==20 and node.health_guard_consumes==40
     assert node.policy.state=='warming' and node.policy.job is None and not node.policy.latched
@@ -66,7 +65,7 @@ def test_timer_queries_ratecapped_without_catchup_and_one_pending(monkeypatch):
     for offset in (.001,.01,.19,.199):clock[0]=100.3+offset;node._health_queries()
     assert len(requests)==2
     clock[0]=100.501;node._health_queries();assert len(requests)==4
-    node.rpc={c+'/derived_source_status':object() for c in m.CONSUMERS}
+    node.rpc={c+'/derived_source_health':object() for c in m.CONSUMERS}
     clock[0]=120.;node._health_queries();assert len(requests)==4 and len(node.rpc)==2
     node.rpc.clear();node._health_queries();assert len(requests)==6
 
@@ -89,10 +88,10 @@ def test_real_contiguous_original_coverage_can_accumulate_five_seconds(monkeypat
 
 def test_clock_cross_during_materialization_drops_original_without_renewing(monkeypatch):
     node,proof,clock,_=fake_node(monkeypatch,receipt=100.29);original=deepcopy(proof)
-    observe=m.ConsumerProgress.observe
+    observe=m.SourceBindingProgress.observe
     def slow(self,*args,**kwargs):
         result=observe(self,*args,**kwargs);clock[0]+=.1;return result
-    monkeypatch.setattr(m.ConsumerProgress,'observe',slow)
+    monkeypatch.setattr(m.SourceBindingProgress,'observe',slow)
     m.PerceptionSupervisor._step(node)
     assert not node.policy.latched and node.policy.state=='warming' and node.policy.stable_since is None
     assert proof==original and node.policy.job is None and not node.policy.attempts
@@ -128,7 +127,7 @@ def test_health_future_cleanup_never_cancels_mutating_coordinator_job():
     calls=[];endpoint=m.COORDINATOR+'/start_recovery';owned={'future':object()}
     rpc={endpoint:owned};clients={}
     for consumer in m.CONSUMERS:
-        name=consumer+'/derived_source_status'
+        name=consumer+'/derived_source_health'
         rpc[name]={'future':NS(cancel=lambda n=name:calls.append(('cancel',n)))}
         clients[name]=NS(remove_pending_request=lambda _,n=name:calls.append(('remove',n)))
     node=NS(rpc=rpc,rpc_clients=clients,health_cache={'old':object()},health_progress={'old':object()},health_coverage_end=1.)
@@ -145,7 +144,7 @@ def test_absolute_timer_microjitter_skip_is_avoided_by_end_anchored_schedule(mon
 
 
 def test_duplicate_original_proof_never_renews_cached_response_receipt(monkeypatch):
-    node,proof,clock,_=fake_node(monkeypatch,receipt=100.11);clock[0]=100.12;proof['checked_ros_ns']=10_110_000_000;node.producer=({},None,100.11)
+    node,proof,clock,_=fake_node(monkeypatch,receipt=100.11);clock[0]=100.12;proof.update(checked_ros_ns=10_110_000_000,checked_monotonic=100.11);node.producer=({},None,100.11)
     node._current_health(start_requests=False)
     assert all(v[1]==100.11 for v in node.health_cache.values())
     clock[0]=100.2;node._take=lambda _: (True,deepcopy(proof),100.19)
