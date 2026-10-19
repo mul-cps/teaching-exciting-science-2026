@@ -19,7 +19,7 @@ SOURCE=Path(__file__).resolve().parents[1]/'ros2/src/so101_station_perception/so
 
 def prepared():
     tree=ast.parse(SOURCE.read_text());cls=next(n for n in tree.body if isinstance(n,ast.ClassDef))
-    needed={'_source_health','_check_source_binding'}
+    needed={'_source_health','_check_source_binding','_info_diagnostics'}
     methods=[n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name in needed]
     assert len(methods)==len(needed),'source-only health API missing'
     cls.bases=[];cls.body=methods

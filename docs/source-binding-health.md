@@ -103,3 +103,24 @@ Focused command (native wrapper must be run with the explicit isolated environme
 ```
 python -m pytest -q tests/test_derived_source_binding_health.py tests/test_source_binding_health_ros.py tests/test_admission_proof.py tests/test_aligned_cohort.py tests/test_derived_aligned_hooks.py
 ```
+
+## Marker service scheduling and missing exact Info diagnostics
+
+Only the marker's `~/derived_source_health` service uses its existing mutually
+exclusive intake callback group. Its existing two-thread executor can answer
+source-health requests while the default group performs CV. Reset, selected-image
+status, CV and board timers keep their existing default-group serialization.
+Objects and other callers retain the default group unless they explicitly supply
+`health_callback_group`; this adds no threads or subscriptions.
+
+Unavailable responses add `native_info_diagnostics` under the existing adapter
+lock. This contains the observed consumer epoch, latest sequence and original four
+header timestamps, plus each native Info stream's exact target, retained count,
+oldest/newest stamps and min/max **original first-unique** monotonic receipts.
+`classification` is `empty`, `not_yet`, `older_than_oldest`, `interior_missing`,
+`present`, or `target_unavailable` when there is no current lineage target.
+These are bounded metadata observations of the unchanged four-record rings.
+They do not establish whether an acquisition was evicted, dropped or never
+received. No nearest/fallback selection, cache-size change, lease renewal, image
+admission or processing progress is implied. Ready responses and their original
+before/after-serialization checks remain unchanged.
