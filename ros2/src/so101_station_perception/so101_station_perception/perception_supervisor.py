@@ -179,7 +179,9 @@ class PerceptionSupervisor(Node):
         if name in self.rpc:return
         client=self.rpc_clients[name]
         require(client.service_is_ready(),'metadata service unavailable: '+name)
-        started=time.monotonic();future=client.call_async(Trigger.Request())
+        started=time.monotonic()
+        if name==COORDINATOR+'/start_recovery':self._native_final()
+        future=client.call_async(Trigger.Request())
         record=dict(future=future,started=started,deadline=started+timeout,received=None)
         future.add_done_callback(lambda _,r=record:r.update(received=time.monotonic()))
         self.rpc[name]=record
@@ -268,7 +270,23 @@ class PerceptionSupervisor(Node):
         require(rpc['received'] is not None and rpc['request']<=rpc['received']<=rpc['request']+.4,'DeviceInfo completion late/unknown')
         response=rpc['future'].result();require(response is not None and response.serial_number==self.serial,'independent camera serial differs')
         require(native_graph(self.get_publishers_info_by_topic)==rpc['graph'],'native graph changed after identity response')
+        self.native_witness=dict(started=self.native_started,pairs=deepcopy(tuple(self.native.pairs)),
+            selected=tuple((r[2],r[3]) for r in records),request=rpc['request'],received=rpc['received'])
+        self._native_final()
         return True
+
+    def _native_final(self):
+        # Scalars from the ORIGINAL proof, checked after all graph/TF/result
+        # accesses and again after service readiness immediately before RPC.
+        witness=self.native_witness;now=time.monotonic();ns=self.get_clock().now().nanoseconds
+        require(0<=now-witness['started']<=2.,'postfault native preflight2s expired')
+        require(len(witness['pairs'])==2 and all(0<=now-r['receipt']<=.250 and
+            0<=ns-r['stamp']<=500_000_000 for pair in witness['pairs'] for r in pair),
+            'original postfault native pairs expired/future')
+        require(len(witness['selected'])==2 and all(0<=now-receipt<=.250 and 0<=ns-stamp<=500_000_000 for receipt,stamp in witness['selected']),
+            'original selected native Info expired/future')
+        require(0<=witness['request']<=witness['received']<=now<=witness['request']+1. and
+            witness['received']-witness['request']<=.4,'original independent identity lease expired/future')
 
     def _begin_outage(self,status):
         fault=transient_fault(status,self.pin['producer_generation'],self.pin['implementation']['producer_node_sha256'],
@@ -295,6 +313,7 @@ class PerceptionSupervisor(Node):
         self._baseline_unchanged();self.policy.reserve(time.monotonic(),time.time());self._persist()
         require(self._native_proof(),'native proof unavailable after durable reservation')
         self._outage_still_current()
+        self._native_final()
         self.dispatch_ros_ns=self.get_clock().now().nanoseconds
         self.expected_generation=None;self.accepted_reset_id=None
         self._request(COORDINATOR+'/start_recovery',2.)
@@ -373,7 +392,7 @@ class PerceptionSupervisor(Node):
             if self.policy.state=='verifying_native':
                 try:self._dispatch()
                 except (NativeProofPending,TransformException) as error:
-                    if time.monotonic()<=self.native_started+2.:
+                    if self.policy.job is None and time.monotonic()<=self.native_started+2.:
                         self.health_error=str(error)[:512];return
                     raise
                 return

@@ -162,3 +162,21 @@ def test_outage_changed_before_dispatch_cannot_call_coordinator(supervisor,monke
     monkeypatch.setattr(node,'_native_proof',lambda:pytest.fail('changed outage reached native proof'))
     with pytest.raises(ValueError):node._dispatch()
     assert not node.rpc and node.policy.job is None
+
+
+def test_pending_final_proof_after_reservation_latches_without_rpc_or_infinite_wait(supervisor,monkeypatch):
+    node,_=supervisor;node.policy.enabled=True;node.policy.state='verifying_native'
+    node.policy.fault={'fault_id':'a'*32};node.native_started=time.monotonic();calls=[]
+    monkeypatch.setattr(node,'_outage_still_current',lambda:None)
+    proofs=[0]
+    def native():
+        proofs[0]+=1
+        if proofs[0]>1:raise module.NativeProofPending('final native proof missing')
+        return True
+    monkeypatch.setattr(node,'_native_proof',native)
+    monkeypatch.setattr(node,'_take',lambda _: (True,{'state':'idle'},time.monotonic()))
+    monkeypatch.setattr(node,'_request',lambda *a:calls.append(a))
+    node._step()
+    assert node.policy.latched and node.policy.state=='latched' and not calls
+    assert len(node.policy.attempts)==1 and node.policy.job['state']=='dispatch_unknown'
+    node._step();assert not calls and node.policy.latched
