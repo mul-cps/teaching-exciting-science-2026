@@ -29,8 +29,11 @@ def setup(tmp_path,monkeypatch,period=0.):
     params={'depth_topic':ALIGNED_TOPIC,'color_topic':TOPICS['color'],'camera_info_topic':TOPICS['color_info'],'derived_source_cohort':str(path)}
     subscriptions={};timers=[];calls=[];graph=endpoints(value)
     def subscribe(typ,topic,callback,*args,**kwargs):subscriptions[topic]=callback;return callback
+    def create_service(*args,callback_group=None):
+        assert callback_group is None  # Existing/default callers retain native ROS default group.
+        return None
     node=NS(get_parameter=lambda k:NS(value=params[k]),create_subscription=subscribe,
-        create_service=lambda *args:None,create_timer=lambda period,callback:timers.append(callback) or NS(cancel=lambda:None),
+        create_service=create_service,create_timer=lambda period,callback:timers.append(callback) or NS(cancel=lambda:None),
         get_clock=lambda:NS(now=lambda:NS(nanoseconds=clock[1])),get_publishers_info_by_topic=graph.__getitem__)
     xyz=value['calibration']['translation_m'];tf=NS(transform=NS(translation=NS(x=xyz[0],y=xyz[1],z=xyz[2]),rotation=NS(x=0.,y=0.,z=0.,w=1.)))
     buffer=NS(lookup_transform=lambda *args:tf)
