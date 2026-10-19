@@ -132,3 +132,38 @@ def test_disable_reset_and_rejected_ingress_clear_node_history(supervisor,monkey
     seed();monkeypatch.setattr(node,'_request',lambda *a:None)
     node._reset_fault(None,Trigger.Response());assert node.pre_outage.token is None
     seed();node._lineage(String(data='invalid json'),None);assert node.pre_outage.token is None
+
+
+def test_history_validation_stall_cannot_hide_native_two_second_deadline(monkeypatch):
+    from types import SimpleNamespace as NS
+    from so101_station_perception import perception_supervisor as m
+    clock=[101.95];calls=[]
+    monkeypatch.setattr(m,'time',NS(monotonic=lambda:clock[0]))
+    def history():
+        clock[0]+=.1
+        assert clock[0]<102.2  # original historical eligibility still live
+        return 102.2
+    witness=dict(started=100.,pairs=[tuple(dict(stamp=11_900_000_000,receipt=101.9) for _ in range(2)) for _ in range(2)],
+        selected=((101.9,11_900_000_000),)*2,request=101.8,received=101.85)
+    def start(_):
+        calls.append(clock[0]);return NS(add_done_callback=lambda _:None)
+    client=NS(service_is_ready=lambda:True,call_async=start)
+    node=NS(native_witness=witness,_history_final=history,rpc={},
+        rpc_clients={m.COORDINATOR+'/start_recovery':client},
+        get_clock=lambda:NS(now=lambda:NS(nanoseconds=int((clock[0]-90.)*1e9))))
+    node._native_final=lambda:m.PerceptionSupervisor._native_final(node)
+    try:m.PerceptionSupervisor._request(node,m.COORDINATOR+'/start_recovery',2.)
+    except ValueError:pass
+    assert not calls, 'RPC started beyond ORIGINAL native2s deadline while history still live: '+str(calls)
+
+
+def test_context_hash_stall_cannot_mint_from_expired_current_health(monkeypatch):
+    from test_supervisor_health_expiry import fake_node
+    node,_,clock,_=fake_node(monkeypatch)
+    node.policy.stable_since=95.;node.health_coverage_end=100.31;node.health_candidate_end=100.35
+    original=node._history_context
+    def slow():
+        result=original();clock[0]+=.1;return result
+    node._history_context=slow
+    node._apply_current_health(True)
+    assert node.pre_outage.token is None and node.policy.state=='warming' and node.health_coverage_end is None
