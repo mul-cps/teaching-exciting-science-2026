@@ -40,7 +40,10 @@ def test_live_state_snapshot_uses_atomic_replace_without_per_sample_fsync():
     assert "temporary.replace(path)" in source
     assert "os.fsync(" not in source
     publish = textwrap.dedent(inspect.getsource(ArmSession.publish_state))
-    assert "_atomic_snapshot_json(self.state_file, state)" in publish
+    assert "self._publish_built_state(state)" in publish
+    sink = textwrap.dedent(inspect.getsource(ArmSession._publish_built_state))
+    assert "_atomic_snapshot_json(self.state_file, state)" in sink
+    assert "os.fsync(" not in sink
 
 
 def test_fake_benchmark_preserves_warm_profile_and_uses_bounded_idle_reads():

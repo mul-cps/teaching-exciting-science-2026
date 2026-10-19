@@ -534,14 +534,25 @@ def test_idle_watchdog_keeps_twenty_hz_samples_then_disables_torque(tmp_path):
         clock.sleep(timeout)
         return [], [], []
 
+    acquired = []
+    build = session._build_state
+    def observe_acquisition(**fields):
+        state = build(**fields)
+        if fields.get("event") == "sample":
+            acquired.append(state["monotonic"])
+        return state
+    session._build_state = observe_acquisition
     initial_records = sum(1 for line in session.log_path.read_text().splitlines()
                           if json.loads(line).get("event") == "sample")
     assert session.serve(fd=0, emit=lambda _result: None, wait=fake_wait) == 0
     records = [json.loads(line) for line in session.log_path.read_text().splitlines()]
     samples = [record for record in records if record.get("event") == "sample"]
     timestamps = [record["monotonic"] for record in samples[initial_records:]]
-    assert timestamps == pytest.approx([sample_start, sample_start + 0.05,
+    assert acquired == pytest.approx([sample_start, sample_start + 0.05,
                                         sample_start + 0.10, sample_start + 0.15])
+    # Idle logs coalesce; retained samples preserve ORIGINAL acquisition clocks.
+    assert all(stamp in acquired for stamp in timestamps)
+    assert timestamps == sorted(set(timestamps))
     assert wait_calls == 4
     assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
     assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)

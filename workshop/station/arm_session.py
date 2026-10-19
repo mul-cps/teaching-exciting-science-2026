@@ -9,6 +9,7 @@ the RAM profile that was present before this session's first motion.
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -25,6 +26,7 @@ from workshop.safe_home import load_home
 from . import arm as arm_module
 from .config import JOINTS, load_config
 from .locking import station_lock, station_lock_path
+from .idle_telemetry import IdleTelemetry
 from .camera_recovery import plan_bound_reentry
 from .recovery_types import CAMERA_RECOVERY_MAX_DISPLACEMENT_COUNTS, CAMERA_RECOVERY_INWARD_COUNTS, CameraRecoveryPolicy, owner_source_sha256
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
@@ -175,6 +177,8 @@ class ArmSession:
         self.last_command = self.clock()
         self.log_path = self.logdir / ("arm-session-" + uuid.uuid4().hex + ".jsonl")
         self._log_stream = None
+        self._idle_telemetry = None
+        self._idle_fault_diagnostics = None
         self._owner_session_id = self.log_path.stem
         self._failed_endpoint_hold = None
         self._failed_hold_last_tick = None
@@ -482,7 +486,16 @@ class ArmSession:
                 error.add_note("arm session cleanup failed: " + str(cleanup_error))
             raise
 
+    def _idle_stage(self, name):
+        return self._idle_telemetry.stage(name) if self._idle_telemetry is not None else nullcontext()
+
     def _record(self, value):
+        if self._idle_telemetry is not None and not self._idle_telemetry.is_writer_thread:
+            with self._idle_telemetry.serialized():
+                return self._record_direct(value)
+        return self._record_direct(value)
+
+    def _record_direct(self, value):
         if self._log_stream is None:
             return
         self._log_stream.write(json.dumps(value, allow_nan=False, sort_keys=True) + "\n")
@@ -533,12 +546,13 @@ class ArmSession:
             classification="unrecoverable"
         return dict(metadata,classification=classification,position_monotonic=stamp)
 
-    def publish_state(self, *, event="sample", torque=None, phase=None, label=None, raw=None,
+    def _build_state(self, *, event="sample", torque=None, phase=None, label=None, raw=None,
                       position_monotonic=None, position_utc=None,
                       torque_monotonic=None, torque_utc=None, feedback_timing=None,
                       trajectory_goal_id=None, trajectory_time=None,
                       trajectory_desired=None):
-        raw = self._read("Present_Position") if raw is None else dict(raw)
+        with self._idle_stage("position_acquire"):
+            raw = self._read("Present_Position") if raw is None else dict(raw)
         if position_monotonic is None:
             position_monotonic = self.clock()
             position_utc = self.wall_clock()
@@ -568,7 +582,8 @@ class ArmSession:
                                    "raw": value, "min": self.firmware_min[joint],
                                    "max": self.firmware_max[joint]})
         torque_has_actual_clock = torque is None or torque_monotonic is not None
-        torque = self._read("Torque_Enable") if torque is None else torque
+        with self._idle_stage("torque_acquire"):
+            torque = self._read("Torque_Enable") if torque is None else torque
         if torque_monotonic is None:
             torque_monotonic = self.clock()
             torque_utc = self.wall_clock()
@@ -606,21 +621,34 @@ class ArmSession:
                      bus_read_diagnostics=dict(self._read_diagnostics))
         if torque_has_actual_clock:
             self._last_published_torque = (MappingProxyType(dict(torque)), torque_monotonic, torque_utc)
+        return state
+
+    def _publish_built_state(self, state):
+        feedback_timing = state["feedback_timing"]
         snapshot_started = self.clock()
-        _atomic_snapshot_json(self.state_file, state)
+        with self._idle_stage("snapshot"):
+            _atomic_snapshot_json(self.state_file, state)
         if feedback_timing is not None:
             feedback_timing["snapshot_replace_duration_s"] = max(
                 0.0, self.clock() - snapshot_started)
         log_started = self.clock()
         # The latest-state file carries live samples. Trajectory samples stay in
         # memory until completion so JSONL flush latency cannot enter the tick.
-        if event not in {"read_state", "trajectory_preflight",
+        if state["event"] not in {"read_state", "trajectory_preflight",
                          "trajectory_feedback", "trajectory_settle"}:
-            self._record(state)
+            with self._idle_stage("sample_log"):
+                self._record(state)
         if feedback_timing is not None:
             feedback_timing["sample_log_append_duration_s"] = max(
                 0.0, self.clock() - log_started)
         return state
+
+    def publish_state(self, **fields):
+        state = self._build_state(**fields)
+        if self._idle_telemetry is not None:
+            with self._idle_telemetry.serialized():
+                return self._publish_built_state(state)
+        return self._publish_built_state(state)
 
     def read_state(self):
         self._require_initialized()
@@ -2916,6 +2944,14 @@ class ArmSession:
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
+        if self._idle_telemetry is not None and name not in {"stop", "exit"}:
+            try:
+                # No pre-existing command acquisition/deadline is renewed here.
+                # Methods acquire/validate their original samples after admission.
+                with self._idle_telemetry.serialized():
+                    pass
+            except (TimeoutError, RuntimeError) as error:
+                raise ArmPlanPreflightError(str(error)) from error
         if self._failed_endpoint_hold is not None:
             if name in {"move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera",
                         "home", "execute_trajectory", "teleop_start", "teleop_step", "teleop_stop"}:
@@ -3044,6 +3080,23 @@ class ArmSession:
 
     def serve(self, fd=0, *, emit=lambda value: print(json.dumps(value, allow_nan=False), flush=True),
               wait=select.select):
+        self._require_initialized()
+        self._idle_telemetry = IdleTelemetry(self._publish_built_state)
+        try:
+            return self._serve(fd=fd, emit=emit, wait=wait)
+        finally:
+            if not self._idle_telemetry.close(.05):
+                cleanup = self._idle_telemetry.diagnostics()
+                if self._idle_fault_diagnostics is None:
+                    self._idle_fault_diagnostics = cleanup
+                else:
+                    self._idle_fault_diagnostics["cleanup"] = cleanup
+                raise RuntimeError("idle telemetry cleanup timed out; resources retained for supervision")
+            self._idle_telemetry.check()
+            self._idle_telemetry = None
+
+    def _serve(self, fd=0, *, emit=lambda value: print(json.dumps(value, allow_nan=False), flush=True),
+              wait=select.select):
         """Poll stdin without blocking state telemetry or the idle watchdog."""
         self._require_initialized()
         self._input_fd = fd
@@ -3063,8 +3116,9 @@ class ArmSession:
                     raise
             if (self._failed_endpoint_hold is None and not self._idle_handled and
                     now - self.last_command >= self.idle_timeout):
-                self._event("idle_timeout", idle_seconds=now - self.last_command)
+                idle_seconds = now - self.last_command
                 self.shutdown(reason="idle_timeout")
+                self._event("idle_timeout", idle_seconds=idle_seconds)
                 if not self.persistent_idle:
                     return 0
                 self._idle_handled = True
@@ -3073,17 +3127,27 @@ class ArmSession:
                     self._teleop_skip_next_sample = False
                 else:
                     sample_started = self.clock()
-                    state = self.publish_state(event="sample")
-                    if self._failed_endpoint_hold is not None:
-                        self._check_failed_hold_snapshot(state, sample_started)
+                    self._idle_telemetry.check()
+                    with self._idle_stage("acquire_build"):
+                        state = self._build_state(event="sample")
+                    with self._idle_stage("health_check"):
+                        if self._failed_endpoint_hold is not None:
+                            self._check_failed_hold_snapshot(state, sample_started)
+                    self._idle_telemetry.offer(state)
             except BaseException as error:
-                self._event("sample_error", error=str(error), error_type=type(error).__name__)
+                # Capture evidence before ANY blocking sink; physical disarm must
+                # precede error logging/publication barriers.
+                self._idle_fault_diagnostics = self._idle_telemetry.diagnostics()
+                self._idle_fault_diagnostics["error"] = str(error)
                 self.shutdown(reason="sample_error")
+                self._event("sample_error", error=str(error), error_type=type(error).__name__,
+                            idle_diagnostics=self._idle_fault_diagnostics)
                 raise
             timeout = (PERIOD_S if self._idle_handled or self._failed_endpoint_hold is not None else
                        min(PERIOD_S, max(0.0, self.idle_timeout -
                                          (self.clock() - self.last_command))))
-            ready, _, _ = wait([fd], [], [], timeout)
+            with self._idle_stage("wait"):
+                ready, _, _ = wait([fd], [], [], timeout)
             if not ready:
                 continue
             data = os.read(fd, 4096)
@@ -3173,14 +3237,14 @@ class ArmSession:
                     if isinstance(result, dict) and result.get("exit"):
                         return 0
                 except BaseException as error:
+                    self.shutdown(reason="command_error")
                     self._event("command_error", error=str(error), error_type=type(error).__name__)
-                    try:
-                        emit({"ok": False, "error": str(error), "error_type": type(error).__name__})
-                    finally:
-                        self.shutdown(reason="command_error")
+                    emit({"ok": False, "error": str(error), "error_type": type(error).__name__})
                     raise
 
     def close_log(self):
+        if self._idle_telemetry is not None and not self._idle_telemetry.close(.05):
+            raise RuntimeError("idle writer still active; log retained for supervision")
         if self._log_stream is not None:
             self._log_stream.close()
             self._log_stream = None
