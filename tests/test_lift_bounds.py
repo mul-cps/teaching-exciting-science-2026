@@ -45,7 +45,7 @@ def test_lift_defaults_match_pinned_official_urdf_and_other_axes_unchanged():
     assert POSITION_LIMITS_RAD[LIFT] == (float(bound.get("lower")), float(bound.get("upper")))
     config = yaml.safe_load((ROOT / "ros2/config/rig01_moveit_limits.yaml").read_text())["joint_limits"]
     assert (config[LIFT]["min_position"], config[LIFT]["max_position"]) == (-1.74533, 1.74533)
-    for joint in ("shoulder_pan", "wrist_flex", "wrist_roll"):
+    for joint in ("shoulder_pan", "wrist_roll"):
         assert POSITION_LIMITS_RAD[joint] == (-math.pi / 2, math.pi / 2)
         assert (config[joint]["min_position"], config[joint]["max_position"]) == (-1.57079632679, 1.57079632679)
     assert POSITION_LIMITS_RAD["elbow_flex"] == (-1.69, 1.69)

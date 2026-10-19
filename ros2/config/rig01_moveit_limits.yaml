@@ -26,7 +26,11 @@ joint_limits:
     <<: *station_arm_limits
     min_position: -1.69
     max_position: 1.69
-  wrist_flex: *station_arm_limits
+  # Existing pinned URDF wrist envelope; owner admission still narrows it.
+  wrist_flex:
+    <<: *station_arm_limits
+    min_position: -1.65806
+    max_position: 1.65806
   wrist_roll: *station_arm_limits
   gripper:
     has_velocity_limits: true
