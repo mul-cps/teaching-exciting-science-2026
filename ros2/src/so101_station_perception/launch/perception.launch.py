@@ -1,13 +1,16 @@
+from ament_index_python.packages import get_package_prefix
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, GroupAction, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from pathlib import Path
 import math
+import os
 
 from so101_station_perception.calibration import load_calibration_frames
+from so101_station_perception.camera_startup import camera_parameters, validate_repair
 
 
 def _launch_nodes(context):
@@ -46,11 +49,22 @@ def _launch_nodes(context):
             raise ValueError("evidence_folder must be a new or empty directory")
         if not resident_state_file or not Path(resident_state_file).is_file():
             raise ValueError("evidence sink requires an existing resident_state_file")
+    camera_settings = camera_parameters(*(LaunchConfiguration(key).perform(context) for key in
+        ("color_profile", "depth_profile", "enable_sync", "far_depth_m", "camera_wait_timeout_s", "camera_reconnect_timeout_s")))
+    sdk_prefix = Path(LaunchConfiguration("camera_sdk_prefix").perform(context)).expanduser().resolve()
+    # The vendor Node resolves its executable through this same ament index.
+    # Refuse an overlay executable different from the one traced by the guard.
+    if Path(get_package_prefix("realsense2_camera")).resolve() != sdk_prefix:
+        raise ValueError("camera package prefix differs from loader-validated SDK prefix")
+    repair = validate_repair(LaunchConfiguration("camera_repair_prefix").perform(context),
+                             sdk_prefix, environment=context.environment)
     realsense_launch = PathJoinSubstitution([
         FindPackageShare("realsense2_camera"), "launch", "rs_launch.py"])
     rviz_config = PathJoinSubstitution([
         FindPackageShare("so101_station_perception"), "config", "station_live.rviz"])
-    actions = [IncludeLaunchDescription(
+    # Only the vendor camera child receives this verified preload. Scoped launch
+    # environment restoration keeps marker, arm and RViz processes untouched.
+    camera_action = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(realsense_launch),
         launch_arguments={
             "camera_name": "camera",
@@ -65,13 +79,10 @@ def _launch_nodes(context):
             "config_file": "''",
             "publish_tf": "true",
             "enable_color": "true",
-            "rgb_camera.color_profile": LaunchConfiguration("color_profile"),
+            **camera_settings,
             "rgb_camera.color_format": "RGB8",
             "enable_depth": "true",
-            "clip_distance": str(far_depth),
-            "depth_module.depth_profile": "640,480,15",
             "depth_module.depth_format": "Z16",
-            "enable_sync": "true",
             "align_depth.enable": "true",
             "pointcloud.enable": "true",
             "pointcloud.stream_filter": "2",
@@ -83,7 +94,9 @@ def _launch_nodes(context):
             "enable_gyro": "false",
             "enable_accel": "false",
         }.items(),
-    )]
+    )
+    actions = [GroupAction(scoped=True, actions=[
+        SetEnvironmentVariable("LD_PRELOAD", repair["camera_environment"]["LD_PRELOAD"]), camera_action])]
     if live_world:
         actions.append(Node(
             package="so101_station_perception", executable=("marker_pipeline" if LaunchConfiguration("publish_tag_observations").perform(context).lower() == "true" else "charuco_world"),
@@ -160,8 +173,13 @@ def generate_launch_description():
         DeclareLaunchArgument("serial_no", default_value="243322071783"),
         DeclareLaunchArgument("far_depth_m", default_value="1.2",
                               description="Discard depth beyond the workcell before pointcloud generation"),
-        DeclareLaunchArgument("color_profile", default_value="640,480,15",
-                              description="RGB width,height,fps; wider profiles require fresh RGB-D validation"),
+        DeclareLaunchArgument("color_profile", default_value="1920,1080,30"),
+        DeclareLaunchArgument("depth_profile", default_value="1280,720,30"),
+        DeclareLaunchArgument("enable_sync", default_value="false"),
+        DeclareLaunchArgument("camera_wait_timeout_s", default_value="10.0"),
+        DeclareLaunchArgument("camera_reconnect_timeout_s", default_value="2"),
+        DeclareLaunchArgument("camera_repair_prefix", default_value=str(Path.cwd()/"ros2/.cache/realsense-cpu-texture-bounds/install")),
+        DeclareLaunchArgument("camera_sdk_prefix", default_value=os.environ.get("CONDA_PREFIX", str(Path.home()/"miniforge3/envs/so101-jazzy"))),
         DeclareLaunchArgument("camera_target_calibration", default_value=""),
         DeclareLaunchArgument("camera_arm_calibration", default_value=""),
         DeclareLaunchArgument("use_qualified_frames", default_value="false"),

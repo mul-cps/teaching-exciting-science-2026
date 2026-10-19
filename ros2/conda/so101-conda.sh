@@ -16,13 +16,15 @@ ACTION="${1:-help}"
 fail() { printf 'so101-conda.sh: %s\n' "$*" >&2; exit 2; }
 usage() {
   cat <<'EOF'
-Usage: ros2/conda/so101-conda.sh create|fetch|build|clean-build|station-live|rviz|servo|plan-smoke|inspect|packages|run|shell|real
+Usage: ros2/conda/so101-conda.sh create|fetch|build|clean-build|station-live|realsense-cpu-build|camera-preflight|rviz|servo|plan-smoke|inspect|packages|run|shell|real
 
   create      Create the dedicated RoboStack ROS 2 Jazzy environment
   fetch       Fetch the pinned upstream SO-ARM101 source and driver patch
   build       Build the pinned workspace in the Conda environment
   clean-build Remove only this checkout's ROS overlay build/install/log prefixes, then rebuild
   station-live Launch the integrated live station (one follower owner and one camera)
+  realsense-cpu-build Build/validate the pinned private CPU texture repair; no activation/device access
+  camera-preflight Validate private repair sources, SO, SDK and child loader; no camera start
   rviz        Launch the explicitly mocked MoveIt/RViz stack
   servo       Launch MoveIt Servo with mock ros2_control
   plan-smoke  Run IK and planning only; never execute trajectories
@@ -164,9 +166,19 @@ case "$ACTION" in
     rm -rf -- "$BUILD_BASE" "$INSTALL_BASE" "$LOG_BASE"
     exec "$0" build
     ;;
+  realsense-cpu-build)
+    (($# == 0)) || fail "realsense-cpu-build takes no arguments"
+    env -u LD_PRELOAD -u LD_LIBRARY_PATH "SO101_CONDA_PREFIX=$ENV_PREFIX" "$ROS2_DIR/conda/build-realsense-cpu-texture-bounds.sh"
+    conda_run python "$ROS2_DIR/src/so101_station_perception/so101_station_perception/camera_startup.py" \
+      --prefix "$ROS2_DIR/.cache/realsense-cpu-texture-bounds/install" --sdk-prefix "$ENV_PREFIX"
+    ;;
+  camera-preflight)
+    conda_run python "$ROS2_DIR/src/so101_station_perception/so101_station_perception/camera_startup.py" \
+      --prefix "$ROS2_DIR/.cache/realsense-cpu-texture-bounds/install" --sdk-prefix "$ENV_PREFIX" "$@"
+    ;;
   station-live)
     ros_run ros2 launch so101_station_bringup station_live.launch.py \
-      "station_root:=$ROOT_DIR" "$@"
+      "station_root:=$ROOT_DIR" "camera_repair_prefix:=$ROS2_DIR/.cache/realsense-cpu-texture-bounds/install" "camera_sdk_prefix:=$ENV_PREFIX" "$@"
     ;;
   rviz)
     ros_run ros2 launch so101_station_bringup mock_moveit.launch.py
