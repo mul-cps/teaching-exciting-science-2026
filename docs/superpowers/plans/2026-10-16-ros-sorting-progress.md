@@ -539,3 +539,12 @@ Evidence:2026-10-19-sorting/elbow-bounds-software/,elbow-bounds-review/,easy-pic
 Evidence: `~/.local/share/exciting-science/station/evidence/2026-10-19-sorting/commissioning-live/OUTCOME.json`, original owner log, bound captures, inner-pad analysis, body-limit intersection; `pick-place-now/camera640-status/`; `gripper-ego-view/live-view-rgb-mesh/`.
 
 Remaining acceptance: reliable failure handling/control response, genuine jaw/TCP/base calibration with separate validation, then one supervised pickup/lift/place; later the plan's 20 physical sorts, teleoperation/watchdog/fault matrix and cold-start qualification.
+
+
+## 2026-10-19 user visual alignment corrections
+
+- User identified a 180 degree gripper-mount discrepancy. Changed existing provisional mount roll +90 to -90 (`611db02`), with all other expanded XML unchanged; independent two-test review and exact relative rotation checks passed. Effective model SHA-256 is `45532e4ae4c6b6ae2c67461f7a43bb1bdb20114ff5c2512ec967598118926ecc`. RSP, MoveIt and virtual camera independently reported that exact hash; RViz subscribes to the same latched RSP description and actual AMD GPU counters advanced. User confirmed the model matched substantially better, not perfectly. No physical motion was commanded for this change.
+- User requested an in-place 180 degree virtual camera roll, explicitly superseding a proposed top-side relocation. Shared ROS/browser helper now reverses camera right/down while eye and forward remain identical (`4162de5`); FOV/resolution unchanged. Independent 69 pure/static tests and worker 61 native GPU tests passed. Live six-topic capture confirms transform diag(-1,-1,1), translation (0,0,-0.04)m, actual model/RGB meshes/crosshair; image inspected. Nominal pinch remains unqualified.
+- Periodic stationary mesh/cloud and marker-alignment diagnostics requested. Bounded, read-only ROS monitor is being implemented with provenance/quality metrics and no automatic TF/model/control calibration updates. Attached-marker alignment requires a genuine identity-bound marker mount; unavailable data will be reported explicitly. No periodic fit has been deployed or applied yet.
+
+Evidence: `gripper-model-flip/{verification.json,live-model-cohort.json,rviz-gpu-live.json}`, `gripper-ego-view/camera-roll/`, `gripper-ego-view/live-view-roll180/`. The earlier +90 model-dependent collision/calibration artifacts are superseded; original physical encoder/control logs remain valid historical observations.
