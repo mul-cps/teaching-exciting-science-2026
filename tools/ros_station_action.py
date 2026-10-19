@@ -14,7 +14,7 @@ def parse_args(argv=None):
     commands = parser.add_subparsers(dest='command', required=True)
     for name in ('status', 'diagnostics', 'check-ready', 'cancel', 'stop', 'reset-fault',
                  'connect', 'wake', 'sleep', 'ev3-home', 'arm-home', 'arm-connect', 'arm-recover', 'arm-status',
-                 'arm-prepare', 'arm-stop'):
+                 'arm-prepare', 'arm-stop', 'gripper-diagnostics'):
         commands.add_parser(name)
     jaw = commands.add_parser('gripper-step')
     jaw.add_argument('delta_counts', type=int)
@@ -61,7 +61,7 @@ def main(argv=None):
     try:
         service_type = Trigger
         request = Trigger.Request()
-        names = {'arm-connect': '/follower/reconnect', 'arm-recover': '/follower/recover_camera',
+        names = {'gripper-diagnostics': '/follower/gripper_diagnostics', 'arm-connect': '/follower/reconnect', 'arm-recover': '/follower/recover_camera',
                  'arm-status': '/follower/status', 'arm-stop': '/follower/stop', 'arm-prepare': 'arm/prepare',
                  'connect': 'ev3/connect', 'ev3-home': 'ev3/home', 'arm-home': 'arm/home'}
         name = names.get(args.command, args.command.replace('-', '_'))
