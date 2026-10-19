@@ -91,3 +91,24 @@ DeviceInfo RPC, exact static optical TF and seven actual publisher GIDs. It prov
 one reset, exclusive source capture, both consumer rebinds, advancing admission
 and readiness expiry without any image/cloud subscriptions. It is not live GPU,
 physical camera, calibration, object tracking or sorting qualification.
+
+### Heartbeat ordering during an accepted reset
+
+A producer's cold owned-worker setup can temporarily pause its heartbeat even
+when native metadata and new-generation lineage callbacks arrive independently.
+After this job has explicitly received an accepted reset response, an expired
+heartbeat from the unchanged actual endpoint is temporal unavailability: the
+coordinator waits within the SAME absolute40-second job budget. It never adopts
+that expired heartbeat, renews its receipt or starts consumer rebind from it.
+A fresh matched producer reset status and two genuinely advancing original
+lineages are still required before source capture/rebind. Endpoint/GID mismatch,
+missing/malformed status and future receipt clocks remain errors; later
+completed-status queries also continue to return ready_now=false for expired
+heartbeats. This is not a retry of reset or an extension of any evidence lease.
+
+The isolated DDS regression deliberately publishes fresh native metadata and
+lineage while withholding heartbeat publication for450ms. It reproduces the old
+failure and verifies one reset, independent source capture, consumer rebind and
+original readiness expiry with the corrected waiting behavior. This synthetic
+ordering result does not establish the cause of a particular live endpoint or
+scheduling failure.

@@ -32,6 +32,10 @@ PRODUCER_STATUS = '/so101_perception/rocm/status'
 CONSUMERS = ('/so101_charuco_world', '/so101_colored_objects')
 
 
+class ProducerStatusPending(ValueError):
+    """An unchanged endpoint has no current heartbeat; never readiness proof."""
+
+
 def read_artifact(path):
     with Path(path).open('rb') as stream: raw = stream.read(131073)
     require(len(raw) <= 131072, 'source artifact exceeds bound')
@@ -230,12 +234,19 @@ class PerceptionRecovery(Node):
         value, gid, receipt = record
         endpoints = self.get_publishers_info_by_topic(PRODUCER_STATUS); check()
         require(len(endpoints) == 1 and endpoints[0].node_namespace.rstrip('/')+'/'+endpoints[0].node_name == PRODUCER
-            and canonical_gid(endpoints[0].endpoint_gid) == gid and 0 <= time.monotonic()-receipt <= .250,
-            'producer status endpoint/receipt changed or expired')
+            and canonical_gid(endpoints[0].endpoint_gid) == gid,
+            'producer status endpoint changed')
+        age = time.monotonic()-receipt
+        require(0 <= age, 'producer status receipt is future/invalid')
+        if age > .250:
+            raise ProducerStatusPending('producer status receipt expired; awaiting new heartbeat')
         with self.lock:
             current = self.producer
-            require(current is not None and current[1] == gid and 0 <= time.monotonic()-current[2] <= .250,
-                    'current producer status unavailable/expired')
+            require(current is not None and current[1] == gid, 'current producer status unavailable/changed')
+            age = time.monotonic()-current[2]
+            require(0 <= age, 'current producer status receipt is future/invalid')
+            if age > .250:
+                raise ProducerStatusPending('current producer status receipt expired; awaiting new heartbeat')
             return current[0]
 
     def _statement(self, proof=None, *, job=True):
@@ -372,7 +383,13 @@ class PerceptionRecovery(Node):
                 self.result.update(accepted_reset_id=value['accepted_reset_id'], producer_generation=self.expected_generation)
             self._phase('wait_producer_generation')
             while True:
-                self._guard(); status = self._producer_status(); reset = status.get('reset') or {}
+                self._guard()
+                try: status = self._producer_status()
+                except ProducerStatusPending:
+                    # Only after this job's explicit accepted reset: cold worker
+                    # setup may pause status publication. Never reuse its lease.
+                    self._pause(); continue
+                reset = status.get('reset') or {}
                 require(not self.ledger.invalid_reason, self.lineage_error or 'lineage generation invalidated')
                 require(status['producer_generation'] in (self.expected_generation,self.old_generation), 'unexpected producer generation after reset')
                 require(reset.get('state') != 'reset_failed', 'producer reset permanently failed: '+str(reset.get('reason')))
