@@ -241,7 +241,7 @@ def _control_callback(callback):
             if self._stop_latched:
                 if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
                     return GoalResponse.REJECT
-                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_gripper_diagnostics", "_calibration_ready", "_set_teleop_enabled"}:
+                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_gripper_diagnostics", "_calibration_ready", "_set_teleop_enabled"}:
                     response = args[1]
                     response.success, response.message = False, "owner stop remains latched"
                     if callback.__name__ == "_prepare":
@@ -439,6 +439,9 @@ class TrajectoryBridge(Node):
         self._commission_gripper_service = self.create_service(
             CommissionGripperStep, "/follower/commission_gripper_step",
             self._commission_gripper_step, callback_group=self._teleop_service_group)
+        self._commission_gripper_held_service = self.create_service(
+            CommissionGripperStep, "/follower/commission_gripper_held_step",
+            self._commission_gripper_held_step, callback_group=self._teleop_service_group)
         self._gripper_diagnostics_service = self.create_service(
             Trigger, "/follower/gripper_diagnostics", self._gripper_diagnostics,
             callback_group=self._teleop_service_group)
@@ -2191,6 +2194,140 @@ class TrajectoryBridge(Node):
         finally:
             with self._active_lock:
                 if self._active_goal == "commission_gripper":
+                    self._active_goal = None
+        return response
+
+    @_control_callback
+    def _commission_gripper_held_step(self, request, response):
+        """Explicit raw jaw calibration; preserve the already-held body."""
+        response.success = False
+        reservation = "commission_gripper_held"
+        process, generation = self._process, self._owner_started
+        delivery_possible = terminal_verified = False
+        try:
+            if self.get_parameter("calibration_endpoint_mode").value is not True:
+                raise ValueError("held jaw requires calibration_endpoint_mode:=true")
+            delta = request.delta_counts
+            if type(delta) is not int or not 0 < abs(delta) <= 16:
+                raise ValueError("delta_counts must be a nonzero integer in [-16,16]")
+            with self._active_lock:
+                if self._active_goal is not None or self._teleop_state != "disabled":
+                    raise RuntimeError("owner must be idle with teleoperation disabled")
+                self._active_goal = reservation
+            self._assert_owner_reservation(reservation, process, generation)
+            state = self._read_state()
+            if self._prepare_owner_state(state, process, generation, torque=1) != "normal":
+                raise RuntimeError("held jaw requires normal admitted six-joint state")
+            bounds = _arm_bounds_observation(state)
+            target = state["raw"]["gripper"]+delta
+            if not bounds["admitted_min"]["gripper"] <= target <= bounds["admitted_max"]["gripper"]:
+                raise ValueError("held jaw target exceeds admitted bounds")
+            low, high = self._gripper_raw_limits
+            if type(low) is not int or type(high) is not int or not 0 <= low < high <= 4095:
+                raise ValueError("identity-matched raw jaw calibration is unavailable")
+            timeout_s = float(self.get_parameter("collision_check_timeout_s").value)
+            if not math.isfinite(timeout_s) or not 0 < timeout_s <= 30:
+                raise ValueError("held jaw collision preflight timeout must be finite in (0,30]")
+            if any(type(state["pose"][j]) not in (int,float) or not math.isfinite(state["pose"][j]) for j in ARM_JOINTS):
+                raise ValueError("held jaw requires finite measured body radians")
+            deadline = time.monotonic()+timeout_s
+            if not self._state_validity.wait_for_service(timeout_sec=min(2., max(0.,deadline-time.monotonic()))):
+                raise RuntimeError("MoveIt state validity is unavailable")
+            positions = [math.radians(state["pose"][j]) for j in ARM_JOINTS]
+            for raw in range(state["raw"]["gripper"], target+(1 if delta>0 else -1), 1 if delta>0 else -1):
+                self._assert_owner_reservation(reservation, process, generation)
+                jaw_angle = math.radians(-10.+110.*(raw-low)/(high-low))
+                checked = self._get_validity(positions, jaw_angle, deadline)
+                if time.monotonic() > deadline:
+                    raise TimeoutError("held jaw collision response exceeded preflight deadline")
+                if checked.valid is not True:
+                    raise RuntimeError("held jaw collision sample rejected before dispatch")
+            fresh = self._read_state()
+            if (self._prepare_owner_state(fresh, process, generation, torque=1) != "normal" or
+                    fresh["raw"] != state["raw"] or
+                    fresh.get("owner_session_id") != state.get("owner_session_id") or
+                    not isinstance(state.get("owner_session_id"), str) or not state["owner_session_id"]):
+                raise RuntimeError("held jaw start changed during collision preflight")
+            command = dict(command="commission_gripper_held_step", delta_counts=delta,
+                expected_start_raw=dict(fresh["raw"]), owner_session_id=fresh["owner_session_id"],
+                command_id="held-jaw-"+uuid.uuid4().hex)
+            self._home_completed_owner_started = None
+            dispatched = time.monotonic()
+            if dispatched > deadline:
+                raise TimeoutError("held jaw collision preflight expired before owner dispatch")
+            delivery_possible = True
+            reply = self._reserved_owner_reply(command, process, generation,
+                dispatched+4., reservation)
+            if not isinstance(reply, dict):
+                raise RuntimeError("held jaw result is not a typed object")
+            final = reply.get("state")
+            if self._prepare_owner_state(final, process, generation, after=dispatched, torque=1) != "normal":
+                raise RuntimeError("held jaw final state is not normal")
+            component = final.get("component_command", {})
+            failed = reply.get("status") == "failed_held_jaw"
+            entry_ram, restored_ram = component.get("entry_jaw_ram"), component.get("restored_jaw_ram")
+            body_goals = component.get("preserved_body_goals")
+            if (not isinstance(entry_ram, dict) or set(entry_ram) != {"Acceleration","Goal_Velocity","Torque_Limit"} or
+                    any(type(v) is not int or not 0 <= v <= (255 if k == "Acceleration" else 65535)
+                        for k,v in entry_ram.items()) or entry_ram != restored_ram or
+                    not isinstance(body_goals, dict) or set(body_goals) != set(ARM_JOINTS) or
+                    any(type(v) is not int or not bounds["admitted_min"][j] <= v <= bounds["admitted_max"][j]
+                        for j,v in body_goals.items())):
+                raise RuntimeError("held jaw entry profile/body goals proof invalid")
+            if (reply.get("qualified") is not False or
+                    component.get("mode") != "held_body_raw_jaw" or
+                    component.get("command_id") != command["command_id"] or
+                    component.get("delta_counts") != delta or component.get("target_raw") != target or
+                    component.get("body_profile_unchanged") is not True or
+                    component.get("entry_jaw_ram") != component.get("restored_jaw_ram") or
+                    final.get("owner_session_id") != command["owner_session_id"] or
+                    any(abs(final["raw"][j]-state["raw"][j]) > 2 for j in ARM_JOINTS) or
+                    type(component.get("goal_monotonic")) not in (int, float) or
+                    not max(dispatched,time.monotonic()-.1) <= component["goal_monotonic"] <= time.monotonic()):
+                raise RuntimeError("held jaw completion lacks matching fresh preservation proof")
+            if failed:
+                hold = reply.get("hold", {})
+                if (reply.get("ok") is not False or reply.get("target_reached") is not False or
+                        final.get("event") not in {"commission_gripper_held_failed", "read_state"} or
+                        hold != final.get("failed_endpoint_hold") or
+                        hold.get("schema") != "failed-held-jaw-v1" or
+                        hold.get("goal_id") != command["command_id"] or
+                        hold.get("owner_session_id") != command["owner_session_id"] or
+                        hold.get("body_anchor_raw") != state["raw"] or
+                        hold.get("qualified") is not False or hold.get("target_reached") is not False or
+                        hold.get("lifetime") != "while_healthy_until_explicit_stop_or_transport_loss" or
+                        not isinstance(hold.get("target_raw"), dict) or
+                        hold["target_raw"] != {**body_goals, "gripper":target} or
+                        not isinstance(hold.get("held_raw"), dict) or set(hold["held_raw"]) != set(TELEOP_JOINTS) or
+                        any(type(v) is not int or not bounds["admitted_min"][j] <= v <= bounds["admitted_max"][j] or
+                            abs(v-final["raw"][j])>4 for j,v in hold["held_raw"].items()) or
+                        any(type(hold.get(k)) not in (int,float) or not math.isfinite(hold[k]) or
+                            not dispatched <= hold[k] <= final[clock] for k,clock in
+                            (("entry_position_monotonic","monotonic"),("entry_torque_monotonic","torque_monotonic")))):
+                    raise RuntimeError("held jaw failure proof is invalid")
+            elif (reply.get("ok") is not True or final.get("event") != "commission_gripper_held_complete" or
+                    component.get("status") != "complete" or abs(final["raw"]["gripper"]-target)>1):
+                raise RuntimeError("held jaw did not strictly arrive")
+            message = json.dumps(dict(qualified=False, qualification="SUPERVISED_RAW_JAW_NOT_SI_CALIBRATED",
+                collision_samples_checked=abs(delta)+1, result=reply), allow_nan=False)
+            self._prepare_owner_state(final, process, generation, after=dispatched, torque=1)
+            terminal_verified = True
+            self._cache_owner_state(final, process=process, generation=generation)
+            if failed:
+                self._owner_faulted = True
+            response.message, response.success = message, not failed
+        except (OSError, ValueError, RuntimeError, TimeoutError, TypeError, KeyError) as error:
+            response.message = str(error)
+            if delivery_possible and not terminal_verified:
+                self._owner_faulted = True
+                self._home_completed_owner_started = None
+                try:
+                    self._prepare_stop(process, generation)
+                except (OSError, ValueError, RuntimeError, TimeoutError):
+                    pass
+        finally:
+            with self._active_lock:
+                if self._active_goal == reservation:
                     self._active_goal = None
         return response
 

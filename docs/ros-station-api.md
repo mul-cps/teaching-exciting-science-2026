@@ -609,3 +609,46 @@ changes only the inactive-session cutoff; feedback freshness, motion deadlines,
 STOP, EOF and transport/fault cleanup keep their existing limits. The timeout is
 passed when the sole owner starts, so changing it requires a controller restart.
 At timeout the existing torque-off policy still applies and the arm may sag.
+
+### Raw jaw commissioning with an already-held body
+
+`ros2/scripts/station-action.sh gripper-held-step 8` calls
+`/follower/commission_gripper_held_step` using the existing
+`CommissionGripperStep {delta_counts: 8}` service type. It requires explicit
+`calibration_endpoint_mode:=true`, a fresh matching idle resident owner, all six
+torque bits one, normal admitted/firmware bounds, and disabled teleoperation.
+It does not energize an all-off arm. Before dispatch the bridge checks the fixed
+body and every integer jaw position in the requested raw span with the existing
+MoveIt state-validity service, then verifies the same fresh six raw start.
+These model samples do not qualify physical jaw opening, TCP or registration.
+Collision preflight is bounded by the existing timeout (at most 30 seconds); the
+CLI waits up to 50 seconds for preflight, the four-second owner result envelope
+and possible verified STOP cleanup. This does not extend the two-second jaw
+motion budget.
+
+The existing component sampler admits a nonzero relative raw step of at most
+16 counts, with a two-second motion budget, 100 ms feedback/acquisition limit,
+200 ms stable-position baseline, two-count body drift limit, and strict jaw
+arrival within one count for 200 ms. It temporarily sets only ID6 RAM
+Acceleration=1, Goal_Velocity=1 and Torque_Limit=50 with exact readback, then
+restores the entry active jaw RAM values. Their physical speed/force units remain
+unqualified. Body goals, profiles and torque remain unchanged; there is no
+native full-body goal, enable, gravity trim, retry, profile escalation or SI
+calibration substitution. Setup and cancellation are rechecked before the single
+jaw motion Goal. Temporary profile readbacks and original encoder/torque/Goal
+acquisition clocks are recorded explicitly. The inherited calibration-file
+guard still runs in each active component sample; its filesystem/hash latency
+is charged to the same freshness and operation deadlines.
+
+Success reports `qualified:false` and retains all six torque bits one. A stable
+jaw endpoint timeout remains failure: the bounded abort writes only the measured
+ID6 Goal, verifies exact readback, restores entry jaw RAM, and returns typed
+`failed_held_jaw` / `failed-held-jaw-v1` proof. It latches owner and bridge faults;
+no further motion is admitted until verified explicit STOP. The existing 20 Hz
+health engine retains the immutable original body anchor (at most two counts
+drift) and measured jaw anchor (at most four), all-six normal bounds/torque and
+100 ms acquisition/loop guards. This fault hold has no arbitrary expiry. STOP,
+EOF, transport loss, unhealthy/unstable feedback, bounds/torque loss, uncertain
+write delivery or failed restoration retain existing global disarm and RAM
+restoration. The all-off `gripper-step` operation and qualified SI GripperCommand
+API retain their existing distinct admission and cleanup contracts.
