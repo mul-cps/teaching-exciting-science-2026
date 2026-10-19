@@ -112,3 +112,32 @@ coverage remain. Short proofs and actual gaps correctly prevent arming; installi
 the new API does not establish actual-station coverage or automatic recovery.
 The recorded synthetic metadata-only DDS fixture is replayed at its ORIGINAL
 client-take clocks, never retimestamped as live qualification.
+
+## Bounded historical eligibility across an outage notification
+
+A producer can report its typed fault after current leases have already expired.
+Current health immediately becomes unavailable/warming. A separate **volatile
+pre-outage eligibility history** can authorize only the existing native preflight;
+it is never current readiness or a source/motion proof. A token is minted only
+while genuinely armed after five continuous seconds of source binding, recording
+its original verified ROS/monotonic clocks, exact source pin/consumer epochs and
+original coverage end. Its fixed deadline is coverage end plus **two seconds**.
+Short healthy blips cannot renew it; a new full five-second qualification can.
+
+The typed fault must first occur after the corresponding last verified healthy
+ROS and monotonic observations and arrive before that original deadline. Both
+arrival orders (lease expiry first or typed status first) retain one-use semantics.
+All original postfault native/Info/identity/header/TF/graph checks still apply.
+The native preflight and final actual start RPC are bounded by the minimum of
+the existing two-second preflight budget and the ORIGINAL history deadline;
+there is no two-plus-two-second extension. The coordinator still requires actual
+selected-image witnesses after its own reset.
+
+Disable, explicit fault reset, restart, rejected lineage, source/context/epoch or
+structural/clock contradiction clear history. Nothing is journaled as historical
+authority; quota and handled-outage journals remain unchanged. ROS clocks cannot
+roll back against the original pair; ROS/monotonic and existing UTC/monotonic
+continuity reuse the existing two-second sanity bound. This is **not** a data-age
+tolerance: receipts remain250ms and original headers500ms. Status exposes only
+`pre_outage_history_available` and its original clocks/deadlines separately from
+current health; all qualification/execution flags remain false.

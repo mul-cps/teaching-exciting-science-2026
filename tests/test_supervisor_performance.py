@@ -33,6 +33,9 @@ def test_whole_metadata_health_status_and_transition_journal(supervisor,monkeypa
     monkeypatch.setattr(node,'_request',lambda *a:None)
     node.native_witness=dict(started=100.,pairs=[tuple(dict(stamp=value['original'][k+'_info_stamp_ns'],receipt=100.1) for k in ('depth','color')) for _ in range(2)],
         selected=tuple((100.1,value['original'][k+'_info_stamp_ns']) for k in ('depth','color')),request=100.,received=100.01)
+    node.epochs={c:'d'*32 for c in module.CONSUMERS}
+    node.pre_outage.observe(node._history_context(),now=100.1,ns=10_100_000_000,coverage_end=100.35,armed=True)
+    node.pre_outage.claim(node._history_context(),dict(first_observed_monotonic=100.11,first_observed_ros_ns=10_110_000_000,fault_id='a'*32),now=100.12,ns=10_120_000_000)
     def native_final():node._native_final()
     def health():node._current_health()
     def completion_guard_metadata():node._current_health(start_requests=False)
