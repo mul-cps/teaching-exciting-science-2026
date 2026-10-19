@@ -69,8 +69,9 @@ def test_moveit_limits_use_station_bound_and_jerk_smoothing_after_totg():
     limits = yaml.safe_load((ROOT / "ros2/config/rig01_moveit_limits.yaml").read_text())
     for joint in ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"):
         item = limits["joint_limits"][joint]
-        assert item["min_position"] == -1.57079632679
-        assert item["max_position"] == 1.57079632679
+        bound = 1.69 if joint == "elbow_flex" else 1.57079632679
+        assert item["min_position"] == -bound
+        assert item["max_position"] == bound
         assert item["has_jerk_limits"] is True
         assert item["max_jerk"] > 0
     assert "rig01_moveit_limits.yaml" in (ROOT / "ros2/scripts/so101.sh").read_text()

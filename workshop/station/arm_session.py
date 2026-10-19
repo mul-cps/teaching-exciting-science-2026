@@ -1283,11 +1283,15 @@ class ArmSession:
         try:
             start_raw = self._read("Present_Position")
             start_time = self.clock()
+            admitted_low = self._arm_radians(self.admitted_min)
+            admitted_high = self._arm_radians(self.admitted_max)
             prepared = prepare_trajectory(
                 joint_names, points, start_radians=self._arm_radians(start_raw),
                 max_velocity=max_velocity, max_acceleration=max_acceleration,
                 max_jerk=max_jerk,
-                period=period)
+                period=period,
+                position_limits={joint: (admitted_low[joint], admitted_high[joint])
+                                 for joint in ARM_JOINTS})
             if path_digest(prepared, held_gripper_raw=start_raw["gripper"]) != expected_path_sha256:
                 raise ArmPlanPreflightError("measured start or effective spline differs from collision-checked path")
             gripper_raw = start_raw["gripper"]
