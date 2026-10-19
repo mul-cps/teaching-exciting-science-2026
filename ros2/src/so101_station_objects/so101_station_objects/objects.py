@@ -1043,17 +1043,22 @@ class ColoredObjectsNode:
                     self.sync = message_filters.ApproximateTimeSynchronizer(
                         [color, depth, info], queue_size=6, slop=0.04)
                     self.sync.registerCallback(self._process)
+                self.analysis_ready_guard = self.create_guard_condition(self._consume_analysis)
                 self.analysis_worker = LatestOnlyAnalysisWorker(
-                    self._analyze_job, min_start_interval_s=self.period)
+                    self._analyze_job, min_start_interval_s=self.period,
+                    on_ready=self.analysis_ready_guard.trigger)
                 self.last_analysis_result_stamp = None
-                self.analysis_timer = self.create_timer(0.05, self._consume_analysis)
+                self.last_analysis_notification_error = None
+                # Keep fault/lease invalidation active even when no result exists.
+                self.analysis_timer = self.create_timer(0.05, self._consume_analysis_faults)
 
             def destroy_node(self):
                 if getattr(self, "derived", None) is not None:
                     self.derived.close()
                 worker = getattr(self, "analysis_worker", None)
-                if worker is not None:
-                    worker.close()
+                if worker is not None and not worker.close():
+                    self.get_logger().error("Analysis worker cleanup incomplete; guard/context retained for supervisor")
+                    return False
                 return super().destroy_node()
 
             def _attachment_status(self, message):
@@ -1221,12 +1226,25 @@ class ColoredObjectsNode:
                     report["support_plane"]["support_plane_age_s"] = float(cache_age)
                     return report
 
-            def _consume_analysis(self):
-                from so101_station_perception.tag_observations import stamp_is_fresh
+            def _consume_analysis_faults(self):
                 if getattr(self, "derived", None) is not None:
                     fault = self.derived.pop_fault()
                     if fault:
                         self._publish_unavailable(self.get_clock().now().to_msg(), "unavailable", fault)
+                error = self.analysis_worker.notification_error
+                if error is not None:
+                    self.analysis_worker.take_result()  # Discard after failed wakeup; no timer fallback publication.
+                    if error != self.last_analysis_notification_error:
+                        self.last_analysis_notification_error = error
+                        self._publish_unavailable(self.get_clock().now().to_msg(), "unavailable",
+                                                  "analysis result notification failed: "+error)
+                    return False
+                return True
+
+            def _consume_analysis(self):
+                from so101_station_perception.tag_observations import stamp_is_fresh
+                if not self._consume_analysis_faults():
+                    return
                 result = self.analysis_worker.take_result()
                 if result is None:
                     return
@@ -1453,5 +1471,6 @@ def main(args=None):
     finally:
         executor.remove_node(node)
         executor.shutdown()
-        node.destroy_node()
+        if node.destroy_node() is False:
+            raise RuntimeError("Analysis worker not retired; ROS context retained for external supervisor")
         rclpy.shutdown()

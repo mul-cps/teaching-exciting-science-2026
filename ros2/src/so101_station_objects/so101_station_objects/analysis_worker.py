@@ -8,7 +8,7 @@ publication on the ROS executor thread.
 
 from __future__ import annotations
 
-from threading import Condition, Thread
+from threading import Condition, Lock, Thread
 import math
 import time
 
@@ -16,7 +16,7 @@ import time
 class LatestOnlyAnalysisWorker:
     """Run one analyzer serially with one replaceable pending input."""
 
-    def __init__(self, analyze, *, min_start_interval_s: float = 0.0):
+    def __init__(self, analyze, *, min_start_interval_s: float = 0.0, on_ready=None):
         if not callable(analyze):
             raise TypeError("analyze must be callable")
         try:
@@ -25,7 +25,12 @@ class LatestOnlyAnalysisWorker:
             raise ValueError("min_start_interval_s must be finite and nonnegative") from exc
         if not math.isfinite(interval) or interval < 0:
             raise ValueError("min_start_interval_s must be finite and nonnegative")
+        if on_ready is not None and not callable(on_ready):
+            raise TypeError("on_ready must be callable or None")
         self._analyze = analyze
+        self._on_ready = on_ready
+        self._notification_gate = Lock()
+        self._notification_error = None
         self._min_start_interval_s = interval
         self._condition = Condition()
         self._pending = None
@@ -60,13 +65,49 @@ class LatestOnlyAnalysisWorker:
             self._result = None
             return (item, value, error)
 
-    def close(self, timeout: float = 2.0) -> None:
-        """Stop accepting work, discard pending input, and join the worker."""
+    @property
+    def notification_error(self):
+        with self._condition:
+            return self._notification_error
+
+    def close(self, timeout: float = 2.0) -> bool:
+        """Revoke wakeups before bounded join; False requires retaining ROS guard.
+
+        Native analyze/notification calls cannot be killed by Python. A caller
+        must not destroy its guard/context unless this method returns True.
+        """
+        timeout = float(timeout)
+        if not math.isfinite(timeout) or timeout < 0:
+            raise ValueError("close timeout must be finite and nonnegative")
+        deadline = time.monotonic()+timeout
         with self._condition:
             self._closed = True
             self._pending = None
+            self._result = None
+            self._on_ready = None
             self._condition.notify_all()
-        self._thread.join(timeout=max(0.0, float(timeout)))
+        acquired = self._notification_gate.acquire(timeout=max(0.,deadline-time.monotonic()))
+        if not acquired:
+            return False
+        self._notification_gate.release()
+        self._thread.join(timeout=max(0.,deadline-time.monotonic()))
+        return not self._thread.is_alive()
+
+    def _notify_result(self):
+        if self._on_ready is None:
+            return
+        # Callback outside analysis condition; separate gate joins any in-flight
+        # notification before ROS resources can be destroyed by the caller.
+        with self._notification_gate:
+            with self._condition:
+                callback = None if self._closed else self._on_ready
+            if callback is not None:
+                try:
+                    callback()
+                except Exception as error:
+                    with self._condition:
+                        self._notification_error = (type(error).__name__+': '+str(error))[:512]
+                        self._on_ready = None
 
     def _run(self):
         while True:
@@ -92,6 +133,8 @@ class LatestOnlyAnalysisWorker:
                 error = exc
 
             with self._condition:
+                if self._closed:
+                    return
                 if self._result is not None:
                     old_sequence = self._result[0]
                     if sequence <= old_sequence:
@@ -99,4 +142,5 @@ class LatestOnlyAnalysisWorker:
                     self.overwritten_results += 1
                 self._result = (sequence, item, value, error)
                 self._condition.notify_all()
+            self._notify_result()
 
