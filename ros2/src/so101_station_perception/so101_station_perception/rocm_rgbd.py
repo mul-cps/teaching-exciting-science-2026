@@ -348,13 +348,15 @@ class ROCmRGBD(Node):
                 raise ValueError('source publisher generation changed')
             previous = self.last_header.get(stream)
             if previous is not None and stamp < previous: raise ValueError('source header rollback')
-            if stream in self.last_receipt and time.monotonic()-self.last_receipt[stream] > .250:
+            receipt = time.monotonic()
+            if stream in self.last_receipt and receipt-self.last_receipt[stream] > .250:
                 raise ValueError('source stream gap')
-            self.last_receipt[stream] = time.monotonic()
+            # Activity may advance on duplicates; acquisition receipts never do.
+            self.last_receipt[stream] = receipt
             if previous == stamp: return
             self.unique[stream] += 1
             self.last_header[stream] = stamp
-            self.buffers[stream].append((stamp, gid, message))
+            self.buffers[stream].append((stamp, gid, message, receipt))
         except (AttributeError, TypeError, ValueError) as error: self._invalidate(error)
 
     def _parameter_event(self, event):
@@ -435,7 +437,7 @@ class ROCmRGBD(Node):
         candidates = self.buffers[stream]
         if not candidates: return None
         selected = min(candidates, key=lambda item: abs(item[0]-stamp))
-        _, gid, info = selected
+        _, gid, info, _ = selected
         expected = [float(expected_k[0]), 0., float(expected_k[2]), 0., float(expected_k[1]), float(expected_k[3]), 0., 0., 1.]
         if (info.header.frame_id != frame
                 or (info.width, info.height) != size or info.distortion_model != 'plumb_bob'
@@ -446,7 +448,7 @@ class ROCmRGBD(Node):
         # A matching Info exposure can arrive after its image. Keep immutable
         # source checks strict, but wait/drop this unavailable temporal pair.
         if abs(selected[0]-stamp) > MAX_PAIR_NS: return None
-        return info
+        return selected
 
     def _admit(self):
         if not self.worker.ready or self.identity is None or self.ledger is None or self.output_binding is None: return
@@ -470,7 +472,11 @@ class ROCmRGBD(Node):
         di = self._info('depth_info', depth[0], c.depth_size, c.depth_k, depth[2].header.frame_id)
         ci = self._info('color_info', color[0], c.color_size, c.color_k, color[2].header.frame_id)
         if di is None or ci is None: return
-        info_stamps = (stamp_ns(di), stamp_ns(ci))
+        selected_receipts = dict(depth=depth[3], color=color[3], depth_info=di[3], color_info=ci[3])
+        receipt_now = time.monotonic()
+        if any(not 0 <= receipt_now-receipt <= .250 for receipt in selected_receipts.values()):
+            self.counters['stale'] += 1; return
+        info_stamps = (stamp_ns(di[2]), stamp_ns(ci[2]))
         if any(not 0 <= now-stamp <= MAX_AGE_NS for stamp in info_stamps):
             raise ValueError('source CameraInfo exposure is future/stale')
         metadata = dict(depth_stamp_ns=depth[0], color_stamp_ns=color[0], source_generation=self.first_source,
@@ -478,7 +484,7 @@ class ROCmRGBD(Node):
             producer_generation=self.generation, depth_frame=depth[2].header.frame_id,
             color_frame=color[2].header.frame_id, configuration_sha256=self.configuration_sha,
             source=deepcopy(self.binding), identity=deepcopy(self.identity), qualified=False,
-            source_received_monotonic={k: self.last_receipt[k] for k in TOPICS})
+            source_received_monotonic=selected_receipts)
         if not self.ledger.admit(metadata, now): self.counters['duplicate'] += 1; return
         d = image_array(depth[2], c.depth_size, '16UC1'); rgb = image_array(color[2], c.color_size, 'rgb8')
         if self.worker.scheduler.pending is not None: self.counters['superseded'] += 1
