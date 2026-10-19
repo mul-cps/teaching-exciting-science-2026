@@ -652,3 +652,14 @@ EOF, transport loss, unhealthy/unstable feedback, bounds/torque loss, uncertain
 write delivery or failed restoration retain existing global disarm and RAM
 restoration. The all-off `gripper-step` operation and qualified SI GripperCommand
 API retain their existing distinct admission and cleanup contracts.
+
+### Resident measured-home capture (`/follower/capture_home`)
+
+`station-action.sh arm-capture-home` forwards through `/station/arm/capture_home`
+to the resident Trigger service. This setup operation requires an idle, normal,
+identity-matched owner and stable fresh all-six torque-off measurements. It uses
+only configured `arm.home_file`, preserves the previous bytes/hash, never opens
+a second bus or writes motor registers, and does not adopt home caches or grant
+commissioning. Existing explicit `arm-home` reloads the captured file later.
+See [capture contract and failure semantics](resident-home-capture.md). Unknown
+results require inspection before retry; STOP remains separately explicit.

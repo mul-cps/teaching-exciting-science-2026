@@ -241,7 +241,7 @@ def _control_callback(callback):
             if self._stop_latched:
                 if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
                     return GoalResponse.REJECT
-                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_gripper_diagnostics", "_calibration_ready", "_set_teleop_enabled"}:
+                if callback.__name__ in {"_capture_home", "_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_gripper_diagnostics", "_calibration_ready", "_set_teleop_enabled"}:
                     response = args[1]
                     response.success, response.message = False, "owner stop remains latched"
                     if callback.__name__ == "_prepare":
@@ -424,6 +424,9 @@ class TrajectoryBridge(Node):
         self._stop_service = self.create_service(
             Trigger, str(self.get_parameter("stop_service").value),
             self._stop, callback_group=self._stop_group)
+        self._capture_home_service = self.create_service(
+            Trigger, "/follower/capture_home", self._capture_home,
+            callback_group=self._teleop_service_group)
         self._home_service = self.create_service(
             Trigger, str(self.get_parameter("home_service").value),
             self._home, callback_group=self._teleop_service_group)
@@ -1535,6 +1538,103 @@ class TrajectoryBridge(Node):
         if self._prepare_owner_state(state, process, generation, after=began, torque=1) != "normal":
             raise RuntimeError("preparation completion remains outside normal bounds")
         return state
+
+    @_control_callback
+    def _capture_home(self, _request, response):
+        """Finite setup only; resident owner reads and writes its configured file."""
+        response.success = False
+        process, generation = self._process, self._owner_started
+        reservation, command_id = "capture_home", uuid.uuid4().hex
+        reserved = delivery_possible = False
+        try:
+            state = self._read_state()
+            if self._prepare_owner_state(state, process, generation, torque=0) != "normal":
+                raise ValueError("home capture requires normal raw/body bounds")
+            if (state.get("failed_endpoint_hold") is not None or
+                    state.get("component_restore_pending") is not False or
+                    state.get("write_scope") != "normal" or state.get("profile") != "unmodified" or
+                    state.get("camera_recovery_phase") is not None or
+                    not isinstance(state.get("owner_session_id"), str) or not state["owner_session_id"]):
+                raise ValueError("home capture requires idle owner after verified STOP")
+            cohort = (state["arm_id"], state["calibration_sha256"], dict(state["owner_source_sha256"]))
+            expected_raw, session_id = dict(state["raw"]), state["owner_session_id"]
+            if self._prepare_config_path is None:
+                raise ValueError("trusted station configuration required")
+            config = json.loads(Path(self._prepare_config_path).read_text())
+            home_path = Path(config["arm"]["home_file"])
+            if not home_path.is_absolute():
+                home_path = Path(str(self.get_parameter("station_root").value)) / home_path
+            home_path = str(home_path.resolve())
+            with self._active_lock:
+                if self._active_goal is not None or self._teleop_state != "disabled":
+                    raise ValueError("home capture requires idle follower reservation")
+                self._active_goal = reservation
+                reserved = True
+            self._assert_owner_reservation(reservation, process, generation)
+            fresh = self._read_state()
+            if (self._prepare_owner_state(fresh, process, generation, torque=0) != "normal" or
+                    fresh["raw"] != expected_raw or fresh.get("owner_session_id") != session_id):
+                raise ValueError("home capture admission measurement changed")
+            began = time.monotonic()
+            self._home_completed_owner_started = None
+            delivery_possible = True
+            reply = self._reserved_owner_reply(dict(command="capture_home", command_id=command_id,
+                expected_start_raw=expected_raw, owner_session_id=session_id),
+                process, generation, began+2., reservation)
+            self._assert_owner_reservation(reservation, process, generation)
+            if (cohort != (self._expected_arm_id, self._expected_calibration_sha256, self._owner_source_expected) or
+                    not isinstance(reply, dict) or reply.get("command") != "capture_home" or
+                    reply.get("command_id") != command_id):
+                raise RuntimeError("home capture completion correlation/owner changed")
+            value = reply.get("capture")
+            if (not isinstance(value, dict) or value.get("schema") != "resident-home-capture-v1" or
+                    value.get("command_id") != command_id or value.get("owner_session_id") != session_id or
+                    (value.get("arm_id"), value.get("calibration_sha256"), value.get("owner_source_sha256")) != cohort or
+                    any(value.get(k) is not False for k in ("qualified", "calibration_authority", "motion_authority"))):
+                raise RuntimeError("home capture acknowledgement source/schema mismatch")
+            if reply.get("ok") is False and value.get("captured") is False:
+                response.message = json.dumps(value, allow_nan=False)
+                return response
+            acquisition = value.get("acquisition")
+            now = time.monotonic()
+            if (reply.get("ok") is not True or value.get("captured") is not True or value.get("path") != home_path or
+                    not isinstance(acquisition, dict) or acquisition.get("raw") != expected_raw or
+                    any(type(v) is not int for v in acquisition["raw"].values()) or
+                    not isinstance(acquisition.get("torque"), dict) or set(acquisition["torque"]) != set(TELEOP_JOINTS) or
+                    any(type(v) is not int or v != 0 for v in acquisition["torque"].values()) or
+                    any(type(acquisition.get(k)) not in (int, float) or not math.isfinite(acquisition[k]) or
+                        not max(began, now-.1) <= acquisition[k] <= now
+                        for k in ("monotonic", "torque_monotonic", "position_started_monotonic", "torque_started_monotonic")) or
+                    any(not isinstance(value.get(k), str) or len(value[k]) != 64 or
+                        any(c not in "0123456789abcdef" for c in value[k]) for k in ("sha256", "previous_sha256")) or
+                    not isinstance(value.get("previous_artifact"), str) or
+                    not value["previous_artifact"].startswith(home_path+".backup-")):
+                raise RuntimeError("home capture completion lacks original fresh all-off evidence")
+            if not (acquisition["position_started_monotonic"] <= acquisition["monotonic"] <=
+                    acquisition["torque_started_monotonic"] <= acquisition["torque_monotonic"]):
+                raise RuntimeError("home capture acquisition clocks out of order")
+            response.message = json.dumps(dict(value, owner_started_monotonic=generation), allow_nan=False)
+            self._assert_owner_reservation(reservation, process, generation)
+            final_now = time.monotonic()
+            if final_now > began+2.:
+                raise TimeoutError("home capture absolute response deadline expired after materialization")
+            if any(not max(began, final_now-.1) <= acquisition[k] <= final_now for k in
+                   ("monotonic", "torque_monotonic", "position_started_monotonic", "torque_started_monotonic")):
+                raise TimeoutError("home capture original acquisition expired during materialization")
+            response.success = True
+        except (OSError, RuntimeError, TimeoutError, ValueError, TypeError, KeyError) as error:
+            if delivery_possible:
+                # No implicit STOP/torque writes for a read-only capture. A late
+                # file result is unknown and cannot release future motion.
+                self._owner_faulted = True
+            response.message = json.dumps(dict(schema="resident-home-capture-v1", captured=False,
+                qualified=False, command_id=command_id, error=str(error), result_unknown=delivery_possible), allow_nan=False)
+        finally:
+            if reserved:
+                with self._active_lock:
+                    if self._active_goal == reservation:
+                        self._active_goal = None
+        return response
 
     @_control_callback
     def _home(self, _request, response):

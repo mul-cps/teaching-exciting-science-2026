@@ -470,6 +470,7 @@ class ArmSession:
                 torque_monotonic=torque_stamp, torque_utc=torque_utc)
             self._event("connected", state=state)
             self._initialized = True
+            self._capture_home_path = str(Path(self.arm.settings["home_file"]).resolve())
             self._jaw_diagnostic_cohort = (self.arm.settings["id"], self.calibration_digest,
                 dict(self._owner_source_sha256), tuple(self.bus.motors[j].id for j in JOINTS))
             self.last_command = self.clock()
@@ -1672,6 +1673,100 @@ class ArmSession:
                           "feedback_samples": feedback_samples})
             raise
 
+    def capture_home(self, command_id, expected_start_raw, owner_session_id):
+        """Save a strictly all-off stable measurement, never register writes.
+
+        Uses the resident connection/lock. Successful capture does not adopt
+        home caches or qualify geometry; explicit home reload remains separate.
+        """
+        started = self.clock()
+        result = dict(schema="resident-home-capture-v1", command_id=command_id,
+            qualified=False, calibration_authority=False, motion_authority=False,
+            captured=False, arm_id=self.arm.settings["id"],
+            calibration_sha256=self.calibration_digest,
+            owner_source_sha256=dict(self._owner_source_sha256),
+            owner_session_id=self._owner_session_id)
+        try:
+            def guard():
+                self._poll_busy_input()
+                if not 0 <= self.clock()-started < 1.:
+                    raise TimeoutError("home capture deadline expired")
+                current = (self.arm.settings["id"], self.calibration_digest,
+                    self._owner_source_sha256, tuple(self.bus.motors[j].id for j in JOINTS))
+                if (not self._initialized or not self.bus.is_connected or not self.bus.is_calibrated or
+                        self._observe_only or self._teleop is not None or self._failed_endpoint_hold is not None or
+                        self._component_scope or self._component_saved_ram is not None or self.saved_ram is not None or
+                        getattr(self, '_camera_recovery_wait_active', False) or self._active_leg is not None or
+                        self.profile != "unmodified" or current != self._jaw_diagnostic_cohort or
+                        current[3] != tuple(range(1, 7)) or
+                        self.arm.settings["calibration"]["sha256"] != self.calibration_digest or
+                        self._owner_source_sha256 != RUNTIME_OWNER_SOURCE_SHA256 or
+                        str(Path(self.arm.settings["home_file"]).resolve()) != self._capture_home_path):
+                    raise ValueError("home capture requires unchanged idle all-off owner; verified STOP may be required")
+                self._calibration_guard()
+                if owner_source_sha256(Path(__file__).parent) != self._owner_source_sha256:
+                    raise ValueError("owner source changed before home capture")
+
+            def acquire():
+                guard()
+                reads = {}
+                for register in ("Present_Position", "Torque_Enable"):
+                    began = self.clock(); value = self._read(register); ended = self.clock()
+                    if not 0 <= ended-began <= .1:
+                        raise TimeoutError("home capture register read exceeded 100 ms")
+                    reads[register] = (value, began, ended)
+                    guard()
+                raw, position_start, position_stamp = reads["Present_Position"]
+                torque, torque_start, torque_stamp = reads["Torque_Enable"]
+                if any(v != 0 for v in torque.values()):
+                    raise ValueError("home capture requires all six torque bits off")
+                self._validate_target(raw, "capture_home")
+                if self._arm_bounds_observation(raw, position_stamp)["classification"] != "normal":
+                    raise ValueError("home capture requires normal calibrated raw/body bounds")
+                return dict(raw=raw, torque=torque, position_started_monotonic=position_start,
+                    monotonic=position_stamp, torque_started_monotonic=torque_start,
+                    torque_monotonic=torque_stamp)
+
+            if owner_session_id != self._owner_session_id:
+                raise ValueError("home capture owner session changed")
+            expected_start_raw = self._six_ints(expected_start_raw, "capture_start")
+            first, second = acquire(), acquire()
+            if first["raw"] != expected_start_raw or first["raw"] != second["raw"]:
+                raise ValueError("home capture six-joint pose is not stationary")
+            _, pose = self.arm._validate_raw(second["raw"])
+            self.arm._pose(pose)
+            # Refuse to overwrite a home with a different admitted identity.
+            load_home(self._capture_home_path, self.arm.settings["id"], self.calibration_digest)
+            artifact = dict(schema=1, kind="measured-home", name="home", units=arm_module.UNITS,
+                position=pose, raw_position=second["raw"], torque_at_capture=second["torque"],
+                arm_id=self.arm.settings["id"], calibration_sha256=self.calibration_digest,
+                owner_source_sha256=dict(self._owner_source_sha256), owner_session_id=self._owner_session_id,
+                models=dict.fromkeys(JOINTS, 777), model_provenance="validated at resident initialization",
+                capture_command_id=command_id, captured_utc=self.wall_clock().isoformat(),
+                acquisition_before=first, acquisition_after=second,
+                qualified=False, geometry_commissioned=False, grasp_commissioned=False,
+                calibration_authority=False, motion_authority=False)
+
+            def before_commit():
+                final = acquire()
+                if final["raw"] != second["raw"]:
+                    raise ValueError("home capture moved while artifact was staged")
+                guard()
+                if any(not 0 <= self.clock()-final[k] <= .1 for k in ("monotonic", "torque_monotonic")):
+                    raise TimeoutError("home capture final measurement expired")
+                return final
+
+            evidence = arm_module.replace_measured_home(self._capture_home_path, artifact, before_commit)
+            # No publish_state/read/log operation after the artifact commit.
+            # This acknowledgement retains original acquisition clocks.
+            result.update(captured=True, **evidence)
+            return dict(ok=True, command="capture_home", command_id=command_id, capture=result)
+        except ArmSessionCancelled:
+            raise
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError) as error:
+            result.update(error=str(error), error_type=type(error).__name__)
+            return dict(ok=False, command="capture_home", command_id=command_id, capture=result)
+
     def home(self):
         """Reach measured home through validated raw sublegs of at most 100 counts."""
         self._require_initialized()
@@ -2831,6 +2926,12 @@ class ArmSession:
                 state = self.read_state()
                 self._check_failed_hold_snapshot(state, state["monotonic"])
                 return self._failed_hold_reply(state)
+        if name == "capture_home":
+            if (set(command) != {"command", "command_id", "expected_start_raw", "owner_session_id"} or
+                    not isinstance(command["command_id"], str) or len(command["command_id"]) != 32 or
+                    any(c not in "0123456789abcdef" for c in command["command_id"])):
+                raise ArmPlanPreflightError("capture_home requires fixed fields and a 32-hex command_id")
+            return self.capture_home(command["command_id"], command["expected_start_raw"], command["owner_session_id"])
         if name == "jaw_diagnostics":
             if set(command) != {"command"}:
                 raise ArmPlanPreflightError("jaw_diagnostics accepts no arguments")
@@ -3008,7 +3109,7 @@ class ArmSession:
                             self.clock()-self._failed_hold_last_tick > .1):
                         raise RuntimeError("failed endpoint hold buffered command health deadline expired")
                     previous_idle_handled = self._idle_handled
-                    if name in ("jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory"):
+                    if name in ("capture_home", "jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None

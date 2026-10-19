@@ -46,6 +46,51 @@ def atomic_json(path, data, backup=False):
         temporary.unlink(missing_ok=True)
 
 
+def replace_measured_home(path, data, final_guard):
+    """Stage exact-byte prior evidence and candidate; guard before atomic commit.
+
+    Explicit setup only. Any failure before replace leaves the old home intact.
+    No fallible file operations follow successful replace; uncertain caller
+    delivery must inspect evidence rather than retry. Native FS calls are not
+    preemptible and this is not a hard-real-time transaction.
+    """
+    path = Path(path)
+    with path.open('rb') as stream:
+        previous = stream.read(1_048_577)
+    if len(previous) > 1_048_576:
+        raise ValueError('prior measured home exceeds 1 MiB')
+    digest = hashlib.sha256(previous).hexdigest()
+    backup = path.with_name(path.name + '.backup-' + uuid.uuid4().hex)
+    candidate = dict(data, previous_sha256=digest, previous_artifact=str(backup))
+    payload = (json.dumps(candidate, indent=2, allow_nan=False)+'\n').encode()
+    temporary = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')
+    backup_temporary = backup.with_suffix(backup.suffix+'.tmp')
+    committed = False
+    try:
+        for target, value in ((backup_temporary, previous), (temporary, payload)):
+            with target.open('xb') as stream:
+                stream.write(value); stream.flush(); os.fsync(stream.fileno())
+        backup_temporary.replace(backup)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try: os.fsync(directory)
+        finally: os.close(directory)
+        # Detect another writer without adopting its changed source artifact.
+        with path.open('rb') as stream:
+            if stream.read(1_048_577) != previous:
+                raise ValueError('measured home changed while capture staged')
+        evidence = final_guard()
+        result = dict(path=str(path), sha256=hashlib.sha256(payload).hexdigest(),
+                      previous_sha256=digest, previous_artifact=str(backup),
+                      acquisition=evidence)
+        temporary.replace(path)  # the sole configured-home commit point
+        committed = True
+        return result
+    finally:
+        if not committed:
+            temporary.unlink(missing_ok=True)
+            backup_temporary.unlink(missing_ok=True)
+
+
 class LeRobotArm:
     def __init__(self, config, bus=None, abort_event=None, output=None):
         self.config = config
