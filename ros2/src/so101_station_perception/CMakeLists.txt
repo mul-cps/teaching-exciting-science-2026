@@ -28,6 +28,7 @@ install(PROGRAMS
   scripts/calibration_tf_publisher
   scripts/periodic_registration
   scripts/registration_capture_sources
+  scripts/camera_capture_sources
   scripts/virtual_gripper_camera
   scripts/diagnostic_pointcloud
   scripts/tag_observations
