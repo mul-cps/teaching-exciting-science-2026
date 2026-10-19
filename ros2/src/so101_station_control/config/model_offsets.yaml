@@ -1,5 +1,5 @@
 # Rig01 provisional alignment, requested while comparing the real arm in RViz.
 # Positive rotation: CCW viewed from local +Z toward the wrist-roll origin.
 # Model mounting correction only; servo calibration and commands are unchanged.
-gripper_mount_roll_deg: 90.0
+gripper_mount_roll_deg: -90.0
 status: provisional_user_visual_alignment
