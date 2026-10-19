@@ -307,3 +307,25 @@ def test_real_wall_100ms_acquisition_and_gap_remain_fail_closed(tmp_path):
     finally:
         release.set();assert writer.close(.5)
         session._idle_telemetry=None;session.shutdown();session.close_log()
+
+def test_failed_sink_must_be_visible_before_gate_allows_command():
+    released=threading.Event();resume=threading.Event()
+    def sink(state):raise OSError('deterministic sink failure')
+    writer=IdleTelemetry(sink);original=writer._gate
+    class ScheduleGate:
+        def acquire(self,*a,**kw):return original.acquire(*a,**kw)
+        def release(self):return original.release()
+        def __enter__(self):self.acquire();return self
+        def __exit__(self,*args):
+            self.release()
+            if writer.is_writer_thread:
+                released.set();assert resume.wait(1)
+    writer._gate=ScheduleGate()
+    try:
+        writer.offer({'event':'sample'})
+        assert released.wait(.5)
+        with pytest.raises(RuntimeError,match='sink failure'):
+            with writer.serialized():
+                pass  # Existing command admission would proceed here.
+    finally:
+        resume.set();assert writer.close(.5)

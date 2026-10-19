@@ -111,18 +111,21 @@ class IdleTelemetry:
                     return
                 sequence, state = self._pending
                 self._pending = None
-            try:
-                with self._gate:
-                    if sequence <= self._floor:
-                        continue
+            with self._gate:
+                if sequence <= self._floor:
+                    continue
+                try:
                     with self.stage('writer'):
                         self._sink(state)
-            except BaseException as error:
-                self._error = type(error).__name__+': '+str(error)[:512]
-                with self._condition:
-                    self._pending = None
-                    self._closed = True
-                return
+                except BaseException as error:
+                    # Publish failure BEFORE releasing the same gate used by
+                    # command admission. No waiter may observe a false healthy
+                    # writer between sink failure and its error handoff.
+                    self._error = type(error).__name__+': '+str(error)[:512]
+                    with self._condition:
+                        self._pending = None
+                        self._closed = True
+                    return
 
     def diagnostics(self):
         with self._timing_lock:
