@@ -54,3 +54,28 @@ SO101_TEST_ROS_WRAPPER=/path/to/prepared/ros2/conda/so101-conda.sh \
 ```
 
 The optional wrapper override is for an isolated author worktree with no local cache. The default discovers this repository's `ros2/conda/so101-conda.sh`. The launcher forces domain177/localhost before the wrapper and asserts them again before pytest; actual ROS fixtures assert domain177 before initialization. Never invoke these fake-source tests through a bare station wrapper. A prior development invocation in domain76 contaminated real graph/static-TF caches; that test interval is invalid live evidence. Cleanup and fresh source/TF re-attestation are root-owned, with no relaxation of source guards.
+
+
+## Original health coverage and completion guards
+
+The fixed supervisor timer alone starts at most one consumer-status request per
+consumer per200ms, with one pending per endpoint and no catchup. The timer is
+reanchored after its bounded callback so sub-millisecond timer phase jitter
+cannot turn the exact start-rate cap into alternate-tick polling. A future
+completion records its original completion clocks and signals a serialized ROS
+guard; that guard consumes bounded metadata immediately and starts no RPCs.
+
+Known past expiry is an unavailable health observation: discard it, reset the
+stability window and await a new rate-capped request. Schema/context/epoch/GID,
+calibration and future/nonfinite-clock contradictions remain fatal. The current
+job, durable quota and dispatch preflight retain their existing strict gates.
+Original response, consumer check, header, source and identity clocks are never
+renewed when cached or consumed.
+
+Five seconds means continuous *original lease coverage*, not five seconds of
+sparse successful samples. A fresh decision after the previous coverage end
+resets the window. Proofs with90ms remaining sampled200ms apart cannot establish
+that coverage; the supervisor correctly stays warming and does not recover or
+qualify the station. Higher polling rates or changed stability semantics require
+separate evidence/review. Status includes bounded `health_observation` coverage
+end/gap, request/guard counters, and original RPC/proof clocks for diagnosis.

@@ -27,3 +27,15 @@ def test_typed_producer_fault_is_used_at_exact_two_existing_gap_sites():
             isinstance(n.exc.func,ast.Name) and n.exc.func.id=='TypedSourceReceiptGap']
     assert len(raises)==2
     assert {n.exc.args[0].value for n in raises}=={'private_source_receipt_gap','private_source_stream_lost'}
+
+
+def test_health_completion_guard_never_starts_queries_and_timer_queries_are_capped():
+    tree=ast.parse((SOURCE/'perception_supervisor.py').read_text())
+    methods={n.name:n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef)}
+    wake=ast.unparse(methods['_health_wakeup'])
+    assert '_request(' not in wake and '_health_queries(' not in wake
+    assert '_current_health(start_requests=False)' in wake
+    query=ast.unparse(methods['_health_queries'])
+    assert 'endpoint not in self.rpc' in query and '+ 0.2' in query
+    complete=ast.unparse(methods['completed'])
+    assert '_request(' not in complete and 'health_guard.trigger()' in complete
