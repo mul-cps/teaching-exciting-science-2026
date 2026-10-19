@@ -2,10 +2,13 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
     names = {
+        "allow_derived_source": "false",
+        "derived_source_cohort": "",
         "color_topic": "/camera/color/image_raw",
         "depth_topic": "/camera/aligned_depth_to_color/image_raw",
         "camera_info_topic": "/camera/color/camera_info",
@@ -20,7 +23,8 @@ def generate_launch_description():
     }
     declarations = [DeclareLaunchArgument(key, default_value=value)
                     for key, value in names.items()]
-    parameters = [{key: LaunchConfiguration(key)} for key in names]
+    parameters = [{key: ParameterValue(LaunchConfiguration(key), value_type=bool if key=="allow_derived_source" else str)
+                   if key in ("allow_derived_source", "derived_source_cohort") else LaunchConfiguration(key)} for key in names]
     return LaunchDescription(declarations + [
         Node(package="so101_station_perception", executable="marker_pipeline",
              name="so101_marker_pipeline", output="screen", parameters=parameters),

@@ -42,6 +42,12 @@ def generate_launch_description():
         'camera_repair_prefix': str(Path.cwd()/'ros2/.cache/realsense-cpu-texture-bounds/install'),
         'camera_sdk_prefix': os.environ.get('CONDA_PREFIX', str(home/'miniforge3/envs/so101-jazzy')),
         'far_depth_m': '1.2',
+        'marker_allow_derived_source': 'false',
+        'marker_derived_source_cohort': '',
+        'marker_depth_topic': '/camera/aligned_depth_to_color/image_raw',
+        'objects_allow_derived_source': 'false',
+        'objects_derived_source_cohort': '',
+        'objects_depth_topic': '/camera/aligned_depth_to_color/image_raw',
         'use_objects': 'true',
         'use_map': 'true',
         'use_planning_scene': 'true',
@@ -92,6 +98,7 @@ def generate_launch_description():
                     {k: LaunchConfiguration(k) for k in robot_keys})
     perception = include('so101_station_perception', 'perception.launch.py', {
         **{key:LaunchConfiguration(key) for key in ('color_profile','depth_profile','enable_sync','camera_wait_timeout_s','camera_reconnect_timeout_s','camera_repair_prefix','camera_sdk_prefix')},
+        **{key: LaunchConfiguration(key) for key in ('marker_allow_derived_source', 'marker_derived_source_cohort', 'marker_depth_topic')},
         'far_depth_m': LaunchConfiguration('far_depth_m'),
         'track_charuco_world': LaunchConfiguration('track_charuco_world'),
         'base_registration_file': LaunchConfiguration('base_registration_file'),
@@ -135,6 +142,9 @@ def generate_launch_description():
                 },
                 condition=IfCondition(LaunchConfiguration('use_web_twin'))),
         include('so101_station_objects', 'objects.launch.py', {
+                    'allow_derived_source': LaunchConfiguration('objects_allow_derived_source'),
+                    'derived_source_cohort': LaunchConfiguration('objects_derived_source_cohort'),
+                    'depth_topic': LaunchConfiguration('objects_depth_topic'),
                     'max_observation_depth_m': LaunchConfiguration('far_depth_m'),
                     **{key: LaunchConfiguration(key) for key in (
                         'max_object_height_m', 'observation_roi_enabled',

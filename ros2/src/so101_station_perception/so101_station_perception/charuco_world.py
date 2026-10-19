@@ -207,7 +207,7 @@ class CharucoWorld(Node):
         msg.data = json.dumps(payload, sort_keys=True)
         self.status_pub.publish(msg)
 
-    def _pair(self, image_msg, info_msg, prepared_gray=None, depth_msg=None):
+    def _pair(self, image_msg, info_msg, prepared_gray=None, depth_msg=None, admission_check=None):
         stamp = stamp_seconds(image_msg.header.stamp)
         now = self.get_clock().now().nanoseconds * 1e-9
         if not stamp_is_fresh(now, stamp, self.max_age):
@@ -262,6 +262,8 @@ class CharucoWorld(Node):
                 self.cached_optical_from_link = transform_matrix(self.buffer.lookup_transform(
                     self.optical_frame, self.camera_link_frame, Time()))
             board_from_link = np.linalg.inv(camera_from_world) @ self.cached_optical_from_link
+            if admission_check is not None:
+                admission_check()
             gap = float("inf") if self.last_valid_stamp is None else stamp - self.last_valid_stamp
             self.filtered_pose = stabilize_pose(self.filtered_pose, board_from_link,
                                                 observation_gap_s=gap, max_gap_s=self.hold_s)

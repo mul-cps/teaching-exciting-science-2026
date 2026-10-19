@@ -183,7 +183,7 @@ class TagObservations(Node):
         output.markers.append(clear)
         self.publisher.publish(output)
 
-    def _images(self, color_msg, depth_msg, prepared_gray=None):
+    def _images(self, color_msg, depth_msg, prepared_gray=None, admission_check=None):
         now = self.get_clock().now().nanoseconds * 1e-9
         color_stamp = stamp_seconds(color_msg.header.stamp)
         if not stamp_is_fresh(now, color_stamp):
@@ -244,6 +244,8 @@ class TagObservations(Node):
                 text.text = "tag0-unassociated"
                 text.lifetime = Duration(seconds=float(self.get_parameter("display_hold_s").value)).to_msg()
                 output.markers.append(text)
+            if admission_check is not None:
+                admission_check()
             self.publisher.publish(output)
         except (ValueError, TypeError, IndexError, cv2.error) as error:
             self.get_logger().warning(f"Tag observation unavailable: {error}")

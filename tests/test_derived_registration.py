@@ -31,13 +31,13 @@ def fixture():
         identity=dict(source_generation=generation,serial_number='actual_serial',request_started_monotonic=100.,
             confirmed_monotonic=100.01,confirmed_ros_ns=10_000_000_000,expires_monotonic=101.,device_info_request_source=snapshot),
         outputs=dict(cloud_topic='/so101_perception/rocm/points',status_topic='/so101_perception/rocm/lineage',
-            cloud_publisher_gid='5'*32,status_publisher_gid='6'*32,cloud_stamp_ns=10_000_000_000,cloud_frame='depth',
+            cloud_publisher_gid='5'*32,status_publisher_gid='6'*32,aligned_publisher_gid='7'*32,aligned_topic='/so101_perception/rocm/aligned_depth',cloud_stamp_ns=10_000_000_000,cloud_frame='depth',
             aligned_stamp_ns=10_000_000_000,aligned_frame='color'),
         calibration=dict(sha256='b'*64,depth_size=[320,240],color_size=[640,480],depth_K=[200.,200.,160.,120.],
             color_K=[400.,400.,320.,240.],depth_D=[0.]*5,color_D=[0.]*5,rotation_column_major=[1.,0.,0.,0.,1.,0.,0.,0.,1.],
             translation_m=[.015,0.,0.],depth_scale_m=.001,depth_scale_source='existingROS16UC1millimetercontract; notindependentphysicalmeasurement'),
         implementation=dict(source_sha256={n:'c'*64 for n in ('rocm_transport.py','rocm_client.py','rocm_worker.py','rocm_projection.py','rocm_projection_backend.py','rocm_projection_kernels.py')},
-            worker_python='/actual/python',worker_python_sha256='d'*64,compatibility_sha256='e'*64,hardware={'name':'actual GPU'}),
+            producer_node_sha256='f'*64,worker_python='/actual/python',worker_python_sha256='d'*64,compatibility_sha256='e'*64,hardware={'name':'actual GPU'}),
         health=dict(state='valid',source_receipts_monotonic=dict.fromkeys(names,100.1),source_expiry_monotonic=100.35,
             original_max_age_ns=500_000_000,observation_ros_ns=10_100_000_000),metrics=dict(points=2,cloud_bytes=40,backend_ms=8.,worker_ms=10.))
     return value
@@ -90,12 +90,12 @@ def endpoints(value):
     m=api();records={}
     for stream,topic in m.TOPICS.items():
         records[topic]=[NS(node_namespace='/',node_name='actual_camera',endpoint_gid=bytes.fromhex(value['source'][stream+'_publisher_gid']))]
-    for stream in ('cloud','status'):
+    for stream in ('cloud','status','aligned'):
         records[value['outputs'][stream+'_topic']]=[NS(node_namespace='/',node_name='derived',endpoint_gid=bytes.fromhex(value['outputs'][stream+'_publisher_gid']))]
     return records
 
 
-@pytest.mark.parametrize('index',range(6))
+@pytest.mark.parametrize('index',range(7))
 def test_every_image_info_cloud_lineage_endpoint_generation_is_bound(index):
     value=fixture();graph=endpoints(value);m=api()
     assert m.validate_graph(value,graph.__getitem__) == value['identity']['device_info_request_source']
@@ -176,3 +176,27 @@ def test_domain_normalization_rejects_all_zero_spellings_and_invalid_range():
     for path in (SOURCE.parent/'registration_source.py',SOURCE.parent/'registration_monitor.py',SOURCE.parent.parent/'launch/periodic_registration.launch.py'):
         tree=ast.parse(path.read_text())
         assert any(isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='configure_ros_domain' for n in ast.walk(tree)),str(path)
+
+
+@pytest.mark.parametrize('field,value', [('producer_node_sha256',None),('producer_node_sha256','bad')])
+def test_producer_node_code_hash_is_required(field,value):
+    item=fixture()
+    if value is None:del item['implementation'][field]
+    else:item['implementation'][field]=value
+    with pytest.raises(ValueError):validate(item)
+
+
+def test_aligned_output_identity_is_required_and_pinned():
+    item=fixture();del item['outputs']['aligned_publisher_gid']
+    with pytest.raises(ValueError):validate(item)
+
+
+def test_actual_native_cpu_emitted_aligned_contract_fixture():
+    import hashlib
+    path=Path(__file__).parent/'fixtures/derived-lineage-native-cpu-v1.json'
+    assert hashlib.sha256(path.read_bytes()).hexdigest()=='b727c55c808f1b3219c5027ac8fcafe8fba957b4455899d794be46e7abd0d2fa'
+    envelope=json.loads(path.read_text());value=envelope['lineage']
+    assert envelope['physical_camera_used'] is False and envelope['gpu_executed'] is False
+    now_ns=value['health']['observation_ros_ns'];now_mono=max(value['health']['source_receipts_monotonic'].values())+.02
+    pin=api().validate_statement(value,now_ns=now_ns,now_mono=now_mono,receipt_mono=now_mono)
+    assert pin['outputs']['aligned_publisher_gid']==envelope['observed_aligned_publisher_gid']

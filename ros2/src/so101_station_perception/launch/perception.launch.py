@@ -18,6 +18,11 @@ def _launch_nodes(context):
     if serial != "243322071783":
         raise ValueError("Rig01 perception is pinned to D435i serial 243322071783")
     live_world = LaunchConfiguration("track_charuco_world").perform(context).lower() == "true"
+    derived = LaunchConfiguration("marker_allow_derived_source").perform(context).lower()
+    if derived not in ("true", "false"):
+        raise ValueError("marker_allow_derived_source must be true or false")
+    if derived == "true" and (not live_world or LaunchConfiguration("publish_tag_observations").perform(context).lower() != "true"):
+        raise ValueError("derived aligned admission requires the shared live marker pipeline")
     target_path = LaunchConfiguration("camera_target_calibration").perform(context)
     arm_path = LaunchConfiguration("camera_arm_calibration").perform(context)
     qualified_value = LaunchConfiguration("use_qualified_frames").perform(context).lower()
@@ -105,6 +110,10 @@ def _launch_nodes(context):
                 "base_registration_file": LaunchConfiguration("base_registration_file").perform(context),
                 "initial_camera_from_board_file": target_path,
                 "optical_frame": optical_frame,
+                **({"allow_derived_source": LaunchConfiguration("marker_allow_derived_source").perform(context).lower()=="true",
+                    "derived_source_cohort": LaunchConfiguration("marker_derived_source_cohort").perform(context),
+                    "depth_topic": LaunchConfiguration("marker_depth_topic").perform(context)}
+                   if LaunchConfiguration("publish_tag_observations").perform(context).lower()=="true" else {}),
             }]))
     if transforms and not live_world:
         actions.append(Node(
@@ -168,6 +177,9 @@ def _launch_nodes(context):
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument("marker_allow_derived_source", default_value="false"),
+        DeclareLaunchArgument("marker_derived_source_cohort", default_value=""),
+        DeclareLaunchArgument("marker_depth_topic", default_value="/camera/aligned_depth_to_color/image_raw"),
         DeclareLaunchArgument("base_registration_file", default_value=""),
         DeclareLaunchArgument("track_charuco_world", default_value="false"),
         DeclareLaunchArgument("serial_no", default_value="243322071783"),

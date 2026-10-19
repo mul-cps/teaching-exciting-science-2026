@@ -936,6 +936,8 @@ class ColoredObjectsNode:
                 cv2.setNumThreads(1)
                 super().__init__("so101_colored_objects")
                 defaults = {
+                    "allow_derived_source": False,
+                    "derived_source_cohort": "",
                     "color_topic": "/camera/color/image_raw",
                     "depth_topic": "/camera/aligned_depth_to_color/image_raw",
                     "camera_info_topic": "/camera/color/camera_info",
@@ -1019,24 +1021,31 @@ class ColoredObjectsNode:
                 self.registration_sub = self.create_subscription(
                     String, self.get_parameter("registration_status_topic").value,
                     self._registration_status, 10)
-                color = message_filters.Subscriber(
-                    self, Image, self.get_parameter("color_topic").value,
-                    qos_profile=qos_profile_sensor_data)
-                depth = message_filters.Subscriber(
-                    self, Image, self.get_parameter("depth_topic").value,
-                    qos_profile=qos_profile_sensor_data)
-                info = message_filters.Subscriber(
-                    self, CameraInfo, self.get_parameter("camera_info_topic").value,
-                    qos_profile=qos_profile_sensor_data)
-                self.sync = message_filters.ApproximateTimeSynchronizer(
-                    [color, depth, info], queue_size=6, slop=0.04)
-                self.sync.registerCallback(self._process)
+                self.derived = None
+                if self.get_parameter("allow_derived_source").value:
+                    from so101_station_perception.derived_aligned import DerivedAligned
+                    self.derived = DerivedAligned(self, self.tf_buffer, self._process, period_s=self.period)
+                else:
+                    color = message_filters.Subscriber(
+                        self, Image, self.get_parameter("color_topic").value,
+                        qos_profile=qos_profile_sensor_data)
+                    depth = message_filters.Subscriber(
+                        self, Image, self.get_parameter("depth_topic").value,
+                        qos_profile=qos_profile_sensor_data)
+                    info = message_filters.Subscriber(
+                        self, CameraInfo, self.get_parameter("camera_info_topic").value,
+                        qos_profile=qos_profile_sensor_data)
+                    self.sync = message_filters.ApproximateTimeSynchronizer(
+                        [color, depth, info], queue_size=6, slop=0.04)
+                    self.sync.registerCallback(self._process)
                 self.analysis_worker = LatestOnlyAnalysisWorker(
                     self._analyze_job, min_start_interval_s=self.period)
                 self.last_analysis_result_stamp = None
                 self.analysis_timer = self.create_timer(0.05, self._consume_analysis)
 
             def destroy_node(self):
+                if getattr(self, "derived", None) is not None:
+                    self.derived.close()
                 worker = getattr(self, "analysis_worker", None)
                 if worker is not None:
                     worker.close()
@@ -1108,9 +1117,14 @@ class ColoredObjectsNode:
                 }, sort_keys=True, allow_nan=False)
                 self.status_pub.publish(message)
 
-            def _process(self, color_msg, depth_msg, info_msg):
+            def _process(self, color_msg, depth_msg, info_msg, derived_token=None):
                 from so101_station_perception.tag_observations import (
                     camera_intrinsics, depth_scale_for_encoding, stamp_is_fresh, stamp_seconds)
+                if derived_token is not None:
+                    try:self.derived.check(derived_token)
+                    except ValueError as error:
+                        self._publish_unavailable(color_msg.header.stamp, "unavailable", str(error))
+                        return
                 now = self.get_clock().now().nanoseconds * 1e-9
                 stamp = stamp_seconds(color_msg.header.stamp)
                 if not stamp_is_fresh(now, stamp, 0.5):
@@ -1159,7 +1173,10 @@ class ColoredObjectsNode:
                     cache = self.last_support_plane
                     cache_snapshot = None if cache is None else {
                         **cache, "normal": np.asarray(cache["normal"], dtype=float).copy()}
+                    if derived_token is not None:
+                        self.derived.check(derived_token)
                     self.analysis_worker.submit({
+                        "derived_token": derived_token,
                         "stamp": stamp, "ros_stamp": color_msg.header.stamp,
                         "rgb": np.asarray(rgb).copy(), "depth": np.asarray(depth).copy(),
                         "intrinsics": dict(intrinsics),
@@ -1201,6 +1218,10 @@ class ColoredObjectsNode:
 
             def _consume_analysis(self):
                 from so101_station_perception.tag_observations import stamp_is_fresh
+                if getattr(self, "derived", None) is not None:
+                    fault = self.derived.pop_fault()
+                    if fault:
+                        self._publish_unavailable(self.get_clock().now().to_msg(), "unavailable", fault)
                 result = self.analysis_worker.take_result()
                 if result is None:
                     return
@@ -1226,6 +1247,11 @@ class ColoredObjectsNode:
                         self.last_warning = time.monotonic()
                     self._publish_unavailable(job["ros_stamp"], "unavailable", str(error))
                     return
+                if job.get("derived_token") is not None:
+                    try:self.derived.check(job["derived_token"])
+                    except ValueError as error:
+                        self._publish_unavailable(job["ros_stamp"], "unavailable", str(error))
+                        return
                 self.last_analysis_result_stamp = stamp
                 plane = report["support_plane"]
                 if plane.get("plane_source") != "cached_measured_support_plane":
@@ -1248,6 +1274,11 @@ class ColoredObjectsNode:
                         expected_owned_positions[key] = board_from_link[:3, :3] @ local + board_from_link[:3, 3]
                     except (KeyError, TypeError, ValueError, TransformException):
                         continue
+                if job.get("derived_token") is not None:
+                    try:self.derived.check(job["derived_token"])
+                    except ValueError as error:
+                        self._publish_unavailable(job["ros_stamp"], "unavailable", str(error))
+                        return
                 objects = self.tracker.update(report["objects"], stamp,
                                               expected_owned_positions=expected_owned_positions)
                 report["objects"] = objects
@@ -1258,9 +1289,10 @@ class ColoredObjectsNode:
                     key: (value.tolist() if isinstance(value, np.ndarray) else value)
                     for key, value in report["support_plane"].items()
                     if key != "inlier_mask" and key != "residuals_m"}
-                self._publish_report(report, job["ros_stamp"])
+                kwargs = {} if job.get("derived_token") is None else {"derived_token": job["derived_token"]}
+                self._publish_report(report, job["ros_stamp"], **kwargs)
 
-            def _publish_report(self, report, stamp):
+            def _publish_report(self, report, stamp, derived_token=None):
                 detections = Detection3DArray()
                 detections.header.stamp, detections.header.frame_id = stamp, self.board_frame
                 markers = MarkerArray()
@@ -1347,13 +1379,6 @@ class ColoredObjectsNode:
                             "pregrasp_position_world": preposition.tolist(),
                             "pregrasp_offset_m": .06,
                         })
-                self.detections_pub.publish(detections)
-                self.markers_pub.publish(markers)
-                self.grasps_pub.publish(grasps)
-                self.contacts_pub.publish(contacts)
-                self.last_marker_update_mono = time.monotonic()
-                self.last_marker_update_stamp = detections.header.stamp
-                self.marker_clear_sent = not bool(report["objects"])
                 status = {
                     "schema": 1, "state": "tracking", "frame_id": self.board_frame,
                     "stamp": report["stamp"], "qualified": False,
@@ -1393,6 +1418,18 @@ class ColoredObjectsNode:
                 }
                 message = String()
                 message.data = json.dumps(status, sort_keys=True, allow_nan=False)
+                if derived_token is not None:
+                    try:self.derived.check(derived_token)
+                    except ValueError as error:
+                        self._publish_unavailable(stamp, "unavailable", str(error))
+                        return
+                self.detections_pub.publish(detections)
+                self.markers_pub.publish(markers)
+                self.grasps_pub.publish(grasps)
+                self.contacts_pub.publish(contacts)
+                self.last_marker_update_mono = time.monotonic()
+                self.last_marker_update_stamp = detections.header.stamp
+                self.marker_clear_sent = not bool(report["objects"])
                 self.status_pub.publish(message)
 
         return _Node(*args, **kwargs)
