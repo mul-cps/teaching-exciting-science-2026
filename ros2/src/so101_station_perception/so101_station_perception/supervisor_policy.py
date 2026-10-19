@@ -25,7 +25,22 @@ def transient_fault(status,expected_generation,expected_node_sha,*,now_mono,now_
 class SupervisorPolicy:
     """One attempt per outage. Rolling caps survive disable and explicit reset."""
     def __init__(self,history=None):
-        history=history or {}
+        if history is not None:
+            require(type(history) is dict and set(history)=={'schema','attempts','last_utc','last_mono','handled','inflight','latched'} and
+                history['schema']=='so101-perception-supervisor-journal-v1','incomplete/unknown persisted supervisor policy')
+            require(type(history['attempts']) is list and type(history['handled']) is list and
+                finite(history['last_mono']) and history['last_mono']>=0 and
+                (history['latched'] is None or type(history['latched']) is str and len(history['latched'])<=512),
+                'invalid persisted supervisor authority types')
+            job=history['inflight']
+            if job is not None:
+                require(type(job) is dict and job.get('state') in ('dispatch_unknown','accepted') and
+                    hex_value(job.get('outage_id'),32) and finite(job.get('reserved_monotonic')) and job['reserved_monotonic']>=0,
+                    'invalid persisted in-flight authority')
+                if job['state']=='accepted':
+                    require(hex_value(job.get('job_id'),32) and finite(job.get('deadline')) and
+                        job['reserved_monotonic']<job['deadline']<=job['reserved_monotonic']+42.,'invalid persisted accepted authority')
+        history=history if history is not None else {}
         self.attempts=deque(history.get('attempts',()),maxlen=3)
         require(len(history.get('attempts',()))<=3 and all(finite(t) and t>=0 for t in self.attempts),'invalid persisted quota')
         require(list(self.attempts)==sorted(self.attempts),'persisted quota not ordered')

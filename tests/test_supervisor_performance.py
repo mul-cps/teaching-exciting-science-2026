@@ -32,6 +32,9 @@ def test_whole_metadata_health_status_and_transition_journal(supervisor,monkeypa
         checked_ros_ns=10_120_000_000,original_receipt_expiry_monotonic=100.35,original_header_expiry_ros_ns=value['original']['depth_stamp_ns']+500_000_000)
     monkeypatch.setattr(node,'_take',lambda _: (True,deepcopy(proof),100.11))
     monkeypatch.setattr(node,'_request',lambda *a:None)
+    node.native_witness=dict(started=100.,pairs=[tuple(dict(stamp=value['original'][k+'_info_stamp_ns'],receipt=100.1) for k in ('depth','color')) for _ in range(2)],
+        selected=tuple((100.1,value['original'][k+'_info_stamp_ns']) for k in ('depth','color')),request=100.,received=100.01)
+    def native_final():node._native_final()
     def health():node._current_health()
     def status():module.bounded_json(node._snapshot())
     def context():module.same_auto_context(node.original_pin,node.pin)
@@ -44,7 +47,7 @@ def test_whole_metadata_health_status_and_transition_journal(supervisor,monkeypa
             start=time.perf_counter_ns();call();values.append((time.perf_counter_ns()-start)/1000.)
         values.sort();return dict(samples=count,mean_us=statistics.mean(values),p95_us=values[int(.95*(count-1))],max_us=max(values))
     result=dict(scope='CPU synthetic metadata only; fake graph lookup, no DDS/GPU/payload; journal real temp filesystem',
-        bounded_sizes=dict(ledger=8,events=128,event_job_id_chars=32),health_validation=measure(health,1000),status_snapshot_json=measure(status,1000),
+        bounded_sizes=dict(ledger=8,events=128,event_job_id_chars=32),health_validation=measure(health,1000),final_original_native_witness=measure(native_final,1000),status_snapshot_json=measure(status,1000),
         immutable_context_comparison=measure(context,1000),cold_journal_transition=measure(journal,20))
     if os.environ.get('SUPERVISOR_BENCHMARK_OUTPUT'):
         path=Path(os.environ['SUPERVISOR_BENCHMARK_OUTPUT']);path.open('x').write(json.dumps(result,indent=2)+'\n')

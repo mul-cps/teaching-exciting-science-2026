@@ -41,3 +41,22 @@ def test_future_journal_clock_refuses_restart(tmp_path):
     journal=SupervisorJournal(tmp_path,'a'*64);p=SupervisorPolicy();p.clocks(time.monotonic(),time.time());journal.write(p.journal());journal.close()
     path=tmp_path/'perception-supervisor.json';v=json.loads(path.read_text());v['policy']['last_utc']+=10.;path.write_text(json.dumps(v))
     with pytest.raises(ValueError):SupervisorJournal(tmp_path,'a'*64)
+
+
+@pytest.mark.parametrize('field',['attempts','handled','inflight','latched','last_utc','last_mono','schema'])
+def test_missing_persisted_authority_field_fails_closed(tmp_path,field):
+    journal=SupervisorJournal(tmp_path,'a'*64);p=SupervisorPolicy();p.clocks(time.monotonic(),time.time())
+    p.attempts.extend([p.last_utc]*3);journal.write(p.journal());journal.close()
+    path=tmp_path/'perception-supervisor.json';value=json.loads(path.read_text());del value['policy'][field];path.write_text(json.dumps(value))
+    with pytest.raises(ValueError):SupervisorJournal(tmp_path,'a'*64)
+
+
+@pytest.mark.parametrize('change',[('schema','bad'),('policy',[]),('consumer_epochs',None),('adopted',[]),('policy.schema','bad'),
+    ('policy.last_mono',True),('policy.last_utc',float('nan')),('policy.attempts',[True])])
+def test_persisted_schema_types_and_clock_ambiguity_fail_closed(tmp_path,change):
+    journal=SupervisorJournal(tmp_path,'a'*64);p=SupervisorPolicy();p.clocks(time.monotonic(),time.time());journal.write(p.journal(),consumer_epochs={},adopted=None);journal.close()
+    path=tmp_path/'perception-supervisor.json';value=json.loads(path.read_text());key,replacement=change
+    if '.' in key:parent,leaf=key.split('.');value[parent][leaf]=replacement
+    else:value[key]=replacement
+    path.write_text(json.dumps(value))
+    with pytest.raises(ValueError):SupervisorJournal(tmp_path,'a'*64)

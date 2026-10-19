@@ -72,7 +72,8 @@ def test_typed_fault_requires_exact_code_generation_hash_and_original_clocks():
 
 
 def test_oversized_persisted_history_rejected_before_deque_truncation():
-    with pytest.raises(ValueError):SupervisorPolicy({'handled':['a'*32]*129})
+    p=SupervisorPolicy();p.clocks(100.,1000.);history=p.journal();history['handled']=['a'*32]*129
+    with pytest.raises(ValueError):SupervisorPolicy(history)
 
 
 def test_disable_during_native_verification_prevents_dispatch():
