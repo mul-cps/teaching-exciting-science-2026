@@ -1,12 +1,18 @@
 """Actual CPU executor/guard, synthetic metadata, isolated ROS domain only."""
-import sys,time,threading,copy
+import os,sys,time,threading,copy
 from pathlib import Path
 import pytest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'ros2/src/so101_station_objects'))
 
+def _require_isolated_domain():
+    if os.environ.get('ROS_DOMAIN_ID') != '177' or os.environ.get('ROS_LOCALHOST_ONLY') != '1':
+        raise RuntimeError('object delivery ROS fixture requires explicit DDS177 localhost1')
+
+
 @pytest.fixture
 def node():
     rclpy=pytest.importorskip('rclpy')
+    _require_isolated_domain()  # Fail before ROS init/network, never live/default domain.
     from so101_station_objects.objects import ColoredObjectsNode
     from rclpy.executors import SingleThreadedExecutor
     rclpy.init()
