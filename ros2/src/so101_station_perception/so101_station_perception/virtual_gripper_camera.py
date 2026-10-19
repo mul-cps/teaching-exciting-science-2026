@@ -91,6 +91,11 @@ class VirtualGripperCamera(Node):
             self._joints, qos_profile_sensor_data)
         self.subscription = self.create_subscription(PointCloud2, p("input_topic"),
             self._cloud, qos_profile_sensor_data)
+        self.last_valid_stamp_ns = self.last_valid_tool_tf_stamp_ns = None
+        self.last_valid_monotonic = None
+        self.display_valid, self.invalid_frame_sent = False, False
+        self.invalid_reason = "waiting_for_first_render"
+        self.watchdog = self.create_timer(.2, self._watchdog)
         self._status("ready", renderer=self.renderer.renderer)
 
     def _description(self, message):
@@ -148,9 +153,62 @@ class VirtualGripperCamera(Node):
                 "annotation_is_depth": False, "joint_stamp_ns": joint_stamp,
                 "joint_cloud_delta_ns": None if joint_stamp is None else joint_stamp - stamp_ns}
 
+    def _mark_valid(self, stamp_ns, tool_tf_stamp_ns, received_monotonic):
+        self.last_valid_stamp_ns = stamp_ns
+        self.last_valid_tool_tf_stamp_ns = tool_tf_stamp_ns
+        self.last_valid_monotonic = received_monotonic
+        self.display_valid, self.invalid_frame_sent = True, False
+        self.invalid_reason = None
+
+    def _invalidate(self, reason):
+        """Replace the visible scene once; never renew acquisition/TF/CameraInfo."""
+        self.display_valid, self.invalid_reason = False, reason
+        if not self.invalid_frame_sent:
+            import cv2
+            stamp_ns = self.last_valid_stamp_ns or 0
+            rgba = bytes(self.width * self.height * 4)
+            mask = bytes(self.width * self.height)
+            rgb = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+            cv2.putText(rgb, "STALE / INVALID", (8, min(32, self.height - 1)),
+                        cv2.FONT_HERSHEY_SIMPLEX, .55, (255, 170, 80), 1, cv2.LINE_AA)
+            for publisher, encoding, step, pixels in (
+                    (self.images, "rgba8", self.width * 4, rgba),
+                    (self.scenes, "rgba8", self.width * 4, rgba),
+                    (self.annotated, "rgb8", self.width * 3, rgb.tobytes()),
+                    (self.annotation_masks, "mono8", self.width, mask),
+                    (self.provenance_masks, "mono8", self.width, mask)):
+                image = Image()
+                image.header.stamp.sec, image.header.stamp.nanosec = divmod(stamp_ns, 10**9)
+                image.header.frame_id = self.optical_frame
+                image.width, image.height = self.width, self.height
+                image.encoding, image.is_bigendian, image.step, image.data = encoding, 0, step, pixels
+                publisher.publish(image)
+            self.invalid_frame_sent = True
+        self._status("invalid", reason=reason)
+
+    def _watchdog(self):
+        now_ns, now = self.get_clock().now().nanoseconds, time.monotonic()
+        if self.last_valid_stamp_ns is None:
+            self._invalidate("waiting_for_first_render")
+            return
+        age = (now_ns - self.last_valid_stamp_ns) / 1e9
+        receipt_age = now - self.last_valid_monotonic
+        if (not math.isfinite(receipt_age) or not 0 <= age <= self.max_age
+                or not 0 <= receipt_age <= self.max_age):
+            self._invalidate("last_render_expired_or_clock_invalid")
+        elif not self.display_valid:
+            self._status("invalid", reason=self.invalid_reason)
+
     def _status(self, state, **extra):
         message = String()
+        stamp_ns = getattr(self, "last_valid_stamp_ns", None)
+        now_ns = self.get_clock().now().nanoseconds
         message.data = json.dumps({"state": state, "synthetic": True,
+            "visual_valid": getattr(self, "display_valid", False),
+            "checked_ros_ns": now_ns,
+            "last_valid_acquisition_stamp_ns": stamp_ns,
+            "last_valid_tool_tf_stamp_ns": getattr(self, "last_valid_tool_tf_stamp_ns", None),
+            "last_valid_acquisition_age_s": None if stamp_ns is None else (now_ns - stamp_ns) / 1e9,
             "calibration_qualified": False, "unknown_pixels": "image_raw alpha=0; image_scene uses separate provenance_mask",
             "observed_samples": "one-pixel measured RGB when available; no hole filling", **extra})
         self.status_publisher.publish(message)
@@ -163,7 +221,7 @@ class VirtualGripperCamera(Node):
         stamp_ns = message.header.stamp.sec * 10**9 + message.header.stamp.nanosec
         age = (self.get_clock().now().nanoseconds - stamp_ns) / 1e9
         if stamp_ns <= self.last_stamp or stamp_ns <= 0 or not 0 <= age <= self.max_age:
-            self._status("rejected_stamp", age_s=age)
+            self._invalidate("rejected_stamp")
             return
         try:
             # Exact acquisition-time TF, never latest/time-zero. Interpolated TF
@@ -191,7 +249,8 @@ class VirtualGripperCamera(Node):
                     mesh_matrices = {mesh["name"]: self.projection @ self.optical_from_tool @ link_poses[mesh["link"]]
                                      for mesh in self.meshes}
                 except TransformException as error:
-                    mesh_state = {"state": "missing_acquisition_tf", "reason": str(error)}
+                    self._invalidate("missing_mesh_acquisition_tf:" + str(error)[:512])
+                    return
             optical_from_cloud = self.optical_from_tool @ tool_from_cloud
             render_start = time.monotonic()
             layers = self.renderer.render_layers(points, self.projection @ optical_from_cloud,
@@ -200,7 +259,7 @@ class VirtualGripperCamera(Node):
             readback_ms = (time.monotonic() - render_start) * 1000
             age = (self.get_clock().now().nanoseconds - stamp_ns) / 1e9
             if not 0 <= age <= self.max_age:
-                self._status("rejected_after_render", age_s=age)
+                self._invalidate("rejected_after_render")
                 return
             image = Image()
             image.header.stamp = message.header.stamp
@@ -234,7 +293,19 @@ class VirtualGripperCamera(Node):
             self.scenes.publish(scene_image)
             self.provenance_masks.publish(provenance_image)
             self.last_stamp = stamp_ns
-            annotation = self._annotation(image, scene, stamp_ns) if self.publish_annotation else {"state": "disabled"}
+            self._mark_valid(stamp_ns, transform.header.stamp.sec * 10**9 +
+                             transform.header.stamp.nanosec, start)
+            if self.publish_annotation:
+                annotation = self._annotation(image, scene, stamp_ns)
+            else:
+                # Keep the diagnostic display restorable without enabling pinch annotations.
+                display = Image()
+                display.header = image.header
+                display.width, display.height = self.width, self.height
+                display.encoding, display.is_bigendian, display.step = "rgb8", 0, self.width * 3
+                display.data = scene[:, :, :3].tobytes()
+                self.annotated.publish(display)
+                annotation = {"state": "disabled"}
             self._status("published", annotation=annotation, color_source=color_source,
                 virtual_camera={"width": self.width, "height": self.height,
                     "vertical_fov_deg": math.degrees(2 * math.atan(self.height / (2 * self.k[1, 1]))),
@@ -245,9 +316,11 @@ class VirtualGripperCamera(Node):
                 gpu_render_readback_ms=readback_ms, callback_ms=(time.monotonic()-start)*1000,
                 readback_bytes=self.renderer.readback_bytes, renderer=self.renderer.renderer)
         except (TransformException, ValueError, RuntimeError) as error:
-            self._status("rejected", reason=str(error))
+            self._invalidate("render_or_acquisition_tf_failed:" + str(error)[:512])
 
     def destroy_node(self):
+        if hasattr(self, "watchdog"):
+            self.watchdog.cancel()
         if self.renderer is not None:
             self.renderer.close()
         return super().destroy_node()
