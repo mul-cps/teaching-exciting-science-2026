@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from threading import RLock
 import time
+import uuid
 
 import numpy as np
 from rclpy.qos import qos_profile_sensor_data
@@ -18,6 +19,7 @@ from std_srvs.srv import Trigger
 from .aligned_cohort import AlignedCohorts
 from .derived_lineage import TOPICS, ALIGNED_TOPIC, LINEAGE_TOPIC, SCHEMA, require
 from .diagnostic_cloud import quaternion_matrix
+from .admission_proof import AdmissionProof,pin_digest
 
 
 def received_gid(info):
@@ -42,6 +44,7 @@ class DerivedAligned:
         self.subscriptions.append(node.create_subscription(String,LINEAGE_TOPIC,self._lineage,
             qos_profile_sensor_data,callback_group=callback_group))
         self.reset_service=node.create_service(Trigger,'~/reset_derived_source',self._reset)
+        self.status_service=node.create_service(Trigger,'~/derived_source_status',self._admission_status)
         self.timer=node.create_timer(.01,self.drain) if self.period else None
 
     def reload(self):
@@ -55,6 +58,9 @@ class DerivedAligned:
         with self.lock:
             if self.core is not None:self.core.close()
             self.core=core;self.fault=None;self.last_take=0.
+            self.consumer_epoch=uuid.uuid4().hex
+            self.source_pin_sha256=pin_digest(core.ledger.pin)
+            self.last_proof=None
 
     def _reset(self,request,response):
         try:
@@ -114,12 +120,48 @@ class DerivedAligned:
                 # Graph work may consume the remaining lease; never refresh it.
                 from .derived_lineage import validate_statement
                 validate_statement(value,now_ns=self.node.get_clock().now().nanoseconds,now_mono=time.monotonic(),receipt_mono=token['lineage_receipt'])
+                proof=AdmissionProof.from_token(token)
+                proof.check_leases(self.core,now_ns=self.node.get_clock().now().nanoseconds,now_mono=time.monotonic())
+                self.last_proof=proof
         except Exception as error:
             # TF exceptions vary across ROS releases; all failures are unavailable.
             raise ValueError('derived aligned admission unavailable: '+str(error)) from error
         return True
 
+    def _check_proof(self,proof):
+        proof.check_leases(self.core,now_ns=self.node.get_clock().now().nanoseconds,now_mono=time.monotonic())
+        original=proof.statement['original']
+        tf=self.buffer.lookup_transform(original['color_frame'],original['depth_frame'],Time(nanoseconds=original['depth_stamp_ns']))
+        t,q=tf.transform.translation,tf.transform.rotation
+        matrix=np.eye(4);matrix[:3,:3]=quaternion_matrix(q.x,q.y,q.z,q.w);matrix[:3,3]=[t.x,t.y,t.z]
+        proof.check(self.core,now_ns=self.node.get_clock().now().nanoseconds,now_mono=time.monotonic(),
+                    lookup=self.node.get_publishers_info_by_topic,color_from_depth=matrix)
+        proof.check_leases(self.core,now_ns=self.node.get_clock().now().nanoseconds,now_mono=time.monotonic())
+
+    def _admission_status(self,request,response):
+        # Cold RPC only. Retains scalar metadata and two small Info snapshots,
+        # never another RGB/depth payload or renewed acquisition receipt.
+        with self.lock:
+            result={'schema':'so101-derived-admission-status-v1','qualified':False,
+                    'execution_enabled':False,'state':'awaiting',
+                    'consumer_epoch':self.consumer_epoch,
+                    'source_pin_sha256':self.source_pin_sha256,
+                    'producer_generation':self.core.ledger.pin['producer_generation']}
+            proof=self.last_proof
+            try:
+                require(not self.closed and proof is not None,'waiting for checked source admission')
+                self._check_proof(proof)
+                result=proof.status(consumer_epoch=self.consumer_epoch,source_pin_sha256=self.source_pin_sha256,
+                                    now_ns=self.node.get_clock().now().nanoseconds)
+                message=json.dumps(result,allow_nan=False)
+                self._check_proof(proof)
+                response.success=True;response.message=message
+            except Exception as error:
+                result.update(state='unavailable',reason=str(error)[:512])
+                response.success=False;response.message=json.dumps(result,allow_nan=False)
+        return response
+
     def close(self):
         with self.lock:
-            self.closed=True;self.core.close()
+            self.closed=True;self.core.close();self.last_proof=None
         if self.timer:self.timer.cancel()
