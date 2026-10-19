@@ -1,0 +1,3 @@
+#!/usr/bin/env python3
+from so101_station_perception.perception_supervisor import main
+main()

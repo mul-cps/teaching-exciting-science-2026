@@ -40,6 +40,13 @@ TOPICS = dict(depth='/camera/depth/image_rect_raw', color='/camera/color/image_r
 SERIAL = '243322071783'
 
 
+class TypedSourceReceiptGap(ValueError):
+    """Only the two original source-activity gap sites are recoverable."""
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
 def stamp_ns(message):
     stamp = message.header.stamp
     if (type(stamp.sec) is not int or type(stamp.nanosec) is not int or not 0 <= stamp.sec < 2147483648
@@ -138,7 +145,7 @@ class ROCmRGBD(Node):
             translation_m=c.translation.tolist(), depth_scale_m=.001,
             depth_scale_source='existingROS16UC1millimetercontract; notindependentphysicalmeasurement')
         self.generation = uuid.uuid4().hex
-        self.invalid = None; self.binding = None; self.identity = None; self.pending_identity = None
+        self.invalid = None; self.fault = None; self.binding = None; self.identity = None; self.pending_identity = None
         self.last_query = float('-inf'); self.first_source = None; self.ledger = None
         self.startup_started = time.monotonic(); self.output_binding = None; self.preparing_reason = None
         self.buffers = {stream: deque(maxlen=4) for stream in TOPICS}
@@ -250,6 +257,7 @@ class ROCmRGBD(Node):
                 new_producer_generation=uuid.uuid4().hex, state='resetting', reason=None,
                 published_at_start=self.counters['published'])
             self.generation = self._reset['new_producer_generation']
+            self.fault = None  # Explicit accepted reset retires the previous fault identity.
             self._invalidate('explicit source reset accepted; not ready')
             try:
                 self._cancel_source_rpc()
@@ -314,7 +322,7 @@ class ROCmRGBD(Node):
             self._check_reset_deadline()
             self.last_query = float('-inf'); self.startup_started = time.monotonic()
             self.preparing_reason = 'explicit reset: awaiting fresh full source attestation'
-            self.invalid = None; self._reset['state'] = 'preparing'
+            self.invalid = None; self.fault = None; self._reset['state'] = 'preparing'
         except Exception as error:
             if replacement is not None:
                 try:
@@ -329,6 +337,14 @@ class ROCmRGBD(Node):
             self._invalidate(self.invalid)
 
     def _invalidate(self, reason):
+        if getattr(self, 'fault', None) is None:
+            transient = isinstance(reason, TypedSourceReceiptGap)
+            self.fault = dict(code=reason.code if transient else 'unknown_nonrecoverable',
+                fault_id=uuid.uuid4().hex, producer_generation=self.generation,
+                first_observed_monotonic=time.monotonic(),
+                first_observed_ros_ns=self.get_clock().now().nanoseconds,
+                producer_node_sha256=self.producer_node_sha,
+                automatic_recovery_class='transient_private_availability' if transient else 'nonrecoverable')
         if (self._reset is not None and self._reset['state'] == 'preparing'
                 and self.counters['published']-self._reset['published_at_start'] < 2):
             self._reset['state'] = 'reset_failed'
@@ -350,7 +366,7 @@ class ROCmRGBD(Node):
             if previous is not None and stamp < previous: raise ValueError('source header rollback')
             receipt = time.monotonic()
             if stream in self.last_receipt and receipt-self.last_receipt[stream] > .250:
-                raise ValueError('source stream gap')
+                raise TypedSourceReceiptGap('private_source_receipt_gap', 'source stream gap')
             # Activity may advance on duplicates; acquisition receipts never do.
             self.last_receipt[stream] = receipt
             if previous == stamp: return
@@ -540,7 +556,7 @@ class ROCmRGBD(Node):
         try:
             if not self.invalid:
                 if self.identity is not None and any(time.monotonic()-self.last_receipt.get(k, self.identity['confirmed_monotonic']) > .250 for k in TOPICS):
-                    raise ValueError('source stream lost before publication')
+                    raise TypedSourceReceiptGap('private_source_stream_lost', 'source stream lost before publication')
                 result = self.worker.poll()
                 if result is not None: self._publish(result)
                 self._admit()
@@ -551,7 +567,7 @@ class ROCmRGBD(Node):
             status = dict(schema='so101-derived-rocm-rgbd-v1', qualified=False, execution_enabled=False,
                 direct_camera_attestation=False, producer_generation=self.generation,
                 state='unavailable' if self.invalid else ('ready' if self.worker.ready and self.identity and self.last_result else 'preparing'),
-                reason=self.invalid or self.preparing_reason, counters=self.counters, received=self.received,
+                reason=self.invalid or self.preparing_reason, fault=getattr(self, 'fault', None), counters=self.counters, received=self.received,
                 unique_exposures=self.unique,
                 hardware=self.worker.hardware, source=self.binding, last_result=self.last_result,
                 reset=self._reset_status())
