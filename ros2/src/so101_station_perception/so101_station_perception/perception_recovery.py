@@ -384,8 +384,10 @@ class PerceptionRecovery(Node):
             self._phase('wait_producer_generation')
             while True:
                 self._guard()
+                require(not self.ledger.invalid_reason, self.lineage_error or 'lineage generation invalidated')
                 try: status = self._producer_status()
                 except ProducerStatusPending:
+                    require(not self.ledger.invalid_reason, self.lineage_error or 'lineage generation invalidated')
                     # Only after this job's explicit accepted reset: cold worker
                     # setup may pause status publication. Never reuse its lease.
                     self._pause(); continue
