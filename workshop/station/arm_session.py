@@ -29,7 +29,7 @@ from .camera_recovery import plan_bound_reentry
 from .recovery_types import CAMERA_RECOVERY_MAX_DISPLACEMENT_COUNTS, CAMERA_RECOVERY_INWARD_COUNTS, CameraRecoveryPolicy, owner_source_sha256
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
                              ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S,
-                             path_digest, prepare_trajectory)
+                             path_digest, prepare_trajectory, SUPERVISED_LIMITS, SUPERVISED_QUALIFICATION)
 
 RUNTIME_OWNER_SOURCE_SHA256 = owner_source_sha256(Path(__file__).parent)
 RUNTIME_SOURCE_SHA256 = RUNTIME_OWNER_SOURCE_SHA256["arm_session"]
@@ -1261,14 +1261,33 @@ class ArmSession:
         self._teleop = None
         return self.cancel_hold()
 
+    def _guard_supervised_actual(self, actual, held_raw):
+        for joint in JOINTS:
+            value = actual[joint]
+            if (type(value) is not int or
+                    not self.firmware_min[joint] <= value <= self.firmware_max[joint] or
+                    not self.admitted_min[joint] <= value <= self.admitted_max[joint]):
+                raise RuntimeError("supervised actual outside admitted bounds: " + joint)
+            if joint in held_raw and abs(value-held_raw[joint]) > 4:
+                raise RuntimeError("supervised held axis drift: " + joint)
+
     def execute_trajectory(self, goal_id, joint_names, points, *,
                            max_velocity=ROS_MAX_VELOCITY_RAD_S,
                            max_acceleration=ROS_MAX_ACCELERATION_RAD_S2,
                            max_jerk=ROS_MAX_JERK_RAD_S3,
                            expected_path_sha256=None, period=PERIOD_S,
-                           calibration_endpoint=False):
+                           calibration_endpoint=False, supervised_commissioning=False,
+                           expected_start_raw=None):
         """Execute one prevalidated C2 ROS trajectory without waypoint dwells."""
         self._require_initialized()
+        if type(supervised_commissioning) is not bool:
+            raise ArmPlanPreflightError("supervised_commissioning must be a boolean")
+        if supervised_commissioning:
+            if calibration_endpoint:
+                raise ArmPlanPreflightError("supervised commissioning requires strict arrival")
+            max_velocity, max_acceleration, max_jerk = SUPERVISED_LIMITS
+        elif expected_start_raw is not None:
+            raise ArmPlanPreflightError("start binding requires supervised commissioning")
         if type(calibration_endpoint) is not bool:
             raise ArmPlanPreflightError("calibration_endpoint must be a boolean")
         if not isinstance(goal_id, str) or not goal_id.strip() or len(goal_id) > 128:
@@ -1283,6 +1302,11 @@ class ArmSession:
         try:
             start_raw = self._read("Present_Position")
             start_time = self.clock()
+            if supervised_commissioning:
+                if (not isinstance(expected_start_raw, dict) or set(expected_start_raw) != set(JOINTS) or
+                        any(type(v) is not int or not 0 <= v <= 4095 for v in expected_start_raw.values()) or
+                        start_raw != expected_start_raw):
+                    raise ArmPlanPreflightError("supervised frozen start mismatch")
             admitted_low = self._arm_radians(self.admitted_min)
             admitted_high = self._arm_radians(self.admitted_max)
             prepared = prepare_trajectory(
@@ -1305,6 +1329,9 @@ class ArmSession:
         except (ValueError, KeyError, TypeError) as error:
             raise ArmPlanPreflightError(str(error)) from error
 
+        held_raw = {joint: start_raw[joint] for joint in JOINTS
+                    if all(target[joint] == start_raw[joint] for target in raw_samples)}
+        track_limit = ROS_GOAL_TOLERANCE_RAD if supervised_commissioning else ROS_MAX_TRACK_ERROR_RAD
         sample_record = [{"time": sample.time,
                           "positions": dict(zip(ARM_JOINTS, sample.positions))}
                          for sample in prepared.samples]
@@ -1321,7 +1348,10 @@ class ArmSession:
                     max_velocity_rad_s=max_velocity,
                     max_acceleration_rad_s2=max_acceleration,
                     max_jerk_rad_s3=max_jerk,
-                    collision_checked_path_sha256=expected_path_sha256,
+                    **({"effective_path_sha256": expected_path_sha256,
+                        "qualification": SUPERVISED_QUALIFICATION, "qualified": False}
+                       if supervised_commissioning else
+                       {"collision_checked_path_sha256": expected_path_sha256}),
                     sample_period_s=period)
         previous_feedback = start_time
         feedback_samples = []
@@ -1330,8 +1360,24 @@ class ArmSession:
             self._ensure_profile()
             # Install measured pose before enabling torque; all validation has
             # completed and the first interpolation sample is exactly this pose.
-            motion_started = True
-            self._enable_current_goal(start_raw, start_time, "trajectory-start")
+            def before_dispatch():
+                nonlocal motion_started
+                self._poll_busy_input()
+                self._calibration_guard()
+                if owner_source_sha256(Path(__file__).parent) != RUNTIME_OWNER_SOURCE_SHA256:
+                    raise RuntimeError("supervised owner source changed before dispatch")
+                acquired = self.clock()
+                fresh_raw = self._read("Present_Position")
+                fresh_torque = self._read("Torque_Enable")
+                self._check_leg_deadline(start_time, "trajectory-start")
+                if (self.clock()-acquired > .1 or fresh_raw != expected_start_raw or
+                        any(type(v) is not int or v != 0 for v in fresh_torque.values())):
+                    raise RuntimeError("supervised frozen start/all-off acquisition changed")
+                motion_started = True
+            if not supervised_commissioning:
+                motion_started = True
+            self._enable_current_goal(start_raw, start_time, "trajectory-start",
+                on_goal_dispatch=before_dispatch if supervised_commissioning else None)
             started = self.clock()
             previous_feedback = started
             for index, (sample, target_raw) in enumerate(zip(prepared.samples, raw_samples)):
@@ -1351,20 +1397,27 @@ class ArmSession:
                     raise RuntimeError("trajectory goal readback mismatch")
                 actual = self._read("Present_Position")
                 read_ended = self.clock()
+                position_utc = self.wall_clock() if supervised_commissioning else None
                 self._check_feedback_freshness(
                     label=goal_id, phase="trajectory", previous_read_at=previous_feedback,
                     read_started=goal_read_started, read_ended=read_ended,
                     total_missed=0, previous_tick_timing=None)
                 previous_feedback = read_ended
+                if supervised_commissioning:
+                    self._guard_supervised_actual(actual, held_raw)
                 actual_radians = self._arm_radians(actual)
                 for joint in ARM_JOINTS:
-                    if abs(actual_radians[joint] - sample.positions[ARM_JOINTS.index(joint)]) > ROS_MAX_TRACK_ERROR_RAD:
-                        raise RuntimeError("trajectory tracking error exceeded 10 degrees: " + joint)
+                    if abs(actual_radians[joint] - sample.positions[ARM_JOINTS.index(joint)]) > track_limit:
+                        raise RuntimeError("trajectory tracking error exceeded fixed limit: " + joint)
                 torque = self._read("Torque_Enable")
+                feedback_clocks = ({"position_monotonic": read_ended, "position_utc": position_utc,
+                    "torque_monotonic": self.clock(), "torque_utc": self.wall_clock()}
+                    if supervised_commissioning else {})
                 if any(torque[joint] != 1 for joint in JOINTS):
                     raise RuntimeError("trajectory torque state changed unexpectedly")
                 state = self.publish_state(event="trajectory_feedback", raw=actual,
                                            torque=torque, phase="trajectory", label=goal_id,
+                                           **feedback_clocks,
                                            trajectory_goal_id=goal_id,
                                            trajectory_time=sample.time,
                                            trajectory_desired=dict(zip(ARM_JOINTS, sample.positions)))
@@ -1384,22 +1437,31 @@ class ArmSession:
                 self.bus.sync_write("Goal_Position", terminal, normalize=False, num_retry=0)
                 actual = self._read("Present_Position")
                 read_ended = self.clock()
+                position_utc = self.wall_clock() if supervised_commissioning else None
                 self._check_feedback_freshness(
                     label=goal_id, phase="trajectory-settle", previous_read_at=previous_feedback,
                     read_started=read_ended, read_ended=read_ended,
                     total_missed=0, previous_tick_timing=None)
                 previous_feedback = read_ended
+                if supervised_commissioning:
+                    self._guard_supervised_actual(actual, held_raw)
                 errors = [abs(self._arm_radians(actual)[joint] -
                               prepared.samples[-1].positions[ARM_JOINTS.index(joint)])
                           for joint in ARM_JOINTS]
+                if supervised_commissioning and max(errors) > track_limit:
+                    raise RuntimeError("supervised settle tracking error exceeded 2 degrees")
                 settled = settled + 1 if max(errors) <= ROS_GOAL_TOLERANCE_RAD else 0
                 torque = self._read("Torque_Enable")
+                feedback_clocks = ({"position_monotonic": read_ended, "position_utc": position_utc,
+                    "torque_monotonic": self.clock(), "torque_utc": self.wall_clock()}
+                    if supervised_commissioning else {})
                 if any(torque[joint] != 1 for joint in JOINTS):
                     raise RuntimeError("trajectory torque state changed during settle")
                 settle_samples.append({"monotonic": read_ended,
                                        "raw": dict(actual), "torque": dict(torque)})
                 state = self.publish_state(event="trajectory_settle", raw=actual,
                                            torque=torque, phase="settling", label=goal_id,
+                                           **feedback_clocks,
                                            trajectory_goal_id=goal_id,
                                            trajectory_time=prepared.duration + self.clock() - (started + prepared.duration),
                                            trajectory_desired=dict(zip(ARM_JOINTS,
@@ -1460,10 +1522,15 @@ class ArmSession:
                     "input_derivatives_ignored": prepared.ignored_derivatives,
                     "status": "calibration_measured_endpoint_held",
                     "target_reached": False, "goal_error_rad": endpoint_error}}
+            if supervised_commissioning and self.clock()-read_ended > .1:
+                raise RuntimeError("supervised completion acquisition is stale")
             state = self.publish_state(event="trajectory_complete", raw=actual,
-                                       torque=torque, phase="complete", label=goal_id)
+                                       torque=torque, phase="complete", label=goal_id,
+                                       **feedback_clocks)
             self._record({"event": "trajectory_feedback_complete", "goal_id": goal_id,
                           "samples": feedback_samples})
+            if supervised_commissioning and self.clock()-read_ended > .1:
+                raise RuntimeError("supervised completion acquisition became stale during publication")
             self._sag_recovery_available = False
             self.last_command = self.clock()
             return {"state": state, "trajectory": {
@@ -1471,9 +1538,12 @@ class ArmSession:
                 "sample_count": len(prepared.samples),
                 "feedback_count": len(feedback_samples),
                 "input_derivatives_ignored": prepared.ignored_derivatives,
-                "final_tolerance_rad": ROS_GOAL_TOLERANCE_RAD}}
+                "final_tolerance_rad": ROS_GOAL_TOLERANCE_RAD,
+                **({"effective_path_sha256": expected_path_sha256,
+                    "qualification": SUPERVISED_QUALIFICATION, "qualified": False}
+                   if supervised_commissioning else {})}}
         except ArmSessionCancelled as error:
-            if self._cancel_reason == "trajectory_cancel_hold":
+            if self._cancel_reason == "trajectory_cancel_hold" and not (supervised_commissioning and not motion_started):
                 try:
                     state = self.cancel_hold()
                 except BaseException as hold_error:
@@ -1487,7 +1557,7 @@ class ArmSession:
                 self._cancel_requested = False
                 return {"cancelled": True, "state": state,
                         "trajectory": {"goal_id": goal_id, "feedback_count": len(feedback_samples)}}
-            if motion_started:
+            if motion_started or (supervised_commissioning and self.saved_ram is not None):
                 self.shutdown(reason=self._cancel_reason or str(error))
             raise
         except BaseException as error:
@@ -1504,6 +1574,12 @@ class ArmSession:
     def home(self):
         """Reach measured home through validated raw sublegs of at most 100 counts."""
         self._require_initialized()
+        # Explicit home requests adopt a newly measured, same-identity HOME.
+        # Compute and validate both caches before replacing either old value.
+        home_pose = self.arm._pose(load_home(self.arm.settings["home_file"],
+            self.arm.settings["id"], self.calibration_digest))
+        home_raw = self._validate_target(self.arm._raw_goal(home_pose), "reloaded-home")
+        self.home_pose, self.home_raw = home_pose, home_raw
         start = self._read("Present_Position")
         points = []
         max_delta = 100
@@ -2544,8 +2620,8 @@ class ArmSession:
             return self.recover_camera()
         if name == "execute_trajectory":
             required = {"command", "goal_id", "joint_names", "points", "path_sha256"}
-            allowed = required | {"calibration_endpoint"}
-            if set(command) not in (required, allowed):
+            allowed = required | {"calibration_endpoint", "supervised_commissioning", "expected_start_raw"}
+            if not required <= set(command) <= allowed:
                 raise ValueError("execute_trajectory requires goal_id, joint_names, points, and collision-checked path_sha256")
             calibration_endpoint = command.get("calibration_endpoint", False)
             if type(calibration_endpoint) is not bool:
@@ -2553,7 +2629,9 @@ class ArmSession:
             result = self.execute_trajectory(command["goal_id"],
                     command["joint_names"], command["points"],
                     expected_path_sha256=command["path_sha256"],
-                    calibration_endpoint=calibration_endpoint)
+                    calibration_endpoint=calibration_endpoint,
+                    supervised_commissioning=command.get("supervised_commissioning", False),
+                    expected_start_raw=command.get("expected_start_raw"))
             response = {"ok": True, **result}
             if result.get("trajectory", {}).get("status") == "calibration_measured_endpoint_held":
                 response.update(status=result["trajectory"]["status"],

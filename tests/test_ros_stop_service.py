@@ -54,6 +54,13 @@ def bridge(monkeypatch, tmp_path):
         else:
             real_write_stop(command, deadline)
     monkeypatch.setattr(node, '_write_owner_command', fake_write_stop)
+    home = tmp_path / 'measured-home.json'
+    home.write_text(json.dumps(dict(schema=1, kind='measured-home',
+        units='body degrees; gripper percent', arm_id='fake-arm',
+        calibration_sha256='a'*64, position=dict.fromkeys(TELEOP_JOINTS, 0.))))
+    config = tmp_path / 'station.json'
+    config.write_text(json.dumps({'arm': {'home_file': str(home), 'tolerance': 3.}}))
+    node._prepare_config_path = config
     node._read_state = lambda **kw: snapshot()
     yield node, process
     node._process = None

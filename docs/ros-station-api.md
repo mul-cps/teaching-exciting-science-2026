@@ -513,3 +513,51 @@ Independently received stop, cancel, exit, EOF, watchdog expiry and transport
 termination retain their existing disarm/restore authority; diagnostic failure
 does not generate those commands or clear their barriers. Unknown bridge delivery
 remains faulted until a separately explicit verified stop.
+
+### Supervised calibration observation (`/follower/calibration_ready`)
+
+This commissioning-only service requires `calibration_endpoint_mode:=true` and
+an absolute `calibration_ready_pose_file`. It does **not** certify collision
+clearance or complete HOME/readiness. Normal trajectory action collision checks
+are unchanged. The operator must independently inspect the current pose, target,
+and route before requesting this supervised operation.
+
+The JSON file has exactly these fields (identity and raw values come from the
+current resident owner; do not substitute a measured-home artifact):
+
+```json
+{
+  "schema": "so101-supervised-calibration-target-v1",
+  "kind": "planned_observation",
+  "qualified": false,
+  "qualification": "SUPERVISED_COMMISSIONING_NOT_COLLISION_CERTIFIED",
+  "arm_id": "<current arm ID>",
+  "calibration_sha256": "<current calibration SHA-256>",
+  "owner_source_sha256": {"<module>": "<current SHA-256>"},
+  "owner_started_monotonic": 123.0,
+  "start_raw": {"shoulder_pan": 1997, "shoulder_lift": 1143, "elbow_flex": 2993, "wrist_flex": 2826, "wrist_roll": 2076, "gripper": 1955},
+  "raw": {"shoulder_pan": 1997, "shoulder_lift": 1143, "elbow_flex": 2879, "wrist_flex": 2826, "wrist_roll": 2076, "gripper": 1955}
+}
+```
+
+The example numbers are illustrative, not reusable motion authorization. All six
+raw values must be integers within the owner's admitted and firmware bounds.
+The gripper must remain fixed. A fresh all-off start, exact start raw map, source,
+calibration, and owner generation must match. The owner checks that same frozen
+start again after profile setup immediately before the first Goal write.
+
+The existing trajectory executor applies fixed limits of 0.025 rad/s,
+0.05 rad/s² and 0.2 rad/s³, checks analytic spline extrema, and uses its existing
+watchdog and stop handling. Held axes may drift at most four raw counts; active
+tracking error is limited to two degrees. There is no gravity trim or automatic
+retry. Completion preserves original encoder/torque acquisition clocks and
+requires strict measured settlement. Unknown delivery or failed completion
+requires the existing verified stop cleanup and leaves readiness unpromoted.
+The result reports `effective_path_sha256`, `qualified:false`, and the explicit
+commissioning qualification above; this digest is not a collision certificate.
+
+This operation never writes a measured-home file. After independently verified
+arrival, the operator may persist a measured HOME from actual encoder data.
+An explicit subsequent HOME request reloads and validates that identity-bound
+file in the owner, and refreshes the bridge's HOME cache only after successful
+owner completion. Invalid reloads retain the old caches and send no home Goal.
