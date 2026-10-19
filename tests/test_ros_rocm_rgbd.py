@@ -203,7 +203,7 @@ def test_native_derived_source_original_stamps_dedup_and_replacement(tmp_path):
 def test_static_no_control_resources_or_callback_filework():
     import ast
     tree = ast.parse(path.read_text())
-    for name in ('_receive', '_admit', '_publish', '_tick'):
+    for name in ('_info', '_receive', '_admit', '_publish', '_tick'):
         function = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == name)
         calls = [ast.unparse(n.func) for n in ast.walk(function) if isinstance(n, ast.Call)]
         assert not any(x.endswith(('.read_bytes', '.open', '.sha256', '.wait', '.sleep', '.synchronize', '.item')) for x in calls)
@@ -236,3 +236,113 @@ def test_unproven_distortion_shape_not_reported_as_five_zero_coefficients(shape,
     fake = NS(buffers={'depth_info': [(1_000_000_000, 'a'*32, info)]},
         binding={'endpoints': {'depth_info': {'gid': 'a'*32}}})
     with pytest.raises(ValueError): module.ROCmRGBD._info(fake, 'depth_info', 1_000_000_000, (4, 3), [4., 4., 2., 1.], info.header.frame_id)
+
+
+def delayed_info_fixture():
+    """Replay native metadata from the first fault; no ROS node/device/worker."""
+    now = 1_792_440_445_900_963_893
+    image_ns = 1_792_440_445_854_934_814
+    offers = []; records = []
+    fake = NS(buffers={}, binding={'endpoints': {}}, identity={
+        'request_started_monotonic': time.monotonic(), 'confirmed_ros_ns': now-200_000_000},
+        worker=NS(ready=True, scheduler=NS(pending=None), offer=lambda d, rgb, m: offers.append(m)),
+        ledger=NS(admit=lambda metadata, current: records.append((metadata, current)) or True),
+        output_binding={'test': True}, calibration=module.calibration_from_oracle(config()),
+        first_source='recorded-source', generation='test-generation', configuration_sha='a'*64,
+        get_clock=lambda: NS(now=lambda: NS(nanoseconds=now)),
+        last_receipt={k: time.monotonic()-.05 for k in module.TOPICS},
+        counters=dict(stale=0, awaiting_identity=0, duplicate=0, superseded=0, admitted=0))
+    for stream in module.TOPICS:
+        depth = stream.startswith('depth'); info = stream.endswith('info')
+        message = CameraInfo() if info else Image()
+        message.header.stamp.sec, message.header.stamp.nanosec = divmod(image_ns, 1_000_000_000)
+        message.header.frame_id = 'camera_depth_optical_frame' if depth else 'camera_color_optical_frame'
+        message.width, message.height = (4, 3) if depth else (6, 4)
+        if info:
+            message.distortion_model = 'plumb_bob'; message.d = [0.]*5
+            message.k = [4., 0., 2. if depth else 3., 0., 4., 1. if depth else 2., 0., 0., 1.]
+        else:
+            message.encoding = '16UC1' if depth else 'rgb8'; message.step = message.width*(2 if depth else 3)
+            message.data = bytes(message.step*message.height)
+        gid = ('%02x' % (list(module.TOPICS).index(stream)+1))*16
+        fake.binding['endpoints'][stream] = {'gid': gid}
+        fake.buffers[stream] = deque([(image_ns, gid, message)], maxlen=4)
+    fake._info = lambda *args: module.ROCmRGBD._info(fake, *args)
+    return fake, offers, records, now, image_ns
+
+
+def set_replay_stamp(fake, stream, stamp):
+    _, gid, message = fake.buffers[stream][-1]; message = deepcopy(message)
+    message.header.stamp.sec, message.header.stamp.nanosec = divmod(stamp, 1_000_000_000)
+    fake.buffers[stream].append((stamp, gid, message))
+
+
+def test_recorded_100ms_delayed_info_waits_then_admits_original_cohort():
+    fake, offers, records, now, image_ns = delayed_info_fixture()
+    original_receipts = fake.last_receipt.copy()
+    fake.buffers['color_info'].clear()
+    # Exact colorInfo lag at the20:07:25.900UTC first fault.
+    info_ns = image_ns-100_065_918
+    # Recover the message from the independent fresh fixture, preserving storage.
+    message = delayed_info_fixture()[0].buffers['color_info'][0][2]
+    message.header.stamp.sec, message.header.stamp.nanosec = divmod(info_ns, 1_000_000_000)
+    fake.buffers['color_info'].append((info_ns, fake.binding['endpoints']['color_info']['gid'], message))
+    module.ROCmRGBD._admit(fake)
+    assert offers == records == [] and fake.counters['admitted'] == 0
+    # A distinct actual Info exposure within the unchanged40ms window arrives.
+    set_replay_stamp(fake, 'color_info', image_ns-1_000_000)
+    module.ROCmRGBD._admit(fake)
+    assert len(offers) == len(records) == 1
+    assert offers[0]['color_stamp_ns'] == image_ns
+    assert offers[0]['color_info_stamp_ns'] == image_ns-1_000_000
+    assert offers[0]['source_received_monotonic'] == original_receipts
+    assert fake.last_receipt == original_receipts
+
+
+@pytest.mark.parametrize('mutation', ['K', 'D', 'profile', 'frame', 'GID'])
+def test_delayed_info_does_not_hide_real_immutable_mutation(mutation):
+    fake, offers, _, now, image_ns = delayed_info_fixture()
+    set_replay_stamp(fake, 'color_info', image_ns-100_065_918)
+    stamp, gid, info = fake.buffers['color_info'][-1]
+    if mutation == 'K': info.k[0] += 1.
+    elif mutation == 'D': info.d[0] = .01
+    elif mutation == 'profile': info.width += 1
+    elif mutation == 'frame': info.header.frame_id = 'changed_frame'
+    else: fake.buffers['color_info'][-1] = (stamp, 'f'*32, info)
+    # Ensure the mutated delayed item is the only candidate.
+    fake.buffers['color_info'] = deque([fake.buffers['color_info'][-1]], maxlen=4)
+    with pytest.raises(ValueError, match='calibration/profile/cohort changed'):
+        module.ROCmRGBD._admit(fake)
+    assert offers == []
+
+
+@pytest.mark.parametrize('age_ns', [-1_000_000, 501_000_000])
+def test_future_or_stale_info_inside_pair_window_still_rejected(age_ns):
+    fake, offers, _, now, image_ns = delayed_info_fixture()
+    # For stale Info keep images499ms old, within original500ms lease.
+    if age_ns > 0:
+        fake.identity['confirmed_ros_ns'] = now-600_000_000
+        for stream in ('depth', 'color'):
+            set_replay_stamp(fake, stream, now-499_000_000)
+        for stream in module.TOPICS:
+            fake.buffers[stream] = deque([fake.buffers[stream][-1]], maxlen=4)
+        set_replay_stamp(fake, 'depth_info', now-499_000_000)
+    else:
+        for stream in module.TOPICS:
+            set_replay_stamp(fake, stream, now-10_000_000)
+            fake.buffers[stream] = deque([fake.buffers[stream][-1]], maxlen=4)
+    set_replay_stamp(fake, 'color_info', now-age_ns)
+    fake.buffers['color_info'] = deque([fake.buffers['color_info'][-1]], maxlen=4)
+    with pytest.raises(ValueError, match='CameraInfo exposure'):
+        module.ROCmRGBD._admit(fake)
+    assert offers == []
+
+
+@pytest.mark.parametrize('delta_ns,available', [(40_000_000, True), (40_000_001, False)])
+def test_info_temporal_boundary_remains_exactly_40ms(delta_ns, available):
+    fake, _, _, _, image_ns = delayed_info_fixture()
+    set_replay_stamp(fake, 'color_info', image_ns-delta_ns)
+    fake.buffers['color_info'] = deque([fake.buffers['color_info'][-1]], maxlen=4)
+    result = fake._info('color_info', image_ns, (6, 4), [4., 4., 3., 2.],
+                        'camera_color_optical_frame')
+    assert (result is not None) is available
