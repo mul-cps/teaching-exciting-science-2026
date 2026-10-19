@@ -90,6 +90,7 @@ class PerceptionSupervisor(Node):
             self.health_cache={};self.health_next_request={};self.health_request_starts={};self.health_rpc_clocks={}
             self.health_coverage_end=None;self.health_candidate_end=None;self.health_gap_reason=None
             self.health_rejections={};self.health_guard_consumes=0;self.health_guard_wakeups=0
+            self.health_refresh_callbacks=0
             self.health_guard=self.create_guard_condition(self._health_wakeup)
             self.buffer=Buffer();self.listener=TransformListener(self.buffer,self)
             self.rpc_clients={name:self.create_client(Trigger,name) for name in
@@ -104,6 +105,7 @@ class PerceptionSupervisor(Node):
                 self.create_service(Trigger,'~/'+name,callback)
             self.publisher=self.create_publisher(String,'~/status',1)
             self.timer=self.create_timer(.2,self._tick)
+            self.health_timer=self.create_timer(.1,self._health_refresh)
             self._persist()
         except BaseException:
             self.journal.close();raise
@@ -197,6 +199,9 @@ class PerceptionSupervisor(Node):
         if name==COORDINATOR+'/start_recovery':
             if native_authority is None:self._native_final()
             else:self._native_final(authority=native_authority)
+        if name in (c+'/derived_source_health' for c in CONSUMERS):
+            if not PerceptionSupervisor._health_eligible(self):return False
+            if self._producer_now().get('state')!='ready':return False
         future=client.call_async(Trigger.Request())
         record=dict(future=future,started=started,deadline=started+timeout,received=None,request_ros_ns=self.get_clock().now().nanoseconds)
         def completed(_,r=record):
@@ -243,14 +248,33 @@ class PerceptionSupervisor(Node):
         validate_statement(value,now_ns=self.get_clock().now().nanoseconds,now_mono=time.monotonic(),receipt_mono=receipt)
         return value
 
+    def _health_eligible(self):
+        return not self.closed and self.policy.enabled and not self.policy.latched and not self.reset_pending and self.policy.job is None and self.policy.state in ('warming','armed')
+
+    def _health_refresh(self):
+        if self.closed:return
+        self.health_refresh_callbacks+=1
+        try:
+            if self._health_eligible():self._health_queries()
+        except HealthNotCurrent as error:
+            self.health_error=str(error)[:512]
+        except Exception as error:self._fail(error)
+        finally:
+            # Read-only starter has its own end-anchored cadence. Never reset
+            # the control timer or start RPCs from completion callbacks.
+            if not self.closed:self.health_timer.reset()
+
     def _health_queries(self):
-        # Only the fixed timer calls this. Completion guards NEVER start RPCs.
-        now=time.monotonic()
+        # Only the100ms read-only timer calls this. Recheck eligibility before
+        # EACH actual admission, including after a slow previous call_async.
         for consumer in CONSUMERS:
+            if not PerceptionSupervisor._health_eligible(self):return
+            status=self._producer_now()
+            if status.get('state')!='ready':return
             endpoint=consumer+'/derived_source_health'
-            if endpoint not in self.rpc and now>=self.health_next_request.get(endpoint,0.):
-                self._request(endpoint,2.)
-                self.health_next_request[endpoint]=time.monotonic()+.2
+            if endpoint not in self.rpc and time.monotonic()>=self.health_next_request.get(endpoint,0.):
+                if self._request(endpoint,2.) is False:return
+                self.health_next_request[endpoint]=time.monotonic()+.1
                 self.health_request_starts[endpoint]=self.health_request_starts.get(endpoint,0)+1
 
     def _clear_health_queries(self):
@@ -282,7 +306,7 @@ class PerceptionSupervisor(Node):
     def _current_health(self,start_requests=True):
         status=self._producer_now();require(status.get('state')=='ready' and status.get('fault') is None and
             status['producer_generation']==self.pin['producer_generation'],'current producer not healthy')
-        if start_requests:self._health_queries()
+        # Validation/consumption only; requests belong to the100ms timer.
         self._graph();ready=True;ends=[]
         for consumer in CONSUMERS:
             endpoint=consumer+'/derived_source_health'
@@ -685,7 +709,7 @@ class PerceptionSupervisor(Node):
 
     def _snapshot(self):
         return dict(self.policy.status(),**self.pre_outage.status(now=time.monotonic()),operator_reconciliation=self.reconciliation_result,reset_check_pending=self.reset_pending,health_reason=self.health_error,current_producer_generation=self.pin['producer_generation'],
-                    current_pin_sha256=pin_digest(self.pin),health_observation=dict(coverage_end_monotonic=self.health_coverage_end,
+                    current_pin_sha256=pin_digest(self.pin),health_observation=dict(health_refresh_period_s=.1,control_period_s=.2,refresh_callbacks=self.health_refresh_callbacks,coverage_end_monotonic=self.health_coverage_end,
                         gap_reason=self.health_gap_reason,request_starts=self.health_request_starts,guard_consumes=self.health_guard_consumes,
                         guard_wakeups=self.health_guard_wakeups,rpc_clocks=self.health_rpc_clocks,rejected=self.health_rejections),health_scope='continuous source binding only',image_admitted=False,processing_progress=False,scope='source-binding health only; never image progress, motion or physical qualification')
 
@@ -693,7 +717,7 @@ class PerceptionSupervisor(Node):
         response.success=True;response.message=bounded_json(self._snapshot());return response
 
     def close(self):
-        self.closed=True;self.pre_outage.clear()
+        self.closed=True;self.health_timer.cancel();self.pre_outage.clear()
         for name,record in self.rpc.items():
             try:self.rpc_clients[name].remove_pending_request(record['future'])
             except (KeyError,RuntimeError):pass

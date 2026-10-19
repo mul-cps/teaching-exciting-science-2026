@@ -184,3 +184,22 @@ Producer ROS process/GID replacement, changed code/calibration, OS reboot and
 monotonic boundaries are OUT OF SCOPE and fail closed. Do not edit the immutable
 baseline, delete/change journal directories or invoke bare coordinator recovery
 expecting it to become an automatically adopted supervisor job.
+
+### Separate source-health sampling cadence
+
+The read-only source-binding health starter runs at a fixed100ms cadence, with
+one pending RPC per consumer. Each start is gated again after service readiness;
+the next due time is anchored after actual admission. The health timer resets
+after its callback and never catches up missed intervals. Completion guards
+consume existing responses only; they cannot chain RPCs.
+
+Control/status, native preflight, quota/journal transitions and coordinator job
+monitoring retain their separate200ms cadence. Disabled, closing, latched,
+resetting, native-preflight and owned-job phases start no health RPCs. Close
+cancels the new timer before pending-future cleanup.
+
+This changes sampling only. All original250ms receipt/500ms header/identity
+leases, strict five-second continuous overlap, original two-second pre-outage
+history and dispatch deadlines, quota and cooldown remain unchanged. Diagnostics
+report both periods and the scalar refresh callback count. A healthy sample or
+receipt-only matrix is not full five-second qualification or image progress.
