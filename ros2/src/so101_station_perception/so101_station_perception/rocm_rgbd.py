@@ -22,16 +22,17 @@ from rcl_interfaces.srv import GetParameters
 from realsense2_camera_msgs.srv import DeviceInfo
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
 from std_msgs.msg import String
+from std_srvs.srv import Trigger
 
 try:
     from so101_station_projection.rocm_projection import calibration_from_oracle
     from so101_station_projection.rocm_client import ProjectionWorker
-    from so101_station_projection.rocm_transport import ExposureLedger, MAX_AGE_NS, MAX_PAIR_NS, build_lineage
+    from so101_station_projection.rocm_transport import ExposureLedger, MAX_AGE_NS, MAX_PAIR_NS, build_lineage, source_hashes
 except ModuleNotFoundError as error:
     if error.name != 'so101_station_projection': raise
     from workshop.perception.rocm_projection import calibration_from_oracle
     from workshop.perception.rocm_client import ProjectionWorker
-    from workshop.perception.rocm_transport import ExposureLedger, MAX_AGE_NS, MAX_PAIR_NS, build_lineage
+    from workshop.perception.rocm_transport import ExposureLedger, MAX_AGE_NS, MAX_PAIR_NS, build_lineage, source_hashes
 
 
 TOPICS = dict(depth='/camera/depth/image_rect_raw', color='/camera/color/image_raw',
@@ -60,11 +61,12 @@ def publisher_gid(info):
     return value[:16].hex()
 
 
-def source_snapshot(node):
+def source_snapshot(node, *, check=None):
     """Background graph only: bind all actual image/info endpoints to one camera."""
     records = {}
     for stream, topic in TOPICS.items():
         endpoints = node.get_publishers_info_by_topic(topic)
+        if check is not None: check()
         if len(endpoints) != 1: raise ValueError('source must have one publisher per topic')
         endpoint = endpoints[0]
         name = endpoint.node_namespace.rstrip('/')+'/'+endpoint.node_name
@@ -107,6 +109,7 @@ class ROCmRGBD(Node):
         self.worker = None; self.closed = False
         readonly = ParameterDescriptor(read_only=True)
         self.declare_parameter('enabled', False, readonly)
+        self.declare_parameter('allow_explicit_reset', False, readonly)
         self.declare_parameter('configuration_file', '', readonly)
         self.declare_parameter('worker_python', '/home/bjoern/miniforge3/bin/python', readonly)
         self.declare_parameter('compatibility_library', '', readonly)
@@ -117,9 +120,17 @@ class ROCmRGBD(Node):
             raise ValueError('explicit bounded CPU-oracle configuration required')
         configuration_bytes = configuration_path.read_bytes()
         self.configuration = json.loads(configuration_bytes)
+        self._reset_configuration = deepcopy(self.configuration)
         self.calibration = calibration_from_oracle(self.configuration)
         self.configuration_sha = hashlib.sha256(configuration_bytes).hexdigest()
         self.producer_node_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        self.allow_explicit_reset = self.get_parameter('allow_explicit_reset').value is True
+        self._worker_factory = worker_factory
+        self._reset = None; self._reset_timer = None
+        self._last_reset = float('-inf'); self._reset_deadline = None
+        self._reset_paths = dict(configuration=configuration_path.resolve(), node=Path(__file__).resolve(),
+            python=Path(self.get_parameter('worker_python').value).resolve(),
+            library=Path(self.get_parameter('compatibility_library').value).resolve())
         c = self.calibration
         self.lineage_calibration = dict(sha256=self.configuration_sha, depth_size=list(c.depth_size),
             color_size=list(c.color_size), depth_K=c.depth_k.tolist(), color_K=c.color_k.tolist(),
@@ -153,13 +164,175 @@ class ROCmRGBD(Node):
         try:
             self.worker = worker_factory(self.configuration, self.get_parameter('worker_python').value,
                 self.get_parameter('compatibility_library').value, enabled=True)
+            self._reset_expected = dict(configuration=self.configuration_sha, node=self.producer_node_sha,
+                python=self.worker.provenance['worker_python_sha256'],
+                library=self.worker.provenance['compatibility_sha256'],
+                sources=deepcopy(self.worker.provenance['source_sha256']))
+            self.reset_service = self.create_service(Trigger, '~/reset_source', self._reset_source)
             self.timer = self.create_timer(.005, self._tick)
             self.identity_timer = self.create_timer(.05, self._identity_tick)
         except Exception:
             if self.worker is not None: self.worker.close()
             raise
 
+    def _check_reset_deadline(self):
+        if self._reset_deadline is None or time.monotonic() > self._reset_deadline:
+            raise TimeoutError('parent reset request deadline2s expired')
+
+    def _check_reset_inputs(self):
+        # Explicit reset only: never file/hash work in image or normal timer paths.
+        for label, path in self._reset_paths.items():
+            actual = hashlib.sha256(path.read_bytes()).hexdigest()
+            self._check_reset_deadline()
+            if actual != self._reset_expected[label]:
+                raise ValueError('startup '+label+' bytes changed')
+        actual = source_hashes()
+        self._check_reset_deadline()
+        if actual != self._reset_expected['sources']:
+            raise ValueError('startup projection source bytes changed')
+
+    def _reset_status(self):
+        if self._reset is None: return None
+        result = dict(self._reset)
+        count = self.counters['published']-result.pop('published_at_start')
+        result['published_new_cohorts'] = count
+        result['producer_generation'] = self.generation
+        result['cooldown_remaining_s'] = max(0., 30.-(time.monotonic()-self._last_reset))
+        ready = False
+        if (result['state'] == 'preparing' and not self.invalid and self.worker.ready
+                and not self.worker.closed and self.identity is not None
+                and self.last_result is not None and count >= 2):
+            now = self.get_clock().now().nanoseconds; mono = time.monotonic()
+            ready = (self.last_result['producer_generation'] == self.generation
+                and all(0 <= now-self.last_result[k] <= MAX_AGE_NS for k in
+                        ('depth_stamp_ns', 'color_stamp_ns', 'depth_info_stamp_ns', 'color_info_stamp_ns'))
+                and 0 <= mono-self.identity['request_started_monotonic'] <= 1.
+                and 0 <= mono-self.last_result['identity']['request_started_monotonic'] <= 1.
+                and all(0 <= mono-v <= .250 for v in self.last_result['source_received_monotonic'].values()))
+        result['ready'] = ready
+        if ready: result['state'] = 'ready'
+        elif result['state'] == 'preparing' and self.invalid:
+            result['state'] = 'unavailable'; result['reason'] = self.invalid
+        return result
+
+    def _cancel_source_rpc(self):
+        pending = self.pending_identity
+        self.pending_identity = None  # late completion has no owner/generation
+        if pending is not None:
+            for client, future in zip((self.device_client, self.parameter_client), pending['futures']):
+                try: client.remove_pending_request(future)
+                except (KeyError, RuntimeError): pass
+                future.cancel()
+
+    def _reset_source(self, request, response):
+        # Default mutually-exclusive callback group serializes acceptance/job/data.
+        deadline = time.monotonic()+2.
+        reason = None; accepted = False
+        if not self.allow_explicit_reset: reason = 'explicit reset disabled'
+        elif self.closed: reason = 'producer closed'
+        elif self._reset is not None and self._reset['state'] == 'reset_failed':
+            reason = 'permanent reset_failed; external intervention required'
+        elif self._reset is not None and self._reset['state'] == 'resetting': reason = 'reset busy'
+        elif self._reset is not None and self._reset_status()['state'] == 'preparing': reason = 'reset preparing'
+        elif time.monotonic()-self._last_reset < 30.: reason = 'reset cooldown30s'
+        if reason is None:
+            self._reset_deadline = deadline
+            try:
+                self._check_reset_inputs()
+                self._check_reset_deadline()
+                source_snapshot(self, check=self._check_reset_deadline)  # graph, NOT source health
+                self._check_reset_deadline()
+            except (OSError, ValueError, TypeError, AttributeError) as error:
+                reason = str(error)[:512]
+        if reason is None:
+            self._last_reset = time.monotonic()
+            self._reset = dict(accepted_reset_id=uuid.uuid4().hex,
+                new_producer_generation=uuid.uuid4().hex, state='resetting', reason=None,
+                published_at_start=self.counters['published'])
+            self.generation = self._reset['new_producer_generation']
+            self._invalidate('explicit source reset accepted; not ready')
+            try:
+                self._cancel_source_rpc()
+                self._check_reset_deadline()
+                self.binding = self.identity = self.pending_identity = None
+                self.client_binding = self.first_source = self.ledger = self.output_binding = None
+                self.last_header.clear(); self.last_receipt.clear(); self.last_result = None
+                for client in (self.device_client, self.parameter_client):
+                    if client is not None:
+                        self._check_reset_deadline()
+                        self.destroy_client(client)
+                        self._check_reset_deadline()
+                self.device_client = self.parameter_client = None
+                self._check_reset_deadline()
+                self._reset_timer = self.create_timer(.001, self._perform_reset)
+                self._check_reset_deadline()
+                accepted = True
+            except Exception as error:
+                self._reset['state'] = 'reset_failed'
+                if self._reset_timer is not None:
+                    try:
+                        self.destroy_timer(self._reset_timer); self._reset_timer = None
+                    except Exception as cleanup:
+                        error = RuntimeError(str(error)[:256]+'; reset timer cleanup unknown: '+str(cleanup)[:256])
+                self.invalid = 'reset_failed: '+str(error)[:512]
+                self._invalidate(self.invalid)
+                reason = self.invalid
+        payload = dict(accepted=accepted, accepted_reset_id=self._reset['accepted_reset_id'] if accepted else None,
+            new_producer_generation=self.generation if accepted else None, producer_generation=self.generation,
+            state='resetting' if accepted else 'rejected', ready=False, reason=reason)
+        response.success = accepted
+        response.message = json.dumps(payload, allow_nan=False, separators=(',', ':'))
+        return response
+
+    def _perform_reset(self):
+        if self._reset is None or self._reset['state'] != 'resetting' or self.closed: return
+        if self._reset_timer is not None:
+            self.destroy_timer(self._reset_timer); self._reset_timer = None
+        replacement = None
+        try:
+            self._check_reset_deadline()
+            self._check_reset_inputs()
+            self._check_reset_deadline()
+            old = self.worker
+            old.close()  # owned stable pidfd group; no arbitrary PID discovery
+            if type(old.process.returncode) is not int:
+                raise RuntimeError('owned worker retirement unproven')
+            self._check_reset_deadline()
+            self._check_reset_inputs()
+            self._check_reset_deadline()
+            replacement = self._worker_factory(deepcopy(self._reset_configuration),
+                str(self._reset_paths['python']), str(self._reset_paths['library']), enabled=True)
+            self.worker = replacement  # retain ownership even on later failure
+            expected = dict(source_sha256=self._reset_expected['sources'],
+                worker_python_sha256=self._reset_expected['python'],
+                compatibility_sha256=self._reset_expected['library'],
+                worker_python=str(self._reset_paths['python']))
+            self._check_reset_deadline()
+            if any(self.worker.provenance.get(k) != v for k, v in expected.items()):
+                raise RuntimeError('reset construction provenance changed')
+            self._check_reset_inputs()
+            self._check_reset_deadline()
+            self.last_query = float('-inf'); self.startup_started = time.monotonic()
+            self.preparing_reason = 'explicit reset: awaiting fresh full source attestation'
+            self.invalid = None; self._reset['state'] = 'preparing'
+        except Exception as error:
+            if replacement is not None:
+                try:
+                    replacement.close()
+                    if type(replacement.process.returncode) is not int:
+                        raise RuntimeError('replacement retirement unproven')
+                except Exception as cleanup:
+                    error = RuntimeError(str(error)[:256]+'; replacement cleanup unknown: '+str(cleanup)[:256])
+            self._reset['state'] = 'reset_failed'
+            self._reset['reason'] = str(error)[:512]
+            self.invalid = 'reset_failed: '+str(error)[:512]
+            self._invalidate(self.invalid)
+
     def _invalidate(self, reason):
+        if (self._reset is not None and self._reset['state'] == 'preparing'
+                and self.counters['published']-self._reset['published_at_start'] < 2):
+            self._reset['state'] = 'reset_failed'
+            self._reset['reason'] = str(reason)[:512]
         if self.invalid is None: self.invalid = str(reason)[:1024]
         self.identity = None
         for buffer in self.buffers.values(): buffer.clear()
@@ -374,11 +547,14 @@ class ROCmRGBD(Node):
                 state='unavailable' if self.invalid else ('ready' if self.worker.ready and self.identity and self.last_result else 'preparing'),
                 reason=self.invalid or self.preparing_reason, counters=self.counters, received=self.received,
                 unique_exposures=self.unique,
-                hardware=self.worker.hardware, source=self.binding, last_result=self.last_result)
+                hardware=self.worker.hardware, source=self.binding, last_result=self.last_result,
+                reset=self._reset_status())
             self.status_publisher.publish(String(data=json.dumps(status, allow_nan=False)))
 
     def destroy_node(self):
         self.closed = True
+        if self._reset_timer is not None:
+            self.destroy_timer(self._reset_timer); self._reset_timer = None
         if self.pending_identity is not None:
             for client, future in zip((self.device_client, self.parameter_client), self.pending_identity['futures']):
                 try: client.remove_pending_request(future)
