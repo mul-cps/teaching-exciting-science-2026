@@ -459,6 +459,26 @@ def main():
             return {'home': result.message}
         return worker_task('arm_home', home)
 
+    def arm_capture_home():
+        def capture(worker, proxy, cancel):
+            client = worker.create_client(Trigger, '/follower/capture_home')
+            try:
+                if cancel.is_set() or not client.wait_for_service(timeout_sec=3.):
+                    raise RuntimeError('resident measured-home capture unavailable or cancelled; not sent')
+                future = client.call_async(Trigger.Request())
+                deadline = time.monotonic()+3.
+                while not future.done():
+                    if cancel.is_set() or time.monotonic() >= deadline:
+                        raise RuntimeError('capture result unknown; inspect artifact/status before any retry')
+                    worker._station_executor.spin_once(timeout_sec=.02)
+                result = future.result()
+                if result is None or result.success is not True:
+                    raise RuntimeError(result.message if result is not None else 'capture result unknown')
+                return {'capture_home': json.loads(result.message)}
+            finally:
+                worker.destroy_client(client)
+        return worker_task('arm_capture_home', capture)
+
     def reset_fault():
         if stop_state['pending']:
             raise RuntimeError('stop/disarm terminal acknowledgements missing; fault cannot reset')
@@ -494,7 +514,7 @@ def main():
                            'cancel': stop, 'stop': stop, 'reset_fault': reset_fault,
                            'ev3/connect': connect, 'ev3/home': lambda: simple_ev3('home_touch'),
                            'wake': lambda: simple_ev3('wake'), 'sleep': lambda: simple_ev3('power_save'),
-                           'arm/home': arm_home, 'arm/prepare': arm_prepare}.items():
+                           'arm/capture_home': arm_capture_home, 'arm/home': arm_home, 'arm/prepare': arm_prepare}.items():
         node.create_service(Trigger, '/station/'+name, lambda request, response, fn=function: reply(response, fn))
     node.create_timer(.5, refresh)
     try:

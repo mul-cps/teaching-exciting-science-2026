@@ -152,6 +152,12 @@ main()
         return _success(response, json.dumps(dict(schema=1,kind='arm_prepare',state='ready',
             owner_started_monotonic=time.monotonic()-1,home_completed_this_session=True)))
     prepare_service = node.create_service(Trigger, '/follower/prepare', prepared)
+    captures = []
+    def captured(request, response):
+        captures.append(time.monotonic())
+        return _success(response, json.dumps(dict(schema='resident-home-capture-v1', captured=True,
+            qualified=False, command_id='a'*32)))
+    capture_service = node.create_service(Trigger, '/follower/capture_home', captured)
     def call(type_, name, request=None):
         client = node.create_client(type_, '/station/'+name)
         if not client.wait_for_service(timeout_sec=8):
@@ -173,6 +179,13 @@ main()
             if standalone['state']=='idle':break
         assert standalone['result']['state']=='ready'
         assert len(preparations)==1 and connections==[] and operations==[]
+        assert call(Trigger, 'arm/capture_home').success
+        until=time.monotonic()+3
+        while time.monotonic()<until:
+            captured_job=json.loads(call(Trigger,'status').message)['workflow']
+            if captured_job['state']=='idle':break
+        assert captured_job['result']['capture_home']['captured'] is True
+        assert len(captures)==1 and connections==[] and operations==[]
         assert call(Trigger, 'ev3/connect').success
         assert call(Trigger, 'ev3/connect').success
         assert len(connections) == 1
