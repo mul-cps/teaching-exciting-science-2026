@@ -62,3 +62,31 @@ def test_wait_keeps_original_job_budget_and_never_rebinds_on_unknown_state(monke
     assert calls==[module.PRODUCER+'/reset_source']
     assert ('absolute recovery40s' if kind=='heartbeat_never_returns' else 'unexpected producer generation') in fake.result['reason']
     if kind=='heartbeat_never_returns':assert budget.deadline==140. and 140.<clock[0]<=140.25
+
+
+@pytest.mark.parametrize('when',['before_status','during_status'])
+def test_pending_heartbeat_does_not_mask_already_latched_lineage_fault(monkeypatch,when):
+    from so101_station_perception.recovery_core import Budget
+    clock=[100.];monkeypatch.setattr(module.time,'monotonic',lambda:clock[0])
+    budget=Budget(100.);seen=[];pauses=[]
+    def status():
+        seen.append(True)
+        if len(seen)==1:return {'producer_generation':'a'*32}
+        if when=='during_status':fake.ledger.invalid_reason='immutable source generation changed'
+        raise module.ProducerStatusPending('old heartbeat expired')
+    def phase(value):
+        if value=='wait_producer_generation' and when=='before_status':fake.ledger.invalid_reason='immutable source generation changed'
+    def pause(*args):
+        pauses.append(True)
+        raise RuntimeError('must not pause after known immutable fault')
+    fake=NS(budget=budget,lock=threading.RLock(),_guard=lambda:budget.check(clock[0]),
+        _check_baseline=lambda:None,native=NS(graph=None,pairs=[],select=lambda *a,**k:True),
+        native_error=None,lineage_error='immutable source generation changed',
+        get_clock=lambda:NS(now=lambda:NS(nanoseconds=10_000_000_000)),get_publishers_info_by_topic=lambda _:[],
+        _phase=phase,_producer_status=status,_rpc=lambda *a:NS(success=True,message=''),_rpc_guard=lambda:None,
+        _json_response=lambda _:dict(accepted=True,ready=False,accepted_reset_id='d'*32,new_producer_generation='b'*32),
+        _pause=pause,result={})
+    monkeypatch.setattr(module,'native_graph',lambda *a,**k:{})
+    module.PerceptionRecovery._run(fake)
+    assert fake.result['state']=='failed' and 'immutable source generation changed' in fake.result['reason']
+    assert len(seen)==(1 if when=='before_status' else 2) and not pauses
