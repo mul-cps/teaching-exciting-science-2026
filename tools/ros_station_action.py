@@ -16,6 +16,8 @@ def parse_args(argv=None):
                  'connect', 'wake', 'sleep', 'ev3-home', 'arm-home', 'arm-connect', 'arm-recover', 'arm-status',
                  'arm-prepare', 'arm-stop', 'gripper-diagnostics'):
         commands.add_parser(name)
+    intel = commands.add_parser('intel-grasp')
+    intel.add_argument('request_json', help='GraspPlanning request JSON with original source stamp')
     jaw = commands.add_parser('gripper-step')
     held_jaw = commands.add_parser('gripper-held-step')
     held_jaw.add_argument('delta_counts', type=int)
@@ -54,6 +56,9 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
+    if args.command == 'intel-grasp':
+        from tools.ros_intel_grasp import main as intel_main
+        return intel_main([args.request_json])
     import rclpy
     from rclpy.node import Node
     from std_srvs.srv import Trigger
