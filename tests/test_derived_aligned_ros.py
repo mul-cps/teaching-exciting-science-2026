@@ -117,21 +117,47 @@ def test_expired_tag_admission_only_clears_markers():
     assert not published and len(cleared)==1
 
 
-def test_expired_object_result_does_not_publish_or_acquire():
+@pytest.mark.parametrize('notification_error',[None,'guard delivery failed'])
+def test_expired_object_result_does_not_publish_or_acquire(notification_error):
     import ast
-    from so101_station_perception.tag_observations import stamp_is_fresh
+    from types import MethodType
     path=ROOT/'ros2/src/so101_station_objects/so101_station_objects/objects.py'
-    fn=next(item for item in ast.walk(ast.parse(path.read_text())) if isinstance(item,ast.FunctionDef) and item.name=='_consume_analysis')
-    namespace={};exec(compile(ast.fix_missing_locations(ast.Module(body=[fn],type_ignores=[])),str(path),'exec'),namespace)
-    updates=[];publications=[]
-    def expired(token):raise ValueError('source lease expired during analysis')
+    tree=ast.parse(path.read_text())
+    callbacks={item.name:item for item in ast.walk(tree) if isinstance(item,ast.FunctionDef)
+        and item.name in ('_consume_analysis','_consume_analysis_faults')}
+    # Exercise the actual result guard callback and its shared fault gate. The
+    # independent50ms timer must retain the same real fault method as well.
+    calls=[item for item in ast.walk(tree) if isinstance(item,ast.Call) and isinstance(item.func,ast.Attribute)]
+    assert any(call.func.attr=='create_guard_condition' and call.args and
+        isinstance(call.args[0],ast.Attribute) and call.args[0].attr=='_consume_analysis' for call in calls)
+    assert any(call.func.attr=='create_timer' and len(call.args)>=2 and
+        isinstance(call.args[0],ast.Constant) and call.args[0].value==.05 and
+        isinstance(call.args[1],ast.Attribute) and call.args[1].attr=='_consume_analysis_faults' for call in calls)
+    namespace={}
+    exec(compile(ast.fix_missing_locations(ast.Module(body=list(callbacks.values()),type_ignores=[])),str(path),'exec'),namespace)
+    updates=[];publications=[];order=[]
+    def expired(token):
+        order.append('admission');raise ValueError('source lease expired during analysis')
+    def pop_fault():order.append('fault_gate');return None
     job={'stamp':10.,'ros_stamp':Stamp(sec=10,nanosec=0),'derived_token':object()}
-    node=NS(derived=NS(pop_fault=lambda:None,check=expired),analysis_worker=NS(take_result=lambda:(job,{},None)),
-        get_clock=lambda:NS(now=lambda:NS(nanoseconds=10_100_000_000)),last_analysis_result_stamp=None,require_registration_tracking=False,
+    def take_result():order.append('result');return job,{},None
+    node=NS(derived=NS(pop_fault=pop_fault,check=expired),
+        analysis_worker=NS(take_result=take_result,notification_error=notification_error),last_analysis_notification_error=None,
+        get_clock=lambda:NS(now=lambda:NS(nanoseconds=10_100_000_000,to_msg=lambda:Stamp(sec=10,nanosec=100_000_000))),
+        last_analysis_result_stamp=None,require_registration_tracking=False,
         tracker=NS(update=lambda *args:updates.append(args)),_publish_unavailable=lambda *args:publications.append(args))
+    node._consume_analysis_faults=MethodType(namespace['_consume_analysis_faults'],node)
     namespace['_consume_analysis'](node)
     assert not updates and node.last_analysis_result_stamp is None
-    assert publications[0][1]=='unavailable'
+    assert len(publications)==1 and publications[0][1]=='unavailable'
+    if notification_error is None:
+        assert order==['fault_gate','result','admission']
+        assert publications[0][2]=='source lease expired during analysis'
+        assert node.last_analysis_notification_error is None
+    else:
+        assert order==['fault_gate','result']  # Failed wakeup discards; no admission/timer publication fallback.
+        assert publications[0][2]=='analysis result notification failed: '+notification_error
+        assert node.last_analysis_notification_error==notification_error
 
 
 def test_expired_during_object_message_materialization_publishes_no_observations():
