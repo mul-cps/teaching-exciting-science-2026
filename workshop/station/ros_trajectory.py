@@ -328,3 +328,44 @@ def dense_path_samples(prepared, *, max_joint_step_rad=0.01,
             dense.append(tuple(a + (b - a) * ratio
                                for a, b in zip(left.positions, right.positions)))
     return tuple(dense)
+
+
+SUPERVISED_QUALIFICATION = "SUPERVISED_COMMISSIONING_NOT_COLLISION_CERTIFIED"
+SUPERVISED_LIMITS = (.025, .05, .2)
+
+
+def prepare_supervised_calibration(start_raw, target_raw, start_radians,
+                                   admitted_min, admitted_max):
+    """One fixed-jaw, slow commissioning spline; grants no collision authority."""
+    joints = set(ARM_JOINTS) | {"gripper"}
+    for name, values in (("start", start_raw), ("target", target_raw),
+                         ("minimum", admitted_min), ("maximum", admitted_max)):
+        if (not isinstance(values, dict) or set(values) != joints or
+                any(type(v) is not int or not 0 <= v <= 4095 for v in values.values())):
+            raise ValueError(name + " requires six hardware-range integer raw values")
+    if start_raw['gripper'] != target_raw['gripper']:
+        raise ValueError("supervised gripper must remain fixed")
+    for joint in joints:
+        if not (admitted_min[joint] < admitted_max[joint] and
+                admitted_min[joint] <= start_raw[joint] <= admitted_max[joint] and
+                admitted_min[joint] <= target_raw[joint] <= admitted_max[joint]):
+            raise ValueError("supervised raw bounds violated: " + joint)
+    if not isinstance(start_radians, dict) or set(start_radians) != set(ARM_JOINTS):
+        raise ValueError("supervised start requires five measured angles")
+    start = {j: _number(start_radians[j], j) for j in ARM_JOINTS}
+    scale = 2*math.pi/4095
+    end = {j: start[j]+(target_raw[j]-start_raw[j])*scale for j in ARM_JOINTS}
+    delta = max(abs(end[j]-start[j]) for j in ARM_JOINTS)
+    velocity, acceleration, jerk = SUPERVISED_LIMITS
+    # Conservative zero-endpoint spline timing, then analytic validation below.
+    duration = max(.5, 1.875*delta/velocity,
+                   math.sqrt(6*delta/acceleration), (60*delta/jerk)**(1/3))*1.02
+    duration = math.ceil(duration/.05)*.05
+    points = [{'time': 0., 'positions': [start[j] for j in ARM_JOINTS]},
+              {'time': duration, 'positions': [end[j] for j in ARM_JOINTS]}]
+    bounds = {j: (start[j]+(admitted_min[j]-start_raw[j])*scale,
+                  start[j]+(admitted_max[j]-start_raw[j])*scale) for j in ARM_JOINTS}
+    prepared = prepare_trajectory(ARM_JOINTS, points, start_radians=start,
+        max_velocity=velocity, max_acceleration=acceleration, max_jerk=jerk,
+        position_limits=bounds)
+    return points, prepared

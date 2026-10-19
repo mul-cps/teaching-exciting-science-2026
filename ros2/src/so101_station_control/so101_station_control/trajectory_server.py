@@ -1267,12 +1267,13 @@ class TrajectoryBridge(Node):
         if reservation is self._prepare_reservation:
             # Conservative: any exception once submission starts has unknown delivery.
             self._prepare_delivery_possible = True
-        self._send({"command": command})
+        payload = {"command": command} if isinstance(command, str) else command
+        self._send(payload)
         while True:
             self._assert_owner_reservation(reservation, process, generation)
             remaining = deadline-time.monotonic()
             if remaining <= 0:
-                raise TimeoutError(command + " result unknown; verified stop required")
+                raise TimeoutError(payload["command"] + " result unknown; verified stop required")
             try:
                 reply = self._response_queue.get(timeout=min(.05, remaining))
                 self._assert_owner_reservation(reservation, process, generation)
@@ -1563,6 +1564,12 @@ class TrajectoryBridge(Node):
             return response
         deadline = time.monotonic() + timeout_s
         try:
+            if self._prepare_config_path is None:
+                raise RuntimeError("home requires trusted station configuration")
+            config_data = json.loads(Path(self._prepare_config_path).read_text())
+            home_pose, home_tolerance = _load_measured_home(config_data,
+                Path(str(self.get_parameter("station_root").value)),
+                self._expected_arm_id, self._expected_calibration_sha256)
             result = self._reserved_owner_reply("home", process, self._owner_started,
                                                 deadline, "home")
             if not isinstance(result, dict):
@@ -1572,11 +1579,17 @@ class TrajectoryBridge(Node):
                 raise RuntimeError(result.get("error", result.get("error_type", "ArmSession rejected home")))
             if not isinstance(home_state, dict) or home_state.get("event") != "home_complete":
                 raise RuntimeError("ArmSession home acknowledgement did not confirm home_complete")
+            mismatch = _measured_home_error(home_state, arm_id=self._expected_arm_id,
+                calibration_sha256=self._expected_calibration_sha256,
+                home_pose=home_pose, tolerance=home_tolerance)
+            if mismatch is not None:
+                raise RuntimeError("reloaded measured home completion mismatch: " + str(mismatch))
             response.success = True
             response.message = "measured home completed"
+            self._saved_home_pose, self._saved_home_tolerance = home_pose, home_tolerance
             self._home_completed_owner_started = self._owner_started
             self._cache_owner_state(home_state)
-        except (BrokenPipeError, OSError, RuntimeError, TimeoutError) as error:
+        except (BrokenPipeError, OSError, RuntimeError, TimeoutError, ValueError, KeyError, TypeError) as error:
             self._home_completed_owner_started = None
             response.success = False
             response.message = str(error)
@@ -2235,71 +2248,77 @@ class TrajectoryBridge(Node):
                 return response
             self._active_goal = "calibration_ready"
 
+        generation = self._owner_started
+        delivery_possible = False
+        response.success = False
         try:
-            pose_file_value = str(self.get_parameter("calibration_ready_pose_file").value).strip()
-            if not pose_file_value:
-                raise ValueError("calibration_ready_pose_file must name the measured observation pose JSON")
-            pose_path = Path(pose_file_value)
+            pose_path = Path(str(self.get_parameter("calibration_ready_pose_file").value).strip())
             if not pose_path.is_absolute():
-                raise ValueError("calibration_ready_pose_file must be an absolute path")
-            try:
-                observation = json.loads(pose_path.read_text())
-            except (OSError, json.JSONDecodeError) as error:
-                raise ValueError(f"could not read calibration-ready pose file: {error}") from error
-            if not isinstance(observation, dict):
-                raise ValueError("calibration-ready pose file must contain a JSON object")
+                raise ValueError("calibration_ready_pose_file must be an absolute planned-target path")
+            observation = json.loads(pose_path.read_text())
+            helper = self._trajectory_helper
+            required = {"schema", "kind", "qualified", "qualification", "arm_id",
+                        "calibration_sha256", "owner_source_sha256", "owner_started_monotonic",
+                        "start_raw", "raw"}
+            if (not isinstance(observation, dict) or set(observation) != required or
+                    observation.get("schema") != "so101-supervised-calibration-target-v1" or
+                    observation.get("kind") != "planned_observation" or
+                    observation.get("qualified") is not False or
+                    observation.get("qualification") != helper.SUPERVISED_QUALIFICATION or
+                    type(observation.get("owner_started_monotonic")) not in (int, float) or
+                    observation["owner_started_monotonic"] != generation):
+                raise ValueError("explicit identity-bound supervised planned observation required")
             state = self._read_state()
-            if state is None:
-                raise RuntimeError("resident ArmSession state is not fresh")
-            arm_id = state.get("arm_id")
-            calibration_sha256 = state.get("calibration_sha256")
-            if (not isinstance(arm_id, str) or not arm_id or
-                    not isinstance(calibration_sha256, str) or len(calibration_sha256) != 64 or
-                    any(character not in "0123456789abcdef" for character in calibration_sha256)):
-                raise RuntimeError("fresh resident state has invalid arm or calibration identity")
-            if (observation.get("arm_id") != arm_id or
-                    observation.get("calibration_sha256") != calibration_sha256):
-                raise ValueError("calibration-ready pose identity does not match fresh resident state")
-            legs = calibration_ready_raw_legs(state.get("raw"), observation.get("raw"))
-
+            if self._prepare_owner_state(state, process, generation, torque=0) != "normal":
+                raise RuntimeError("supervised commissioning requires normal admitted start")
+            for key in ("arm_id", "calibration_sha256", "owner_source_sha256"):
+                if observation[key] != state[key]:
+                    raise ValueError("planned observation identity/source mismatch: " + key)
+            if observation['start_raw'] != state['raw']:
+                raise ValueError("planned observation frozen start changed")
+            bounds = _arm_bounds_observation(state)
+            start = {joint: math.radians(float(state['pose'][joint])) for joint in ARM_JOINTS}
+            points, prepared = helper.prepare_supervised_calibration(
+                observation['start_raw'], observation['raw'], start,
+                bounds['admitted_min'], bounds['admitted_max'])
+            digest = helper.path_digest(prepared, held_gripper_raw=state['raw']['gripper'])
             timeout_s = float(self.get_parameter("calibration_ready_timeout_s").value)
-            if not math.isfinite(timeout_s) or not 0 < timeout_s <= 90.0:
-                raise ValueError("calibration_ready_timeout_s must be in (0, 90] seconds")
-            deadline = time.monotonic() + timeout_s
-            # This reservation excludes other bridge operations, so old queue
-            # entries cannot be acknowledgements for this single owner request.
-            while True:
-                try:
-                    self._response_queue.get_nowait()
-                except queue.Empty:
-                    break
-            self._send({"command": "move_plan", "legs": legs})
-            while True:
-                if process.poll() is not None:
-                    raise RuntimeError("ArmSession owner stopped before calibration-ready move completed")
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("calibration-ready move did not complete within timeout")
-                try:
-                    result = self._response_queue.get(timeout=min(0.05, remaining))
-                    break
-                except queue.Empty:
-                    continue
-            if not isinstance(result, dict):
-                raise RuntimeError("ArmSession returned a malformed calibration-ready acknowledgement")
-            if not result.get("ok"):
-                raise RuntimeError(result.get("error", result.get("error_type",
-                                                                 "ArmSession rejected calibration-ready move")))
-            final_state = result.get("state")
-            if not isinstance(final_state, dict) or final_state.get("event") != "plan_complete":
-                raise RuntimeError("ArmSession acknowledgement did not confirm plan_complete")
+            if not math.isfinite(timeout_s) or not 0 < timeout_s <= 90 or prepared.duration+4 >= timeout_s:
+                raise ValueError("calibration-ready timeout must fit the slow path and settlement, at most 90s")
+            self._home_completed_owner_started = None
+            command = {"command": "execute_trajectory", "goal_id": "supervised-calibration-"+uuid.uuid4().hex,
+                       "joint_names": list(ARM_JOINTS), "points": points, "path_sha256": digest,
+                       "supervised_commissioning": True, "expected_start_raw": observation['start_raw']}
+            dispatched = time.monotonic()
+            delivery_possible = True
+            result = self._reserved_owner_reply(command, process, generation,
+                time.monotonic()+timeout_s, "calibration_ready")
+            if not isinstance(result, dict) or result.get('ok') is not True:
+                raise RuntimeError("supervised owner trajectory failed: " + str(result))
+            final_state = result.get('state')
+            self._prepare_owner_state(final_state, process, generation, after=dispatched, torque=1)
+            trajectory = result.get('trajectory', {})
+            if (final_state.get('event') != 'trajectory_complete' or
+                    trajectory.get('goal_id') != command['goal_id'] or
+                    trajectory.get('effective_path_sha256') != digest or
+                    trajectory.get('qualification') != helper.SUPERVISED_QUALIFICATION or
+                    trajectory.get('qualified') is not False):
+                raise RuntimeError("supervised completion lacks matching path and qualification")
+            response.message = json.dumps({"qualification": helper.SUPERVISED_QUALIFICATION,
+                "qualified": False, "effective_path_sha256": digest,
+                "state": final_state, "trajectory": trajectory}, allow_nan=False)
             response.success = True
-            response.message = (
-                f"measured observation pose reached in {len(legs)} raw sublegs; "
-                "not MoveIt- or collision-qualified")
-        except (OSError, ValueError, RuntimeError, TimeoutError, TypeError) as error:
+        except (OSError, ValueError, RuntimeError, TimeoutError, TypeError, KeyError) as error:
+            stop_verified = None
+            if delivery_possible:
+                try:
+                    stop_verified = self._prepare_stop(process, generation)
+                except (OSError, ValueError, RuntimeError, TimeoutError, TypeError) as stop_error:
+                    error.add_note("supervised stop cleanup: " + str(stop_error))
             response.success = False
-            response.message = str(error)
+            response.message = json.dumps({"qualified": False, "error": str(error),
+                "command_delivery": "may_have_been_sent" if delivery_possible else "not_sent",
+                "stop_verified": stop_verified}, allow_nan=False)
         finally:
             with self._active_lock:
                 if self._active_goal == "calibration_ready":
