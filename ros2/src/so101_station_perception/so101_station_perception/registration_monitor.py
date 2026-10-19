@@ -26,6 +26,9 @@ from so101_station_perception_tag_tracking.registration_monitor import (
 import so101_station_perception_tag_tracking.registration_monitor as pure_monitor
 from so101_station_perception_tag_tracking.point_cloud_samples import sampled_cloud
 from .diagnostic_cloud import quaternion_matrix
+from . import derived_lineage as lineage_module
+from .derived_lineage import (LineageBuffer,TOPICS,CLOUD_TOPIC,LINEAGE_TOPIC,SCHEMA,
+    canonical_gid,validate_graph,validate_cloud,validate_camera,configure_ros_domain)
 
 
 def bounded_bytes(path, limit=131072):
@@ -63,7 +66,8 @@ class RegistrationMonitor(Node):
                   'joint_states_topic':'/follower/joint_states','robot_description_topic':'/follower/robot_description',
                   'board_status_topic':'/so101_perception/charuco_world/status',
                   'marker_pose_topic':'/so101_perception/associated_marker_pose',
-                  'base_frame':'base_link','world_frame':'charuco_board'}
+                  'base_frame':'base_link','world_frame':'charuco_board',
+                  'allow_derived_source':False,'lineage_topic':LINEAGE_TOPIC}
         for key,value in defaults.items():self.declare_parameter(key,value)
         p=lambda key:self.get_parameter(key).value
         self.enabled=bool(p('enabled'));self.period=max(30.,float(p('period_s')))
@@ -72,8 +76,11 @@ class RegistrationMonitor(Node):
         self.base,self.world=str(p('base_frame')),str(p('world_frame'))
         self.owner_path=str(p('owner_state_file'));self.cohort_path=str(p('source_cohort'))
         self.marker_path=str(p('marker_mount'))
+        self.allow_derived=p('allow_derived_source') is True;self.derived=None
+        self.derived_infos={kind:deque(maxlen=16) for kind in ('depth','color')} if self.allow_derived else None
         self.source_sha256={'node':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                             'pure':hashlib.sha256(Path(pure_monitor.__file__).read_bytes()).hexdigest()}
+        if self.allow_derived:self.source_sha256['derived_validator']=hashlib.sha256(Path(lineage_module.__file__).read_bytes()).hexdigest()
         self.source_invalid=False;self.reference_camera=None;self.cohort=None;self.mount=None;self.cache=None;self.description=None;self.pending_description=None
         self.joints=StationaryHistory();self.clouds=deque(maxlen=8);self.infos=deque(maxlen=12)
         self.boards=deque(maxlen=8);self.marker=None;self.job=None;self.last_job=-math.inf
@@ -84,7 +91,14 @@ class RegistrationMonitor(Node):
         self.create_service(SetBool,'/so101/registration_diagnostic/enable',self._enable)
         self.create_service(Trigger,'/so101/registration_diagnostic/reset',self._reset)
         self.create_subscription(PointCloud2,str(p('cloud_topic')),self._cloud,qos_profile_sensor_data)
-        self.create_subscription(CameraInfo,str(p('camera_info_topic')),lambda message:self.infos.append(message),qos_profile_sensor_data)
+        if self.allow_derived:
+            if str(p('cloud_topic'))!=CLOUD_TOPIC or str(p('camera_info_topic'))!=TOPICS['depth_info'] or str(p('lineage_topic'))!=LINEAGE_TOPIC:
+                raise ValueError('derived source requires canonical private cloud/lineage and native depth CameraInfo topics')
+            self.create_subscription(CameraInfo,str(p('camera_info_topic')),self._depth_info,qos_profile_sensor_data)
+            self.create_subscription(CameraInfo,TOPICS['color_info'],self._color_info,qos_profile_sensor_data)
+            self.create_subscription(String,LINEAGE_TOPIC,self._lineage,qos_profile_sensor_data)
+        else:
+            self.create_subscription(CameraInfo,str(p('camera_info_topic')),lambda message:self.infos.append(message),qos_profile_sensor_data)
         self.create_subscription(JointState,str(p('joint_states_topic')),self._joints,qos_profile_sensor_data)
         self.create_subscription(String,str(p('board_status_topic')),self._board,10)
         self.create_subscription(String,str(p('marker_pose_topic')),self._marker,10)
@@ -103,6 +117,9 @@ class RegistrationMonitor(Node):
     def _load_cohort(self):
         self.source_invalid=False;self.job=None;self.joints.samples.clear();self.cache=None;self.reference_camera=None
         self.clouds.clear();self.infos.clear();self.boards.clear();self.marker=None
+        self.derived=None
+        if getattr(self,'derived_infos',None) is not None:
+            for messages in self.derived_infos.values():messages.clear()
         try:
             raw=bounded_bytes(self.cohort_path);cohort=json.loads(raw)
             keys=('model_sha256','owner_session_id','arm_id','calibration_sha256','owner_source_sha256',
@@ -112,6 +129,16 @@ class RegistrationMonitor(Node):
                 raise ValueError('incomplete pinned source cohort')
             if not isinstance(cohort['owner_session_id'],str):raise ValueError('nonempty owner_session_id string required')
             rigid(cohort['world_from_base'])
+            derived=cohort.get('derived_source')
+            if 'derived_source' in cohort:
+                if not getattr(self,'allow_derived',False):raise ValueError('derived source requires explicit allow_derived_source=true')
+                if (not isinstance(derived,dict) or derived.get('schema')!=SCHEMA or derived.get('qualified') is not False or
+                        derived.get('local_provenance_not_cryptographic') is not True):raise ValueError('invalid derived source pin')
+                pin=derived['pin']
+                if (pin['outputs']['cloud_publisher_gid']!=cohort['cloud_publisher_gid'] or pin['source']['serial_number']!=cohort['camera_serial']):
+                    raise ValueError('derived source pin identity differs from common cohort')
+                self.derived=LineageBuffer(pin)
+            else:self.derived=None
             self.cohort=cohort;self.cohort_sha=hashlib.sha256(raw).hexdigest()
             mount_raw=bounded_bytes(self.marker_path) if self.marker_path else None
             self.mount=json.loads(mount_raw) if mount_raw is not None else None
@@ -120,8 +147,8 @@ class RegistrationMonitor(Node):
             self._source_files()
             if self.description is not None:self.pending_description=self.description
             self._publish('waiting_for_model_and_stationary_cohort')
-        except (OSError,ValueError,TypeError) as error:
-            self.cohort=None;self._publish('unavailable_source_cohort',reason=str(error))
+        except (OSError,ValueError,TypeError,KeyError) as error:
+            self.derived=None;self.cohort=None;self._publish('unavailable_source_cohort',reason=str(error))
 
     def _source_files(self):
         for path,key in (('station_config','station_config_sha256'),('calibration_path','calibration_sha256'),
@@ -140,10 +167,56 @@ class RegistrationMonitor(Node):
         already_invalid=self.source_invalid
         self.source_invalid=True;self.job=None;self.cache=None;self.reference_camera=None
         self.joints.samples.clear();self.clouds.clear();self.infos.clear();self.boards.clear();self.marker=None
+        if getattr(self,'derived',None) is not None:self.derived.entries.clear()
+        if getattr(self,'derived_infos',None) is not None:
+            for messages in self.derived_infos.values():messages.clear()
         if not already_invalid:self._publish('unavailable_source_changed',reason=reason)
+
+    def _lineage(self,message,info):
+        if self.source_invalid or self.derived is None:return
+        gid=info.get('publisher_gid',b'') if isinstance(info,dict) else getattr(info,'publisher_gid',b'')
+        try:self.derived.add(message.data,gid,now_ns=self.get_clock().now().nanoseconds,now_mono=time.monotonic())
+        except ValueError as error:
+            if self.derived.invalid_reason:self._invalidate(str(error))
+
+    def _native_info(self,kind,message,info):
+        if self.source_invalid or self.derived is None:return
+        gid=info.get('publisher_gid',b'') if isinstance(info,dict) else getattr(info,'publisher_gid',b'')
+        try:
+            self.derived.observe_gid(kind+'_info',gid)
+            self.derived_infos[kind].append((message,canonical_gid(gid)))
+            if kind=='depth':self.infos.append(message)
+        except ValueError as error:self._invalidate(str(error))
+
+    def _depth_info(self,message,info):self._native_info('depth',message,info)
+    def _color_info(self,message,info):self._native_info('color',message,info)
+
+    def _derived_cohort(self,cloud,gid):
+        value,status_gid,receipt=self.derived.match(stamp_ns(cloud),now_ns=self.get_clock().now().nanoseconds,now_mono=time.monotonic())
+        try:validate_graph(value,self.get_publishers_info_by_topic,cloud_gid=gid,lineage_gid=status_gid)
+        except ValueError as error:self._invalidate(str(error));raise
+        try:validate_cloud(value,cloud,gid)
+        except ValueError as error:self._invalidate(str(error));raise
+        native={}
+        for kind in ('depth','color'):
+            matches=[message for message,info_gid in self.derived_infos[kind]
+                     if stamp_ns(message)==value['original'][kind+'_info_stamp_ns'] and info_gid==value['source'][kind+'_info_publisher_gid']]
+            if not matches:raise ValueError('exact native CameraInfo for derived cohort unavailable')
+            native[kind]=matches[-1]
+        pose=self._tf(value['original']['color_frame'],value['original']['depth_frame'],stamp_ns(cloud))
+        try:validate_camera(value,native['depth'],native['color'],pose)
+        except ValueError as error:self._invalidate(str(error));raise
+        self.derived.match(stamp_ns(cloud),now_ns=self.get_clock().now().nanoseconds,now_mono=time.monotonic())
+        return value,native['depth'],receipt,status_gid
 
     def _cloud(self,message,info):
         if self.source_invalid:return
+        if getattr(self,'derived',None) is not None:
+            raw=info.get('publisher_gid',b'') if isinstance(info,dict) else getattr(info,'publisher_gid',b'')
+            try:self.derived.observe_gid('cloud',raw)
+            except ValueError as error:self._invalidate(str(error));return
+            if self.job is not None:self.clouds.append((message,canonical_gid(raw)))
+            return
         gid=info.get('publisher_gid',b'') if isinstance(info,dict) else getattr(info,'publisher_gid',b'')
         gid=bytes(gid).hex()
         if self.cohort is not None and gid!=self.cohort['cloud_publisher_gid']:
@@ -187,6 +260,7 @@ class RegistrationMonitor(Node):
         if self.cache is None or self.cohort is None:return False,'model/source cohort unavailable'
         self._source_files()
         self.last_job=time.monotonic();self.clouds.clear()
+        if getattr(self,'derived',None) is not None:self.derived.entries.clear()
         self.job={'started':self.last_job,'reads':[]}
         self._publish('collecting_stationary_cohort')
         return True,'collection accepted; result published on result/status'
@@ -242,7 +316,8 @@ class RegistrationMonitor(Node):
         now=self.get_clock().now().nanoseconds*1e-9
         if abs(now-time.time())>.05:raise ValueError('ROS and owner UTC clock domains differ')
         rejection='no paired cloud/board/camera/joint/owner cohort'
-        for cloud,gid in reversed(self.clouds):
+        candidates=tuple(self.clouds)[-1:] if getattr(self,'derived',None) is not None else reversed(self.clouds)
+        for cloud,gid in candidates:
             try:
                 stamp=stamp_ns(cloud)*1e-9
                 if gid!=self.cohort['cloud_publisher_gid']:raise ValueError('camera cloud publisher changed')
@@ -251,7 +326,8 @@ class RegistrationMonitor(Node):
                 if (board.get('state')!='tracking' or board.get('observation_valid') is not True
                         or board.get('plane_source')!='aligned_depth' or not 0<=now-float(board['stamp'])<=.5
                         or abs(float(board['stamp'])-stamp)>.05):raise ValueError('fresh paired depth-backed board unavailable')
-                info=min(self.infos,key=lambda m:abs(stamp_ns(m)*1e-9-stamp))
+                if getattr(self,'derived',None) is not None:lineage,info,_,_=self._derived_cohort(cloud,gid)
+                else:info=min(self.infos,key=lambda m:abs(stamp_ns(m)*1e-9-stamp))
                 k=np.asarray(info.k,dtype=float).reshape(3,3)
                 if (abs(stamp_ns(info)*1e-9-stamp)>.05 or stamp_ns(info)*1e-9>now
                         or info.header.frame_id!=cloud.header.frame_id or not np.isfinite(k).all()
@@ -289,6 +365,10 @@ class RegistrationMonitor(Node):
             raise ValueError('owner changed during fit or final owner sample stale')
         now=self.get_clock().now().nanoseconds*1e-9
         if not 0<=now-stamp<=.5:raise ValueError('capture too old at fit completion')
+        selected_lineage=None
+        if getattr(self,'derived',None) is not None:
+            value,_,receipt,status_gid=self._derived_cohort(cloud,self.cohort['cloud_publisher_gid'])
+            selected_lineage={'statement':value,'received_monotonic':receipt,'publisher_gid':status_gid}
         marker_link=self.mount.get('link') if self.mount else None
         marker_pose=(np.linalg.inv(base_from_camera)@link_poses[marker_link]) if marker_link in link_poses else np.eye(4)
         attached=marker_residual(self.mount,self.marker,marker_pose,stamp,self.cache.model_sha256,camera_frame=frame)
@@ -315,14 +395,13 @@ class RegistrationMonitor(Node):
                  'attached_marker':attached,'marker_mount_sha256':self.mount_sha,'fit':report,
                  'budget':{'collection_reads':len(job['reads']),'fit_seconds':self.fit_budget},
                  'interpretation':'stationary single-pose proposal; no transform/model/qzero writes; holdout validation required'}
+        if getattr(self,'derived',None) is not None:
+            payload['derived_source']={'qualified':False,'local_provenance_not_cryptographic':True,'pin':self.derived.pin,'lineage':selected_lineage}
         self.result.publish(self._publish(report['state'],**payload))
 
 
 def main(args=None):
-    if int(os.environ.get('ROS_DOMAIN_ID','76'))==0:
-        raise ValueError('periodic registration requires nonzero ROS_DOMAIN_ID')
-    os.environ.setdefault('ROS_DOMAIN_ID','76')
-    os.environ.setdefault('ROS_LOCALHOST_ONLY','1')
+    configure_ros_domain(os.environ)
     rclpy.init(args=args);node=None
     try:
         node=RegistrationMonitor();rclpy.spin(node)

@@ -166,3 +166,94 @@ This does not constrain the optimizer or silently level/translate its result.
 A future XY/yaw-only fitting mode would require a separately approved change.
 Explicit marker mounts may refer to any cached actual URDF link, including the
 nonvisual gripper_frame_link; at most one extra exact-stamp TF is needed.
+
+## Explicit derived ROCm diagnostics
+
+The direct camera path is unchanged. A private derived cloud is accepted only
+when the source-capture CLI **and** the monitor explicitly opt in. There is no
+DeviceInfo impersonation or automatic topic fallback. This does not enable
+recovery/motion consumers or qualify camera geometry, the TCP, model offsets or
+registration. Results remain `qualified=false`, `applied=false`.
+
+After separately starting the reviewed private producer, prepare pins with:
+
+```bash
+ROS_DOMAIN_ID=76 ROS_LOCALHOST_ONLY=1 ros2 run so101_station_perception \
+  registration_capture_sources --allow-derived-source \
+  --cloud-topic /so101_perception/rocm/points \
+  --output /absolute/new-derived-source.json
+```
+
+The helper keeps native `/camera/depth/camera_info`, adds only native color
+CameraInfo and `/so101_perception/rocm/lineage` subscriptions, and queries actual
+ROS graph endpoints. It subscribes to no extra raw images. Its own DeviceInfo
+request goes to the **actual native camera**, with all four native image/info
+publisher GIDs bound before and after the asynchronous request. The derived cloud
+publisher never acts as the camera identity service.
+
+The source artifact retains the common `so101-registration-source-v1` fields and
+adds an explicit `derived_source` pin. Loading that artifact without
+`allow_derived_source=true` fails. To run the optional monitor:
+
+```bash
+ROS_DOMAIN_ID=76 ROS_LOCALHOST_ONLY=1 ros2 launch so101_station_perception \
+  periodic_registration.launch.py enabled:=true allow_derived_source:=true \
+  cloud_topic:=/so101_perception/rocm/points \
+  source_cohort:=/absolute/new-derived-source.json \
+  owner_state_file:=/dev/shm/so101-sorting-20261016/rviz-arm-state.json
+```
+
+Both switches default false; disabled launch creates no monitor. Existing owner,
+stationary, model, base/board, ground and marker-mount gates remain required.
+Source pin preparation can still record a failed endpoint hold truthfully; it
+never admits that state to a fit.
+
+### Source chain checks
+
+Only per-cohort `so101-derived-rocm-rgbd-cohort-v1` lineage is proof input. The
+producer's separate heartbeat/status topic cannot substitute for it. Eight
+lineage records and bounded native CameraInfo buffers are retained. The newest
+cloud must have exact integer-nanosecond original depth-stamp lineage; missing
+lineage cannot fall back to an older cloud/status. Sequence and **both** depth/RGB
+exposures must advance. A replay does not renew its initial receipt time.
+
+Pins cover producer/source generations, all four native image/info GIDs, both
+derived cloud/lineage GIDs, serial/node binding, the fixed six core/worker source
+hashes, worker executable/runtime and compatibility hash, and the complete
+projection calibration. Native generation is SHA256 of Python's default
+`json.dumps(snapshot, sort_keys=True).encode()` for the exact
+`{node,endpoints:{depth,color,depth_info,color_info:{node,gid}}}` snapshot. Only
+native zero padding of a 16-byte GID into 24 bytes is normalized.
+
+Every selected job independently checks the six actual unique graph publishers,
+actual native CameraInfo original stamps/frames/dimensions/K/zero distortion and
+exact cloud-stamp depth-to-color TF. Intrinsics compare at float32 precision;
+TF tolerances are 2e-6 for rotation entries and 2e-8 m for translation, accounting
+for the producer's original float32 calibration rather than fitting anything.
+The configuration-file SHA is a **reported immutable pin**, not reconstructed from
+a partial JSON calibration subset. No paths reported by lineage are opened.
+
+Original depth, RGB and their native CameraInfo stamps must be positive integers,
+not future, at most 500 ms old and paired within 40 ms. Producer identity is
+bound to its original request plus 1 s; each reported native stream receipt has
+a 250 ms lease. The consumer additionally retains its own actual lineage receipt
+clock and rechecks expiry after graph/TF access and before publishing a result.
+Publisher/source/core/calibration changes latch unavailable until explicit
+repin/reset; reset with obsolete pins does not admit a replacement publisher.
+Stale/malformed messages clear usable lineage rather than refreshing old proof.
+
+These are **trusted same-host local ROS provenance assertions**, not cryptographic
+attestation or independent proof of image pixels. Original image receipts and
+startup source/runtime hashes are asserted by the reviewed producer; graph,
+CameraInfo and TF metadata are checked independently. Host monotonic clocks must
+be shared. No raw-image subscriptions are added just to duplicate lineage.
+
+Every derived diagnostic result retains the exact selected per-cohort lineage
+statement, its initially observed receipt monotonic clock and actual status GID
+under `derived_source.lineage`. This includes both original image and native
+CameraInfo stamps, sequence, source/identity leases and backend metrics; result
+publication never refreshes a lineage receipt.
+
+The launch and both diagnostic CLI mains normalize integer ROS domains, default
+to 76/localhost-only, and reject all zero spellings (`0`, `00`, `+0`) or values
+outside 1..232 before ROS initialization. Disabled launch still creates no node.

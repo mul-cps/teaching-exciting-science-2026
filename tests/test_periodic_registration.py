@@ -147,8 +147,9 @@ def test_ros_node_static_readonly_bounded_and_exact_stamp_contract():
     assert "len(job['reads'])<12" in source and "elapsed>.7" in source
     assert 'self.fit_budget=min(.2' in source and 'max(30.' in source
     assert 'owner_bracket' in source and "post['raw']!=binding['raw']" in source
-    assert "os.environ.get('ROS_DOMAIN_ID','76')" in source
-    assert "os.environ.setdefault('ROS_DOMAIN_ID','76')" in source
+    assert "configure_ros_domain(os.environ)" in source
+    guard=(Path(__file__).resolve().parents[1]/'ros2/src/so101_station_perception/so101_station_perception/derived_lineage.py').read_text()
+    assert "environ.get('ROS_DOMAIN_ID','76')" in guard
 
 
 def test_malformed_model_xml_is_rejected_as_unavailable():
