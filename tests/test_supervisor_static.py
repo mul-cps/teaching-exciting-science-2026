@@ -36,6 +36,18 @@ def test_health_completion_guard_never_starts_queries_and_timer_queries_are_capp
     assert '_request(' not in wake and '_health_queries(' not in wake
     assert '_current_health(start_requests=False)' in wake
     query=ast.unparse(methods['_health_queries'])
-    assert 'endpoint not in self.rpc' in query and '+ 0.2' in query
+    assert 'endpoint not in self.rpc' in query and '+ 0.1' in query
     complete=ast.unparse(methods['completed'])
     assert '_request(' not in complete and 'health_guard.trigger()' in complete
+
+
+def test_health_starter_and_control_have_separate_fixed_cadence_and_close_gate():
+    tree=ast.parse((SOURCE/'perception_supervisor.py').read_text())
+    methods={n.name:n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef)}
+    control=ast.unparse(methods['_step']);validate=ast.unparse(methods['_current_health'])
+    refresh=ast.unparse(methods['_health_refresh']);close=ast.unparse(methods['close'])
+    assert '_health_queries(' not in control and '_health_queries(' not in validate
+    assert '_dispatch(' not in refresh and '_monitor_job(' not in refresh and '_step(' not in refresh
+    assert 'self.health_timer.reset()' in refresh and 'self.timer.reset()' not in refresh
+    assert close.index('self.closed = True')<close.index('self.health_timer.cancel()')
+    assert not any(isinstance(n,ast.While) for n in ast.walk(methods['_health_queries']))

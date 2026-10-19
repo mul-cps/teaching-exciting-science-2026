@@ -35,7 +35,7 @@ def test_known_past_consumer_response_expiry_inhibits_and_requeries_without_latc
     m.PerceptionSupervisor._step(node)
     assert node.policy.latched is None and node.policy.enabled and node.policy.state=='warming'
     assert node.policy.stable_since is None and node.policy.job is None and not node.policy.attempts
-    assert len(requests)==2 and len(node.health_rejections)==2 and not node.health_cache
+    assert not requests and len(node.health_rejections)==2 and not node.health_cache
 
 
 @pytest.mark.parametrize('mutation',[lambda p:p.update(schema='bad'),lambda p:p.update(consumer_epoch='d'*32),
@@ -62,9 +62,9 @@ def test_guard_consumes_without_any_rpc_start_or_chain(monkeypatch):
 def test_timer_queries_ratecapped_without_catchup_and_one_pending(monkeypatch):
     node,_,clock,requests=fake_node(monkeypatch)
     node._health_queries();assert len(requests)==2
-    for offset in (.001,.01,.19,.199):clock[0]=100.3+offset;node._health_queries()
+    for offset in (.001,.01,.09,.099):clock[0]=100.3+offset;node._health_queries()
     assert len(requests)==2
-    clock[0]=100.501;node._health_queries();assert len(requests)==4
+    clock[0]=100.401;node._health_queries();assert len(requests)==4
     node.rpc={c+'/derived_source_health':object() for c in m.CONSUMERS}
     clock[0]=120.;node._health_queries();assert len(requests)==4 and len(node.rpc)==2
     node.rpc.clear();node._health_queries();assert len(requests)==6
@@ -139,8 +139,8 @@ def test_health_future_cleanup_never_cancels_mutating_coordinator_job():
 def test_absolute_timer_microjitter_skip_is_avoided_by_end_anchored_schedule(monkeypatch):
     node,_,clock,requests=fake_node(monkeypatch)
     clock[0]=100.0001;node._health_queries();assert len(requests)==2
-    clock[0]=100.2;node._health_queries();assert len(requests)==2  # Before exact request+.2 cap.
-    clock[0]=100.0004+.2;node._health_queries();assert len(requests)==4  # Bounded callback-end+.2.
+    clock[0]=100.1;node._health_queries();assert len(requests)==2  # Before exact request+.1 cap.
+    clock[0]=100.0004+.1;node._health_queries();assert len(requests)==4  # Bounded callback-end+.1.
 
 
 def test_duplicate_original_proof_never_renews_cached_response_receipt(monkeypatch):
