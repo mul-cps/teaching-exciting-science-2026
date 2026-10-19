@@ -70,7 +70,8 @@ class MarkerPipeline(CharucoWorld):
         if value("allow_derived_source"):
             from .derived_aligned import DerivedAligned
             self.derived = DerivedAligned(self, self.buffer, self._images,
-                                          callback_group=self.intake_group)
+                                          callback_group=self.intake_group,
+                                          health_callback_group=self.intake_group)
         else:
             color = message_filters.Subscriber(
                 self, Image, value("color_topic"), qos_profile=qos, callback_group=self.intake_group)
