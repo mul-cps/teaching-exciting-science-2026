@@ -264,12 +264,15 @@ class ROCmRGBD(Node):
         selected = min(candidates, key=lambda item: abs(item[0]-stamp))
         _, gid, info = selected
         expected = [float(expected_k[0]), 0., float(expected_k[2]), 0., float(expected_k[1]), float(expected_k[3]), 0., 0., 1.]
-        if (abs(selected[0]-stamp) > MAX_PAIR_NS or info.header.frame_id != frame
+        if (info.header.frame_id != frame
                 or (info.width, info.height) != size or info.distortion_model != 'plumb_bob'
                 or len(info.d) != 5 or any(not math.isfinite(x) or x != 0 for x in info.d)
                 or len(info.k) != 9 or not np.array_equal(np.asarray(info.k, np.float32), np.asarray(expected, np.float32))
                 or gid != self.binding['endpoints'][stream]['gid']):
             raise ValueError('source CameraInfo calibration/profile/cohort changed')
+        # A matching Info exposure can arrive after its image. Keep immutable
+        # source checks strict, but wait/drop this unavailable temporal pair.
+        if abs(selected[0]-stamp) > MAX_PAIR_NS: return None
         return info
 
     def _admit(self):
