@@ -58,6 +58,39 @@ def is_calibration_endpoint_result(enabled: bool, error_code: int, error_string:
             error_string.startswith("calibration_measured_endpoint_held"))
 
 
+def validate_calibration_endpoint_mode(response) -> None:
+    """Require the native GetParameters response to contain one BOOL true value."""
+    values = getattr(response, "values", None)
+    if (not isinstance(values, (list, tuple)) or len(values) != 1 or
+            type(getattr(values[0], "type", None)) is not int or values[0].type != 1 or
+            getattr(values[0], "bool_value", None) is not True):
+        # rcl_interfaces/ParameterType.PARAMETER_BOOL is 1. Keep this validator
+        # importable without ROS, including for offline qualification tools.
+        raise ValueError("calibration_endpoint_mode must be explicit typed BOOL true; "
+                         "--calibration does not enable the bridge mode")
+
+
+def _require_calibration_endpoint_mode(node, namespace, deadline) -> None:
+    """Read admission state only; never change the resident bridge's mode."""
+    from rcl_interfaces.srv import GetParameters
+
+    service_name = namespace + "/trajectory_server/get_parameters"
+    description = f"calibration_endpoint_mode preflight at {service_name}"
+    client = node.create_client(GetParameters, service_name)
+    try:
+        if not client.wait_for_service(timeout_sec=max(0.0, deadline - time.monotonic())):
+            raise TimeoutError(f"{description}: parameter service unavailable within timeout")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(f"{description}: timeout expired before parameter read")
+        request = GetParameters.Request()
+        request.names = ["calibration_endpoint_mode"]
+        response = _wait_future(node, client.call_async(request), remaining, description)
+        validate_calibration_endpoint_mode(response)
+    finally:
+        node.destroy_client(client)
+
+
 def scale_points(points: list[dict], factor: float) -> list[dict]:
     """Time-scale points while preserving their spatial path and derivatives."""
     if not math.isfinite(factor) or factor < 1:
@@ -144,7 +177,8 @@ def _parse_arguments(argv=None):
     parser.add_argument("--execute", action="store_true",
                         help="send the retimed trajectory to FollowJointTrajectory after saving")
     parser.add_argument("--calibration", action="store_true",
-                        help="accept a measured-but-outside-tolerance endpoint for calibration data only")
+                        help="accept calibration endpoint data; execution requires the bridge's "
+                             "calibration_endpoint_mode already enabled (read-only check)")
     args = parser.parse_args(argv)
     try:
         args.offsets = parse_joint_offsets(args.joint_offset)
@@ -249,6 +283,8 @@ def main(argv=None) -> int:
     action_handle = None
     try:
         deadline = time.monotonic() + args.timeout
+        if args.execute and args.calibration:
+            _require_calibration_endpoint_mode(node, args.namespace, deadline)
         while rclpy.ok():
             now = node.get_clock().now().nanoseconds * 1e-9
             message = node.latest_joint_state

@@ -7,6 +7,7 @@ import pytest
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY / "tools"))
+import ros_plan_current as plan_current
 
 from ros_plan_current import (  # noqa: E402
     ARM_JOINTS,
@@ -26,6 +27,21 @@ def test_calibration_endpoint_result_requires_flag_code_and_exact_prefix():
     assert not is_calibration_endpoint_result(False, -5, prefix)
     assert not is_calibration_endpoint_result(True, 0, prefix)
     assert not is_calibration_endpoint_result(True, -5, "trajectory target reached")
+
+
+@pytest.mark.parametrize("values", [None, [], [SimpleNamespace(type=0, bool_value=False)],
+    [SimpleNamespace(type=1, bool_value=False)],
+    [SimpleNamespace(type=4, string_value="true", bool_value=True)],
+    [SimpleNamespace(type=1, bool_value=1)],
+    [SimpleNamespace(type=1, bool_value=True), SimpleNamespace(type=1, bool_value=True)]])
+def test_calibration_preflight_rejects_anything_except_one_explicit_typed_true(values):
+    with pytest.raises(ValueError, match="calibration_endpoint_mode.*BOOL.*true"):
+        plan_current.validate_calibration_endpoint_mode(SimpleNamespace(values=values))
+
+
+def test_calibration_preflight_accepts_explicit_typed_bool_true():
+    plan_current.validate_calibration_endpoint_mode(SimpleNamespace(
+        values=[SimpleNamespace(type=1, bool_value=True)]))
 
 
 def test_joint_offset_defaults_to_small_pan_only_and_accepts_partial_json():
