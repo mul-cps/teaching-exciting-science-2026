@@ -251,7 +251,7 @@ def test_help_lists_conda_environment_commands_without_creating_environment():
     result = run_wrapper("--help")
 
     assert result.returncode == 0
-    assert "create|fetch|build|clean-build|station-live|rviz|servo|plan-smoke|inspect|packages|run|shell|real" in result.stdout
+    assert "create|fetch|build|clean-build|station-live|realsense-cpu-build|camera-preflight|rviz|servo|plan-smoke|inspect|packages|run|shell|real" in result.stdout
 
 
 def test_station_live_uses_clean_conda_ros_environment_and_default_cyclone(tmp_path: Path):
@@ -280,6 +280,8 @@ def test_station_live_uses_clean_conda_ros_environment_and_default_cyclone(tmp_p
     args = (capture / "args").read_text().splitlines()
     assert "station_live.launch.py" in args
     assert f"station_root:={ROOT}" in args
+    assert f"camera_repair_prefix:={ROOT}/ros2/.cache/realsense-cpu-texture-bounds/install" in args
+    assert f"camera_sdk_prefix:={environment_prefix}" in args
     assert args[-1] == "rviz:=false"
     clean_environment = dict(
         line.split("=", 1)
@@ -324,3 +326,11 @@ def test_nested_conda_wrapper_preserves_validated_overlay():
         env={'ROS_DOMAIN_ID':'75','RMW_IMPLEMENTATION':'rmw_cyclonedds_cpp'})
     assert result.returncode==0,result.stderr
     assert str(prefix/'lib/python3.12/site-packages/rclpy') in result.stdout
+
+
+def test_camera_build_and_preflight_are_explicit_private_actions():
+    source=WRAPPER.read_text()
+    assert 'realsense-cpu-build)' in source and 'camera-preflight)' in source
+    assert 'env -u LD_PRELOAD -u LD_LIBRARY_PATH "SO101_CONDA_PREFIX=$ENV_PREFIX" "$ROS2_DIR/conda/build-realsense-cpu-texture-bounds.sh"' in source
+    assert '--prefix "$ROS2_DIR/.cache/realsense-cpu-texture-bounds/install" --sdk-prefix "$ENV_PREFIX"' in source
+    assert 'build-realsense-cpu-texture-bounds.sh' not in source[source.index('  station-live)'):source.index('  rviz)')]
