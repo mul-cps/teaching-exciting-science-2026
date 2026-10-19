@@ -26,6 +26,8 @@ def test_actual_dds_fixed_recovery_and_supervisor_routes(capsys):
    body={'schema':'synthetic-quick-action-test','operation_success':False,
          'ready_now':False,'qualified':False,'execution_enabled':False}
    if command=='perception-recover':body.update(accepted=True,job_id='b'*32,state='native_preflight')
+   if command=='perception-supervisor-reconcile-consumers':
+    body.update(accepted=True,reconciliation_id='c'*32,enabled=False,state='operator_preflight')
    if command.endswith('reset-fault'):body.update(reset_check_accepted=True,reset_check_pending=True)
    if command.endswith('disable'):body['accepted_job_continues']=True
    response.success=True;response.message=json.dumps(body);return response
@@ -40,6 +42,11 @@ def test_actual_dds_fixed_recovery_and_supervisor_routes(capsys):
    assert body['rpc_success'] is True and body['ready_now'] is False
    assert body['qualified'] is False and body['operation_success'] is False
    assert body['service']==action.PERCEPTION_SERVICES[command]
+   if command=='perception-supervisor-reconcile-consumers':
+    status=body['status']
+    assert status['accepted'] is True and status['enabled'] is False
+    assert status['reconciliation_id']=='c'*32 and status['state']=='operator_preflight'
+    assert 'job_id' not in status and status['operation_success'] is False and status['ready_now'] is False
   assert calls==list(action.PERCEPTION_SERVICES)
  finally:
   stop.set();thread.join(1);assert not thread.is_alive()
