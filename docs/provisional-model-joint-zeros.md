@@ -44,3 +44,31 @@ physical acceptance remain separate supervised steps.
 
 All corrections are once-at-load operations; no control tick, model polling,
 file I/O or robot service calls are added by the model transformation helper.
+
+## Later home-series diagnostic (2026-10-19)
+
+A new, exact-timestamp RGB-D home series used expanded model SHA
+`24085b067432f5ee575780c845b0f35d37fe4228927649b2112bceb5f8088fc2`.
+No optimizer or new calibration correction ran. The first shoulder move completed;
+the elbow move stopped short and entered a measured-pose failed-endpoint hold.
+Its actual pose was recorded rather than treating the requested target as reached.
+
+Across H00/H01/H02, the current model's median residual was 6.35/6.45/6.39 mm,
+with p95 18.76/18.11/19.01 mm and 71.3/71.6/70.9% within 10 mm. For H00,
+the original model's median/p95 were 7.17/14.40 mm. The earlier improvement
+therefore does not establish robust alignment across poses. Nearest-surface
+moving-jaw residuals were 14.09/14.40/13.50 mm for the current model, compared
+with 9.73/10.31/11.45 mm for the original model. These nearest-neighbor link
+labels are not physical jaw segmentation and cannot alone identify a jaw angle,
+mount correction, or contact point.
+
+Measured joint spans were shoulder lift 4.923 degrees, elbow 2.462 degrees,
+and wrist flex zero, giving centered rank 2 at a one-degree threshold. There
+was no independent held-out pose in this series. It is ineligible for the planned
+three-offset fit. Repeated AprilTag ID 0 observations remain unassociated with
+physical links; they do not provide a measured tag-to-tool transform.
+
+Local artifacts: `~/.local/share/exciting-science/station/evidence/`
+`2026-10-19-sorting/home-series-model-calibration/`, including
+`CALIBRATION-STATUS.json`, per-pose residuals, raw-tag overlays, and checksums.
+The model remains provisional and physical pick/place commissioning is incomplete.
