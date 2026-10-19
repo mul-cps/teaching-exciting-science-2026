@@ -3,6 +3,8 @@ from collections import deque
 from copy import deepcopy
 from .derived_lineage import require,finite,hex_value
 
+CLOCK_CONTINUITY_S=2.  # Existing wall/monotonic sanity bound; never a data freshness lease.
+
 TRANSIENT_CODES=frozenset(('private_source_receipt_gap','private_source_stream_lost'))
 
 
@@ -57,7 +59,7 @@ class SupervisorPolicy:
         require(finite(now) and finite(utc) and now>=0 and utc>=self.last_utc and
             (self.last_mono is None or now>=self.last_mono),'supervisor clock rollback/invalid')
         if self.last_mono is not None:
-            require(abs((utc-self.last_utc)-(now-self.last_mono))<=2.,'supervisor wall/monotonic clock discontinuity')
+            require(abs((utc-self.last_utc)-(now-self.last_mono))<=CLOCK_CONTINUITY_S,'supervisor wall/monotonic clock discontinuity')
         self.last_mono=now;self.last_utc=utc
         while self.attempts and utc-self.attempts[0]>=3600.:self.attempts.popleft()
         require(not self.attempts or utc>=self.attempts[-1],'attempt clock future/invalid')
@@ -83,8 +85,8 @@ class SupervisorPolicy:
             if not self.attempts or self.last_utc-self.attempts[-1]>=30.:
                 self.state='armed'
 
-    def outage(self,fault,now):
-        require(self.enabled and self.state=='armed' and not self.latched and self.job is None,'automatic supervisor not armed')
+    def outage(self,fault,now,*,history_verified=False):
+        require(self.enabled and (self.state=='armed' or self.state=='warming' and history_verified is True) and not self.latched and self.job is None,'automatic supervisor not armed')
         require(fault['fault_id'] not in self.handled,'same outage cannot be automatically retried')
         self.handled.append(fault['fault_id']);self.fault=deepcopy(fault)
         self.state='verifying_native';self.stable_since=None;self.event('outage_observed',now,fault_id=fault['fault_id'])
