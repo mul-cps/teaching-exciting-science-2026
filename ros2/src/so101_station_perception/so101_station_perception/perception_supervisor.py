@@ -201,7 +201,12 @@ class PerceptionSupervisor(Node):
             else:self._native_final(authority=native_authority)
         if name in (c+'/derived_source_health' for c in CONSUMERS):
             if not PerceptionSupervisor._health_eligible(self):return False
-            if self._producer_now().get('state')!='ready':return False
+            status=self._producer_now()
+            if status.get('state')!='ready':return False
+            require(status.get('fault') is None and status.get('producer_generation')==self.pin['producer_generation'],
+                'read-only health producer identity/fault contradiction')
+            # Last graph/heartbeat access may have invalidated lifecycle state.
+            if not PerceptionSupervisor._health_eligible(self):return False
         future=client.call_async(Trigger.Request())
         record=dict(future=future,started=started,deadline=started+timeout,received=None,request_ros_ns=self.get_clock().now().nanoseconds)
         def completed(_,r=record):
@@ -269,8 +274,6 @@ class PerceptionSupervisor(Node):
         # EACH actual admission, including after a slow previous call_async.
         for consumer in CONSUMERS:
             if not PerceptionSupervisor._health_eligible(self):return
-            status=self._producer_now()
-            if status.get('state')!='ready':return
             endpoint=consumer+'/derived_source_health'
             if endpoint not in self.rpc and time.monotonic()>=self.health_next_request.get(endpoint,0.):
                 if self._request(endpoint,2.) is False:return
