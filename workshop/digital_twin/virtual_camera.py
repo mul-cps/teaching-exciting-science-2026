@@ -1,5 +1,6 @@
 """Pure synthetic tool-camera geometry; never physical camera calibration."""
 import math
+from collections import deque
 import numpy as np
 
 
@@ -74,3 +75,35 @@ def project_pinch_overlay(artifact, tool_from_optical, intrinsics, width, height
     if not np.isfinite(uv).all() or not (0 <= uv[0] < width and 0 <= uv[1] < height):
         return None, "pinch_outside_image"
     return uv, "nominal_uncalibrated"
+
+
+class JointOpeningHistory:
+    """Bounded acquisition-stamp matching; never search for a desired angle.
+
+    Arrival order need not match acquisition order. Only the nearest temporal
+    sample is returned; the caller must still check its configured opening.
+    """
+    CAPACITY = 64
+    MAX_AGE_NS = 500_000_000
+    MAX_SYNC_NS = 50_000_000
+
+    def __init__(self):
+        self.samples = deque(maxlen=self.CAPACITY)
+
+    def add(self, stamp_ns, angle_rad, now_ns):
+        if (stamp_ns <= 0 or not 0 <= now_ns - stamp_ns <= self.MAX_AGE_NS or
+                not math.isfinite(angle_rad)):
+            return False
+        self.samples.append((stamp_ns, float(angle_rad)))
+        return True
+
+    def nearest(self, acquisition_stamp_ns, now_ns):
+        if not 0 < acquisition_stamp_ns <= now_ns or now_ns - acquisition_stamp_ns > self.MAX_AGE_NS:
+            return None
+        candidates = (sample for sample in self.samples
+            if 0 <= now_ns - sample[0] <= self.MAX_AGE_NS
+            and abs(sample[0] - acquisition_stamp_ns) <= self.MAX_SYNC_NS)
+        # Prefer the earlier acquisition on an equal-distance tie. Opening
+        # value never influences sample selection, so a closer changed opening
+        # cannot be bypassed by selecting an older matching CAD opening.
+        return min(candidates, key=lambda sample: (abs(sample[0] - acquisition_stamp_ns), sample[0]), default=None)

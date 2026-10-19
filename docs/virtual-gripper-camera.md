@@ -119,3 +119,12 @@ A second **Virtual Gripper Camera raw samples** Image display is disabled by
 default. The synthetic optical frame is included in the selected TF axes.
 RViz continues to use the station's existing GPU startup guard; adding an Image
 display does not introduce a CPU renderer or change the robot's camera stream.
+
+The node retains at most 64 accepted gripper-joint samples. For delayed depth
+frames it selects the temporally nearest sample within the unchanged 50 ms
+acquisition window, rather than the latest received joint state. Every selected
+sample must still be nonfuture and at most 0.5 seconds old at annotation time.
+Out-of-order arrivals are matched by their original acquisition stamps. Opening
+value never affects which timestamp is selected: if the nearest opening differs
+from the nominal artifact, the crosshair is hidden. Annotation status reports the
+selected joint stamp and its difference from the depth acquisition stamp.
