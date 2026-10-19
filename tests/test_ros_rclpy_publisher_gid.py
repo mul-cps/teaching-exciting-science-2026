@@ -143,7 +143,7 @@ paths=sorted(set(line.split()[-1] for line in open('/proc/self/maps') if 'librmw
 print(json.dumps(dict(seen=sorted(set(seen)),libraries=paths)),flush=True)
 node.destroy_node();rclpy.shutdown()
 '''
-    child_env=dict(os.environ,RMW_IMPLEMENTATION='rmw_cyclonedds_cpp',AMENT_PREFIX_PATH=sys.prefix)
+    child_env=dict(os.environ,RMW_IMPLEMENTATION='rmw_cyclonedds_cpp',AMENT_PREFIX_PATH=sys.base_prefix)
     child_env.pop('LD_LIBRARY_PATH',None)
     child=subprocess.Popen([sys.executable,'-c',script,topic,str(int(raw)),uuid.uuid4().hex],
         env=child_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
@@ -158,7 +158,7 @@ node.destroy_node();rclpy.shutdown()
         assert child.returncode==0,err
         record=json.loads(out.strip().splitlines()[-1]);print(json.dumps(record))
         assert record['seen']==['0','1']
-        assert record['libraries']==[sys.prefix+'/lib/librmw_cyclonedds_cpp.so']
+        assert record['libraries']==[sys.base_prefix+'/lib/librmw_cyclonedds_cpp.so']
     finally:
         if child.poll() is None:child.terminate();child.wait(timeout=3)
         node.destroy_node();rclpy.shutdown()
