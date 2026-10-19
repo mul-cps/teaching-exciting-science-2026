@@ -33,7 +33,7 @@ def test_actual_held_elbow_wrist_only_path_and_planner_retiming_are_valid():
 @pytest.mark.parametrize('sign', [-1, 1])
 def test_each_joint_keeps_its_own_model_envelope(joint, sign):
     start = dict.fromkeys(ARM_JOINTS, 0.)
-    limit = 1.69 if joint == 'elbow_flex' else math.pi/2
+    limit = {'elbow_flex': 1.69, 'shoulder_lift': 1.74533}.get(joint, math.pi/2)
     start[joint] = sign*(limit+.0001)
     points = [{'time': 0., 'positions': list(start.values())},
               {'time': 2., 'positions': list(start.values())}]

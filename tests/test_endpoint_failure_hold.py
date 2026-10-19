@@ -237,7 +237,7 @@ def test_hold_health_checks_add_no_periodic_bus_reads(tmp_path):
 def test_failed_hold_tick_guard_forbids_io_hashing_or_motion_calls():
     import ast,inspect,textwrap
     from workshop.station.arm_session import ArmSession
-    for method,allowed in [(ArmSession._check_failed_hold_snapshot,{'self.clock','RuntimeError','self._guard_failed_hold_observation'}),
+    for method,allowed in [(ArmSession._check_failed_hold_snapshot,{'self.clock','RuntimeError','self._guard_failed_hold_observation','self._failed_endpoint_hold.get','any','abs'}),
                            (ArmSession._guard_failed_hold_observation,{'self.clock','any','type','math.isfinite','isinstance','set','RuntimeError','torque.values','self._guard_supervised_actual'})]:
         tree=ast.parse(textwrap.dedent(inspect.getsource(method)))
         calls={ast.unparse(node.func) for node in ast.walk(tree) if isinstance(node,ast.Call)}

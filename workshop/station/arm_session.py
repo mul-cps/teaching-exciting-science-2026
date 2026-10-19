@@ -1140,11 +1140,17 @@ class ArmSession:
         self._guard_failed_hold_observation(state["raw"], state["torque"],
             state["monotonic"], state["torque_monotonic"],
             self._failed_endpoint_hold["held_raw"])
+        if self._failed_endpoint_hold.get("schema") == "failed-held-jaw-v1":
+            anchor = self._failed_endpoint_hold["body_anchor_raw"]
+            if any(abs(state["raw"][j]-anchor[j]) > 2 for j in JOINTS[:-1]):
+                raise RuntimeError("failed held jaw body drift exceeds 2 counts")
         self._failed_hold_last_tick = now
 
     def _failed_hold_reply(self, state):
-        return {"ok": False, "status": "failed_endpoint_held",
-                "error": "trajectory final goal tolerance was not reached; measured pose held",
+        jaw = self._failed_endpoint_hold.get("schema") == "failed-held-jaw-v1"
+        return {"ok": False, "status": "failed_held_jaw" if jaw else "failed_endpoint_held",
+                "error": ("jaw step did not arrive; measured jaw held" if jaw else
+                          "trajectory final goal tolerance was not reached; measured pose held"),
                 "goal_id": self._failed_endpoint_hold["goal_id"],
                 "qualified": False, "target_reached": False,
                 "hold": dict(self._failed_endpoint_hold), "state": state}
@@ -2371,7 +2377,7 @@ class ArmSession:
         self._shutdown_complete = True
         return True
 
-    def commission_gripper_step(self, delta_counts):
+    def commission_gripper_step(self, delta_counts, *, held_context=None):
         """One raw-count jaw step; passive body is observed, never written.
 
         STS3215 RAM profile is deliberately fixed to the lowest nonzero raw
@@ -2383,17 +2389,48 @@ class ArmSession:
             raise ArmPlanPreflightError("observe-only owner requires explicit verified stop before commissioning")
         if type(delta_counts) is not int or not 0 < abs(delta_counts) <= 16:
             raise ArmPlanPreflightError("delta_counts must be a nonzero integer in [-16,16]")
-        self._component_scope = True  # before any fallible I/O; persists after return
+        held = held_context is not None
+        admission_started = self.clock()
+        entry_goals = entry_ram = None
+        if held:
+            try:
+                self._calibration_guard()
+                if (self._component_scope or self._teleop is not None or self.saved_ram is None or
+                        held_context["owner_session_id"] != self._owner_session_id or
+                        owner_source_sha256(Path(__file__).parent) != RUNTIME_OWNER_SOURCE_SHA256):
+                    raise ValueError("held jaw requires matching normal active owner")
+                acquired = self.clock()
+                raw = self._read("Present_Position")
+                torque = self._read("Torque_Enable")
+                self._guard_failed_hold_observation(raw, torque, acquired, self.clock(), raw)
+                if raw != self._six_ints(held_context["expected_start_raw"], "held jaw frozen start"):
+                    raise ValueError("held jaw frozen start changed")
+                entry_goals = self._validate_target(self._read("Goal_Position"), "held jaw goals")
+                entry_ram = {reg: self._read(reg) for reg in RAM_REGISTERS}
+                if entry_ram != self._active_profile:
+                    raise ValueError("held jaw requires known unchanged active native profile")
+            except (ValueError, KeyError, TypeError, RuntimeError) as error:
+                raise ArmPlanPreflightError(str(error)) from error
+        else:
+            self._component_scope = True  # persists after passive component cleanup
         self._shutdown_complete = False
-        started = self.clock()
+        started = admission_started if held else self.clock()
         self._component_command = dict(command_id=uuid.uuid4().hex, delta_counts=delta_counts,
             started_monotonic=started, deadline_monotonic=started+2.0, status="admitting",
             profile_raw={"Acceleration": 1, "Goal_Velocity": 1, "Torque_Limit": 50})
-        baseline = None
+        baseline = dict(held_context["expected_start_raw"]) if held else None
+        if held:
+            self._component_command.update(mode="held_body_raw_jaw", qualified=False,
+                command_id=held_context["command_id"], entry_jaw_ram={r: entry_ram[r]["gripper"] for r in RAM_REGISTERS},
+                preserved_body_goals={j: entry_goals[j] for j in JOINTS[:-1]})
         previous_at = started
         position_read_at = started
-        enabled = False
+        enabled = held
         target = None
+        recent = []
+        restoring = False
+        goal_dispatched = False
+        expected_goals = dict(entry_goals) if held else None
 
         def sample():
             nonlocal previous_at, position_read_at, baseline
@@ -2406,30 +2443,37 @@ class ArmSession:
             position_stamp, position_utc = self.clock(), self.wall_clock()
             torque = self._read("Torque_Enable")
             torque_stamp, torque_utc = self.clock(), self.wall_clock()
+            goals = self._read("Goal_Position") if held else None
+            goal_stamp = self.clock()
             now = self.clock()
             # Preserve the actual failed observation before any guard can reject
             # it. A rejected sample must not disappear behind later all-off
             # cleanup snapshots or be mistaken for a missing hardware read.
             self._event("component_raw_observation", raw=raw, torque=torque,
                 expected_gripper_torque=int(enabled),
-                expected_body_torque=0,
+                expected_body_torque=int(held),
                 position_monotonic=position_stamp, torque_monotonic=torque_stamp,
+                goal_monotonic=goal_stamp if held else None,
                 observed_monotonic=now, target_raw=target, elapsed_s=now-started)
             now = self.clock()  # include diagnostic I/O in admission timing
-            if now - started >= 2.0:
+            if now - started >= 2.0 and not held:
                 raise TimeoutError("component gripper step 2 second deadline exceeded")
             if now - previous_at > .100000001:
                 raise RuntimeError("component feedback exceeded 100 ms")
             previous_at = torque_stamp
             position_read_at = position_stamp
-            if now-position_stamp > .100000001:
+            if now-min(position_stamp, torque_stamp, goal_stamp) > .100000001:
                 raise RuntimeError("component encoder admission feedback exceeded 100 ms")
+            if held:
+                self._guard_failed_hold_observation(raw, torque, position_stamp, torque_stamp, raw)
+                if goals != expected_goals:
+                    raise RuntimeError("held jaw original body goal or jaw goal changed")
             if any(not 0 <= value <= 4095 for value in raw.values()):
                 raise RuntimeError("component raw encoder outside hardware range")
             if not self.admitted_min["gripper"] <= raw["gripper"] <= self.admitted_max["gripper"]:
                 raise RuntimeError("component jaw actual outside ordinary admitted bounds")
-            if any(torque[j] != 0 for j in JOINTS if j != "gripper"):
-                raise RuntimeError("component passive body torque is not zero")
+            if any(torque[j] != int(held) for j in JOINTS if j != "gripper"):
+                raise RuntimeError("component body torque differs from admission")
             if torque["gripper"] != int(enabled):
                 raise RuntimeError("component gripper torque readback differs: "
                     f"expected={int(enabled)} actual={torque['gripper']} "
@@ -2440,24 +2484,42 @@ class ArmSession:
                 raise RuntimeError("component passive body drift exceeded 2 counts")
             if abs(raw["gripper"] - baseline["gripper"]) > (abs(delta_counts) + 2 if enabled else 2):
                 raise RuntimeError("component jaw excursion exceeded bounded step")
+            if held:
+                self._component_command["goal_monotonic"] = goal_stamp
             self.publish_state(event="commission_gripper_sample", raw=raw, torque=torque,
                 position_monotonic=position_stamp, position_utc=position_utc,
                 torque_monotonic=torque_stamp, torque_utc=torque_utc)
             self._event("commission_gripper_progress", target_raw=target, elapsed_s=now-started)
+            if held:
+                if self.clock()-min(position_stamp, torque_stamp, goal_stamp) > .1:
+                    raise RuntimeError("held jaw observation expired after publication")
+                recent.append(dict(raw=dict(raw), torque=dict(torque), monotonic=position_stamp,
+                    torque_monotonic=torque_stamp, goal_monotonic=goal_stamp,
+                    position_utc=position_utc, torque_utc=torque_utc))
+                recent[:] = recent[-8:]
+                if self.clock()-started >= 2.0 and not restoring:
+                    raise TimeoutError("component gripper step 2 second deadline exceeded")
             return raw
 
         def write(register, value):
-            # Refresh the passive guard before every potentially enabling write.
+            # Refresh the guard after setup/source checks, before each single-shot write.
+            if held and register == "Goal_Position" and not goal_dispatched:
+                self._calibration_guard()
+                if owner_source_sha256(Path(__file__).parent) != RUNTIME_OWNER_SOURCE_SHA256:
+                    raise RuntimeError("held jaw owner source changed before Goal")
             sample()
             self._event("component_write_intent", register=register, requested_raw_value=value)
             # Snapshot/log I/O can block or receive a stop after sampling.
             # Recheck immediately before the single-shot hardware write.
             self._poll_busy_input()
             self._check_cancel()
-            if self.clock() - started >= 2.0:
+            if self.clock() - started >= 2.0 and not restoring:
                 raise TimeoutError("component gripper step 2 second deadline exceeded")
             if self.clock() - min(previous_at, position_read_at) > .100000001:
                 raise RuntimeError("component write admission feedback exceeded 100 ms")
+            if (held and register == "Goal_Position" and not goal_dispatched and
+                    recent[-1]["raw"] != held_context["expected_start_raw"]):
+                raise RuntimeError("held jaw frozen start changed at first Goal dispatch")
             write_started = self.clock()
             self.bus.write(register, "gripper", value, normalize=False, num_retry=0)
             write_ended = self.clock()
@@ -2468,10 +2530,14 @@ class ArmSession:
                 actual_type=type(actual).__name__,
                 write_started_monotonic=write_started, write_ended_monotonic=write_ended,
                 readback_monotonic=read_ended)
-            if actual != value:
+            if actual != value or (held and type(actual) is not int):
                 raise RuntimeError("component RAM readback differs: " + register +
                                    f" expected={value} actual={actual!r}")
+            if held and register == "Goal_Position":
+                expected_goals["gripper"] = value
             if register in RAM_REGISTERS:
+                if held:
+                    self._active_profile[register]["gripper"] = value
                 self._component_profile_readback[register] = value
                 self._event("component_profile_readback", register=register, raw_value=value, restoring=False)
 
@@ -2487,8 +2553,9 @@ class ArmSession:
                 raise ArmPlanPreflightError("component jaw start/target outside ordinary admitted bounds")
             if self._component_saved_ram is not None:
                 raise RuntimeError("previous component cleanup remains incomplete")
-            self._component_saved_ram = {reg: self.bus.read(reg, "gripper", normalize=False, num_retry=0)
-                                         for reg in RAM_REGISTERS}
+            if not held:
+                self._component_saved_ram = {reg: self.bus.read(reg, "gripper", normalize=False, num_retry=0)
+                                             for reg in RAM_REGISTERS}
             for register, value in (("Acceleration", 1), ("Goal_Velocity", 1), ("Torque_Limit", 50)):
                 write(register, value)
             # On this rig, goal writes were observed to energize the jaw even
@@ -2497,7 +2564,13 @@ class ArmSession:
             # energizing operation, after all-off guards and low-profile proof.
             # Require measured jaw=1/body=0 next; a jaw that remains off fails
             # closed. Do not add a redundant enable or retry the goal.
+            if held:
+                # Frozen start is checked again after setup/logging, before the only motion Goal.
+                sample()
+                if recent[-1]["raw"] != held_context["expected_start_raw"]:
+                    raise RuntimeError("held jaw frozen start changed before first Goal")
             write("Goal_Position", target)
+            goal_dispatched = True
             enabled = True
             self._component_command["status"] = "moving"
             quiet_since = None
@@ -2511,11 +2584,74 @@ class ArmSession:
                 else:
                     quiet_since = None
                 self.sleep(PERIOD_S)
-        except BaseException:
+        except BaseException as error:
             self._component_command["status"] = "cancelled" if self._cancel_requested else "failed"
-            raise
+            window = [x for x in recent if recent and x["monotonic"] >= recent[-1]["monotonic"]-.35]
+            stable = (held and goal_dispatched and type(error) is TimeoutError and
+                str(error) == "component gripper step 2 second deadline exceeded" and
+                len(window) >= 5 and window[-1]["monotonic"]-window[0]["monotonic"] >= .3-1e-9 and
+                max(x["raw"]["gripper"] for x in window)-min(x["raw"]["gripper"] for x in window) <= 4)
+            if not stable:
+                if held:
+                    self.shutdown(reason="held_jaw_health_error")
+                raise
+            restoring = True
+            try:
+                self._poll_busy_input(); self._check_cancel()
+                if self.clock()-min(recent[-1][k] for k in
+                        ("monotonic", "torque_monotonic", "goal_monotonic")) > .1:
+                    raise RuntimeError("held jaw abort observation is stale")
+                write("Goal_Position", recent[-1]["raw"]["gripper"])
+            except BaseException:
+                self.shutdown(reason="held_jaw_abort_error")
+                raise
         finally:
-            self._component_shutdown("commission_gripper_step")
+            if not held:
+                self._component_shutdown("commission_gripper_step")
+        if held:
+            restoring = True
+            try:
+                restore_started = self.clock()
+                for reg in RAM_REGISTERS:
+                    write(reg, entry_ram[reg]["gripper"])
+                if any(self._read(reg) != entry_ram[reg] for reg in RAM_REGISTERS):
+                    raise RuntimeError("held jaw entry RAM or body profile changed")
+                raw = sample()
+                if self.clock()-restore_started > .1:
+                    raise RuntimeError("held jaw cleanup exceeded 100ms")
+                observation = recent[-1]
+                self._component_command.update(status=("failed_held" if self._component_command["status"] == "failed"
+                    else "complete"), restored_jaw_ram={r: entry_ram[r]["gripper"] for r in RAM_REGISTERS},
+                    body_profile_unchanged=True, completed_monotonic=self.clock())
+                if self._component_command["status"] == "failed_held":
+                    self._failed_endpoint_hold = dict(schema="failed-held-jaw-v1",
+                        goal_id=held_context["command_id"], owner_session_id=self._owner_session_id,
+                        held_raw=dict(raw), body_anchor_raw=dict(baseline), target_raw=dict(expected_goals, gripper=target),
+                        qualified=False, target_reached=False,
+                        entry_position_monotonic=observation["monotonic"],
+                        entry_torque_monotonic=observation["torque_monotonic"],
+                        lifetime="while_healthy_until_explicit_stop_or_transport_loss")
+                    self._failed_hold_last_tick = self.clock()
+                state = self.publish_state(event=("commission_gripper_held_failed" if self._failed_endpoint_hold
+                    else "commission_gripper_held_complete"), raw=raw, torque=observation["torque"],
+                    position_monotonic=observation["monotonic"], position_utc=observation["position_utc"],
+                    torque_monotonic=observation["torque_monotonic"], torque_utc=observation["torque_utc"])
+                try:
+                    self._poll_busy_input()
+                except ArmSessionCancelled:
+                    if self._failed_endpoint_hold is None or self._cancel_reason != "trajectory_cancel_hold":
+                        raise
+                    state = self.cancel_hold()
+                    self._cancel_requested = False
+                self._check_cancel()
+                if self.clock()-min(observation[k] for k in
+                        ("monotonic", "torque_monotonic", "goal_monotonic")) > .1:
+                    raise RuntimeError("held jaw terminal observation expired")
+                return self._failed_hold_reply(state) if self._failed_endpoint_hold else dict(
+                    ok=True, qualified=False, state=state)
+            except BaseException:
+                self.shutdown(reason="held_jaw_restore_error")
+                raise
         self._component_command.update(status="complete", completed_monotonic=self.clock())
         self._event("commission_gripper_complete", delta_counts=delta_counts, target_raw=target)
         return self.publish_state(event="commission_gripper_complete")
@@ -2686,7 +2822,7 @@ class ArmSession:
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
         if self._failed_endpoint_hold is not None:
-            if name in {"move_plan", "move_gripper", "commission_gripper_step", "recover_camera",
+            if name in {"move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera",
                         "home", "execute_trajectory", "teleop_start", "teleop_step", "teleop_stop"}:
                 raise ArmPlanPreflightError("failed endpoint hold requires verified all-off STOP before motion")
             if name == "cancel_hold":
@@ -2701,7 +2837,7 @@ class ArmSession:
             return self.jaw_diagnostics()
         if self._observe_only and name not in {"read_state", "stop", "exit"}:
             raise ArmPlanPreflightError("observe-only owner requires explicit verified stop before motion")
-        if self._teleop is not None and name in ("move_plan", "move_gripper", "commission_gripper_step", "recover_camera", "home", "execute_trajectory"):
+        if self._teleop is not None and name in ("move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory"):
             raise ArmPlanPreflightError("finite motion is unavailable during active teleop")
         if name == "read_state":
             if set(command) != {"command"}:
@@ -2715,6 +2851,11 @@ class ArmSession:
             if set(command) != {"command", "legs"}:
                 raise ValueError("move_plan requires exactly command and legs")
             return {"ok": True, "state": self.move_plan(command["legs"])}
+        if name == "commission_gripper_held_step":
+            if (set(command) != {"command", "delta_counts", "expected_start_raw", "owner_session_id", "command_id"} or
+                    not isinstance(command["command_id"], str) or not 0 < len(command["command_id"]) <= 128):
+                raise ArmPlanPreflightError("held jaw requires exact frozen command fields")
+            return self.commission_gripper_step(command["delta_counts"], held_context=command)
         if name == "commission_gripper_step":
             if set(command) != {"command", "delta_counts"}:
                 raise ArmPlanPreflightError("commission_gripper_step requires exactly command and delta_counts")
@@ -2867,7 +3008,7 @@ class ArmSession:
                             self.clock()-self._failed_hold_last_tick > .1):
                         raise RuntimeError("failed endpoint hold buffered command health deadline expired")
                     previous_idle_handled = self._idle_handled
-                    if name in ("jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "recover_camera", "home", "execute_trajectory"):
+                    if name in ("jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None
@@ -2923,7 +3064,7 @@ class ArmSession:
                         self._motion_busy = False
                     emit(result)
                     self.last_command = self.clock()
-                    if name in ("move_plan", "move_gripper", "commission_gripper_step", "recover_camera", "home", "execute_trajectory"):
+                    if name in ("move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory"):
                         self._idle_handled = False
                     elif name == "stop" and (self.persistent_idle or result.get("failed_hold_cleared")):
                         self._idle_handled = self.persistent_idle

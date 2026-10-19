@@ -17,6 +17,8 @@ def parse_args(argv=None):
                  'arm-prepare', 'arm-stop', 'gripper-diagnostics'):
         commands.add_parser(name)
     jaw = commands.add_parser('gripper-step')
+    held_jaw = commands.add_parser('gripper-held-step')
+    held_jaw.add_argument('delta_counts', type=int)
     jaw.add_argument('delta_counts', type=int)
     axis = commands.add_parser('sorter-position')
     axis.add_argument('target_deg', type=float)
@@ -43,7 +45,7 @@ def parse_args(argv=None):
             validate_target(args.target_deg)
         except ValueError as error:
             parser.error(str(error))
-    if args.command == 'gripper-step' and not 0 < abs(args.delta_counts) <= 16:
+    if args.command in {'gripper-step', 'gripper-held-step'} and not 0 < abs(args.delta_counts) <= 16:
         parser.error('delta_counts must be nonzero and within -16..16')
     if args.command == 'run' and not 1 <= args.cycles <= 100:
         parser.error('cycles must be 1..100')
@@ -65,9 +67,10 @@ def main(argv=None):
                  'arm-status': '/follower/status', 'arm-stop': '/follower/stop', 'arm-prepare': 'arm/prepare',
                  'connect': 'ev3/connect', 'ev3-home': 'ev3/home', 'arm-home': 'arm/home'}
         name = names.get(args.command, args.command.replace('-', '_'))
-        if args.command == 'gripper-step':
+        if args.command in {'gripper-step', 'gripper-held-step'}:
             from so101_station_workflow.srv import CommissionGripperStep
-            name, service_type = '/follower/commission_gripper_step', CommissionGripperStep
+            name = '/follower/commission_gripper_held_step' if args.command == 'gripper-held-step' else '/follower/commission_gripper_step'
+            service_type = CommissionGripperStep
             request = CommissionGripperStep.Request(delta_counts=args.delta_counts)
         elif args.command == 'sorter-position':
             from so101_station_workflow.srv import SorterPosition
@@ -94,7 +97,7 @@ def main(argv=None):
         if not client.wait_for_service(timeout_sec=3.):
             raise RuntimeError(service_name+' unavailable; start station_live.launch.py')
         future = client.call_async(request)
-        deadline = time.monotonic()+({'arm-connect': 25., 'arm-recover': 10., 'arm-stop': 12.}.get(args.command, 5.))
+        deadline = time.monotonic()+({'arm-connect': 25., 'arm-recover': 10., 'arm-stop': 12., 'gripper-held-step': 50.}.get(args.command, 5.))
         while not future.done():
             if time.monotonic() >= deadline:
                 raise TimeoutError('ROS service result unknown; inspect status before retrying')
