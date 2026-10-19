@@ -341,7 +341,12 @@ class PerceptionSupervisor(Node):
             self.policy.healthy(now,False)
         self.health_coverage_end=end;self.policy.healthy(now,True)
         if self.policy.state=='armed':
-            self.pre_outage.observe(self._history_context(),now=now,ns=self.get_clock().now().nanoseconds,coverage_end=end,armed=True)
+            context=self._history_context()
+            ns=self.get_clock().now().nanoseconds;now=time.monotonic()
+            if now>=end:
+                self.health_gap_reason='original health expired before history mint'
+                self.health_coverage_end=None;self.policy.healthy(now,False);return
+            self.pre_outage.observe(context,now=now,ns=ns,coverage_end=end,armed=True)
 
     def _health_wakeup(self):
         self.health_guard_wakeups+=1
@@ -397,9 +402,10 @@ class PerceptionSupervisor(Node):
     def _native_final(self):
         # Scalars from the ORIGINAL proof, checked after all graph/TF/result
         # accesses and again after service readiness immediately before RPC.
-        witness=self.native_witness;now=time.monotonic();ns=self.get_clock().now().nanoseconds
+        witness=self.native_witness;history_expiry=self._history_final()
+        ns=self.get_clock().now().nanoseconds;now=time.monotonic()
+        require(now<=history_expiry,'original pre-outage eligibility expired before dispatch')
         require(0<=now-witness['started']<=2.,'postfault native preflight2s expired')
-        self._history_final()
         require(len(witness['pairs'])==2 and all(0<=now-r['receipt']<=.250 and
             0<=ns-r['stamp']<=500_000_000 for pair in witness['pairs'] for r in pair),
             'original postfault native pairs expired/future')
