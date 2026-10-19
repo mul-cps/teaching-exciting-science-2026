@@ -1,0 +1,91 @@
+--- a/realsense2_camera/src/pointcloud_filter.cpp
++++ b/realsense2_camera/src/pointcloud_filter.cpp
+@@ -14,6 +14,8 @@
+ 
+ #include <pointcloud_filter.h>
+ #include <fstream>
++#include <cmath>
++#include <cstddef>
+ #include <sensor_msgs/point_cloud2_iterator.hpp>
+ 
+ 
+@@ -79,6 +81,32 @@
+     }
+ }
+ 
++// Pure predicate: reject unavailable texture samples without clamping UVs.
++static inline bool texture_sample_offset(float u, float v, int width, int height,
++                                         int stride, int channels, size_t storage, size_t& offset)
++{
++    if (!std::isfinite(u) || !std::isfinite(v) || u < 0.f || u >= 1.f || v < 0.f || v >= 1.f ||
++        width <= 0 || height <= 0 || stride <= 0 || channels <= 0 || channels > 4 ||
++        size_t(width) > size_t(stride) / size_t(channels) ||
++        size_t(height) > storage / size_t(stride))
++        return false;
++    // Preserve the original float product; reject rounding to width/height.
++    const float x = u * width;
++    const float y = v * height;
++    if (x < 0 || double(x) >= width || y < 0 || double(y) >= height)
++        return false;
++    const int pixx = static_cast<int>(x);
++    const int pixy = static_cast<int>(y);
++    if (pixx < 0 || pixx >= width || pixy < 0 || pixy >= height)
++        return false;
++    // Storage bounds precede every multiplication/addition used for indexing.
++    offset = size_t(pixy) * size_t(stride);
++    if (size_t(pixx) > (storage - offset) / size_t(channels))
++        return false;
++    offset += size_t(pixx) * size_t(channels);
++    return size_t(channels) <= storage - offset;
++}
++
+ void reverse_memcpy(unsigned char* dst, const unsigned char* src, size_t n)
+ {
+     size_t i;
+@@ -156,10 +184,17 @@
+     if (use_texture)
+     {
+         rs2::video_frame texture_frame = (*texture_frame_itr).as<rs2::video_frame>();
++        if (!texture_frame) return;
+         texture_width = texture_frame.get_width();
+         texture_height = texture_frame.get_height();
+         num_colors = texture_frame.get_bytes_per_pixel();
+-        uint8_t* color_data = (uint8_t*)texture_frame.get_data();
++        const int texture_stride = texture_frame.get_stride_in_bytes();
++        const size_t texture_storage = texture_frame.get_data_size();
++        const uint8_t* color_data = static_cast<const uint8_t*>(texture_frame.get_data());
++        if (!color_data || texture_width <= 0 || texture_height <= 0 || num_colors <= 0 || num_colors > 4 ||
++            texture_stride <= 0 || size_t(texture_width) > size_t(texture_stride) / size_t(num_colors) ||
++            size_t(texture_height) > texture_storage / size_t(texture_stride))
++            return;
+         std::string format_str;
+         switch(texture_frame.get_profile().format())
+         {
+@@ -186,12 +221,13 @@
+         sensor_msgs::PointCloud2Iterator<uint8_t>iter_color(*msg_pointcloud, format_str);
+         color_point = pc.get_texture_coordinates();
+ 
+-        float color_pixel[2];
+         for (size_t point_idx=0; point_idx < pc.size(); point_idx++, vertex++, color_point++)
+         {
+             float i(color_point->u);
+             float j(color_point->v);
+-            bool valid_color_pixel(i >= 0.f && i <=1.f && j >= 0.f && j <=1.f);
++            size_t offset = 0;
++            const bool valid_color_pixel = texture_sample_offset(i, j, texture_width, texture_height,
++                                                                 texture_stride, num_colors, texture_storage, offset);
+             bool valid_pixel(vertex->z > 0 && (valid_color_pixel || _allow_no_texture_points));
+             if (valid_pixel || _ordered_pc)
+             {
+@@ -201,11 +237,6 @@
+ 
+                 if (valid_color_pixel)
+                 {
+-                    color_pixel[0] = i * texture_width;
+-                    color_pixel[1] = j * texture_height;
+-                    int pixx = static_cast<int>(color_pixel[0]);
+-                    int pixy = static_cast<int>(color_pixel[1]);
+-                    int offset = (pixy * texture_width + pixx) * num_colors;
+                     reverse_memcpy(&(*iter_color), color_data+offset, num_colors);  // PointCloud2 order of rgb is bgr.
+                 }
+                 ++iter_x; ++iter_y; ++iter_z;
