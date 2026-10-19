@@ -141,3 +141,46 @@ continuity reuse the existing two-second sanity bound. This is **not** a data-ag
 tolerance: receipts remain250ms and original headers500ms. Status exposes only
 `pre_outage_history_available` and its original clocks/deadlines separately from
 current health; all qualification/execution flags remain false.
+
+## Explicit same-boot consumer reconciliation
+
+`/so101_perception_supervisor/reconcile_consumers` (`std_srvs/srv/Trigger`) and
+`station-action.sh perception-supervisor-reconcile-consumers` request ONE
+operator-owned reconciliation, only while supervision is explicitly disabled,
+terminal and unlatched. No request arguments, arbitrary artifact paths or
+endpoints exist. Acceptance returns a `reconciliation_id` and ORIGINAL two-second
+preflight deadline; it is not a coordinator job ID, readiness or completed repair.
+Read supervisor status for bounded `operator_reconciliation` progress and the
+existing owned `job`. A pending operation blocks enable and another reconcile.
+
+This repairs consumer replacement epochs on the SAME boot with the SAME seven
+source publisher GIDs, producer/code/calibration/serial and immutable baseline.
+The producer must currently be healthy. After the request, two advancing native
+Info pairs and a NEW independent DeviceInfo request/completion are required; all
+original receipt/header/TF/graph gates remain. The two-second budget starts at
+Trigger ENTRY and includes admission, file/graph access, reply serialization,
+queueing, durable reservation and the final actual coordinator start RPC. It is
+never extended or borrowed from automatic pre-outage history.
+
+Before that sole fixed coordinator RPC, an `operator_reconciliation` identity is
+reserved and fsynced/read back in the SAME journal, charging the SAME three/hour
+and thirty-second cooldown. No typed fault or automatic eligibility is forged.
+Unknown/late/reserved outcomes remain charged and latched; old handled outages
+are preserved. Restart with an unresolved manual reservation stays latched.
+Disable before reservation cancels only read-only preflight; disabling an already
+reserved/accepted job never claims cancellation.
+
+The coordinator still resets the private producer once, captures its exact new
+private generation/artifact and requires two actual IMAGE admission proofs after
+consumer rebind. The supervisor adopts only its OWN exact job/reset/artifact/hash
+and new epochs. Successful reconciliation remains DISABLED; explicit enable and
+new five-second continuous source health are required afterward. Current image/
+source/calibration/motion qualification flags remain false.
+
+If an ordinary terminal latch exists, inspect it and complete the existing
+`perception-supervisor-reset-fault` API first. That never clears quotas or adopts
+epochs. Unknown in-flight jobs require separate resolution, not a reconcile.
+Producer ROS process/GID replacement, changed code/calibration, OS reboot and
+monotonic boundaries are OUT OF SCOPE and fail closed. Do not edit the immutable
+baseline, delete/change journal directories or invoke bare coordinator recovery
+expecting it to become an automatically adopted supervisor job.

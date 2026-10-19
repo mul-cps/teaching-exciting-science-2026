@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import time
+import uuid
 
 import numpy as np
 import rclpy
@@ -85,6 +86,7 @@ class PerceptionSupervisor(Node):
             self.identity=None;self.identity_rpc=None;self.expected_generation=None;self.accepted_reset_id=None
             self.dispatch_ros_ns=None;self.health_error='supervisor disabled';self.health_progress={}
             self.rpc={};self.reset_pending=False;self.pre_outage=PreOutageHistory()
+            self.reconciliation=None;self.reconciliation_result=None
             self.health_cache={};self.health_next_request={};self.health_request_starts={};self.health_rpc_clocks={}
             self.health_coverage_end=None;self.health_candidate_end=None;self.health_gap_reason=None
             self.health_rejections={};self.health_guard_consumes=0;self.health_guard_wakeups=0
@@ -98,7 +100,7 @@ class PerceptionSupervisor(Node):
                 self.create_subscription(String,LINEAGE_TOPIC,self._lineage,qos_profile_sensor_data)]
             for kind in ('depth','color'):
                 self.subscriptions_.append(self.create_subscription(CameraInfo,TOPICS[kind+'_info'],self._info(kind),qos_profile_sensor_data))
-            for name,callback in (('enable',self._enable),('disable',self._disable),('status',self._status),('reset_fault',self._reset_fault)):
+            for name,callback in (('enable',self._enable),('disable',self._disable),('status',self._status),('reset_fault',self._reset_fault),('reconcile_consumers',self._reconcile_consumers)):
                 self.create_service(Trigger,'~/'+name,callback)
             self.publisher=self.create_publisher(String,'~/status',1)
             self.timer=self.create_timer(.2,self._tick)
@@ -112,6 +114,8 @@ class PerceptionSupervisor(Node):
 
     def _fail(self,error):
         self.pre_outage.clear();self.reset_pending=False
+        if self.reconciliation is not None:self.reconciliation_result=dict(self.reconciliation_result or {},state='failed',reason=str(error)[:512])
+        self.reconciliation=None
         self.policy.fail(str(error));self.health_error=str(error)[:512]
         try:self._persist()
         except Exception as failure:self.health_error+='; journal failure: '+str(failure)[:160]
@@ -183,14 +187,16 @@ class PerceptionSupervisor(Node):
         if now-receipt>.250:raise HealthNotCurrent('producer heartbeat expired',response_done_monotonic=receipt,check_monotonic=now)
         return value
 
-    def _request(self,name,timeout):
+    def _request(self,name,timeout,*,native_authority=None):
         if name in self.rpc:return
         client=self.rpc_clients[name]
         if not client.service_is_ready():
             if name in (c+'/derived_source_health' for c in CONSUMERS):raise HealthNotCurrent('consumer metadata service unavailable')
             raise ValueError('metadata service unavailable: '+name)
         started=time.monotonic()
-        if name==COORDINATOR+'/start_recovery':self._native_final()
+        if name==COORDINATOR+'/start_recovery':
+            if native_authority is None:self._native_final()
+            else:self._native_final(authority=native_authority)
         future=client.call_async(Trigger.Request())
         record=dict(future=future,started=started,deadline=started+timeout,received=None,request_ros_ns=self.get_clock().now().nanoseconds)
         def completed(_,r=record):
@@ -366,8 +372,30 @@ class PerceptionSupervisor(Node):
             self.health_coverage_end=None;self.policy.healthy(time.monotonic(),False)
         except Exception as error:self._fail(error)
 
-    def _native_proof(self):
-        now=time.monotonic();require(now<=min(self.native_started+2.,self._history_final()),'postfault native preflight2s/original history expired')
+    def _preflight_deadline(self):
+        context=self.reconciliation
+        if context is None:return self._history_final()  # Automatic authority unchanged.
+        require(not self.policy.enabled and not self.policy.latched and not self.reset_pending and
+            pin_digest(self.pin)==context['pin_sha256'] and self.baseline_sha==context['baseline_sha256'],
+            'operator reconciliation context/state changed')
+        if self.policy.job is not None:
+            require(self.policy.job.get('origin')=='operator_reconciliation' and
+                self.policy.job.get('reconciliation_id')==context['reconciliation_id'],'operator job identity changed')
+        ns=self.get_clock().now().nanoseconds;now=time.monotonic()
+        require(context['started_monotonic']<=now<=context['deadline_monotonic'] and ns>=context['started_ros_ns'] and
+            abs((ns-context['started_ros_ns'])/1e9-(now-context['started_monotonic']))<=2.,
+            'original operator reconciliation2s expired/clock changed')
+        return context['deadline_monotonic']
+
+    def _reconciliation_current(self):
+        self._baseline_unchanged();self._graph();self._statement()
+        status=self._producer_now()
+        require(status.get('state')=='ready' and status.get('fault') is None and
+            status.get('producer_generation')==self.pin['producer_generation'],'same healthy producer required for consumer reconciliation')
+        self._preflight_deadline()
+
+    def _native_proof(self,*,authority=None):
+        now=time.monotonic();require(now<=min(self.native_started+2.,self._history_final() if authority is None else authority()),'postfault native preflight2s/original history expired')
         self._graph();graph=native_graph(self.get_publishers_info_by_topic)
         require(all(graph['endpoints'][k]['gid']==self.pin['source'][k+'_publisher_gid'] for k in TOPICS),'native source replacement forbids automatic recovery')
         if not self.native.select(graph,now_ns=self.get_clock().now().nanoseconds,now_mono=now):
@@ -396,16 +424,23 @@ class PerceptionSupervisor(Node):
         require(native_graph(self.get_publishers_info_by_topic)==rpc['graph'],'native graph changed after identity response')
         self.native_witness=dict(started=self.native_started,pairs=deepcopy(tuple(self.native.pairs)),
             selected=tuple((r[2],r[3]) for r in records),request=rpc['request'],received=rpc['received'])
-        self._native_final()
+        if authority is None:self._native_final()
+        else:self._native_final(authority=authority)
         return True
 
-    def _native_final(self):
+    def _native_final(self,*,authority=None):
         # Scalars from the ORIGINAL proof, checked after all graph/TF/result
         # accesses and again after service readiness immediately before RPC.
-        witness=self.native_witness;history_expiry=self._history_final()
+        witness=self.native_witness;history_expiry=self._history_final() if authority is None else authority()
         ns=self.get_clock().now().nanoseconds;now=time.monotonic()
         require(now<=history_expiry,'original pre-outage eligibility expired before dispatch')
         require(0<=now-witness['started']<=2.,'postfault native preflight2s expired')
+        if authority is not None:
+            context=self.reconciliation
+            require(witness['started']==context['started_monotonic'] and witness['request']>context['started_monotonic'] and
+                witness['received']>context['started_monotonic'] and all(r['receipt']>=context['started_monotonic'] and
+                r['stamp']>context['started_ros_ns'] for pair in witness['pairs'] for r in pair),
+                'operator native/identity proof predates request')
         require(len(witness['pairs'])==2 and all(0<=now-r['receipt']<=.250 and
             0<=ns-r['stamp']<=500_000_000 for pair in witness['pairs'] for r in pair),
             'original postfault native pairs expired/future')
@@ -447,6 +482,24 @@ class PerceptionSupervisor(Node):
         self.expected_generation=None;self.accepted_reset_id=None
         self._request(COORDINATOR+'/start_recovery',2.)
 
+    def _dispatch_reconciliation(self):
+        self._reconciliation_current()
+        if not self._native_proof(authority=self._preflight_deadline):return
+        endpoint=COORDINATOR+'/recovery_status';result=self._take(endpoint)
+        if result is None:
+            if endpoint not in self.rpc:self._request(endpoint,2.)
+            return
+        success,value,receipt=result
+        require(success and value.get('schema')=='so101-perception-recovery-v1' and value.get('state') in TERMINAL and
+            0<=time.monotonic()-receipt<=.250,'coordinator not terminal/current for reconciliation')
+        self._reconciliation_current()
+        self.policy.reserve_reconciliation(self.reconciliation['reconciliation_id'],time.monotonic(),time.time());self._persist()
+        require(self._native_proof(authority=self._preflight_deadline),'operator native proof unavailable after reservation')
+        self._reconciliation_current();self._native_final(authority=self._preflight_deadline)
+        self.dispatch_ros_ns=self.get_clock().now().nanoseconds
+        self.expected_generation=None;self.accepted_reset_id=None
+        self._request(COORDINATOR+'/start_recovery',2.,native_authority=self._preflight_deadline)
+
     def _adopt_completed(self,value):
         require(value.get('operation_success') is True and value.get('state')=='completed','coordinator did not complete successfully')
         require(hex_value(value.get('producer_generation'),32) and value['producer_generation']!=self.pin['producer_generation'] and
@@ -483,7 +536,10 @@ class PerceptionSupervisor(Node):
         require(bool(ledger.entries),'no current attributable generation lineage')
         self.pre_outage.clear();self.pin=deepcopy(pin);self.epochs=epochs;self.ledger=ledger;self.health_progress={};self.health_cache={};self.health_coverage_end=None
         self.adopted=dict(job_id=self.policy.job['job_id'],artifact_sha256=digest,producer_generation=pin['producer_generation'])
-        self.policy.completed(time.monotonic());self.native=None;self._persist()
+        if self.reconciliation is not None:
+            self.reconciliation_result=dict(self.reconciliation_result,state='completed',job_id=self.policy.job['job_id'],
+                artifact_sha256=digest,producer_generation=pin['producer_generation'])
+        self.policy.completed(time.monotonic());self.reconciliation=None;self.native=None;self._persist()
 
     def _monitor_job(self):
         job=self.policy.job
@@ -526,6 +582,13 @@ class PerceptionSupervisor(Node):
             if self.reset_pending:self._finish_reset();return
             if self.policy.latched:return
             if self.policy.job is not None:self._monitor_job();return
+            if getattr(self,'reconciliation',None) is not None:
+                try:self._dispatch_reconciliation()
+                except (NativeProofPending,TransformException) as error:
+                    if self.policy.job is None and time.monotonic()<=self._preflight_deadline():
+                        self.health_error=str(error)[:512];return
+                    raise
+                return
             if not self.policy.enabled:return
             if self.policy.state=='verifying_native':
                 try:self._dispatch()
@@ -550,7 +613,40 @@ class PerceptionSupervisor(Node):
             else:self._fail(error)
         except Exception as error:self._fail(error)
 
+    def _reconcile_consumers(self,request,response):
+        # ENTRY clocks include admission, FS/graph access and reply materialization.
+        started=time.monotonic();start_ns=self.get_clock().now().nanoseconds;admitted=False
+        identity=uuid.uuid4().hex
+        try:
+            require(not self.closed and not self.reset_pending and self.reconciliation is None and
+                not self.policy.enabled and self.policy.state=='disabled' and not self.policy.latched and self.policy.job is None and
+                COORDINATOR+'/start_recovery' not in self.rpc,
+                'consumer reconciliation requires disabled terminal supervisor')
+            self.policy.clocks(time.monotonic(),time.time())
+            self._baseline_unchanged();self._graph();self._statement()
+            status=self._producer_now()
+            require(status.get('state')=='ready' and status.get('fault') is None and status.get('producer_generation')==self.pin['producer_generation'],
+                'same healthy producer required for consumer reconciliation')
+            context=dict(reconciliation_id=identity,started_monotonic=started,started_ros_ns=start_ns,
+                deadline_monotonic=started+2.,pin_sha256=pin_digest(self.pin),baseline_sha256=self.baseline_sha)
+            message=bounded_json(dict(accepted=True,reconciliation_id=identity,deadline_monotonic=started+2.,
+                state='operator_preflight',ready_now=False,operation_success=False,enabled=False,qualified=False,execution_enabled=False))
+            require(time.monotonic()<=started+2.,'operator reconciliation expired before admission')
+            self.policy.begin_reconciliation(identity,time.monotonic());admitted=True
+            self.pre_outage.clear();self._clear_health_queries();self.reconciliation=context
+            self.reconciliation_result=dict(reconciliation_id=identity,state='operator_preflight',deadline_monotonic=started+2.)
+            self.native_started=started;self.native=NativePairs(start_ns=start_ns,start_mono=started)
+            self.native_infos={k:deque(maxlen=4) for k in ('depth','color')};self.identity_rpc=None
+            self._preflight_deadline();response.message=message;response.success=True
+        except Exception as error:
+            if admitted:self._fail(error)
+            response.success=False;response.message=bounded_json(dict(accepted=False,reason=str(error)[:512],
+                ready_now=False,operation_success=False,enabled=self.policy.enabled,qualified=False,execution_enabled=False))
+        return response
+
     def _enable(self,request,response):
+        if self.reconciliation is not None:
+            response.success=False;response.message=bounded_json(dict(self._snapshot(),reason='operator reconciliation pending'));return response
         try:
             self.pre_outage.clear();self._baseline_unchanged();self._graph();self._producer_now()
             self.policy.clocks(time.monotonic(),time.time());self.policy.enable(time.monotonic());self._persist()
@@ -559,6 +655,9 @@ class PerceptionSupervisor(Node):
         response.message=bounded_json(self._snapshot());return response
 
     def _disable(self,request,response):
+        if self.policy.job is None:
+            if self.reconciliation is not None:self.reconciliation_result=dict(self.reconciliation_result,state='cancelled_before_reservation')
+            self.reconciliation=None;self.native=None
         self.pre_outage.clear();self.policy.disable(time.monotonic())
         try:self._persist();response.success=True
         except Exception as error:self._fail(error);response.success=False
@@ -578,14 +677,14 @@ class PerceptionSupervisor(Node):
         # API acceptance requests a bounded terminal-state check; never clears
         # an unknown job, rewinds quota or implicitly enables supervision.
         try:
-            require(self.policy.job is None and not self.reset_pending,'active/unknown job or reset check pending')
+            require(self.policy.job is None and self.reconciliation is None and not self.reset_pending,'active/unknown job or reconciliation/reset check pending')
             self._request(COORDINATOR+'/recovery_status',2.);self.reset_pending=True
             response.success=True
         except Exception as error:response.success=False;self.health_error=str(error)[:512]
         response.message=bounded_json(dict(self._snapshot(),reset_check_accepted=response.success));return response
 
     def _snapshot(self):
-        return dict(self.policy.status(),**self.pre_outage.status(now=time.monotonic()),reset_check_pending=self.reset_pending,health_reason=self.health_error,current_producer_generation=self.pin['producer_generation'],
+        return dict(self.policy.status(),**self.pre_outage.status(now=time.monotonic()),operator_reconciliation=self.reconciliation_result,reset_check_pending=self.reset_pending,health_reason=self.health_error,current_producer_generation=self.pin['producer_generation'],
                     current_pin_sha256=pin_digest(self.pin),health_observation=dict(coverage_end_monotonic=self.health_coverage_end,
                         gap_reason=self.health_gap_reason,request_starts=self.health_request_starts,guard_consumes=self.health_guard_consumes,
                         guard_wakeups=self.health_guard_wakeups,rpc_clocks=self.health_rpc_clocks,rejected=self.health_rejections),health_scope='continuous source binding only',image_admitted=False,processing_progress=False,scope='source-binding health only; never image progress, motion or physical qualification')
