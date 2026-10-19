@@ -1174,9 +1174,11 @@ def test_calibration_endpoint_opt_in_does_not_change_default_tolerance_failure(t
     arm.bus.stalled_joints.add("elbow_flex")
     command, _terminal = _stalled_elbow_trajectory(
         session, arm, goal_id="calibration-default-strict", calibration_endpoint=None)
-    with pytest.raises(TimeoutError, match="final goal tolerance"):
-        session.handle(command)
-    assert arm.bus.sync_read("Torque_Enable") == dict.fromkeys(JOINTS, 0)
+    result = session.handle(command)
+    assert result["ok"] is False and result["status"] == "failed_endpoint_held"
+    assert result["target_reached"] is False
+    assert arm.bus.sync_read("Torque_Enable") == dict.fromkeys(JOINTS, 1)
+    session.handle({"command": "stop"})
     session.close_log()
 
 
