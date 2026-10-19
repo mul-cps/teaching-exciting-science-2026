@@ -58,9 +58,10 @@ def fixture_node():
     lookups=[]
     def lookup(*args, **kwargs):lookups.append((args,kwargs));return tf
     rendered=[]
-    def render(points,matrix):
-        rendered.append((points,matrix))
-        return np.zeros((240,320,4),np.uint8)
+    def render_layers(points,matrix,colors=None,mesh_matrices=None):
+        rendered.append((points,matrix,colors,mesh_matrices))
+        return {"raw":np.zeros((240,320,4),np.uint8),"scene":np.zeros((240,320,4),np.uint8),
+                "provenance":np.zeros((240,320),np.uint8)}
     k = virtual_intrinsics()
     states=[]
     n = NS(period=1/3, last_attempt=-float('inf'),last_stamp=-1,max_age=.5,
@@ -68,10 +69,11 @@ def fixture_node():
         _status=lambda state,**kw:states.append((state,kw)),
         buffer=NS(lookup_transform=lookup),tool_frame='gripper_frame_link',
         optical_frame='synthetic_gripper_camera_optical',mount=np.eye(4),optical_from_tool=np.eye(4),mount_quat=[0.,0.,0.,1.],max_points=20000,
-        renderer=NS(render=render,renderer='FAKE-MESSAGE-TEST-NOT-GPU'),
+        renderer=NS(render_layers=render_layers,renderer='FAKE-MESSAGE-TEST-NOT-GPU',readback_bytes=614400),
+        render_gripper_mesh=False,meshes=[],mesh_provenance={'state':'disabled'},
         projection=optical_projection(k,320,240),width=320,height=240,k=k,
         images=Publisher(),infos=Publisher(),tf_publisher=Publisher(),publish_annotation=False,
-        opening_history=JointOpeningHistory())
+        opening_history=JointOpeningHistory(),scenes=Publisher(),provenance_masks=Publisher())
     return n,states,lookups,rendered
 
 
@@ -190,3 +192,68 @@ def test_delayed_cloud_selects_historical_opening_instead_of_latest_joint_sample
     n.opening_history.samples.append((10_010_000_000,.1))
     result=VirtualGripperCamera._annotation(n,Image(),rgba,10_010_000_000)
     assert result['state']=='opening_mismatch_or_stale' and result['pixel_xy'] is None
+
+
+def test_mesh_link_tfs_use_exact_cloud_stamp_and_scene_headers_remain_original():
+    n,states,lookups,rendered=fixture_node()
+    n.render_gripper_mesh=True
+    n.meshes=[{'name':'fixed','link':'gripper_link'},{'name':'jaw','link':'moving_jaw_so101_v1_link'}]
+    n.mesh_provenance={'state':'loaded','qualified':False}
+    msg=cloud();VirtualGripperCamera._cloud(n,msg)
+    assert len(lookups)==3
+    assert {args[1] for args,kw in lookups}=={msg.header.frame_id,'gripper_link','moving_jaw_so101_v1_link'}
+    assert all(args[2].nanoseconds==10_000_000_000 for args,kw in lookups)
+    assert set(rendered[0][3])=={'fixed','jaw'}
+    assert n.images.messages[0].header==n.scenes.messages[0].header==n.provenance_masks.messages[0].header
+    assert states[-1][1]['model_visuals_rendered']==2
+
+
+def test_browser_state_admission_shares_rgb_decoder_and_bounds_snapshot_color_payload():
+    from workshop.digital_twin.ros_state_node import RosStatePublisher
+    from workshop.digital_twin.point_cloud_samples import decode_rgb8
+    msg=cloud(np.array([[0,0,.5]],dtype='<f4'))
+    msg.point_step=20;msg.row_step=20
+    msg.fields.append(PointField(name='rgb',offset=16,datatype=7,count=1))
+    raw=bytearray(20);raw[:12]=np.array([0,0,.5],'<f4').tobytes()
+    raw[16:20]=np.array([0x0061626d],'<u4').tobytes();msg.data=raw
+    errors=[]
+    n=NS(state=NS(point_cloud=None),get_logger=lambda:NS(warning=errors.append))
+    RosStatePublisher._point_cloud(n,msg)
+    assert not errors
+    saved=n.state.point_cloud
+    assert saved['color_source']=='packed_rgb' and len(saved['rgb8_b64'])==4
+    assert decode_rgb8(saved['rgb8_b64'],1).tolist()==[[97,98,109]]
+    assert saved['stamp_ns']==10_000_000_000 and len(saved['points_m'])==1
+
+
+def test_observed_packed_rgb_passes_to_gpu_once_and_is_reported_without_uniform_fallback():
+    n,states,lookups,rendered=fixture_node()
+    msg=cloud(np.array([[0,0,.5]],'<f4'));msg.point_step=20;msg.row_step=20
+    msg.fields.append(PointField(name='rgb',offset=16,datatype=7,count=1))
+    raw=bytearray(20);raw[:12]=np.array([0,0,.5],'<f4').tobytes()
+    raw[16:20]=np.array([0x0061626d],'<u4').tobytes();msg.data=raw
+    VirtualGripperCamera._cloud(n,msg)
+    assert len(rendered)==1 and rendered[0][2].tolist()==[[97,98,109]]
+    assert states[-1][1]['color_source']=='packed_rgb'
+
+
+def test_present_malformed_color_drops_before_gpu_without_uniform_substitution():
+    n,states,lookups,rendered=fixture_node()
+    msg=cloud();msg.fields.append(PointField(name='rgb',offset=8,datatype=2,count=1))
+    VirtualGripperCamera._cloud(n,msg)
+    assert states[-1][0]=='rejected' and not rendered and not n.images.messages
+
+
+def test_robot_description_mesh_work_runs_only_on_changed_description(monkeypatch):
+    from std_msgs.msg import String
+    import so101_station_perception.virtual_gripper_camera as module
+    loads=[];uploads=[]
+    monkeypatch.setattr(module,'load_gripper_visuals',lambda description,resolver:
+        (loads.append(description) or [],{'qualified':False,'triangles':0}))
+    n=NS(render_gripper_mesh=True,mesh_description=None,renderer=NS(set_meshes=uploads.append))
+    msg=String();msg.data='<fixture description="one"/>'
+    VirtualGripperCamera._description(n,msg);VirtualGripperCamera._description(n,msg)
+    assert len(loads)==len(uploads)==1
+    msg.data='<fixture description="two"/>'
+    VirtualGripperCamera._description(n,msg)
+    assert len(loads)==len(uploads)==2

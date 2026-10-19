@@ -19,6 +19,7 @@ from .mujoco_ros import (apply_ros_state, effective_urdf_to_mjcf_model,
                          compare_tool_frame, ros_pose_to_viewer_xyz, transform_between)
 from .placement_region import intersect_ray_with_image_plane
 from .virtual_camera import tool_from_virtual_optical
+from .point_cloud_samples import decode_rgb8
 
 
 def _camera_image_plane_spec(frame, distance_m=.35):
@@ -248,12 +249,29 @@ def _gripper_camera_pose(snapshot, *, forward_axis="+Z", backoff_m=.04):
     return pose[:3, 3], pose[:3, 3] + pose[:3, 2] * .24, -pose[:3, 1]
 
 
+def _point_cloud_colors(cloud, count):
+    source = cloud.get("color_source", "uniform_fallback_rgb_absent")
+    if source == "uniform_fallback_rgb_absent":
+        if not 0 <= count <= 12000:
+            raise ValueError("browser cloud point count exceeds bound")
+        return np.tile(np.array([145, 175, 190], dtype=np.uint8), (count, 1))
+    if source not in ("packed_rgb", "packed_rgba"):
+        raise ValueError("unsupported measured point color source")
+    return decode_rgb8(cloud.get("rgb8_b64"), count)
+
+
 def _cloud_is_fresh(cloud, now):
     if not cloud:
         return False
     received = cloud.get("received_monotonic")
     return (isinstance(received, (int, float)) and np.isfinite(received)
             and 0 <= now - received <= .5)
+
+
+def _set_cloud_visibility(handle, cloud, now, selecting=False):
+    if handle is not None:
+        handle.visible = bool(not selecting and _cloud_is_fresh(cloud, now)
+                              and len(cloud.get("points_m", ())) > 0)
 
 
 def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
@@ -277,6 +295,7 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
     clear_selection_button = server.gui.add_button("Clear placement selection")
     image_handle = None
     cloud_handle = None
+    cloud_colors_cache = {"key": None, "colors": None}
     frame_handles = {}
     object_handles = {}
     model = data = None
@@ -600,20 +619,30 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                     # The camera image plane is the interaction surface. Hide the
                     # live cloud while selecting so nearer sampled points cannot
                     # occlude its pixels or intercept clicks.
-                    cloud_handle.visible = (selection_state["mode"] is None and _cloud_is_fresh(cloud, now))
+                    _set_cloud_visibility(cloud_handle, cloud, now, selection_state["mode"] is not None)
                 if _cloud_is_fresh(cloud, now) and selection_state["mode"] is None:
                     pts = np.asarray(cloud.get("points_m", []), dtype=np.float32)
                     if len(pts):
-                        root_from_cloud = transform_between(snapshot["transforms"],
-                            snapshot.get("root_frame", "charuco_board"), cloud["frame_id"],
-                            snapshot.get("transform_fresh"))
-                        points_world = (pts @ root_from_cloud[:3, :3].T
-                                        + root_from_cloud[:3, 3]).astype(np.float32)
-                        if cloud_handle is not None:
-                            cloud_handle.remove()
-                        cloud_handle = server.scene.add_point_cloud("/scene/ros_pointcloud",
-                            points=points_world, colors=np.tile([145, 175, 190], (len(pts), 1)),
-                            point_size=.0025)
+                        color_key = (cloud.get("stamp_ns"), len(pts), cloud.get("color_source"),
+                                     cloud.get("rgb8_b64"))
+                        try:
+                            if color_key != cloud_colors_cache["key"]:
+                                cloud_colors_cache.update(key=color_key, colors=_point_cloud_colors(cloud, len(pts)))
+                            colors = cloud_colors_cache["colors"]
+                        except ValueError:
+                            colors = None
+                            if cloud_handle is not None:
+                                cloud_handle.visible = False
+                        if colors is not None:
+                            root_from_cloud = transform_between(snapshot["transforms"],
+                                snapshot.get("root_frame", "charuco_board"), cloud["frame_id"],
+                                snapshot.get("transform_fresh"))
+                            points_world = (pts @ root_from_cloud[:3, :3].T
+                                            + root_from_cloud[:3, 3]).astype(np.float32)
+                            if cloud_handle is not None:
+                                cloud_handle.remove()
+                            cloud_handle = server.scene.add_point_cloud("/scene/ros_pointcloud",
+                                points=points_world, colors=colors, point_size=.0025)
                 objects = snapshot.get("objects", {})
                 for name, item in objects.items():
                     if now - item.get("received_monotonic", now) > 0.5:
@@ -692,7 +721,8 @@ def serve_ros_twin(state_file, port=8099, host="0.0.0.0", poll_s=0.1):
                     "scene: `/camera/depth/color/points`, `/so101/object_markers`, grasp topics.\n"
                     f"{sync_text} · measured joints: `{len(joint.get('positions_rad', {}))}` · "
                     f"fresh TF frames: `{len(frame_rows)}` · {parity_line} · "
-                    f"point cloud: `{cloud.get('source') if cloud else 'waiting'}`\n"
+                    f"point cloud: `{cloud.get('source') if cloud else 'waiting'}` · "
+                    f"color: `{cloud.get('color_source', 'legacy uniform') if cloud else 'waiting'}`\n"
                     "Passive pose display; MuJoCo never publishes joint states or commands hardware.")
             else:
                 if ego_toggle.value:
