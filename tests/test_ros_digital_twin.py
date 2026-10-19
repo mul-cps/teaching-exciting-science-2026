@@ -17,7 +17,7 @@ from workshop.digital_twin.ros_state import (
 from workshop.digital_twin.ros_viewer import _initial_camera_pose
 
 sys.path.insert(0, str(Path("ros2/src/so101_station_control").resolve()))
-from so101_station_control.model_offsets import apply_gripper_mount_roll
+from so101_station_control.model_offsets import apply_model_offsets
 
 
 def _tf(parent, child, translation, rotation=(0, 0, 0, 1)):
@@ -172,7 +172,7 @@ def test_effective_urdf_drives_measured_joint_radians_and_mount_offsets():
     # import with the checked-in canonical URDF after resolving its mesh URIs.
     source = Path("workshop/digital_twin/assets/so101_new_calib.urdf").resolve()
     offsets = yaml.safe_load(Path("ros2/src/so101_station_control/config/model_offsets.yaml").read_text())
-    text = apply_gripper_mount_roll(source.read_text(), offsets["gripper_mount_roll_deg"])
+    text = apply_model_offsets(source.read_text(), offsets)
     text = text.replace('filename="assets/', 'filename="' + str(source.parent / "cad") + "/")
     model = effective_urdf_to_mjcf_model(text)
     data = mujoco.MjData(model)

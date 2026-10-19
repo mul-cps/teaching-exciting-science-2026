@@ -32,4 +32,5 @@
   <exec_depend>so101_station_perception</exec_depend>
   <exec_depend>so101_station_workflow</exec_depend>
   <exec_depend>so101_station_gpu</exec_depend>
+  <exec_depend>so101_station_control</exec_depend>
 </package>

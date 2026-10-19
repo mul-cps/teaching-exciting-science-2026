@@ -2,7 +2,7 @@
 import os
 import yaml
 
-from so101_station_control.model_offsets import apply_gripper_mount_roll
+from so101_station_control.model_offsets import apply_model_offsets
 from so101_station_gpu.gpu_renderer import rviz_preload_value
 
 from ament_index_python.packages import get_package_share_directory
@@ -41,9 +41,9 @@ def generate_launch_description():
                                "config", "model_offsets.yaml")
     with open(offset_path, encoding="utf-8") as stream:
         model_offsets = yaml.safe_load(stream)
-    moveit_config.robot_description["robot_description"] = apply_gripper_mount_roll(
+    moveit_config.robot_description["robot_description"] = apply_model_offsets(
         moveit_config.robot_description["robot_description"],
-        model_offsets["gripper_mount_roll_deg"])
+        model_offsets)
     # Keep the host DRM ABI override local to RViz. Its entrypoint probes GLX
     # with this environment before executing the renderer.
     rviz_environment = {"LD_PRELOAD": rviz_preload_value()}

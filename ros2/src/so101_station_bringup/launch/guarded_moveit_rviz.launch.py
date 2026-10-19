@@ -1,6 +1,9 @@
 """Launch MoveIt RViz through the station's GPU-only preflight."""
 
 import os
+import yaml
+
+from so101_station_control.model_offsets import apply_model_offsets
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -32,6 +35,12 @@ def generate_launch_description():
         .joint_limits()
         .to_moveit_configs()
     )
+    offset_path = os.path.join(get_package_share_directory("so101_station_control"),
+                               "config", "model_offsets.yaml")
+    with open(offset_path, encoding="utf-8") as stream:
+        model_offsets = yaml.safe_load(stream)
+    moveit_config.robot_description["robot_description"] = apply_model_offsets(
+        moveit_config.robot_description["robot_description"], model_offsets)
     return LaunchDescription([
         DeclareLaunchArgument("namespace", default_value="follower"),
         DeclareLaunchArgument("variant", default_value="follower"),

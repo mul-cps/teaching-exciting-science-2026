@@ -1,5 +1,19 @@
-# Rig01 provisional alignment, requested while comparing the real arm in RViz.
-# Positive rotation: CCW viewed from local +Z toward the wrist-roll origin.
-# Model mounting correction only; servo calibration and commands are unchanged.
+# Model geometry only. Encoder readings, limits and commands are unchanged.
 gripper_mount_roll_deg: -90.0
-status: provisional_user_visual_alignment
+status: PROVISIONAL
+qualified: false
+joint_zero_offsets_deg:
+  shoulder_lift: 11.616411167163976
+  elbow_flex: -10.348454041608484
+  wrist_flex: -9.05585412227618
+provenance:
+  arm_id: hs_rig01_follower
+  calibration_sha256: bc688147848f386899f8f34eb09cdb285fcdb0fc8de576b78a50a8efaf7f424c
+  source_model_sha256: 45532e4ae4c6b6ae2c67461f7a43bb1bdb20114ff5c2512ec967598118926ecc
+  evidence:
+    red-leg14-base-diagnosis/joint-zero-diagnostic/RESULTS.json: c24a9a07259c0b1906d2aeb7f8ccc7267b7b94d564e4f67d423a7eda58c636ec
+    joint-zero-heldout-pose/frozen-candidate-score/RESULTS.json: cc688e028f8ef4e13f9a1ccd377607de1fa9f0014cfda3cc022dee00472d123d
+  method: fixed-base three-joint CAD/depth candidate; independent lift pose scored
+    without refitting
+  qualification: provisional visual model alignment only; not physical TCP/contact
+    calibration
