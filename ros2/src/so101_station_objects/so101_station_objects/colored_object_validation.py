@@ -33,6 +33,7 @@ class DepthComponent:
     support_mask: np.ndarray
     parent_pixels: int
     depth_cut_pixels: int
+    origin_xy: tuple[int, int] = (0, 0)
 
 
 @dataclass(frozen=True)
@@ -55,13 +56,20 @@ def _depth_inputs(mask, depth_m, max_observation_depth_m):
 
 def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m=.012,
                                     min_pixels=24,
-                                    max_observation_depth_m=DEFAULT_MAX_OBSERVATION_DEPTH_M):
+                                    max_observation_depth_m=DEFAULT_MAX_OBSERVATION_DEPTH_M,
+                                    local_output=False, pixel_origin=(0, 0)):
     """Separate depth leaks before color contour construction or silhouette fill.
 
     Invalid and out-of-range depth remain in original local color support.
     A large invalid background joined to a real foreground brick by a thin color bridge does
     not impose its size/invalid ratio on the foreground component. Depth jumps
     cut one pixel on each side; this deliberately withholds uncertain edges.
+
+    ``local_output`` retains bounded component buffers and their global pixel
+    origin instead of expanding each piece to the input image shape. The caller
+    may supply an exact parent bounding-box view with its ``pixel_origin``;
+    this is a computational crop, never an observation/workspace gate. Default
+    output remains full-sized for existing callers.
     """
     parent = np.asarray(parent_mask)
     depth = np.asarray(depth_m)
@@ -69,6 +77,10 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
         raise ValueError('matching color mask and aligned metric floating depth required')
     if not np.isfinite(max_neighbor_jump_m) or max_neighbor_jump_m <= 0 or type(min_pixels) is not int or min_pixels < 8:
         raise ValueError('positive depth continuity and component size required')
+    if (type(local_output) is not bool or not isinstance(pixel_origin, tuple) or len(pixel_origin) != 2
+            or any(type(value) is not int or value < 0 for value in pixel_origin)
+            or not local_output and pixel_origin != (0, 0)):
+        raise ValueError('local component origin requires two nonnegative integer coordinates')
     limit = validate_observation_depth_limit(max_observation_depth_m)
     full_shape = parent.shape
     # Component bounding boxes are an exact computational optimization. Every
@@ -105,13 +117,26 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
         filled = np.zeros_like(parent, dtype=np.uint8)
         cv2.drawContours(filled, contours, -1, 1, cv2.FILLED)
         support |= parent & filled.astype(bool)
-        full_region = np.zeros(full_shape, dtype=bool)
-        full_support = np.zeros(full_shape, dtype=bool)
-        full_region[crop] = region
-        full_support[crop] = support
-        full_region.setflags(write=False)
-        full_support.setflags(write=False)
-        output.append(DepthComponent(full_region, full_support, parent_pixels, int((cut & nearby).sum())))
+        if local_output:
+            # Dilation has radius two. Filled holes remain inside the original
+            # region bounds, so this exact box contains every support pixel.
+            rx, ry, rw, rh = (int(stats[label, key]) for key in
+                (cv2.CC_STAT_LEFT, cv2.CC_STAT_TOP, cv2.CC_STAT_WIDTH, cv2.CC_STAT_HEIGHT))
+            left, top = max(0, rx-2), max(0, ry-2)
+            right, bottom = min(parent.shape[1], rx+rw+2), min(parent.shape[0], ry+rh+2)
+            local_crop = (slice(top, bottom), slice(left, right))
+            result_region, result_support = region[local_crop].copy(), support[local_crop].copy()
+            origin = (pixel_origin[0]+x0+left, pixel_origin[1]+y0+top)
+        else:
+            result_region = np.zeros(full_shape, dtype=bool)
+            result_support = np.zeros(full_shape, dtype=bool)
+            result_region[crop] = region
+            result_support[crop] = support
+            origin = (0, 0)
+        result_region.setflags(write=False)
+        result_support.setflags(write=False)
+        output.append(DepthComponent(result_region, result_support, parent_pixels,
+                                     int((cut & nearby).sum()), origin))
     return tuple(output)
 
 
