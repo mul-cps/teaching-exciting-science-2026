@@ -13,6 +13,8 @@
   <exec_depend>rviz2</exec_depend>
   <exec_depend>so101_station_gpu</exec_depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>rcl_interfaces</exec_depend>
+  <exec_depend>realsense2_camera_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>

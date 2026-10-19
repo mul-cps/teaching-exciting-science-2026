@@ -9,6 +9,14 @@ ament_python_install_package(${PROJECT_NAME})
 # a private namespace, avoiding workshop/__init__.py application imports.
 ament_python_install_package(so101_station_perception_tag_tracking
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../workshop/digital_twin")
+ament_python_install_package(so101_station_projection
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../workshop/perception")
+add_library(so101_rocm_bridge_runtime SHARED
+  "${CMAKE_CURRENT_SOURCE_DIR}/../../../workshop/perception/projection_compat.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../../../workshop/perception/rocm_wire_pack.cpp")
+target_compile_features(so101_rocm_bridge_runtime PRIVATE cxx_std_17)
+target_compile_options(so101_rocm_bridge_runtime PRIVATE -O2)
+install(TARGETS so101_rocm_bridge_runtime LIBRARY DESTINATION lib)
 
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME})
@@ -24,6 +32,7 @@ install(PROGRAMS
   scripts/rgbd_evidence_sink
   scripts/charuco_world
   scripts/marker_pipeline
+  scripts/rocm_rgbd
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
