@@ -46,9 +46,11 @@ def test_renderer_image_bounds_fail_before_context_creation(size):
 
 
 def test_gpu_hot_path_is_bounded_one_readback_no_per_point_loop():
-    source = inspect.getsource(GpuPointCamera.render)
+    source = inspect.getsource(GpuPointCamera.render_layers)
     tree = ast.parse('if True:\n' + source)
-    assert not any(isinstance(n, (ast.For, ast.While, ast.ListComp, ast.GeneratorExp)) for n in ast.walk(tree))
+    loops=[n for n in ast.walk(tree) if isinstance(n,(ast.For,ast.While))]
+    assert len(loops)==1 and ast.unparse(loops[0].iter)=='mesh_matrices.items()'
+    assert not any(isinstance(n,(ast.ListComp,ast.GeneratorExp)) for n in ast.walk(tree))
     assert source.count('glReadPixels(') == 1
     assert 'glFinish' not in source and 'glGetBufferSubData' not in source
     assert 'len(points) > self.max_points' in source
@@ -132,27 +134,19 @@ def test_xyz_decoder_and_cloud_callback_have_no_per_point_python_work():
     source=(ROOT/'ros2/src/so101_station_perception/so101_station_perception/virtual_gripper_camera.py').read_text()
     tree=ast.parse(source)
     decoder=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='sampled_xyz')
-    loops=[n for n in ast.walk(decoder) if isinstance(n,(ast.For,ast.While))]
-    assert len(loops)==1 and isinstance(loops[0],ast.For)
-    assert ast.unparse(loops[0].iter)=="enumerate(('x', 'y', 'z'))"
-    comprehensions=[n for n in ast.walk(decoder) if isinstance(n,
-        (ast.ListComp,ast.SetComp,ast.DictComp,ast.GeneratorExp))]
-    assert len(comprehensions)==1 and isinstance(comprehensions[0],ast.DictComp)
-    metadata=comprehensions[0]
-    assert ast.unparse(metadata.key)=='field.name' and ast.unparse(metadata.value)=='field'
-    assert len(metadata.generators)==1
-    assert ast.unparse(metadata.generators[0].iter)=='message.fields'
-    assert ast.unparse(metadata.generators[0].target)=='field'
-    assert not metadata.generators[0].ifs and not metadata.generators[0].is_async
+    assert not any(isinstance(n,(ast.For,ast.While,ast.ListComp,ast.DictComp,ast.GeneratorExp)) for n in ast.walk(decoder))
+    assert ast.unparse(decoder.body[-1].value)=='sampled_cloud(message, max_points)[0]'
     cls=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='VirtualGripperCamera')
     callback=next(n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name=='_cloud')
-    assert not any(isinstance(n,(ast.For,ast.While,ast.ListComp,ast.SetComp,
-                                ast.DictComp,ast.GeneratorExp)) for n in ast.walk(callback))
+    loops=[ast.unparse(n.iter) for n in ast.walk(callback) if isinstance(n,ast.For)]
+    assert sorted(loops)==sorted(['LINKS','(scene_image, provenance_image)'])
+    assert not any(isinstance(n,(ast.While,ast.ListComp,ast.SetComp,ast.GeneratorExp)) for n in ast.walk(callback))
+    comps=[n for n in ast.walk(callback) if isinstance(n,ast.DictComp)]
+    assert len(comps)==1 and ast.unparse(comps[0].generators[0].iter)=='self.meshes'
     calls=[ast.unparse(n.func) for n in ast.walk(callback) if isinstance(n,ast.Call)]
-    assert calls.count('sampled_xyz')==1 and calls.count('self.renderer.render')==1
-    assert not any(name in {'open','Path','Rotation.from_matrix'} or
-        name.startswith(('hashlib.','mujoco.')) or name.endswith(('.read_bytes','.read_text'))
-        for name in calls)
+    assert calls.count('sampled_cloud')==1 and calls.count('self.renderer.render_layers')==1
+    assert not any(name in {'open','Path','Rotation.from_matrix','load_gripper_visuals'} or
+        name.startswith(('hashlib.','mujoco.')) or name.endswith(('.read_bytes','.read_text')) for name in calls)
 
 
 def test_joint_history_handles_delayed_cloud_and_out_of_order_receipts():
@@ -193,3 +187,30 @@ def test_joint_history_capacity_and_static_hot_path_bound():
     assert not any(isinstance(n,(ast.For,ast.While,ast.ListComp,ast.SetComp,
                                 ast.DictComp,ast.GeneratorExp)) for n in ast.walk(add_tree))
     assert 'MAX_AGE_NS = 500_000_000' in source and 'MAX_SYNC_NS = 50_000_000' in source
+
+
+@pytest.mark.skipif(os.getenv('SO101_TEST_VIRTUAL_CAMERA_EGL') != '1',reason='opt-in GPU EGL qualification')
+def test_gpu_observed_rgb_depth_and_nominal_triangle_provenance_preserve_raw_cloud():
+    r=GpuPointCamera()
+    try:
+        p=optical_projection(virtual_intrinsics(),320,240)
+        points=np.array([[0,0,.5],[.1,0,.5],[0,0,.8]],np.float32)
+        colors=np.array([[255,0,0],[0,0,255],[0,255,0]],np.uint8)
+        triangle=np.array([[-.025,-.025,.25],[.025,-.025,.25],[0,.025,.25]],np.float32)
+        r.set_meshes([{'name':'nominal/visual_0','points':triangle,
+                       'colors':np.full((3,3),180,np.uint8)}])
+        cloud=r.render(points,p,colors=colors)
+        layers=r.render_layers(points,p,colors=colors,mesh_matrices={'nominal/visual_0':p})
+        assert np.array_equal(layers['raw'],cloud)
+        red=np.argwhere(np.all(cloud[:,:,:3]==[255,0,0],axis=2)&(cloud[:,:,3]==255))
+        blue=np.argwhere(np.all(cloud[:,:,:3]==[0,0,255],axis=2)&(cloud[:,:,3]==255))
+        assert len(red)==len(blue)==1
+        assert not np.any(np.all(cloud[:,:,:3]==[0,255,0],axis=2))
+        y,x=red[0];assert layers['provenance'][y,x]==2
+        assert layers['scene'][y,x].tolist()==[180,180,180,255]
+        y,x=blue[0];assert layers['provenance'][y,x]==1
+        assert layers['scene'][y,x].tolist()==[0,0,255,255]
+        assert set(np.unique(layers['provenance']))=={0,1,2}
+        assert np.all(layers['raw'][layers['raw'][:,:,3]==0]==0)
+        assert r.readback_bytes==614400
+    finally:r.close()

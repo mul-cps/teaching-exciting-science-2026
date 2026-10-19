@@ -245,3 +245,24 @@ def test_virtual_eye_hot_path_has_no_render_cloud_processing_or_per_point_loop()
     # a server-side render per client when adding a virtual perspective.
     assert source.count("_render(model, data, base)") == 1
     assert source.count("server.scene.add_point_cloud(") == 1
+
+
+def test_browser_cloud_uses_exact_measured_colors_without_uniform_substitution():
+    from workshop.digital_twin.point_cloud_samples import encode_rgb8
+    colors=np.array([[255,0,0],[0,0,255]],np.uint8)
+    result=ros_viewer._point_cloud_colors({'color_source':'packed_rgb','rgb8_b64':encode_rgb8(colors)},2)
+    assert np.array_equal(result,colors)
+    with pytest.raises(ValueError):ros_viewer._point_cloud_colors({'color_source':'packed_rgb','rgb8_b64':''},2)
+    assert ros_viewer._point_cloud_colors({'color_source':'uniform_fallback_rgb_absent'},2).shape==(2,3)
+
+
+def test_fresh_empty_cloud_hides_previous_geometry_instead_of_reusing_old_points():
+    handle=_Handle()
+    ros_viewer._set_cloud_visibility(handle,{'received_monotonic':10.,'points_m':[[0,0,1]]},10.)
+    assert handle.visible is True
+    ros_viewer._set_cloud_visibility(handle,{'received_monotonic':10.1,'points_m':[]},10.1)
+    assert handle.visible is False
+    ros_viewer._set_cloud_visibility(handle,{'received_monotonic':10.2,'points_m':[[0,0,1]]},10.2)
+    assert handle.visible is True
+    ros_viewer._set_cloud_visibility(handle,{'received_monotonic':10.2,'points_m':[[0,0,1]]},11.)
+    assert handle.visible is False

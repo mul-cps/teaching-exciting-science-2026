@@ -29,6 +29,7 @@ from tf2_ros import Buffer, TransformListener
 from visualization_msgs.msg import MarkerArray
 
 from .ros_state import RosTwinState, resolve_package_mesh_uris, transform_matrix
+from .point_cloud_samples import sampled_cloud, encode_rgb8
 from .placement_region import (PlacementRegionTracker, SparseRGBDAnchor,
     pose_from_rectangle, project_rectangle_to_plane, placement_camera_frame_summary,
     waiting_for_anchor_status)
@@ -835,16 +836,13 @@ class RosStatePublisher(Node):
 
     def _point_cloud(self, message):
         try:
-            from sensor_msgs_py import point_cloud2
-            points = point_cloud2.read_points_numpy(message, field_names=("x", "y", "z"))
-            points = points.reshape(-1, 3)
-            points = points[np.isfinite(points).all(axis=1)]
-            if len(points) > 12000:
-                points = points[::max(1, len(points) // 12000)][:12000]
+            points, colors, color_source = sampled_cloud(message, max_points=12000)
             self.state.point_cloud = {
                 "frame_id": message.header.frame_id.lstrip("/"),
                 "stamp_ns": _stamp_ns(message.header.stamp),
                 "points_m": points.astype(float).tolist(),
+                "color_source": color_source,
+                "rgb8_b64": None if colors is None else encode_rgb8(colors),
                 "source": "/camera/depth/color/points",
                 "received_monotonic": time.monotonic(),
             }

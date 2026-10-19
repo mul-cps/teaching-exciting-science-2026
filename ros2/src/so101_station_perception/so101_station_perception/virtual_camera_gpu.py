@@ -23,11 +23,19 @@ class GpuPointCamera:
             self.program = self._program()
             self.position = self.gl.glGetAttribLocation(self.program, b"position")
             self.matrix = self.gl.glGetUniformLocation(self.program, b"clip_from_cloud")
+            self.rgb = self.gl.glGetAttribLocation(self.program, b"rgb")
+            self.alpha = self.gl.glGetUniformLocation(self.program, b"synthetic_alpha")
             self.vbo = C.c_uint()
             self.gl.glGenBuffers(1, C.byref(self.vbo))
             self.gl.glBindBuffer(0x8892, self.vbo)
             self.gl.glBufferData(0x8892, self.max_points * 12, None, 0x88E0)
-            self.pixels = np.empty((self.height, self.width, 4), dtype=np.uint8)
+            self.color_vbo = C.c_uint()
+            self.gl.glGenBuffers(1, C.byref(self.color_vbo))
+            self.gl.glBindBuffer(0x8892, self.color_vbo)
+            self.gl.glBufferData(0x8892, self.max_points * 3, None, 0x88E0)
+            self.mesh_vbos = {}
+            self.pixels = np.empty((self.height, self.width * 2, 4), dtype=np.uint8)
+            self.readback_bytes = self.pixels.nbytes
         except BaseException:
             self.close()
             raise
@@ -60,6 +68,9 @@ class GpuPointCamera:
             ("glUseProgram", None, [U]), ("glGetAttribLocation", I, [U, C.c_char_p]),
             ("glGetUniformLocation", I, [U, C.c_char_p]),
             ("glGenBuffers", None, [I, C.POINTER(U)]), ("glBindBuffer", None, [U, U]),
+            ("glDeleteBuffers", None, [I, C.POINTER(U)]),
+            ("glDisableVertexAttribArray", None, [U]), ("glVertexAttrib3f", None, [U, F, F, F]),
+            ("glUniform1f", None, [I, F]),
             ("glBufferData", None, [U, C.c_ssize_t, P, U]),
             ("glBufferSubData", None, [U, C.c_ssize_t, C.c_ssize_t, P]),
             ("glViewport", None, [I, I, I, I]), ("glClearColor", None, [F, F, F, F]),
@@ -88,7 +99,7 @@ class GpuPointCamera:
         if not self.egl.eglChooseConfig(self.display, attrs, C.byref(config), 1, C.byref(count)) or not count.value:
             raise RuntimeError("EGL RGBA8/depth24 config unavailable")
         self.surface = self.egl.eglCreatePbufferSurface(self.display, config,
-            (C.c_int * 5)(0x3057, self.width, 0x3056, self.height, 0x3038))
+            (C.c_int * 5)(0x3057, self.width * 2, 0x3056, self.height, 0x3038))
         self.context = self.egl.eglCreateContext(self.display, config, None,
             (C.c_int * 3)(0x3098, 2, 0x3038))
         if not self.surface or not self.context or not self.egl.eglMakeCurrent(
@@ -99,8 +110,8 @@ class GpuPointCamera:
         shaders = []
         program = self.gl.glCreateProgram()
         try:
-            for kind, source in ((0x8B31, b"attribute vec3 position; uniform mat4 clip_from_cloud; void main(){gl_Position=clip_from_cloud*vec4(position,1.0);gl_PointSize=1.0;}"),
-                (0x8B30, b"precision mediump float; void main(){gl_FragColor=vec4(0.57,0.69,0.75,1.0);}")):
+            for kind, source in ((0x8B31, b"attribute vec3 position; attribute vec3 rgb; varying vec3 color; uniform mat4 clip_from_cloud; void main(){color=rgb;gl_Position=clip_from_cloud*vec4(position,1.0);gl_PointSize=1.0;}"),
+                (0x8B30, b"precision mediump float; varying vec3 color; uniform float synthetic_alpha; void main(){gl_FragColor=vec4(color,synthetic_alpha);}")):
                 shader = self.gl.glCreateShader(kind)
                 shaders.append(shader)
                 value = C.c_char_p(source)
@@ -127,31 +138,100 @@ class GpuPointCamera:
         finally:
             for shader in shaders: self.gl.glDeleteShader(shader)
 
-    def render(self, points, clip_from_cloud):
+    def set_meshes(self, meshes):
+        """Upload all bounded NOMINAL mesh visuals once; no per-frame STL work."""
+        if len(meshes) > 16 or sum(len(m["points"]) for m in meshes) > 600000:
+            raise ValueError("gripper visual/triangle bound exceeded")
+        staged = {}
+        try:
+            for mesh in meshes:
+                points, colors = np.asarray(mesh["points"]), np.asarray(mesh["colors"])
+                if (points.ndim != 2 or points.shape[1] != 3 or len(points) % 3 or
+                        not np.isfinite(points).all() or colors.dtype != np.uint8 or
+                        colors.shape != points.shape or mesh["name"] in staged):
+                    raise ValueError("finite triangle vertices and matching uint8 colors required")
+                packed = np.empty(len(points), dtype=np.dtype([
+                    ("position", "<f4", 3), ("rgb", "u1", 3), ("pad", "u1")]))
+                packed["position"], packed["rgb"], packed["pad"] = points, colors, 0
+                vbo = C.c_uint()
+                self.gl.glGenBuffers(1, C.byref(vbo))
+                staged[mesh["name"]] = (vbo, len(points))
+                self.gl.glBindBuffer(0x8892, vbo)
+                self.gl.glBufferData(0x8892, packed.nbytes, packed.ctypes.data, 0x88E4)
+            if self.gl.glGetError():
+                raise RuntimeError("GPU gripper VBO upload failed")
+        except BaseException:
+            for vbo, _count in staged.values(): self.gl.glDeleteBuffers(1, C.byref(vbo))
+            raise
+        for vbo, _count in self.mesh_vbos.values(): self.gl.glDeleteBuffers(1, C.byref(vbo))
+        self.mesh_vbos = staged
+
+    def _matrix(self, value):
+        matrix = np.asarray(value, dtype=np.float32)
+        if matrix.shape != (4, 4) or not np.isfinite(matrix).all():
+            raise ValueError("finite 4x4 projection required")
+        packed = np.ascontiguousarray(matrix.T)
+        self.gl.glUniformMatrix4fv(self.matrix, 1, 0, packed.ctypes.data)
+
+    def render(self, points, clip_from_cloud, colors=None):
+        """Compatibility cloud-only view; atlas still uses one GPU readback."""
+        return self.render_layers(points, clip_from_cloud, colors=colors)["raw"]
+
+    def render_layers(self, points, clip_from_cloud, colors=None, mesh_matrices=None):
         points = np.ascontiguousarray(points, dtype=np.float32)
-        matrix = np.asarray(clip_from_cloud, dtype=np.float32)
         if (points.ndim != 2 or points.shape[1] != 3 or len(points) > self.max_points
-                or matrix.shape != (4, 4) or not np.isfinite(points).all()
-                or not np.isfinite(matrix).all()):
-            raise ValueError("bounded finite XYZ points and 4x4 projection required")
-        matrix = np.ascontiguousarray(matrix.T)
+                or not np.isfinite(points).all()):
+            raise ValueError("bounded finite XYZ points required")
+        if colors is not None:
+            colors = np.ascontiguousarray(colors)
+            if colors.dtype != np.uint8 or colors.shape != points.shape:
+                raise ValueError("matching uint8 RGB colors required")
+        mesh_matrices = {} if mesh_matrices is None else mesh_matrices
+        if len(mesh_matrices) > 16 or not mesh_matrices.keys() <= self.mesh_vbos.keys():
+            raise ValueError("only cached bounded model visuals may be drawn")
         g = self.gl
-        g.glViewport(0, 0, self.width, self.height)
         g.glClearColor(0., 0., 0., 0.)
         g.glClear(0x4000 | 0x0100)
-        g.glEnable(0x0B71)  # GL_DEPTH_TEST; nearest observed point wins.
+        g.glEnable(0x0B71)
         g.glUseProgram(self.program)
+        g.glUniform1f(self.alpha, 1.)
+        self._matrix(clip_from_cloud)
         g.glBindBuffer(0x8892, self.vbo)
         g.glBufferSubData(0x8892, 0, points.nbytes, points.ctypes.data)
-        g.glUniformMatrix4fv(self.matrix, 1, 0, matrix.ctypes.data)
         g.glEnableVertexAttribArray(self.position)
         g.glVertexAttribPointer(self.position, 3, 0x1406, 0, 12, None)
-        g.glDrawArrays(0, 0, len(points))  # GL_POINTS, one pixel; never hole filling.
-        g.glReadPixels(0, 0, self.width, self.height, 0x1908, 0x1401, self.pixels.ctypes.data)
+        if colors is None:
+            g.glDisableVertexAttribArray(self.rgb)
+            g.glVertexAttrib3f(self.rgb, .57, .69, .75)
+        else:
+            g.glBindBuffer(0x8892, self.color_vbo)
+            g.glBufferSubData(0x8892, 0, colors.nbytes, colors.ctypes.data)
+            g.glEnableVertexAttribArray(self.rgb)
+            g.glVertexAttribPointer(self.rgb, 3, 0x1401, 1, 3, None)
+        # Two viewports share one pbuffer/depth allocation and one readback:
+        # left preserves unoccluded measured samples, right adds NOMINAL CAD.
+        g.glViewport(0, 0, self.width, self.height)
+        g.glDrawArrays(0, 0, len(points))
+        g.glViewport(self.width, 0, self.width, self.height)
+        g.glDrawArrays(0, 0, len(points))
+        g.glUniform1f(self.alpha, .5)
+        g.glEnableVertexAttribArray(self.rgb)
+        for name, matrix in mesh_matrices.items():
+            vbo, count = self.mesh_vbos[name]
+            self._matrix(matrix)
+            g.glBindBuffer(0x8892, vbo)
+            g.glVertexAttribPointer(self.position, 3, 0x1406, 0, 16, None)
+            g.glVertexAttribPointer(self.rgb, 3, 0x1401, 1, 16, C.c_void_p(12))
+            g.glDrawArrays(4, 0, count)  # GL_TRIANGLES; bounded cached visuals.
+        g.glReadPixels(0, 0, self.width * 2, self.height, 0x1908, 0x1401, self.pixels.ctypes.data)
         error = g.glGetError()
-        if error:
-            raise RuntimeError(f"GLES rasterization error {error:#x}")
-        return np.ascontiguousarray(self.pixels[::-1])
+        if error: raise RuntimeError(f"GLES rasterization error {error:#x}")
+        raw = np.ascontiguousarray(self.pixels[::-1, :self.width])
+        scene = np.ascontiguousarray(self.pixels[::-1, self.width:])
+        alpha = scene[:, :, 3]
+        provenance = np.where(alpha == 255, 1, np.where(alpha != 0, 2, 0)).astype(np.uint8)
+        scene[:, :, 3] = np.where(provenance != 0, 255, 0)
+        return {"raw": raw, "scene": scene, "provenance": provenance}
 
     def close(self):
         if self.display:

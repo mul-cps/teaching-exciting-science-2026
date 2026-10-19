@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation
 import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data, QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from rclpy.time import Time
 from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2, JointState
@@ -21,35 +21,16 @@ from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformL
 from so101_station_perception_tag_tracking.virtual_camera import (
     optical_projection, tool_from_virtual_optical, virtual_intrinsics,
     validate_pinch_overlay, project_pinch_overlay, JointOpeningHistory)
+from so101_station_perception_tag_tracking.point_cloud_samples import sampled_cloud
+from so101_station_perception_tag_tracking.gripper_mesh import load_gripper_visuals, LINKS
+from ament_index_python.packages import get_package_share_directory
 from .diagnostic_cloud import quaternion_matrix
 from .virtual_camera_gpu import GpuPointCamera
 
 
 def sampled_xyz(message, max_points=20000):
-    """Decode XYZ exactly once for admitted frames; vectorized bounded sampling."""
-    height, width, step = int(message.height), int(message.width), int(message.point_step)
-    count = height * width
-    if min(height, width, step) <= 0 or count > 1280 * 720 or not 1 <= max_points <= 20000:
-        raise ValueError("cloud dimensions or sample bound invalid")
-    row_step = int(message.row_step)
-    if height == 1 and len(message.data) == width * step:
-        row_step = width * step
-    if row_step < width * step or len(message.data) < row_step * height:
-        raise ValueError("malformed cloud layout")
-    fields = {field.name: field for field in message.fields}
-    stride = math.ceil(count / max_points)
-    indices = np.arange(0, count, stride)
-    rows, cols = indices // width, indices % width
-    points = np.empty((len(indices), 3), dtype=np.float32)
-    for axis, name in enumerate(("x", "y", "z")):
-        field = fields.get(name)
-        if field is None or int(field.datatype) != 7 or int(field.count) != 1 or not 0 <= field.offset <= step - 4:
-            raise ValueError("scalar float32 XYZ fields required")
-        view = np.ndarray((height, width), buffer=message.data,
-            dtype=(">f4" if message.is_bigendian else "<f4"),
-            offset=int(field.offset), strides=(row_step, step))
-        points[:, axis] = view[rows, cols]
-    return np.ascontiguousarray(points[np.isfinite(points).all(axis=1)])
+    """Compatibility XYZ accessor; production decodes XYZ/RGB together once."""
+    return sampled_cloud(message, max_points)[0]
 
 
 class VirtualGripperCamera(Node):
@@ -62,7 +43,8 @@ class VirtualGripperCamera(Node):
             "height": 240, "max_hz": 3., "max_points": 20000,
             "vertical_fov_deg": 60., "forward_axis": "+Z", "backoff_m": .04,
             "near_m": .01, "far_m": 2., "max_age_s": .5, "pinch_artifact": "",
-            "publish_annotation": False, "joint_states_topic": "/follower/joint_states"}
+            "publish_annotation": False, "joint_states_topic": "/follower/joint_states",
+            "render_gripper_mesh": True, "robot_description_topic": "/follower/robot_description"}
         for name, value in defaults.items(): self.declare_parameter(name, value)
         p = lambda name: self.get_parameter(name).value
         self.renderer = None
@@ -90,6 +72,8 @@ class VirtualGripperCamera(Node):
             self.pinch_sha = hashlib.sha256(raw).hexdigest()
         self.publish_annotation = bool(p("publish_annotation"))
         self.renderer = GpuPointCamera(self.width, self.height, self.max_points)
+        self.render_gripper_mesh = bool(p("render_gripper_mesh"))
+        self.mesh_description, self.meshes, self.mesh_provenance = None, [], {"state": "waiting_for_description"}
         self.buffer = Buffer()
         self.listener = TransformListener(self.buffer, self)
         self.tf_publisher = TransformBroadcaster(self)
@@ -98,11 +82,28 @@ class VirtualGripperCamera(Node):
         self.infos = self.create_publisher(CameraInfo, namespace + "/camera_info", qos_profile_sensor_data)
         self.annotated = self.create_publisher(Image, namespace + "/image_annotated", qos_profile_sensor_data)
         self.annotation_masks = self.create_publisher(Image, namespace + "/annotation_mask", qos_profile_sensor_data)
+        self.scenes = self.create_publisher(Image, namespace + "/image_scene", qos_profile_sensor_data)
+        self.provenance_masks = self.create_publisher(Image, namespace + "/provenance_mask", qos_profile_sensor_data)
+        self.description_subscription = self.create_subscription(String, p("robot_description_topic"),
+            self._description, QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.joints = self.create_subscription(JointState, p("joint_states_topic"),
             self._joints, qos_profile_sensor_data)
         self.subscription = self.create_subscription(PointCloud2, p("input_topic"),
             self._cloud, qos_profile_sensor_data)
         self._status("ready", renderer=self.renderer.renderer)
+
+    def _description(self, message):
+        if not self.render_gripper_mesh or message.data == self.mesh_description:
+            return
+        self.mesh_description = message.data
+        try:
+            meshes, provenance = load_gripper_visuals(message.data, get_package_share_directory)
+            self.renderer.set_meshes(meshes)
+            self.meshes, self.mesh_provenance = meshes, {"state": "loaded", **provenance}
+        except (OSError, ValueError, RuntimeError) as error:
+            self.renderer.set_meshes([])
+            self.meshes, self.mesh_provenance = [], {"state": "rejected_description", "reason": str(error)}
 
     def _joints(self, message):
         if "gripper" not in message.name:
@@ -150,8 +151,8 @@ class VirtualGripperCamera(Node):
     def _status(self, state, **extra):
         message = String()
         message.data = json.dumps({"state": state, "synthetic": True,
-            "calibration_qualified": False, "unknown_pixels": "rgba alpha=0",
-            "observed_samples": "one-pixel uniform-color points; no hole filling", **extra})
+            "calibration_qualified": False, "unknown_pixels": "image_raw alpha=0; image_scene uses separate provenance_mask",
+            "observed_samples": "one-pixel measured RGB when available; no hole filling", **extra})
         self.status_publisher.publish(message)
 
     def _cloud(self, message):
@@ -173,10 +174,29 @@ class VirtualGripperCamera(Node):
             tool_from_cloud = np.eye(4)
             tool_from_cloud[:3, :3] = quaternion_matrix(q.x, q.y, q.z, q.w)
             tool_from_cloud[:3, 3] = [t.x, t.y, t.z]
-            points = sampled_xyz(message, self.max_points)
+            points, colors, color_source = sampled_cloud(message, self.max_points)
+            mesh_matrices = {}
+            mesh_state = dict(self.mesh_provenance) if self.render_gripper_mesh else {"state": "disabled"}
+            if self.render_gripper_mesh and self.meshes:
+                try:
+                    link_poses = {}
+                    for link in LINKS:
+                        link_tf = self.buffer.lookup_transform(self.tool_frame, link,
+                            Time.from_msg(message.header.stamp), timeout=Duration(seconds=.02))
+                        lt, lq = link_tf.transform.translation, link_tf.transform.rotation
+                        pose = np.eye(4)
+                        pose[:3, :3] = quaternion_matrix(lq.x, lq.y, lq.z, lq.w)
+                        pose[:3, 3] = [lt.x, lt.y, lt.z]
+                        link_poses[link] = pose
+                    mesh_matrices = {mesh["name"]: self.projection @ self.optical_from_tool @ link_poses[mesh["link"]]
+                                     for mesh in self.meshes}
+                except TransformException as error:
+                    mesh_state = {"state": "missing_acquisition_tf", "reason": str(error)}
             optical_from_cloud = self.optical_from_tool @ tool_from_cloud
             render_start = time.monotonic()
-            rgba = self.renderer.render(points, self.projection @ optical_from_cloud)
+            layers = self.renderer.render_layers(points, self.projection @ optical_from_cloud,
+                                                  colors=colors, mesh_matrices=mesh_matrices)
+            rgba, scene, provenance = layers["raw"], layers["scene"], layers["provenance"]
             readback_ms = (time.monotonic() - render_start) * 1000
             age = (self.get_clock().now().nanoseconds - stamp_ns) / 1e9
             if not 0 <= age <= self.max_age:
@@ -205,11 +225,25 @@ class VirtualGripperCamera(Node):
             self.tf_publisher.sendTransform(mount_tf)
             self.infos.publish(info)
             self.images.publish(image)
+            scene_image, provenance_image = Image(), Image()
+            for output in (scene_image, provenance_image):
+                output.header = image.header
+                output.width, output.height = self.width, self.height
+            scene_image.encoding, scene_image.step, scene_image.data = "rgba8", self.width * 4, scene.tobytes()
+            provenance_image.encoding, provenance_image.step, provenance_image.data = "mono8", self.width, provenance.tobytes()
+            self.scenes.publish(scene_image)
+            self.provenance_masks.publish(provenance_image)
             self.last_stamp = stamp_ns
-            annotation = self._annotation(image, rgba, stamp_ns) if self.publish_annotation else {"state": "disabled"}
-            self._status("published", annotation=annotation, stamp_ns=stamp_ns, age_s=age, points=len(points),
+            annotation = self._annotation(image, scene, stamp_ns) if self.publish_annotation else {"state": "disabled"}
+            self._status("published", annotation=annotation, color_source=color_source,
+                virtual_camera={"width": self.width, "height": self.height,
+                    "vertical_fov_deg": math.degrees(2 * math.atan(self.height / (2 * self.k[1, 1]))),
+                    "horizontal_fov_deg": math.degrees(2 * math.atan(self.width / (2 * self.k[0, 0]))),
+                    "tool_from_optical": self.mount.tolist()},
+                model=mesh_state, model_visuals_rendered=len(mesh_matrices),
+                provenance_values={"unknown": 0, "observed": 1, "nominal_model": 2}, stamp_ns=stamp_ns, age_s=age, points=len(points),
                 gpu_render_readback_ms=readback_ms, callback_ms=(time.monotonic()-start)*1000,
-                readback_bytes=rgba.nbytes, renderer=self.renderer.renderer)
+                readback_bytes=self.renderer.readback_bytes, renderer=self.renderer.renderer)
         except (TransformException, ValueError, RuntimeError) as error:
             self._status("rejected", reason=str(error))
 
