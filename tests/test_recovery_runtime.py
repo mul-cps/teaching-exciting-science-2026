@@ -15,6 +15,55 @@ from test_recovery_depth_scene import urdf, calibration, model
 from workshop.station.recovery_runtime import create_recovery_runtime, BoundRecoveryScene
 
 
+
+class FactoryFixtureClock:
+    """Logical sensor time only; host threads, waits and CPU timing stay real."""
+    def __init__(self):
+        self.host=time;self.value=1000.;self.origin=time.time_ns()
+    def monotonic(self):return self.value
+    def time_ns(self):return self.origin+round((self.value-1000.)*1e9)
+    def advance(self,seconds):self.value+=seconds
+    def utc(self):
+        from datetime import datetime,timezone
+        return datetime.fromtimestamp(self.time_ns()/1e9,tz=timezone.utc)
+    def __getattr__(self,key):return getattr(self.host,key)
+
+
+def factory_fixture_clock():
+    """Test-only context; never patch attributes of the global time module."""
+    from contextlib import contextmanager
+    import importlib
+    import sys
+    @contextmanager
+    def scoped():
+        modules=[sys.modules[__name__]]+[importlib.import_module('workshop.station.'+name)
+            for name in ('recovery_runtime','camera_recovery','recovery_depth_scene','recovery_collision_model')]
+        previous=[module.time for module in modules];clock=FactoryFixtureClock()
+        try:
+            for module in modules:module.time=clock
+            yield clock
+        finally:
+            for module,original in zip(modules,previous):module.time=original
+    return scoped()
+
+
+def prepare_factory_fixture_ticks(session,clock):
+    """Keep real factory/model/recovery but schedule fake acquisitions explicitly.
+
+    Async cache-worker tests exercise the real thread separately. Factory wiring
+    tests do not measure whether the host can prepare scenes within50ms.
+    """
+    provider=session.camera_scene_provider
+    provider.close();provider.prewarm_model(dict(session.arm.bus.data['Present_Position']))
+    def source_tick():
+        clock.advance(.001)  # a genuinely new post-prewarm ORIGINAL exposure
+        write_arm_frame(provider,session.arm)
+        metadata=json.loads((provider.cache_root/'latest.json').read_text())
+        provider.prepare(metadata,np.ones((100,100),np.float32));provider._read_health()
+    def sensor_sleep(seconds):clock.advance(seconds);source_tick()
+    session.sleep=sensor_sleep;source_tick()
+    return provider
+
 def fixture(tmp_path):
     arm=FakeArm(tmp_path, initial=target(elbow_flex=2993))
     arm.bus._recovery_capture_lock=threading.Lock()
@@ -181,29 +230,22 @@ def test_rebinding_does_not_refresh_original_depth_or_pair_age(tmp_path):
 def test_run_locked_session_factory_to_prepared_provider_to_real_proof(tmp_path):
     from contextlib import nullcontext
     from workshop.station.arm_session import ArmSession,run_locked_session
-    config,arm,_,_=fixture(tmp_path)
-    result=[]
-    class Session(ArmSession):
-        def serve(self,**kwargs):
-            assert self.camera_scene_provider is not None
-            provider=self.camera_scene_provider
-            stop=threading.Event()
-            def camera():
-                while not stop.is_set():
-                    write_arm_frame(provider,arm)
-                    stop.wait(.025)
-            worker=threading.Thread(target=camera)
-            worker.start()
-            until=time.monotonic()+1
-            while provider._latest is None and time.monotonic()<until:time.sleep(.005)
-            try:
+    with factory_fixture_clock() as clock:
+        config,arm,_,_=fixture(tmp_path)
+        result=[]
+        class Session(ArmSession):
+            def __init__(self,*args,**kwargs):
+                kwargs.update(clock=clock.monotonic,wall_clock=clock.utc)
+                super().__init__(*args,**kwargs)
+            def serve(self,**kwargs):
+                assert self.camera_scene_provider is not None
+                prepare_factory_fixture_ticks(self,clock)
                 result.append(self.handle({'command':'recover_camera'}))
                 return 0
-            finally:stop.set();worker.join(1)
-    assert run_locked_session(config,tmp_path/'state',tmp_path/'logs',lock_path=tmp_path/'lock',
-        lock_factory=lambda _:nullcontext(),arm_factory=lambda _:arm,session_factory=Session)==0
-    assert result[0]['ok'] and result[0]['state']['raw']['elbow_flex']==2973
-    assert arm.bus.goal_history and arm.bus.eeprom_writes==[]
+        assert run_locked_session(config,tmp_path/'state',tmp_path/'logs',lock_path=tmp_path/'lock',
+            lock_factory=lambda _:nullcontext(),arm_factory=lambda _:arm,session_factory=Session)==0
+        assert result[0]['ok'] and result[0]['state']['raw']['elbow_flex']==2973,result[0]
+        assert arm.bus.goal_history and arm.bus.eeprom_writes==[]
 
 
 @pytest.mark.parametrize('fault',['missing','stale','occluded','provider_slow','proof_slow','binding_mismatch'])
@@ -363,16 +405,25 @@ def test_prewarm_drops_triggering_cohort_and_requires_new_header(tmp_path):
     finally:value._stop.set();worker.join(1)
 
 
-def test_actual_module_entrypoint_factory_uses_shared_policy(tmp_path):
-    """Execute exactly python -m owner; replace only device/config boundaries."""
+@pytest.mark.parametrize('host_pause_s',[0.,.150])
+def test_actual_module_entrypoint_factory_uses_shared_policy(tmp_path,host_pause_s):
+    """Real -m factory/recovery; deterministic fake sensor and scheduler ticks.
+
+    The asynchronous cache reader has separate real-thread coverage above. This
+    test checks factory/policy wiring and actual recovery, not50ms host latency.
+    """
     import os
     import subprocess
     import sys
     hook=tmp_path/'sitecustomize.py'
     hook.write_text('''
-import os,sys,threading,time
+import os,sys,time as host_time
 from pathlib import Path
-from test_recovery_runtime import fixture,write_frame,write_arm_frame
+from test_recovery_runtime import fixture,factory_fixture_clock,prepare_factory_fixture_ticks
+clock_scope=factory_fixture_clock();clock=clock_scope.__enter__()
+# This child owns its test-only module bindings until process teardown.
+import atexit
+atexit.register(clock_scope.__exit__,None,None,None)
 folder=Path(os.environ['RECOVERY_FIXTURE'])
 config,arm,_,_=fixture(folder)
 def trace(frame,event,arg):
@@ -383,35 +434,37 @@ def trace(frame,event,arg):
         g['validate_arm_session_config']=lambda c:None
         original=g['run_locked_session']
         class Session(g['ArmSession']):
+            def __init__(self,*args,**kwargs):
+                kwargs.update(clock=clock.monotonic,wall_clock=clock.utc)
+                super().__init__(*args,**kwargs)
             def serve(self,**kwargs):
                 provider=self.camera_scene_provider
                 assert isinstance(provider.policy,g['CameraRecoveryPolicy'])
                 from workshop.station.recovery_types import owner_source_sha256
                 assert self._owner_source_sha256 == owner_source_sha256(Path(g['__file__']).parent)
                 assert set(self._owner_source_sha256) == {'arm','arm_session','recovery_runtime','recovery_types','recovery_runtime_config','camera_recovery'}
-                stop=threading.Event()
-                def collect():
-                    while not stop.is_set():
-                        write_arm_frame(provider,arm)
-                        stop.wait(.025)
-                worker=threading.Thread(target=collect);worker.start()
-                try:
-                    until=time.monotonic()+1
-                    while provider._latest is None and time.monotonic()<until:time.sleep(.005)
-                    result=self.handle({'command':'recover_camera'})
-                    assert result['ok'] and arm.bus.goal_history, result
-                    print('REAL_MODULE_FACTORY_PROOF_OK',flush=True)
-                    return 0
-                finally:stop.set();worker.join(1)
+                prepare_factory_fixture_ticks(self,clock)
+                original_stamp=provider._latest.stamp_monotonic
+                host_time.sleep(float(os.environ['RECOVERY_HOST_PAUSE']))
+                assert provider._latest.stamp_monotonic==original_stamp
+                result=self.handle({'command':'recover_camera'})
+                assert result['ok'] and arm.bus.goal_history,result
+                # Explicit logical expiry still revokes the ORIGINAL proof.
+                scene=provider._latest;generation=provider._health['camera_generation']
+                clock.advance(.051)
+                assert provider.recapture_health(generation) is None
+                assert provider._latest is scene
+                print('REAL_MODULE_FACTORY_PROOF_OK',flush=True)
+                return 0
         g['run_locked_session']=lambda *a,**k:original(*a,**k,arm_factory=lambda c:arm,session_factory=Session)
 sys.setprofile(trace)
 ''')
-    env=dict(os.environ,RECOVERY_FIXTURE=str(tmp_path),
+    env=dict(os.environ,RECOVERY_FIXTURE=str(tmp_path),RECOVERY_HOST_PAUSE=str(host_pause_s),
         PYTHONPATH=os.pathsep.join((str(tmp_path),str(Path.cwd()),str(Path.cwd()/'tests'))))
     result=subprocess.run([sys.executable,'-m','workshop.station.arm_session','--config',str(tmp_path/'unused'),
         '--state-file',str(tmp_path/'state'),'--logdir',str(tmp_path/'logs'),'--lock',str(tmp_path/'lock')],
         env=env,text=True,capture_output=True,timeout=5)
-    assert result.returncode==0, result.stdout+result.stderr
+    assert result.returncode==0,result.stdout+result.stderr
     assert 'REAL_MODULE_FACTORY_PROOF_OK' in result.stdout
 
 
@@ -810,3 +863,16 @@ def test_refresh_marker_precedes_hold_state_without_promoting_scene_authority(tm
     else:assert result['state']==state
     assert value._latest is (None if cohort=='missing' else scene)
     if cohort=='missing':assert value(target(elbow_flex=2993),time.monotonic()) is None
+
+
+def test_factory_clock_scope_does_not_patch_global_time_and_restores_modules():
+    import workshop.station.recovery_runtime as module
+    real_time=time;real_monotonic=real_time.monotonic;prior_binding=module.time
+    with factory_fixture_clock() as clock:
+        assert module.time is clock and real_time.monotonic is real_monotonic
+        before=clock.monotonic();real_time.sleep(.015)
+        assert clock.monotonic()==before
+        clock.advance(.101)
+        assert clock.monotonic()==pytest.approx(before+.101)
+    assert module.time is prior_binding and time is real_time
+    assert real_time.monotonic is real_monotonic
