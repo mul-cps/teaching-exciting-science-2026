@@ -561,3 +561,42 @@ arrival, the operator may persist a measured HOME from actual encoder data.
 An explicit subsequent HOME request reloads and validates that identity-bound
 file in the owner, and refreshes the bridge's HOME cache only after successful
 owner completion. Invalid reloads retain the old caches and send no home Goal.
+
+### Stable failed trajectory endpoint
+
+A normal trajectory that misses the existing two-degree, three-observation goal
+criterion remains a failed action (`GOAL_TOLERANCE_VIOLATED`, -5). When its final
+endpoint is stable over the existing 0.30-second window (at least five samples,
+all six raw spans at most four counts), within the existing tracking envelope,
+and freshly observed within normal admitted/firmware bounds with all torque bits
+one, the owner may replace the target with the measured pose. This one hold Goal
+requires a fresh six-joint raw/torque check, cancellation check, and exact Goal
+readback. It is not a retry, trim, successful arrival or calibration approval.
+
+The typed result is `ok:false`, `status:failed_endpoint_held`,
+`target_reached:false`, `qualified:false`. Its hold proof binds the trajectory
+ID, unique owner session, calibration/source identity, measured raw map and
+original acquisition clocks. Fewer than three consecutive in-tolerance samples
+still means failure, even if the final instantaneous error is below two degrees.
+The bridge aborts the action and latches its owner fault; no next motion, HOME,
+recovery or teleoperation command is admitted. The owner enforces the same gate
+independently. Repeated cancellation does not rebase the original held pose.
+Immutable entry acquisition clocks and the held Goal anchor remain separate
+from each fresh observation and its original acquisition clocks; healthy
+observations may differ by at most four counts.
+
+A healthy failed hold persists while the owner and control transport remain
+alive. It suppresses only the ordinary inactivity timeout. The existing 20 Hz
+sample loop uses its existing encoder and torque reads to require all six joints
+inside admitted/firmware bounds, torque one, drift at most four counts from the
+original hold, and acquisition/health-loop age at most 100 ms. Rejected or queued
+commands do not renew that health clock. No extra periodic bus reads or new
+control loop are added.
+
+STOP, exit, EOF/transport loss, unhealthy reads/timing, torque loss, bounds loss,
+or excessive drift retain disarm and RAM restoration. A verified explicit STOP
+alone clears the held fault and drops buffered commands submitted while faulted.
+Subsequent explicitly requested motion must pass the existing fresh-state and path checks again. A stopped or sagged
+pose outside admitted bounds gains no recovery permission from this feature.
+Other trajectory faults and unstable endpoints retain existing shutdown behavior;
+the supervised commissioning and calibration-endpoint opt-in paths are unchanged.

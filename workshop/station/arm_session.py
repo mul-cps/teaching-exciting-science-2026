@@ -175,6 +175,9 @@ class ArmSession:
         self.last_command = self.clock()
         self.log_path = self.logdir / ("arm-session-" + uuid.uuid4().hex + ".jsonl")
         self._log_stream = None
+        self._owner_session_id = self.log_path.stem
+        self._failed_endpoint_hold = None
+        self._failed_hold_last_tick = None
         self._initialized = False
         self._motion_busy = False
         self._cancel_requested = False
@@ -571,6 +574,8 @@ class ArmSession:
         if any(value not in (0, 1) for value in torque.values()):
             raise RuntimeError("non-binary torque state")
         state = dict(schema=1, event=event, arm_id=self.arm.settings["id"],
+                     owner_session_id=self._owner_session_id,
+                     failed_endpoint_hold=self._failed_endpoint_hold,
                      calibration_sha256=self.calibration_digest,
                      observe_only=self._observe_only,
                      arm_bounds=self._arm_bounds_observation(raw,position_monotonic),
@@ -1114,7 +1119,37 @@ class ArmSession:
             raw[joint] = int(round(midpoint + radians * 4095 / (2 * math.pi)))
         return self._six_ints(raw, "trajectory sample")
 
-    def cancel_hold(self):
+    def _guard_failed_hold_observation(self, raw, torque, position_stamp, torque_stamp, anchor):
+        now = self.clock()
+        if any(type(stamp) not in (int, float) or not math.isfinite(stamp) or
+               not 0 <= now-stamp <= .1 for stamp in (position_stamp, torque_stamp)):
+            raise RuntimeError("failed endpoint hold acquisition is stale")
+        if (not isinstance(torque, dict) or set(torque) != set(JOINTS) or
+                any(type(value) is not int or value != 1 for value in torque.values())):
+            raise RuntimeError("failed endpoint hold requires six enabled torque bits")
+        if not isinstance(raw, dict) or set(raw) != set(JOINTS):
+            raise RuntimeError("failed endpoint hold requires six raw positions")
+        self._guard_supervised_actual(raw, anchor)
+
+    def _check_failed_hold_snapshot(self, state, sample_started):
+        """Use the existing sample's raw/torque only; no bus, file or model work."""
+        now = self.clock()
+        if (now-sample_started > .1 or self._failed_hold_last_tick is None or
+                not 0 <= now-self._failed_hold_last_tick <= .1):
+            raise RuntimeError("failed endpoint hold health loop exceeded 100ms")
+        self._guard_failed_hold_observation(state["raw"], state["torque"],
+            state["monotonic"], state["torque_monotonic"],
+            self._failed_endpoint_hold["held_raw"])
+        self._failed_hold_last_tick = now
+
+    def _failed_hold_reply(self, state):
+        return {"ok": False, "status": "failed_endpoint_held",
+                "error": "trajectory final goal tolerance was not reached; measured pose held",
+                "goal_id": self._failed_endpoint_hold["goal_id"],
+                "qualified": False, "target_reached": False,
+                "hold": dict(self._failed_endpoint_hold), "state": state}
+
+    def cancel_hold(self, *, failure_context=None):
         """Replace goals with measured pose while preserving torque state."""
         self._require_initialized()
         if self._observe_only:
@@ -1123,19 +1158,55 @@ class ArmSession:
             self._component_shutdown("component_cancel_disarm")
             return self.publish_state(event="component_cancel_disarmed")
         self._teleop = None
+        if self._failed_endpoint_hold is not None and failure_context is None:
+            sample_started = self.clock()
+            state = self.read_state()
+            self._check_failed_hold_snapshot(state, sample_started)
+            return state
+        if failure_context is not None:
+            self._calibration_guard()
+            if owner_source_sha256(Path(__file__).parent) != RUNTIME_OWNER_SOURCE_SHA256:
+                raise RuntimeError("failed endpoint hold owner source changed")
+        hold_started = self.clock()
         measured = self._read("Present_Position")
         position_stamp, position_utc = self.clock(), self.wall_clock()
+        if failure_context is not None:
+            torque_before = self._read("Torque_Enable")
+            self._guard_failed_hold_observation(measured, torque_before,
+                position_stamp, self.clock(), failure_context["endpoint_raw"])
+            self._poll_busy_input()
+            if (self.clock()-hold_started > .1 or
+                    self.clock()-failure_context["endpoint_stamp"] > .1):
+                raise RuntimeError("failed endpoint hold acquisition became stale before Goal")
         self.bus.sync_write("Goal_Position", measured, normalize=False, num_retry=0)
         goals = self._read("Goal_Position")
-        if any(abs(goals[joint] - measured[joint]) > 1 for joint in JOINTS):
+        if ((failure_context is not None and goals != measured) or
+                any(abs(goals[joint] - measured[joint]) > 1 for joint in JOINTS)):
             raise RuntimeError("cancel hold goal readback mismatch")
         torque = self._read("Torque_Enable")
         torque_stamp, torque_utc = self.clock(), self.wall_clock()
-        state = self.publish_state(event="trajectory_cancel_hold", raw=measured, torque=torque,
+        if failure_context is not None:
+            self._poll_busy_input()
+            self._guard_failed_hold_observation(measured, torque,
+                position_stamp, torque_stamp, failure_context["endpoint_raw"])
+            self._failed_endpoint_hold = {
+                "schema": "failed-endpoint-hold-v1", "goal_id": failure_context["goal_id"],
+                "owner_session_id": self._owner_session_id, "held_raw": dict(measured),
+                "target_raw": failure_context["target_raw"],
+                "goal_error_rad": failure_context["goal_error_rad"],
+                "settled_samples": failure_context["settled_samples"],
+                "qualified": False, "target_reached": False,
+                "lifetime": "while_healthy_until_explicit_stop_or_transport_loss",
+                "entry_position_monotonic": position_stamp, "entry_torque_monotonic": torque_stamp}
+            self._failed_hold_last_tick = self.clock()
+        state = self.publish_state(event=("trajectory_failed_endpoint_held" if failure_context is not None
+                                         else "trajectory_cancel_hold"), raw=measured, torque=torque,
             position_monotonic=position_stamp, position_utc=position_utc,
             torque_monotonic=torque_stamp, torque_utc=torque_utc)
         self.last_command = self.clock()
         self._event("trajectory_cancel_hold", raw=measured, torque=torque)
+        if failure_context is not None:
+            self._check_failed_hold_snapshot(state, hold_started)
         return state
 
     def _teleop_start(self, command):
@@ -1435,9 +1506,10 @@ class ArmSession:
             while settled < 3 and self.clock() < settle_deadline:
                 self._poll_busy_input()
                 self.bus.sync_write("Goal_Position", terminal, normalize=False, num_retry=0)
+                read_started = self.clock()
                 actual = self._read("Present_Position")
                 read_ended = self.clock()
-                position_utc = self.wall_clock() if supervised_commissioning else None
+                position_utc = self.wall_clock()
                 self._check_feedback_freshness(
                     label=goal_id, phase="trajectory-settle", previous_read_at=previous_feedback,
                     read_started=read_ended, read_ended=read_ended,
@@ -1452,12 +1524,13 @@ class ArmSession:
                     raise RuntimeError("supervised settle tracking error exceeded 2 degrees")
                 settled = settled + 1 if max(errors) <= ROS_GOAL_TOLERANCE_RAD else 0
                 torque = self._read("Torque_Enable")
-                feedback_clocks = ({"position_monotonic": read_ended, "position_utc": position_utc,
+                feedback_clocks = {"position_monotonic": read_ended, "position_utc": position_utc,
                     "torque_monotonic": self.clock(), "torque_utc": self.wall_clock()}
-                    if supervised_commissioning else {})
                 if any(torque[joint] != 1 for joint in JOINTS):
                     raise RuntimeError("trajectory torque state changed during settle")
                 settle_samples.append({"monotonic": read_ended,
+                                       "read_started": read_started,
+                                       "torque_monotonic": feedback_clocks["torque_monotonic"],
                                        "raw": dict(actual), "torque": dict(torque)})
                 state = self.publish_state(event="trajectory_settle", raw=actual,
                                            torque=torque, phase="settling", label=goal_id,
@@ -1476,20 +1549,39 @@ class ArmSession:
             endpoint_error = {joint: abs(self._arm_radians(actual)[joint] -
                                          prepared.samples[-1].positions[ARM_JOINTS.index(joint)])
                               for joint in ARM_JOINTS}
-            if settled < 3 and calibration_endpoint:
+            stable_endpoint = False
+            if settled < 3 and (calibration_endpoint or not supervised_commissioning):
                 window_start = settle_samples[-1]["monotonic"] - CALIBRATION_ENDPOINT_WINDOW_S
                 stable_window = [sample for sample in settle_samples
                                  if sample["monotonic"] >= window_start]
                 spans = {joint: max(sample["raw"][joint] for sample in stable_window) -
                          min(sample["raw"][joint] for sample in stable_window)
                          for joint in JOINTS} if stable_window else {}
-                calibration_endpoint_held = (
+                stable_endpoint = (
                     len(stable_window) >= CALIBRATION_ENDPOINT_MIN_SAMPLES and
                     all(value == 1 for sample in stable_window
                         for value in sample["torque"].values()) and
                     all(span <= CALIBRATION_ENDPOINT_MAX_SPAN_COUNTS
                         for span in spans.values()) and
                     max(endpoint_error.values()) <= ROS_MAX_TRACK_ERROR_RAD)
+                calibration_endpoint_held = stable_endpoint and calibration_endpoint
+            if settled < 3 and stable_endpoint and not calibration_endpoint and not supervised_commissioning:
+                if self.clock()-settle_samples[-1]["read_started"] > .1:
+                    raise TimeoutError("stable endpoint acquisition is stale; cannot hold")
+                for observation in stable_window:
+                    self._guard_supervised_actual(observation["raw"], {})
+                self._poll_busy_input()
+                state = self.cancel_hold(failure_context={"goal_id": goal_id,
+                    "target_raw": terminal, "endpoint_raw": actual,
+                    "endpoint_stamp": settle_samples[-1]["monotonic"],
+                    "goal_error_rad": endpoint_error, "settled_samples": settled})
+                self._record({"event": "trajectory_failed_endpoint_held", "goal_id": goal_id,
+                    "qualified": False, "target_reached": False,
+                    "feedback_samples": feedback_samples, "hold": self._failed_endpoint_hold})
+                self._poll_busy_input()
+                self._check_failed_hold_snapshot(state, state["monotonic"])
+                self._sag_recovery_available = False
+                return self._failed_hold_reply(state)
             if settled < 3 and not calibration_endpoint_held:
                 raise TimeoutError("trajectory final goal tolerance was not reached")
             if calibration_endpoint_held:
@@ -1546,6 +1638,9 @@ class ArmSession:
             if self._cancel_reason == "trajectory_cancel_hold" and not (supervised_commissioning and not motion_started):
                 try:
                     state = self.cancel_hold()
+                    if self._failed_endpoint_hold is not None:
+                        self._cancel_requested = False
+                        return self._failed_hold_reply(state)
                 except BaseException as hold_error:
                     try:
                         self.shutdown(reason="trajectory_cancel_hold_error")
@@ -2590,6 +2685,16 @@ class ArmSession:
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
+        if self._failed_endpoint_hold is not None:
+            if name in {"move_plan", "move_gripper", "commission_gripper_step", "recover_camera",
+                        "home", "execute_trajectory", "teleop_start", "teleop_step", "teleop_stop"}:
+                raise ArmPlanPreflightError("failed endpoint hold requires verified all-off STOP before motion")
+            if name == "cancel_hold":
+                if set(command) != {"command"}:
+                    raise ValueError("cancel_hold accepts no extra fields")
+                state = self.read_state()
+                self._check_failed_hold_snapshot(state, state["monotonic"])
+                return self._failed_hold_reply(state)
         if name == "jaw_diagnostics":
             if set(command) != {"command"}:
                 raise ArmPlanPreflightError("jaw_diagnostics accepts no arguments")
@@ -2601,7 +2706,11 @@ class ArmSession:
         if name == "read_state":
             if set(command) != {"command"}:
                 raise ValueError("read_state accepts no extra fields")
-            return {"ok": True, "state": self.read_state()}
+            sample_started = self.clock()
+            state = self.read_state()
+            if self._failed_endpoint_hold is not None:
+                self._check_failed_hold_snapshot(state, sample_started)
+            return {"ok": True, "state": state}
         if name == "move_plan":
             if set(command) != {"command", "legs"}:
                 raise ValueError("move_plan requires exactly command and legs")
@@ -2666,10 +2775,14 @@ class ArmSession:
                 self._observe_only = was_observe_only
                 raise
             self._teleop = None
-            if request_id is not None:
+            was_failed_hold = self._failed_endpoint_hold is not None
+            self._failed_endpoint_hold = None
+            self._failed_hold_last_tick = None
+            if request_id is not None or was_failed_hold:
                 self.publish_state(event="torque_off")
             self.last_command = self.clock()
             return {"ok": True, "stopped": True,
+                    **({"failed_hold_cleared": True} if was_failed_hold else {}),
                     **({"request_id": request_id} if request_id is not None else {}),
                     "state": self._latest_state(),
                     "completed_legs": [record["label"] for record in self._completed_leg_records]}
@@ -2706,7 +2819,8 @@ class ArmSession:
                 except BaseException:
                     self.shutdown(reason="teleop_watchdog_hold_error")
                     raise
-            if not self._idle_handled and now - self.last_command >= self.idle_timeout:
+            if (self._failed_endpoint_hold is None and not self._idle_handled and
+                    now - self.last_command >= self.idle_timeout):
                 self._event("idle_timeout", idle_seconds=now - self.last_command)
                 self.shutdown(reason="idle_timeout")
                 if not self.persistent_idle:
@@ -2716,12 +2830,15 @@ class ArmSession:
                 if self._teleop_skip_next_sample:
                     self._teleop_skip_next_sample = False
                 else:
-                    self.publish_state(event="sample")
+                    sample_started = self.clock()
+                    state = self.publish_state(event="sample")
+                    if self._failed_endpoint_hold is not None:
+                        self._check_failed_hold_snapshot(state, sample_started)
             except BaseException as error:
                 self._event("sample_error", error=str(error), error_type=type(error).__name__)
                 self.shutdown(reason="sample_error")
                 raise
-            timeout = (PERIOD_S if self._idle_handled else
+            timeout = (PERIOD_S if self._idle_handled or self._failed_endpoint_hold is not None else
                        min(PERIOD_S, max(0.0, self.idle_timeout -
                                          (self.clock() - self.last_command))))
             ready, _, _ = wait([fd], [], [], timeout)
@@ -2746,6 +2863,9 @@ class ArmSession:
                 try:
                     command = json.loads(line)
                     name = command.get("command") if isinstance(command, dict) else None
+                    if (self._failed_endpoint_hold is not None and name not in {"stop", "exit"} and
+                            self.clock()-self._failed_hold_last_tick > .1):
+                        raise RuntimeError("failed endpoint hold buffered command health deadline expired")
                     previous_idle_handled = self._idle_handled
                     if name in ("jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "recover_camera", "home", "execute_trajectory"):
                         self._motion_busy = True
@@ -2775,6 +2895,10 @@ class ArmSession:
                         reason = self._cancel_reason or str(error)
                         self._motion_busy = False
                         self.shutdown(reason=reason)
+                        if reason == "busy_stop" and self._failed_endpoint_hold is not None:
+                            self._failed_endpoint_hold = None
+                            self._failed_hold_last_tick = None
+                            self.publish_state(event="torque_off")
                         self._teleop = None
                         try:
                             final_state = json.loads(self.state_file.read_text())
@@ -2801,15 +2925,17 @@ class ArmSession:
                     self.last_command = self.clock()
                     if name in ("move_plan", "move_gripper", "commission_gripper_step", "recover_camera", "home", "execute_trajectory"):
                         self._idle_handled = False
-                    elif name == "stop" and self.persistent_idle:
-                        self._idle_handled = True
+                    elif name == "stop" and (self.persistent_idle or result.get("failed_hold_cleared")):
+                        self._idle_handled = self.persistent_idle
                         self._input_buffer.clear()
                     if isinstance(result, dict) and result.get("exit"):
                         return 0
                 except BaseException as error:
                     self._event("command_error", error=str(error), error_type=type(error).__name__)
-                    emit({"ok": False, "error": str(error), "error_type": type(error).__name__})
-                    self.shutdown(reason="command_error")
+                    try:
+                        emit({"ok": False, "error": str(error), "error_type": type(error).__name__})
+                    finally:
+                        self.shutdown(reason="command_error")
                     raise
 
     def close_log(self):

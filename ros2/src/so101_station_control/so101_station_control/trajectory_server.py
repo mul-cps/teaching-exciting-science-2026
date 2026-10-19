@@ -2541,6 +2541,56 @@ class TrajectoryBridge(Node):
         artifact["status"] = "collision_validated_not_sent"
         return artifact
 
+    def _validate_failed_endpoint_hold(self, reply, *, goal_id, process, generation,
+                                       owner_session_id, after):
+        if (not isinstance(reply, dict) or reply.get("status") != "failed_endpoint_held" or
+                reply.get("ok") is not False or reply.get("target_reached") is not False or
+                reply.get("qualified") is not False or reply.get("goal_id") != goal_id):
+            raise RuntimeError("malformed failed endpoint hold terminal")
+        state, hold = reply.get("state"), reply.get("hold")
+        if (not isinstance(state, dict) or not isinstance(hold, dict) or
+                hold.get("schema") != "failed-endpoint-hold-v1" or
+                hold.get("goal_id") != goal_id or
+                not isinstance(owner_session_id, str) or not owner_session_id or
+                hold.get("owner_session_id") != owner_session_id or
+                state.get("owner_session_id") != owner_session_id or
+                state.get("event") not in {"trajectory_failed_endpoint_held", "read_state"} or
+                state.get("failed_endpoint_hold") != hold or
+                hold.get("lifetime") != "while_healthy_until_explicit_stop_or_transport_loss" or
+                hold.get("qualified") is not False or hold.get("target_reached") is not False or
+                not isinstance(hold.get("held_raw"), dict)):
+
+            raise RuntimeError("failed endpoint hold session/proof mismatch")
+        if self._prepare_owner_state(state, process, generation, after=after, torque=1) != "normal":
+            raise RuntimeError("failed endpoint hold is outside normal admitted bounds")
+        for entry_key, observation_key in (("entry_position_monotonic", "monotonic"),
+                                            ("entry_torque_monotonic", "torque_monotonic")):
+            stamp = hold.get(entry_key)
+            if (type(stamp) not in (int, float) or not math.isfinite(stamp) or
+                    not after <= stamp <= state[observation_key]):
+                raise RuntimeError("failed endpoint hold entry clock mismatch")
+        if hold["entry_position_monotonic"] > hold["entry_torque_monotonic"]:
+            raise RuntimeError("failed endpoint hold entry clock order mismatch")
+        target, errors = hold.get("target_raw"), hold.get("goal_error_rad")
+        bounds = _arm_bounds_observation(state)
+        anchor = hold["held_raw"]
+        if (set(anchor) != set(TELEOP_JOINTS) or
+                any(type(v) is not int or not bounds["admitted_min"][j] <= v <=
+                    bounds["admitted_max"][j] or abs(v-state["raw"][j]) > 4
+                    for j, v in anchor.items())):
+            raise RuntimeError("failed endpoint hold original anchor mismatch")
+        if (not isinstance(target, dict) or set(target) != set(TELEOP_JOINTS) or
+                any(type(v) is not int or not bounds["admitted_min"][j] <= v <=
+                    bounds["admitted_max"][j] for j, v in target.items()) or
+                not isinstance(errors, dict) or set(errors) != set(ARM_JOINTS) or
+                any(type(v) not in (int, float) or not math.isfinite(v) or
+                    not 0 <= v <= math.radians(10) for v in errors.values()) or
+                type(hold.get("settled_samples")) is not int or
+                not 0 <= hold["settled_samples"] < 3):
+            raise RuntimeError("failed endpoint hold target/error metadata invalid")
+        json.dumps(reply, allow_nan=False)
+        return state
+
     def _write_artifact(self, artifact):
         configured = str(self.get_parameter("trajectory_log_dir").value)
         directory = Path(configured) if configured else Path.home() / ".local/share/exciting-science/station/ros-trajectory-logs"
@@ -2899,6 +2949,10 @@ class TrajectoryBridge(Node):
             goal_handle.abort()
             return self._result(FollowJointTrajectory.Result.INVALID_GOAL,
                                 f"trajectory preflight rejected before bus command: {error}")
+        owner_process, owner_generation = self._process, self._owner_started
+        dispatch_state = self._read_state()
+        owner_session_id = dispatch_state.get("owner_session_id") if dispatch_state else None
+        dispatched_at = time.monotonic()
         try:
             while True:
                 try:
@@ -2980,6 +3034,35 @@ class TrajectoryBridge(Node):
             goal_handle.abort()
             return self._result(FollowJointTrajectory.Result.GOAL_TOLERANCE_VIOLATED,
                                 "owner stop interrupted trajectory; torque-off confirmation is provided by the stop service")
+        if (result_payload and (result_payload.get("status") == "failed_endpoint_held" or
+                result_payload.get("hold") is not None or
+                (isinstance(result_payload.get("state"), dict) and
+                 result_payload["state"].get("failed_endpoint_hold") is not None))):
+            try:
+                held_state = self._validate_failed_endpoint_hold(result_payload,
+                    goal_id=goal_id, process=owner_process, generation=owner_generation,
+                    owner_session_id=owner_session_id, after=dispatched_at)
+                self._owner_faulted = True
+                self._home_completed_owner_started = None
+                artifact.update(status="failed_endpoint_held", target_reached=False,
+                                qualified=False, result=result_payload)
+                self._write_artifact(artifact)
+                if (self._process is not owner_process or self._owner_started != owner_generation or
+                        any(not 0 <= time.monotonic()-held_state[key] <= .1
+                            for key in ("monotonic", "torque_monotonic"))):
+                    raise RuntimeError("failed endpoint hold proof became stale")
+                self._cache_owner_state(held_state, generation=owner_generation, process=owner_process)
+                message = "failed_endpoint_held: target not reached; measured pose held; verified STOP required"
+            except (OSError, ValueError, TypeError, KeyError, RuntimeError, TimeoutError) as error:
+                self._owner_faulted = True
+                self._home_completed_owner_started = None
+                try:
+                    self._prepare_stop(owner_process, owner_generation)
+                except (OSError, ValueError, TypeError, RuntimeError, TimeoutError) as stop_error:
+                    error.add_note("failed hold proof cleanup unresolved: " + str(stop_error))
+                message = "failed endpoint hold unavailable: " + str(error)
+            goal_handle.abort()
+            return self._result(FollowJointTrajectory.Result.GOAL_TOLERANCE_VIOLATED, message)
         if cancelled:
             artifact["status"] = "cancelled"
             artifact["result"] = result_payload
