@@ -1,5 +1,6 @@
 """Synthetic CPU-only domain177 Nodes/String metadata; no hardware inputs."""
 import os
+import importlib.util
 import sys
 import uuid
 from pathlib import Path
@@ -9,10 +10,16 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'ros2/src/so101_station_objects'),str(ROOT/'ros2/src/so101_station_perception')]
 
 
-@pytest.fixture
-def node():
+def _require_optional_ros_and_isolated_domain():
+    if importlib.util.find_spec('rclpy') is None:
+        pytest.skip('optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher')
     if os.environ.get('ROS_DOMAIN_ID')!='177' or os.environ.get('ROS_LOCALHOST_ONLY')!='1':
         raise RuntimeError('object timing fixture requires domain177 localhost1 BEFORE import/init')
+
+
+@pytest.fixture
+def node():
+    _require_optional_ros_and_isolated_domain()
     import rclpy
     from rclpy.executors import SingleThreadedExecutor
     from so101_station_objects.objects import ColoredObjectsNode
@@ -157,8 +164,7 @@ def test_exact_result_pretracker_and_prepublish_rejection_sites(node,stage):
 
 
 def test_default_off_creates_no_diagnostic_ros_entities():
-    if os.environ.get('ROS_DOMAIN_ID')!='177' or os.environ.get('ROS_LOCALHOST_ONLY')!='1':
-        raise RuntimeError('domain177 localhost1 required before init')
+    _require_optional_ros_and_isolated_domain()
     import rclpy
     from rclpy.parameter import Parameter
     from so101_station_objects.objects import ColoredObjectsNode
