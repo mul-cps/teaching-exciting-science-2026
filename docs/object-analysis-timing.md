@@ -107,3 +107,15 @@ automatic test partitioning: future overnight matrix protocols must explicitly
 add `test_object_timing_diagnostic_ros.py` to both `native177_includes` and
 `native75_excludes` (the station exclusion list derives from the former).
 Historical sealed matrices are unchanged and do not establish this coverage.
+
+Repository CI uses `python tools/test_cpu.py`. Its canonical partition in
+`tests/native177.json` retains pure modules in CPU even when also covered by the
+native lane; only documented native dependency closures are excluded. Optional
+ROS cases remain in CPU and explicitly skip without ROS. CPU preflight refuses
+discoverable ROS/device/GPU runtimes rather than assuming they are harmless.
+Synthetic loopback tests are permitted. No external hardware is authorized.
+`python tools/test_cpu.py --native` delegates the explicit39-module superset to
+the fixed177 launcher and reports skipped mandatory coverage as failure.
+CPU/native counts overlap and must not be added. This revised CPU scope differs
+from historical station partitions; a local CPU result is not hosted CI or
+physical/native-control qualification.
