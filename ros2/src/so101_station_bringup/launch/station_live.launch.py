@@ -83,6 +83,9 @@ def generate_launch_description():
         'observation_roi_y_min': '-1.0', 'observation_roi_y_max': '1.0',
         'observation_roi_z_min': '-1.0', 'observation_roi_z_max': '1.0',
     }
+    supervisor_defaults={"perception_supervisor_enabled":"false",
+        **{"perception_supervisor_"+key:("243322071783" if key=="expected_serial" else "") for key in ('expected_source_cohort', 'expected_serial', 'journal_directory', 'recovery_artifact_directory', 'confirmed_adoption_acceptance_artifact', 'confirmed_adoption_acceptance_sha256', 'confirmed_adoption_completed_artifact', 'confirmed_adoption_completed_sha256')}}
+    defaults.update(supervisor_defaults)
     def include(package, filename, args, **kwargs):
         return IncludeLaunchDescription(
             PythonLaunchDescriptionSource(PathJoinSubstitution([
@@ -97,6 +100,7 @@ def generate_launch_description():
     robot = include('so101_station_control', 'moveit_resident.launch.py',
                     {k: LaunchConfiguration(k) for k in robot_keys})
     perception = include('so101_station_perception', 'perception.launch.py', {
+        **{key:LaunchConfiguration(key) for key in supervisor_defaults},
         **{key:LaunchConfiguration(key) for key in ('color_profile','depth_profile','enable_sync','camera_wait_timeout_s','camera_reconnect_timeout_s','camera_repair_prefix','camera_sdk_prefix')},
         **{key: LaunchConfiguration(key) for key in ('marker_allow_derived_source', 'marker_derived_source_cohort', 'marker_depth_topic')},
         'far_depth_m': LaunchConfiguration('far_depth_m'),

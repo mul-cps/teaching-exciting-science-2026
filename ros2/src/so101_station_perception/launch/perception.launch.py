@@ -1,4 +1,5 @@
 from ament_index_python.packages import get_package_prefix
+from launch.conditions import IfCondition
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, GroupAction, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -176,7 +177,16 @@ def _launch_nodes(context):
 
 
 def generate_launch_description():
+    supervisor_keys=('expected_source_cohort', 'expected_serial', 'journal_directory', 'recovery_artifact_directory', 'confirmed_adoption_acceptance_artifact', 'confirmed_adoption_acceptance_sha256', 'confirmed_adoption_completed_artifact', 'confirmed_adoption_completed_sha256')
+    supervisor=IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(PathJoinSubstitution([FindPackageShare("so101_station_perception"),"launch","perception_supervisor.launch.py"])),
+        launch_arguments={"enabled":LaunchConfiguration("perception_supervisor_enabled"),
+            **{key:LaunchConfiguration("perception_supervisor_"+key) for key in supervisor_keys}}.items(),
+        condition=IfCondition(LaunchConfiguration("perception_supervisor_enabled")))
     return LaunchDescription([
+        DeclareLaunchArgument("perception_supervisor_enabled",default_value="false"),
+        *(DeclareLaunchArgument("perception_supervisor_"+key,default_value="243322071783" if key=="expected_serial" else "") for key in supervisor_keys),
+        supervisor,
         DeclareLaunchArgument("marker_allow_derived_source", default_value="false"),
         DeclareLaunchArgument("marker_derived_source_cohort", default_value=""),
         DeclareLaunchArgument("marker_depth_topic", default_value="/camera/aligned_depth_to_color/image_raw"),
