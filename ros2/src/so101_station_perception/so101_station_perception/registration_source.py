@@ -205,16 +205,18 @@ class SourceCapture(Node):
         calibration_raw=bounded_bytes(calibration_path);base_raw=bounded_bytes(options.base_registration)
         initial=read_owner(options.owner_state_file);identity=initial['state']
         cohort={k:identity[k] for k in ('owner_session_id','arm_id','calibration_sha256','owner_source_sha256')}
-        reads=[];started=time.monotonic();next_read=started+.4
-        while time.monotonic()-started<1.15:
-            self._device_request()
-            now=time.monotonic()
-            if now>=next_read and len(reads)<12:
-                reads.append(read_owner(options.owner_state_file));next_read=now+.05
-            rclpy.spin_once(self,timeout_sec=.008)
+        reads=deque(maxlen=12);started=time.monotonic();next_read=started+.4
         deadline=started+min(4.,max(1.2,options.timeout))
+        def sample_owner():
+            nonlocal next_read
+            now=time.monotonic()
+            if next_read<=now<deadline:
+                reads.append(read_owner(options.owner_state_file));next_read=now+.05
+        while time.monotonic()-started<1.15:
+            self._device_request();sample_owner()
+            rclpy.spin_once(self,timeout_sec=.008)
         while (self.description is None or self.device_future is None or not self.device_future.done()) and time.monotonic()<deadline:
-            self._device_request();rclpy.spin_once(self,timeout_sec=.008)
+            self._device_request();sample_owner();rclpy.spin_once(self,timeout_sec=.008)
         if self.description is None:raise ValueError('actual robot description unavailable')
         if self.device_future is None or not self.device_future.done():raise ValueError('DeviceInfo for actual unique cloud publisher unavailable')
         self._validate_generation()
@@ -222,75 +224,79 @@ class SourceCapture(Node):
         self._validate_generation()
         if response is None:raise ValueError('DeviceInfo returned no camera identity')
         device=dict(message_to_ordereddict(response));reason='no synchronized current source cohort'
-        candidates=tuple(self.clouds)[-1:] if self.derived is not None else reversed(self.clouds)
-        for cloud,gid in candidates:
-            try:
-                now=self.get_clock().now().nanoseconds*1e-9;stamp=stamp_ns(cloud)*1e-9
-                if abs(now-time.time())>.05:raise ValueError('ROS and owner UTC clock domains differ')
-                if self.model_changes!=1:raise ValueError('model changed during source capture; recapture required')
-                joint_stamp,joints=self.history.select(stamp,now=now)
-                if self.derived is not None:
-                    lineage,status_gid,lineage_receipt,native=self._derived_pair(cloud,gid)
-                    info=native['depth']
-                else:info=min(self.infos,key=lambda m:abs(stamp_ns(m)*1e-9-stamp))
-                if info.header.frame_id!=cloud.header.frame_id or abs(stamp_ns(info)*1e-9-stamp)>.05 or stamp_ns(info)*1e-9>now:
-                    raise ValueError('original cloud and native CameraInfo not paired')
-                k=np.asarray(info.k,dtype=float).reshape(3,3)
-                if not np.isfinite(k).all() or min(k[0,0],k[1,1])<=0 or not 1<=info.width<=1280 or not 1<=info.height<=720:
-                    raise ValueError('finite supported native CameraInfo required')
-                before,after=select_identity_bracket(reads,stamp,joints,cohort,now=time.time())
-                frame=cloud.header.frame_id;ns=stamp_ns(cloud);tf_deadline=min(deadline,time.monotonic()+.3)
-                while not self.buffer.can_transform('charuco_board','base_link',Time(nanoseconds=ns)) or not self.buffer.can_transform('base_link',frame,Time(nanoseconds=ns)):
-                    if time.monotonic()>=tf_deadline:raise ValueError('exact cloud-stamp TF unavailable; never substituting latest')
-                    rclpy.spin_once(self,timeout_sec=.008)
-                world_base=transform(self.buffer.lookup_transform('charuco_board','base_link',Time(nanoseconds=ns)))
-                base_camera=self.buffer.lookup_transform('base_link',frame,Time(nanoseconds=ns))
-                self._validate_generation(gid)
-                if self.derived is not None:
-                    lineage,status_gid,lineage_receipt,native=self._derived_pair(cloud,gid)
-                    color_from_depth=transform(self.buffer.lookup_transform(lineage['original']['color_frame'],frame,Time(nanoseconds=ns)))
-                    validate_camera(lineage,native['depth'],native['color'],color_from_depth)
-                    if device.get('serial_number')!=lineage['source']['serial_number']:
-                        raise ValueError('actual camera DeviceInfo differs from derived lineage serial')
-                final=read_owner(options.owner_state_file)
-                for key,value in cohort.items():
-                    if final['state'].get(key)!=value:raise ValueError('owner identity/generation changed during capture')
-                if final['state']['raw']!=before['state']['raw']:raise ValueError('owner moved during source capture')
-                for path,raw in ((options.station_config,config_raw),(calibration_path,calibration_raw),(options.base_registration,base_raw)):
-                    if bounded_bytes(path)!=raw:raise ValueError('source file changed during capture')
-                result=make_source_cohort(self.description,before['state'],device,gid.hex(),
-                    station_config_path=options.station_config,station_config_bytes=config_raw,
-                    calibration_path=calibration_path,calibration_bytes=calibration_raw,
-                    base_registration_path=options.base_registration,base_registration_bytes=base_raw,
-                    world_from_base=world_base)
-                faults=[fault for fault in (owner_eligibility(before['state']),owner_eligibility(after['state']),owner_eligibility(final['state'])) if fault]
-                board=min(self.boards,key=lambda b:abs(float(b.get('stamp',-1e30))-stamp)) if self.boards else None
-                if (board is None or board.get('state')!='tracking' or board.get('observation_valid') is not True or
-                        board.get('plane_source')!='aligned_depth' or not 0<=now-float(board.get('stamp',-1e30))<=.5 or abs(float(board['stamp'])-stamp)>.05):
-                    faults.append('fresh paired depth-backed board unavailable')
-                faults=list(dict.fromkeys(faults));result['fit_eligibility_at_capture']={'eligible':not faults,'reason':faults[0] if faults else None,'reasons':faults}
-                result['capture_stamp_ns']=ns
-                evidence={'schema':'so101-registration-source-evidence-v1','qualified':False,
-                    'capture_stamp_ns':ns,'joint_stamp':joint_stamp,'cloud_frame':frame,'device_info':device,
-                    'device_info_service':self.device_service,'device_info_publisher_gid':self.device_request_gid.hex(),'cloud_publisher_node':{'name':self.endpoint.node_name,'namespace':self.endpoint.node_namespace},
-                    'original_cloud':{'publisher_gid':gid.hex(),'width':cloud.width,'height':cloud.height,'point_step':cloud.point_step,'row_step':cloud.row_step,'data_bytes':len(cloud.data)},
-                    'camera_info':dict(message_to_ordereddict(info)),'owner_before':before,'owner_after':after,'owner_final':final,
-                    'owner_reads':len(reads),'board':board,'base_from_camera':dict(message_to_ordereddict(base_camera)),
-                    'world_from_base':world_base.tolist(),'duration_s':time.monotonic()-started,
-                    'source_capture_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-                    'fit_eligibility_at_capture':result['fit_eligibility_at_capture']}
-                if self.derived is not None:
-                    self.derived.match(ns,now_ns=self.get_clock().now().nanoseconds,now_mono=time.monotonic())
-                    result['derived_source']={'schema':SCHEMA,'qualified':False,'local_provenance_not_cryptographic':True,'pin':self.derived.pin}
-                    evidence['derived_validator_sha256']=self.derived_validator_sha256
-                    evidence['derived_lineage']={'statement':lineage,'received_monotonic':lineage_receipt,'publisher_gid':status_gid,
-                        'native_device_info_request_source':self.device_request_source}
-                    endpoint=self.get_publishers_info_by_topic(options.cloud_topic)[0]
-                    evidence['cloud_publisher_node']={'name':endpoint.node_name,'namespace':endpoint.node_namespace}
-                return result,evidence
-            except (ValueError,KeyError,TypeError) as error:
-                if self.source_invalid_reason:raise ValueError(self.source_invalid_reason) from error
-                reason=str(error)
+        while time.monotonic()<deadline:
+            sample_owner()
+            if self.source_invalid_reason:raise ValueError(self.source_invalid_reason)
+            candidates=tuple(self.clouds)[-1:] if self.derived is not None else reversed(self.clouds)
+            for cloud,gid in candidates:
+                try:
+                    now=self.get_clock().now().nanoseconds*1e-9;stamp=stamp_ns(cloud)*1e-9
+                    if abs(now-time.time())>.05:raise ValueError('ROS and owner UTC clock domains differ')
+                    if self.model_changes!=1:raise ValueError('model changed during source capture; recapture required')
+                    joint_stamp,joints=self.history.select(stamp,now=now)
+                    if self.derived is not None:
+                        lineage,status_gid,lineage_receipt,native=self._derived_pair(cloud,gid)
+                        info=native['depth']
+                    else:info=min(self.infos,key=lambda m:abs(stamp_ns(m)*1e-9-stamp))
+                    if info.header.frame_id!=cloud.header.frame_id or abs(stamp_ns(info)*1e-9-stamp)>.05 or stamp_ns(info)*1e-9>now:
+                        raise ValueError('original cloud and native CameraInfo not paired')
+                    k=np.asarray(info.k,dtype=float).reshape(3,3)
+                    if not np.isfinite(k).all() or min(k[0,0],k[1,1])<=0 or not 1<=info.width<=1280 or not 1<=info.height<=720:
+                        raise ValueError('finite supported native CameraInfo required')
+                    before,after=select_identity_bracket(reads,stamp,joints,cohort,now=time.time())
+                    frame=cloud.header.frame_id;ns=stamp_ns(cloud);tf_deadline=min(deadline,time.monotonic()+.3)
+                    while not self.buffer.can_transform('charuco_board','base_link',Time(nanoseconds=ns)) or not self.buffer.can_transform('base_link',frame,Time(nanoseconds=ns)):
+                        if time.monotonic()>=tf_deadline:raise ValueError('exact cloud-stamp TF unavailable; never substituting latest')
+                        sample_owner();rclpy.spin_once(self,timeout_sec=.008)
+                    world_base=transform(self.buffer.lookup_transform('charuco_board','base_link',Time(nanoseconds=ns)))
+                    base_camera=self.buffer.lookup_transform('base_link',frame,Time(nanoseconds=ns))
+                    self._validate_generation(gid)
+                    if self.derived is not None:
+                        lineage,status_gid,lineage_receipt,native=self._derived_pair(cloud,gid)
+                        color_from_depth=transform(self.buffer.lookup_transform(lineage['original']['color_frame'],frame,Time(nanoseconds=ns)))
+                        validate_camera(lineage,native['depth'],native['color'],color_from_depth)
+                        if device.get('serial_number')!=lineage['source']['serial_number']:
+                            raise ValueError('actual camera DeviceInfo differs from derived lineage serial')
+                    final=read_owner(options.owner_state_file)
+                    for key,value in cohort.items():
+                        if final['state'].get(key)!=value:raise ValueError('owner identity/generation changed during capture')
+                    if final['state']['raw']!=before['state']['raw']:raise ValueError('owner moved during source capture')
+                    for path,raw in ((options.station_config,config_raw),(calibration_path,calibration_raw),(options.base_registration,base_raw)):
+                        if bounded_bytes(path)!=raw:raise ValueError('source file changed during capture')
+                    result=make_source_cohort(self.description,before['state'],device,gid.hex(),
+                        station_config_path=options.station_config,station_config_bytes=config_raw,
+                        calibration_path=calibration_path,calibration_bytes=calibration_raw,
+                        base_registration_path=options.base_registration,base_registration_bytes=base_raw,
+                        world_from_base=world_base)
+                    faults=[fault for fault in (owner_eligibility(before['state']),owner_eligibility(after['state']),owner_eligibility(final['state'])) if fault]
+                    board=min(self.boards,key=lambda b:abs(float(b.get('stamp',-1e30))-stamp)) if self.boards else None
+                    if (board is None or board.get('state')!='tracking' or board.get('observation_valid') is not True or
+                            board.get('plane_source')!='aligned_depth' or not 0<=now-float(board.get('stamp',-1e30))<=.5 or abs(float(board['stamp'])-stamp)>.05):
+                        faults.append('fresh paired depth-backed board unavailable')
+                    faults=list(dict.fromkeys(faults));result['fit_eligibility_at_capture']={'eligible':not faults,'reason':faults[0] if faults else None,'reasons':faults}
+                    result['capture_stamp_ns']=ns
+                    evidence={'schema':'so101-registration-source-evidence-v1','qualified':False,
+                        'capture_stamp_ns':ns,'joint_stamp':joint_stamp,'cloud_frame':frame,'device_info':device,
+                        'device_info_service':self.device_service,'device_info_publisher_gid':self.device_request_gid.hex(),'cloud_publisher_node':{'name':self.endpoint.node_name,'namespace':self.endpoint.node_namespace},
+                        'original_cloud':{'publisher_gid':gid.hex(),'width':cloud.width,'height':cloud.height,'point_step':cloud.point_step,'row_step':cloud.row_step,'data_bytes':len(cloud.data)},
+                        'camera_info':dict(message_to_ordereddict(info)),'owner_before':before,'owner_after':after,'owner_final':final,
+                        'owner_reads':len(reads),'board':board,'base_from_camera':dict(message_to_ordereddict(base_camera)),
+                        'world_from_base':world_base.tolist(),'duration_s':time.monotonic()-started,
+                        'source_capture_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                        'fit_eligibility_at_capture':result['fit_eligibility_at_capture']}
+                    if self.derived is not None:
+                        self.derived.match(ns,now_ns=self.get_clock().now().nanoseconds,now_mono=time.monotonic())
+                        result['derived_source']={'schema':SCHEMA,'qualified':False,'local_provenance_not_cryptographic':True,'pin':self.derived.pin}
+                        evidence['derived_validator_sha256']=self.derived_validator_sha256
+                        evidence['derived_lineage']={'statement':lineage,'received_monotonic':lineage_receipt,'publisher_gid':status_gid,
+                            'native_device_info_request_source':self.device_request_source}
+                        endpoint=self.get_publishers_info_by_topic(options.cloud_topic)[0]
+                        evidence['cloud_publisher_node']={'name':endpoint.node_name,'namespace':endpoint.node_namespace}
+                    return result,evidence
+                except (ValueError,KeyError,TypeError) as error:
+                    if self.source_invalid_reason:raise ValueError(self.source_invalid_reason) from error
+                    reason=str(error)
+            sample_owner();rclpy.spin_once(self,timeout_sec=.008)
         raise ValueError(reason)
 
 
