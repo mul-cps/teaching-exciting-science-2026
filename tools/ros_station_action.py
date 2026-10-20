@@ -151,7 +151,7 @@ def parse_args(argv=None):
         commands.add_parser(name, help='One explicit diagnostic RPC; accepted/status success is not readiness')
     for name in ('status', 'diagnostics', 'check-ready', 'cancel', 'stop', 'reset-fault',
                  'connect', 'wake', 'sleep', 'ev3-home', 'arm-home', 'arm-connect', 'arm-recover', 'arm-status',
-                 'arm-prepare', 'arm-stop', 'gripper-diagnostics'):
+                 'arm-prepare', 'arm-stop', 'gripper-diagnostics', 'gripper-held-acknowledge'):
         commands.add_parser(name)
     intel = commands.add_parser('intel-grasp')
     intel.add_argument('request_json', help='GraspPlanning request JSON with original source stamp')
@@ -198,6 +198,8 @@ def main(argv=None):
     if args.command == 'intel-grasp':
         from tools.ros_intel_grasp import main as intel_main
         return intel_main([args.request_json])
+    if args.command == 'gripper-held-acknowledge':
+        _perception_domain()
     import rclpy
     from rclpy.node import Node
     from std_srvs.srv import Trigger
@@ -207,7 +209,7 @@ def main(argv=None):
     try:
         service_type = Trigger
         request = Trigger.Request()
-        names = {'gripper-diagnostics': '/follower/gripper_diagnostics', 'arm-connect': '/follower/reconnect', 'arm-recover': '/follower/recover_camera',
+        names = {'gripper-held-acknowledge': '/follower/acknowledge_held_jaw', 'gripper-diagnostics': '/follower/gripper_diagnostics', 'arm-connect': '/follower/reconnect', 'arm-recover': '/follower/recover_camera',
                  'arm-status': '/follower/status', 'arm-stop': '/follower/stop', 'arm-prepare': 'arm/prepare',
                  'connect': 'ev3/connect', 'ev3-home': 'ev3/home', 'arm-home': 'arm/home'}
         name = names.get(args.command, args.command.replace('-', '_'))
@@ -241,7 +243,7 @@ def main(argv=None):
         if not client.wait_for_service(timeout_sec=3.):
             raise RuntimeError(service_name+' unavailable; start station_live.launch.py')
         future = client.call_async(request)
-        deadline = time.monotonic()+({'arm-connect': 25., 'arm-recover': 10., 'arm-stop': 12., 'gripper-held-step': 50.}.get(args.command, 5.))
+        deadline = time.monotonic()+({'arm-connect': 25., 'arm-recover': 10., 'arm-stop': 12., 'gripper-held-step': 50., 'gripper-held-acknowledge': 35.}.get(args.command, 5.))
         while not future.done():
             if time.monotonic() >= deadline:
                 raise TimeoutError('ROS service result unknown; inspect status before retrying')

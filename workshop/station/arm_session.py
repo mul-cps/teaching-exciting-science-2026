@@ -178,6 +178,8 @@ class ArmSession:
         self._owner_session_id = self.log_path.stem
         self._failed_endpoint_hold = None
         self._failed_hold_last_tick = None
+        self._failed_jaw_ack_context = None
+        self._last_held_jaw_ack = None
         self._initialized = False
         self._motion_busy = False
         self._cancel_requested = False
@@ -576,6 +578,8 @@ class ArmSession:
         state = dict(schema=1, event=event, arm_id=self.arm.settings["id"],
                      owner_session_id=self._owner_session_id,
                      failed_endpoint_hold=self._failed_endpoint_hold,
+                     held_jaw_acknowledgment=(self._last_held_jaw_ack
+                         if event == "held_jaw_acknowledged" else None),
                      calibration_sha256=self.calibration_digest,
                      observe_only=self._observe_only,
                      arm_bounds=self._arm_bounds_observation(raw,position_monotonic),
@@ -1154,6 +1158,141 @@ class ArmSession:
                 "goal_id": self._failed_endpoint_hold["goal_id"],
                 "qualified": False, "target_reached": False,
                 "hold": dict(self._failed_endpoint_hold), "state": state}
+
+    def acknowledge_held_jaw(self, command):
+        """Observe a known settled failed jaw hold; never write a bus register."""
+        def require(value, reason):
+            if not value:raise ArmPlanPreflightError(reason)
+
+        def check_identity():
+            try:
+                self._calibration_guard()
+                source = owner_source_sha256(Path(__file__).parent)
+            except (OSError, ValueError, RuntimeError) as error:
+                raise ArmPlanPreflightError("held jaw calibration/source is unavailable: "+str(error)) from error
+            require(source == RUNTIME_OWNER_SOURCE_SHA256, "owner source changed before acknowledgment")
+
+        required = {"command", "owner_session_id", "failed_goal_id", "expected_held_raw"}
+        require(set(command) == required, "held jaw acknowledgment requires exact frozen fields")
+        try:
+            self._six_ints(command["expected_held_raw"], "held jaw acknowledgment frozen raw")
+        except ValueError as error:
+            raise ArmPlanPreflightError(str(error)) from error
+        frozen = self._failed_jaw_ack_context
+        require(self._initialized and isinstance(frozen, str), "known held jaw failure is required")
+        context = json.loads(frozen)
+        hold = context["hold"]
+        require(self._failed_endpoint_hold == hold and hold.get("schema") == "failed-held-jaw-v1",
+                "only the original failed held jaw may be acknowledged")
+        require(command["owner_session_id"] == self._owner_session_id == hold["owner_session_id"]
+                and command["failed_goal_id"] == hold["goal_id"]
+                and command["expected_held_raw"] == hold["held_raw"],
+                "held jaw acknowledgment identity or original hold differs")
+        require(not self._observe_only and not self._component_scope and self._teleop is None
+                and not self._shutdown_complete and self.bus.is_connected
+                and self._component_saved_ram is None and self.idle_timeout == 3600,
+                "acknowledgment requires normal healthy owner and one-hour idle policy")
+        require(context["calibration_sha256"] == self.calibration_digest
+                and context["owner_source_sha256"] == self._owner_source_sha256
+                == RUNTIME_OWNER_SOURCE_SHA256,
+                "held jaw acknowledgment source/calibration differs")
+        delta = context["delta_counts"]
+        start = context["original_start_raw"]["gripper"]
+        target = hold["target_raw"]["gripper"]
+        held = hold["held_raw"]["gripper"]
+        require(type(delta) is int and 0 < abs(delta) <= 16 and target-start == delta,
+                "held jaw acknowledgment step provenance is invalid")
+        direction = 1 if delta > 0 else -1
+        require(abs(target-held) <= 4 and 1 <= direction*(held-start) <= abs(delta)+4,
+                "failed jaw lacks bounded error and measured signed progress")
+        require(context["held_goals"] == hold["held_goals_raw"]
+                and hold["held_goal_monotonic"] == context["component_command"]["goal_monotonic"]
+                and context["native_profile"] == self._active_profile
+                and context["component_command"].get("body_profile_unchanged") is True,
+                "known restored native profile is required")
+        self._poll_busy_input();self._check_cancel()
+        begun = self.clock()
+        observations = []
+        state = None
+        while True:
+            self._poll_busy_input();self._check_cancel()
+            require(self.clock()-begun <= 1., "held jaw acknowledgment observation deadline exceeded")
+            check_identity()
+            sample_started = self.clock()
+            raw = self._read("Present_Position")
+            position_stamp, position_utc = self.clock(), self.wall_clock()
+            torque = self._read("Torque_Enable")
+            torque_stamp, torque_utc = self.clock(), self.wall_clock()
+            goals = self._read("Goal_Position")
+            profile = {register: self._read(register) for register in RAM_REGISTERS}
+            state = dict(raw=raw, torque=torque, monotonic=position_stamp,
+                         torque_monotonic=torque_stamp)
+            # Genuine health/transport failures retain the existing safety path.
+            self._check_failed_hold_snapshot(state, sample_started)
+            require(self._arm_bounds_observation(raw, position_stamp)["classification"] == "normal",
+                    "held jaw acknowledgment requires normal six-joint bounds")
+            require(self._failed_jaw_ack_context == frozen and self._failed_endpoint_hold == hold
+                    and self._component_saved_ram is None, "original held jaw context changed")
+            require(goals == context["held_goals"] and all(
+                    goals[j] == context["preserved_body_goals"][j] for j in JOINTS[:-1]),
+                    "original held jaw or preserved body GOALS changed")
+            require(profile == context["native_profile"] == self._active_profile,
+                    "native profile readback differs from original restored profile")
+            require(all(abs(raw[j]-hold["body_anchor_raw"][j]) <= 2 for j in JOINTS[:-1])
+                    and abs(raw["gripper"]-held) <= 2 and abs(raw["gripper"]-target) <= 4
+                    and direction*(raw["gripper"]-start) >= 1,
+                    "held jaw acknowledgment position/progress differs")
+            observations.append(dict(raw=dict(raw), monotonic=position_stamp))
+            if len(observations) >= 5 and position_stamp-observations[0]["monotonic"] >= .3:
+                require(all(max(o["raw"][j] for o in observations)-min(
+                    o["raw"][j] for o in observations) <= 2 for j in JOINTS),
+                    "held jaw acknowledgment requires a stable 300ms window")
+                break
+            self.sleep(PERIOD_S)
+        self._poll_busy_input();self._check_cancel()
+        check_identity()
+        require(self._failed_jaw_ack_context == frozen and self._failed_endpoint_hold == hold,
+                "held jaw acknowledgment context changed before commit")
+        self._check_failed_hold_snapshot(state, sample_started)
+        self._poll_busy_input();self._check_cancel()
+        # A queued read_state may have performed newer bus reads while polling.
+        # Do not consume this failure latch using a window predating that read.
+        latest_torque = getattr(self, "_last_published_torque", None)
+        require(latest_torque is None or latest_torque[1] <= torque_stamp,
+                "new bus observation interrupted held jaw acknowledgment window")
+        proof = dict(schema="held-jaw-ack-v1", acknowledged=True, qualified=False,
+            target_reached=False, hardware_write_count=0,
+            owner_session_id=self._owner_session_id, failed_goal_id=hold["goal_id"],
+            original_failure=context, held_raw=hold["held_raw"],
+            started_monotonic=begun, completed_monotonic=self.clock(),
+            stable_started_monotonic=observations[0]["monotonic"],
+            stable_ended_monotonic=position_stamp, stable_samples=len(observations),
+            stable_raw_min={j:min(o["raw"][j] for o in observations) for j in JOINTS},
+            stable_raw_max={j:max(o["raw"][j] for o in observations) for j in JOINTS},
+            observed_goals=goals, native_profile=profile,
+            calibration_sha256=self.calibration_digest,
+            owner_source_sha256=dict(self._owner_source_sha256))
+        # Scalar-only final fence after every potentially blocking poll/read/log.
+        # No I/O or busy-input service is allowed between this fence and commit.
+        self._check_failed_hold_snapshot(state, sample_started)
+        require(self.clock()-begun <= 1. and self._failed_jaw_ack_context == frozen
+                and self._failed_endpoint_hold == hold,
+                "held jaw acknowledgment deadline/context changed before commit")
+        self._check_cancel()
+        # Single resident command-loop commit; hardware hold and failure history stay unchanged.
+        self._last_held_jaw_ack = proof
+        self._failed_endpoint_hold = None
+        self._failed_jaw_ack_context = None
+        self._failed_hold_last_tick = None
+        self.last_command = self.clock()
+        self._idle_handled = False
+        final = self.publish_state(event="held_jaw_acknowledged", raw=raw, torque=torque,
+            position_monotonic=position_stamp, position_utc=position_utc,
+            torque_monotonic=torque_stamp, torque_utc=torque_utc)
+        self._event("held_jaw_failure_acknowledged", acknowledgment=proof,
+                    qualified=False, target_reached=False)
+        return dict(ok=True, status="held_jaw_acknowledged", qualified=False,
+                    target_reached=False, acknowledgment=proof, state=final)
 
     def cancel_hold(self, *, failure_context=None):
         """Replace goals with measured pose while preserving torque state."""
@@ -2496,7 +2635,7 @@ class ArmSession:
                 if self.clock()-min(position_stamp, torque_stamp, goal_stamp) > .1:
                     raise RuntimeError("held jaw observation expired after publication")
                 recent.append(dict(raw=dict(raw), torque=dict(torque), monotonic=position_stamp,
-                    torque_monotonic=torque_stamp, goal_monotonic=goal_stamp,
+                    goals=dict(goals), torque_monotonic=torque_stamp, goal_monotonic=goal_stamp,
                     position_utc=position_utc, torque_utc=torque_utc))
                 recent[:] = recent[-8:]
                 if self.clock()-started >= 2.0 and not restoring:
@@ -2629,11 +2768,23 @@ class ArmSession:
                     self._failed_endpoint_hold = dict(schema="failed-held-jaw-v1",
                         goal_id=held_context["command_id"], owner_session_id=self._owner_session_id,
                         held_raw=dict(raw), body_anchor_raw=dict(baseline), target_raw=dict(expected_goals, gripper=target),
+                        held_goals_raw=dict(observation["goals"]),
+                        held_goal_monotonic=observation["goal_monotonic"],
                         qualified=False, target_reached=False,
                         entry_position_monotonic=observation["monotonic"],
                         entry_torque_monotonic=observation["torque_monotonic"],
                         lifetime="while_healthy_until_explicit_stop_or_transport_loss")
                     self._failed_hold_last_tick = self.clock()
+                    # Immutable original evidence; no later sample can ratchet it.
+                    self._failed_jaw_ack_context = json.dumps(dict(
+                        hold=self._failed_endpoint_hold, delta_counts=delta_counts,
+                        component_command=self._component_command,
+                        original_start_raw=baseline, preserved_body_goals={
+                            j: entry_goals[j] for j in JOINTS[:-1]},
+                        held_goals=dict(observation["goals"]), native_profile=entry_ram,
+                        calibration_sha256=self.calibration_digest,
+                        owner_source_sha256=self._owner_source_sha256),
+                        sort_keys=True, allow_nan=False)
                 state = self.publish_state(event=("commission_gripper_held_failed" if self._failed_endpoint_hold
                     else "commission_gripper_held_complete"), raw=raw, torque=observation["torque"],
                     position_monotonic=observation["monotonic"], position_utc=observation["position_utc"],
@@ -2659,6 +2810,7 @@ class ArmSession:
         return self.publish_state(event="commission_gripper_complete")
 
     def shutdown(self, *, reason="stop"):
+        self._failed_jaw_ack_context = None
         """Disable and verify each servo, then restore saved volatile RAM only."""
         if self._observe_only:
             # Observe-only idle/EOF/failure/exit never turn a read-only reconnect
@@ -2823,6 +2975,8 @@ class ArmSession:
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
+        if name == "acknowledge_held_jaw":
+            return self.acknowledge_held_jaw(command)
         if self._failed_endpoint_hold is not None:
             if name in {"move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera",
                         "home", "execute_trajectory", "teleop_start", "teleop_step", "teleop_stop"}:
@@ -3010,7 +3164,7 @@ class ArmSession:
                             self.clock()-self._failed_hold_last_tick > .1):
                         raise RuntimeError("failed endpoint hold buffered command health deadline expired")
                     previous_idle_handled = self._idle_handled
-                    if name in ("jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory"):
+                    if name in ("jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory", "acknowledge_held_jaw"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None
@@ -3066,7 +3220,7 @@ class ArmSession:
                         self._motion_busy = False
                     emit(result)
                     self.last_command = self.clock()
-                    if name in ("move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory"):
+                    if name in ("move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory", "acknowledge_held_jaw"):
                         self._idle_handled = False
                     elif name == "stop" and (self.persistent_idle or result.get("failed_hold_cleared")):
                         self._idle_handled = self.persistent_idle

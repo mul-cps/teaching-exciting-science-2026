@@ -241,7 +241,7 @@ def _control_callback(callback):
             if self._stop_latched:
                 if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
                     return GoalResponse.REJECT
-                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_gripper_diagnostics", "_calibration_ready", "_set_teleop_enabled"}:
+                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_acknowledge_held_jaw", "_gripper_diagnostics", "_calibration_ready", "_set_teleop_enabled"}:
                     response = args[1]
                     response.success, response.message = False, "owner stop remains latched"
                     if callback.__name__ == "_prepare":
@@ -353,7 +353,10 @@ class TrajectoryBridge(Node):
         self._owner_readers = []
         self._owner_source_expected = None
         self._reconnect_observe = False
-        self._owner_faulted = False
+        self._owner_fault_lock = threading.Lock()
+        self._owner_fault_serial = 0
+        self._held_jaw_fault = None
+        self._clear_owner_fault("initialize")
         self._expected_arm_id = None
         self._expected_calibration_sha256 = None
         self._saved_home_pose = None
@@ -384,7 +387,10 @@ class TrajectoryBridge(Node):
         # Tail a separately owned resident without starting, locking, or commanding another owner.
         if not self._external_state_only:
             self._reconnect_observe = self.get_parameter("startup_observe_only").value is True
-            self._owner_faulted = self._reconnect_observe
+            if self._reconnect_observe:
+                self._mark_owner_fault("startup_observe")
+            else:
+                self._clear_owner_fault("startup_active")
             self._start_owner(observe_only=self._reconnect_observe)
         self._action = ActionServer(
             self, FollowJointTrajectory,
@@ -445,6 +451,9 @@ class TrajectoryBridge(Node):
         self._commission_gripper_held_service = self.create_service(
             CommissionGripperStep, "/follower/commission_gripper_held_step",
             self._commission_gripper_held_step, callback_group=self._teleop_service_group)
+        self._held_jaw_ack_service = self.create_service(
+            Trigger, "/follower/acknowledge_held_jaw", self._acknowledge_held_jaw,
+            callback_group=self._teleop_service_group)
         self._gripper_diagnostics_service = self.create_service(
             Trigger, "/follower/gripper_diagnostics", self._gripper_diagnostics,
             callback_group=self._teleop_service_group)
@@ -743,7 +752,7 @@ class TrajectoryBridge(Node):
                     self._stop_latched = True
                     self._active_goal = "reconnect"
                     reserved = True
-            self._owner_faulted = True
+            self._mark_owner_fault("_reconnect")
             self._home_completed_owner_started = None
             if self._process is not None:
                 self._process.wait(timeout=.5)
@@ -808,7 +817,7 @@ class TrajectoryBridge(Node):
             # This lock is also the final admission check for every owner write.
             # Release it before taking _active_lock (execute uses the reverse order).
             self._stop_latched = True
-            self._owner_faulted = True
+            self._mark_owner_fault("_stop")
             if not self._write_lock.acquire(timeout=max(0., deadline - time.monotonic())):
                 raise TimeoutError("owner command writer did not quiesce; stop remains latched")
             try:
@@ -858,7 +867,7 @@ class TrajectoryBridge(Node):
                 raise RuntimeError("stop lacks fresh identity-bound six-joint torque-off readback")
             with self._write_lock:
                 self._stop_latched = False
-                self._owner_faulted = False
+                self._clear_owner_fault("_stop")
                 self._reconnect_observe = False
                 self._cancel_before_start = False
             self._cache_owner_state(state)
@@ -1202,7 +1211,7 @@ class TrajectoryBridge(Node):
                         if stop_ack.get("ok"):
                             self._clear_teleop()
                     except (BrokenPipeError, OSError, RuntimeError, TimeoutError):
-                        self._owner_faulted = True
+                        self._mark_owner_fault("_set_teleop_enabled")
                 else:
                     self._clear_teleop()
                 response.success = False
@@ -1247,6 +1256,96 @@ class TrajectoryBridge(Node):
             response.success = False
             response.message = str(error)
         return response
+
+    def _mark_owner_fault(self, reason, *, held_context=None):
+        """Every new generic fault revokes any earlier jaw acknowledgment authority."""
+        with self._owner_fault_lock:
+            previously_faulted = self._owner_faulted
+            self._owner_fault_serial += 1
+            self._owner_faulted = True
+            self._held_jaw_fault = None
+            if held_context is not None:
+                if reason != "verified_failed_held_jaw":
+                    raise ValueError("only a verified held-jaw failure may install acknowledgment context")
+                process, generation, frozen = held_context
+                # A concurrent STOP or generic fault cannot acquire jaw-ACK authority.
+                if (not previously_faulted and not self._closed and not self._stop_latched
+                        and not self._cancel_before_start and self._process is process
+                        and self._owner_started == generation):
+                    self._held_jaw_fault = (self._owner_fault_serial, process, generation, frozen)
+
+    def _clear_owner_fault(self, reason, *, expected_context=None):
+        with self._owner_fault_lock:
+            if expected_context is not None and (
+                    not self._owner_faulted or self._held_jaw_fault is not expected_context
+                    or expected_context[0] != self._owner_fault_serial or self._stop_latched
+                    or self._cancel_before_start or self._closed):
+                return False
+            self._owner_fault_serial += 1
+            self._owner_faulted = False
+            self._held_jaw_fault = None
+            return True
+
+    def _held_jaw_ack_state(self, state, process, generation, context, *, after=None, acknowledged=False):
+        """ACK-only validation. Ordinary _prepare_owner_state still rejects all faults."""
+        with self._owner_fault_lock:
+            if (not self._owner_faulted or self._held_jaw_fault is not context
+                    or context[0] != self._owner_fault_serial):
+                raise RuntimeError("held jaw fault context was replaced or revoked")
+        frozen = json.loads(context[3])
+        now = time.monotonic()
+        if (self._closed or self._external_state_only or self._reconnect_observe or self._writer_faulted
+                or self._stop_latched or self._cancel_before_start
+                or self._process is not process or process.poll() is not None
+                or context[1] is not process or context[2] != generation
+                or self._owner_started != generation
+                or self._expected_arm_id != frozen["arm_id"]
+                or self._expected_calibration_sha256 != frozen["calibration_sha256"]
+                or self._owner_source_expected != frozen["owner_source_sha256"]
+                or list(self._gripper_raw_limits) != frozen["jaw_limits"]
+                or not isinstance(state, dict) or state.get("observe_only") is not False
+                or state.get("arm_id") != frozen["arm_id"]
+                or state.get("calibration_sha256") != frozen["calibration_sha256"]
+                or state.get("owner_source_sha256") != frozen["owner_source_sha256"]
+                or state.get("owner_session_id") != frozen["hold"]["owner_session_id"]
+                or state.get("component_restore_pending") is not False
+                or state.get("component_command") != frozen["component"]
+                or state.get("profile_registers") != frozen["profile"]
+                or frozen["held_goals"] != frozen["hold"]["held_goals_raw"]
+                or any(frozen["held_goals"][j] != frozen["component"]["preserved_body_goals"][j]
+                       for j in ARM_JOINTS)
+                or state.get("failed_endpoint_hold") != (None if acknowledged else frozen["hold"])):
+            raise RuntimeError("fresh unchanged owner/failed-jaw preservation proof is required")
+        lower = max(generation, now-min(.1, float(self.get_parameter("state_freshness_s").value)),
+                    after if after is not None else generation)
+        for key in ("monotonic", "torque_monotonic"):
+            stamp = state.get(key)
+            if type(stamp) not in (int,float) or not math.isfinite(stamp) or not lower <= stamp <= now:
+                raise RuntimeError("held jaw acknowledgment requires original fresh measurements")
+        for key, high in (("raw",4095),("torque",1)):
+            values = state.get(key)
+            if (not isinstance(values,dict) or set(values) != set(TELEOP_JOINTS)
+                    or any(type(v) is not int or not 0 <= v <= high for v in values.values())):
+                raise RuntimeError("held jaw acknowledgment requires exact six-joint measurements")
+        pose = state.get("pose")
+        if (not isinstance(pose,dict) or any(type(pose.get(j)) not in (int,float)
+                or not math.isfinite(pose[j]) for j in ARM_JOINTS)):
+            raise RuntimeError("held jaw acknowledgment requires finite measured body pose")
+        bounds = _arm_bounds_observation(state)
+        hold = frozen["hold"]
+        delta = frozen["command"]["delta_counts"]
+        start = frozen["entry_raw"]["gripper"]
+        target, held = hold["target_raw"]["gripper"], hold["held_raw"]["gripper"]
+        direction = 1 if delta > 0 else -1
+        if (bounds is None or bounds["classification"] != "normal" or any(v != 1 for v in state["torque"].values())
+                or type(delta) is not int or not 0 < abs(delta) <= 16 or target-start != delta
+                or abs(target-held) > 4 or not 1 <= direction*(held-start) <= abs(delta)+4
+                or any(abs(state["raw"][j]-hold["body_anchor_raw"][j]) > 2 for j in ARM_JOINTS)
+                or abs(state["raw"]["gripper"]-held) > 2
+                or abs(state["raw"]["gripper"]-target) > 4
+                or direction*(state["raw"]["gripper"]-start) < 1):
+            raise RuntimeError("held jaw acknowledgment bounds, anchor, progress or torque guard failed")
+        return frozen
 
     def _assert_owner_reservation(self, reservation, process, generation):
         with self._active_lock:
@@ -1338,7 +1437,7 @@ class TrajectoryBridge(Node):
     def _prepare_stop(self, process, generation):
         """Physical stop ACK only. Public stop alone clears quiescent barriers."""
         self._stop_latched = True
-        self._owner_faulted = True
+        self._mark_owner_fault("_prepare_stop")
         self._home_completed_owner_started = None
         timeout = float(self.get_parameter("stop_timeout_s").value)
         if not math.isfinite(timeout) or not 0 < timeout <= 10:
@@ -1671,7 +1770,7 @@ class TrajectoryBridge(Node):
             response.message = json.dumps({"schema": 1, "state": "camera_recovery_complete",
                 "home_completed_this_session": False, "raw": raw, "torque": torque})
         except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as error:
-            self._owner_faulted = True
+            self._mark_owner_fault("_recover_camera")
             response.message = str(error)
         finally:
             with self._active_lock:
@@ -2108,7 +2207,7 @@ class TrajectoryBridge(Node):
             # Pure read failures do not authorize any cleanup/profile/goal write.
             # Unknown delivery poisons admission until a separately explicit stop.
             if isinstance(error, (RuntimeError, OSError)):
-                self._owner_faulted = True
+                self._mark_owner_fault("_gripper_diagnostics")
             response.message = json.dumps(dict(schema="jaw-register-diagnostics-v1",
                 diagnostic_only=True, calibration_authority=False, motion_authority=False,
                 available=False, error=str(error), error_type=type(error).__name__,
@@ -2186,7 +2285,7 @@ class TrajectoryBridge(Node):
                                            "position_monotonic": state["monotonic"],
                                            "torque_monotonic": torque_stamp})
         except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as error:
-            self._owner_faulted = True
+            self._mark_owner_fault("_commission_gripper_step")
             response.message = str(error)
             # Stop remains jaw-only in the owner even after the component method
             # has returned. Do not turn an unknown result into success or retry.
@@ -2303,6 +2402,13 @@ class TrajectoryBridge(Node):
                         hold.get("lifetime") != "while_healthy_until_explicit_stop_or_transport_loss" or
                         not isinstance(hold.get("target_raw"), dict) or
                         hold["target_raw"] != {**body_goals, "gripper":target} or
+                        not isinstance(hold.get("held_goals_raw"),dict) or
+                        set(hold["held_goals_raw"]) != set(TELEOP_JOINTS) or
+                        any(type(v) is not int or not bounds["admitted_min"][j] <= v <= bounds["admitted_max"][j]
+                            for j,v in hold["held_goals_raw"].items()) or
+                        any(hold["held_goals_raw"][j] != body_goals[j] for j in ARM_JOINTS) or
+                        type(hold.get("held_goal_monotonic")) not in (int,float) or
+                        hold["held_goal_monotonic"] != component["goal_monotonic"] or
                         not isinstance(hold.get("held_raw"), dict) or set(hold["held_raw"]) != set(TELEOP_JOINTS) or
                         any(type(v) is not int or not bounds["admitted_min"][j] <= v <= bounds["admitted_max"][j] or
                             abs(v-final["raw"][j])>4 for j,v in hold["held_raw"].items()) or
@@ -2320,12 +2426,18 @@ class TrajectoryBridge(Node):
             terminal_verified = True
             self._cache_owner_state(final, process=process, generation=generation)
             if failed:
-                self._owner_faulted = True
+                frozen = json.dumps(dict(command=command, entry_raw=state["raw"],
+                    hold=hold, held_goals=dict(hold["held_goals_raw"]),
+                    component=component, profile=final.get("profile_registers"),
+                    arm_id=self._expected_arm_id, calibration_sha256=self._expected_calibration_sha256,
+                    owner_source_sha256=self._owner_source_expected,
+                    jaw_limits=list(self._gripper_raw_limits)), sort_keys=True, allow_nan=False)
+                self._mark_owner_fault("verified_failed_held_jaw", held_context=(process,generation,frozen))
             response.message, response.success = message, not failed
         except (OSError, ValueError, RuntimeError, TimeoutError, TypeError, KeyError) as error:
             response.message = str(error)
             if delivery_possible and not terminal_verified:
-                self._owner_faulted = True
+                self._mark_owner_fault("_commission_gripper_held_step")
                 self._home_completed_owner_started = None
                 try:
                     self._prepare_stop(process, generation)
@@ -2335,6 +2447,129 @@ class TrajectoryBridge(Node):
             with self._active_lock:
                 if self._active_goal == reservation:
                     self._active_goal = None
+        return response
+
+    @_control_callback
+    def _acknowledge_held_jaw(self, request, response):
+        response.success = False
+        reservation = "acknowledge_held_jaw_"+uuid.uuid4().hex
+        delivery_possible = terminal_verified = False
+        process, generation = self._process, self._owner_started
+        try:
+            if self.get_parameter("calibration_endpoint_mode").value is not True:
+                raise RuntimeError("held jaw acknowledgment requires calibration endpoint mode")
+            with self._active_lock:
+                if self._active_goal is not None or self._teleop_state != "disabled":
+                    raise RuntimeError("held jaw acknowledgment requires idle owner and disabled teleop")
+                with self._owner_fault_lock:
+                    context = self._held_jaw_fault
+                if context is None:
+                    raise RuntimeError("no verified scoped held jaw failure is available")
+                self._active_goal = reservation
+            self._assert_owner_reservation(reservation, process, generation)
+            state = self._read_state()
+            frozen = self._held_jaw_ack_state(state, process, generation, context)
+            timeout = float(self.get_parameter("collision_check_timeout_s").value)
+            if not math.isfinite(timeout) or not 0 < timeout <= 30:
+                raise ValueError("invalid acknowledgment collision timeout")
+            deadline = time.monotonic()+timeout
+            if not self._state_validity.wait_for_service(timeout_sec=min(2.,timeout)):
+                raise RuntimeError("current-state collision service is unavailable")
+            low, high = self._gripper_raw_limits
+            if type(low) is not int or type(high) is not int or not 0 <= low < high <= 4095:
+                raise RuntimeError("identity-matched jaw calibration is unavailable")
+            positions = [math.radians(state["pose"][j]) for j in ARM_JOINTS]
+            if not all(math.isfinite(v) for v in positions):
+                raise ValueError("current body pose is not finite")
+            jaw = math.radians(-10.+110.*(state["raw"]["gripper"]-low)/(high-low))
+            checked = self._get_validity(positions, jaw, deadline)
+            if time.monotonic() > deadline or checked.valid is not True:
+                raise RuntimeError("current held pose collision check rejected or expired")
+            self._assert_owner_reservation(reservation, process, generation)
+            fresh = self._read_state()
+            self._held_jaw_ack_state(fresh, process, generation, context)
+            if fresh["raw"] != state["raw"]:
+                raise RuntimeError("held pose changed during acknowledgment collision check")
+            command = dict(command="acknowledge_held_jaw",
+                owner_session_id=frozen["hold"]["owner_session_id"],
+                failed_goal_id=frozen["hold"]["goal_id"], expected_held_raw=frozen["hold"]["held_raw"])
+            dispatched = time.monotonic()
+            delivery_possible = True
+            reply = self._reserved_owner_reply(command, process, generation, dispatched+2., reservation)
+            if (isinstance(reply,dict) and reply.get("ok") is False
+                    and reply.get("command") == "acknowledge_held_jaw"
+                    and reply.get("error_type") == "ArmPlanPreflightError"):
+                self._held_jaw_ack_state(self._read_state(), process, generation, context)
+                terminal_verified = True
+                response.message = json.dumps(dict(acknowledged=False, qualified=False,
+                    target_reached=False, error=reply.get("error")), allow_nan=False)
+                return response
+            if not isinstance(reply,dict):raise RuntimeError("held jaw acknowledgment result unknown")
+            final, proof = reply.get("state"), reply.get("acknowledgment")
+            self._held_jaw_ack_state(final, process, generation, context, after=dispatched, acknowledged=True)
+            if not isinstance(proof,dict) or not isinstance(proof.get("original_failure"),dict):
+                raise RuntimeError("held jaw acknowledgment failure history is malformed")
+            original = proof["original_failure"]
+            goals = frozen["held_goals"]
+            if (reply.get("ok") is not True or reply.get("status") != "held_jaw_acknowledged"
+                    or reply.get("qualified") is not False or reply.get("target_reached") is not False
+                    or not isinstance(proof,dict) or proof.get("schema") != "held-jaw-ack-v1"
+                    or proof.get("acknowledged") is not True or proof.get("qualified") is not False
+                    or proof.get("target_reached") is not False or type(proof.get("hardware_write_count")) is not int
+                    or proof["hardware_write_count"] != 0 or final.get("event") != "held_jaw_acknowledged"
+                    or final.get("held_jaw_acknowledgment") != proof
+                    or proof.get("owner_session_id") != command["owner_session_id"]
+                    or proof.get("failed_goal_id") != command["failed_goal_id"]
+                    or proof.get("held_raw") != command["expected_held_raw"]
+                    or proof.get("calibration_sha256") != frozen["calibration_sha256"]
+                    or proof.get("owner_source_sha256") != frozen["owner_source_sha256"]
+                    or proof.get("native_profile") != frozen["profile"] or proof.get("observed_goals") != goals
+                    or original.get("hold") != frozen["hold"]
+                    or original.get("original_start_raw") != frozen["entry_raw"]
+                    or original.get("component_command") != frozen["component"]
+                    or original.get("delta_counts") != frozen["command"]["delta_counts"]
+                    or original.get("native_profile") != frozen["profile"]
+                    or original.get("held_goals") != goals
+                    or original.get("preserved_body_goals") != frozen["component"]["preserved_body_goals"]
+                    or original.get("calibration_sha256") != frozen["calibration_sha256"]
+                    or original.get("owner_source_sha256") != frozen["owner_source_sha256"]
+                    or type(proof.get("stable_samples")) is not int or proof["stable_samples"] < 5):
+                raise RuntimeError("held jaw acknowledgment terminal proof differs")
+            for key in ("started_monotonic","completed_monotonic","stable_started_monotonic","stable_ended_monotonic"):
+                value = proof.get(key)
+                if type(value) not in (int,float) or not math.isfinite(value) or not dispatched <= value <= time.monotonic():
+                    raise RuntimeError("held jaw acknowledgment clocks are invalid")
+            if (proof["stable_ended_monotonic"]-proof["stable_started_monotonic"] < .3
+                    or not proof["started_monotonic"] <= proof["stable_started_monotonic"]
+                    <= proof["stable_ended_monotonic"] <= proof["completed_monotonic"]
+                    or final["monotonic"] != proof["stable_ended_monotonic"]):
+                raise RuntimeError("held jaw acknowledgment lacks original stable window")
+            minima, maxima = proof.get("stable_raw_min"), proof.get("stable_raw_max")
+            if (not isinstance(minima,dict) or not isinstance(maxima,dict)
+                    or set(minima) != set(TELEOP_JOINTS) or set(maxima) != set(TELEOP_JOINTS)
+                    or any(type(minima[j]) is not int or type(maxima[j]) is not int
+                        or not 0 <= minima[j] <= final["raw"][j] <= maxima[j] <= 4095
+                        or maxima[j]-minima[j] > 2 for j in TELEOP_JOINTS)):
+                raise RuntimeError("held jaw acknowledgment stable encoder range is invalid")
+            self._assert_owner_reservation(reservation, process, generation)
+            with self._active_lock:
+                self._held_jaw_ack_state(final, process, generation, context, after=dispatched, acknowledged=True)
+                if (self._active_goal != reservation or self._stop_latched or self._cancel_before_start
+                        or self._closed or not self._clear_owner_fault("held_jaw_acknowledged", expected_context=context)):
+                    raise RuntimeError("held jaw acknowledgment lost its fault reservation")
+            terminal_verified = True
+            self._cache_owner_state(final, process=process, generation=generation)
+            response.success = True
+            response.message = json.dumps(dict(acknowledged=True, qualified=False,
+                target_reached=False, result=reply), allow_nan=False)
+        except (OSError,ValueError,RuntimeError,TimeoutError,TypeError,KeyError) as error:
+            if delivery_possible and not terminal_verified:
+                self._mark_owner_fault("held_jaw_acknowledgment_unknown")
+            response.message = json.dumps(dict(acknowledged=False,qualified=False,
+                target_reached=False,error=str(error)), allow_nan=False)
+        finally:
+            with self._active_lock:
+                if self._active_goal == reservation:self._active_goal = None
         return response
 
     def _sorting_ready_value(self, state, *, reservation=None):
@@ -2594,7 +2829,7 @@ class TrajectoryBridge(Node):
                 raise RuntimeError("owner stop barrier rejects motion commands")
             self._write_owner_command(command, deadline)
         except (OSError, RuntimeError, ValueError):
-            self._owner_faulted = True
+            self._mark_owner_fault("_send")
             raise
         finally:
             self._write_lock.release()
@@ -2900,7 +3135,7 @@ class TrajectoryBridge(Node):
                         stop_confirmed = True
                         break
                 if not stop_confirmed:
-                    self._owner_faulted = True
+                    self._mark_owner_fault("_execute_gripper")
                 raise TimeoutError(f"resident gripper command did not complete within {command_timeout_s:.1f} seconds")
             if not response.get("ok"):
                 raise RuntimeError(response.get("error", "resident rejected gripper command"))
@@ -2950,7 +3185,7 @@ class TrajectoryBridge(Node):
             return result
         except (OSError, ValueError, RuntimeError, TimeoutError, TypeError, KeyError) as error:
             if command_sent and not command_complete and not stop_confirmed:
-                self._owner_faulted = True
+                self._mark_owner_fault("_execute_gripper")
             result.stalled = False
             result.reached_goal = False
             self.get_logger().error(f"GripperCommand failed: {error}")
@@ -3149,7 +3384,7 @@ class TrajectoryBridge(Node):
                     except (BrokenPipeError, OSError, RuntimeError):
                         pass
                     stale_stop_sent = True
-                    self._owner_faulted = True
+                    self._mark_owner_fault("_execute")
                 if stale_stop_sent and now - started > 5.0:
                     break
             if now - last_feedback >= 0.05:
@@ -3160,7 +3395,7 @@ class TrajectoryBridge(Node):
                     except (BrokenPipeError, OSError, RuntimeError):
                         pass
                     stale_stop_sent = True
-                    self._owner_faulted = True
+                    self._mark_owner_fault("_execute")
                     break
                 last_feedback = now
             try:
@@ -3185,7 +3420,7 @@ class TrajectoryBridge(Node):
                 held_state = self._validate_failed_endpoint_hold(result_payload,
                     goal_id=goal_id, process=owner_process, generation=owner_generation,
                     owner_session_id=owner_session_id, after=dispatched_at)
-                self._owner_faulted = True
+                self._mark_owner_fault("_execute")
                 self._home_completed_owner_started = None
                 artifact.update(status="failed_endpoint_held", target_reached=False,
                                 qualified=False, result=result_payload)
@@ -3197,7 +3432,7 @@ class TrajectoryBridge(Node):
                 self._cache_owner_state(held_state, generation=owner_generation, process=owner_process)
                 message = "failed_endpoint_held: target not reached; measured pose held; verified STOP required"
             except (OSError, ValueError, TypeError, KeyError, RuntimeError, TimeoutError) as error:
-                self._owner_faulted = True
+                self._mark_owner_fault("_execute")
                 self._home_completed_owner_started = None
                 try:
                     self._prepare_stop(owner_process, owner_generation)
