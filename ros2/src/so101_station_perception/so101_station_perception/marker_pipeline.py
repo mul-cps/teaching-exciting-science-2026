@@ -127,7 +127,13 @@ class MarkerPipeline(CharucoWorld):
             check = None if derived_token is None else lambda: self.derived.check(derived_token)
             if check is not None:
                 check()
-            kwargs = {} if check is None else {"admission_check": check}
+            kwargs = {} if check is None else {"admission_check": check, "source_context": {
+                "consumer_epoch": self.derived.consumer_epoch,
+                "source_pin_sha256": self.derived.source_pin_sha256,
+                "producer_generation": derived_token["statement"]["producer_generation"],
+                "source_generation": derived_token["statement"]["source_generation"],
+                "camera_serial": derived_token["statement"]["source"]["serial_number"],
+            }}
             self._process_images(color, depth, info, (started - receipt) * 1000., **kwargs)
         except ValueError as error:
             self._status("invalid", stamp=stamp_seconds(color.header.stamp), reason=str(error))
@@ -141,7 +147,7 @@ class MarkerPipeline(CharucoWorld):
         self.scheduler.close()
         self.drain_timer.cancel()
 
-    def _process_images(self, color, depth, info, queue_wait_ms, admission_check=None):
+    def _process_images(self, color, depth, info, queue_wait_ms, admission_check=None, source_context=None):
         stamp = stamp_seconds(color.header.stamp)
         now = self.get_clock().now().nanoseconds * 1e-9
         if not stamp_is_fresh(now, stamp, self.max_age):
@@ -159,7 +165,7 @@ class MarkerPipeline(CharucoWorld):
                 lambda image, camera_info, gray: self._pair(
                     image, camera_info, prepared_gray=gray, depth_msg=depth, admission_check=admission_check),
                 lambda image, aligned_depth, gray: self._process_tags_with_info(
-                    image, aligned_depth, info, gray, admission_check=admission_check),
+                    image, aligned_depth, info, gray, admission_check=admission_check, source_context=source_context),
             )
             metrics["queue_wait_ms"] = queue_wait_ms
             metrics["scheduler"] = self.scheduler.metrics()
@@ -177,9 +183,9 @@ class MarkerPipeline(CharucoWorld):
             self._status("invalid", stamp=stamp, reason=str(error))
             self.tags._empty(color.header.stamp, color.header.frame_id)
 
-    def _process_tags_with_info(self, color, depth, info, gray, admission_check=None):
+    def _process_tags_with_info(self, color, depth, info, gray, admission_check=None, source_context=None):
         self.tags._camera_info(info)
-        self.tags._images(color, depth, prepared_gray=gray, admission_check=admission_check)
+        self.tags._images(color, depth, prepared_gray=gray, admission_check=admission_check, source_context=source_context)
 
 
 def shutdown_executor_bounded(executor, timeout_s=2.):
