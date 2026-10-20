@@ -127,6 +127,9 @@ class LiveTagAlignment(Node):
         self.aligned_description = None
         self.edges, self.links = [], set()
         self.previous = None
+        self.display_proof = None
+        self.reference_delta = None
+        self.reference_accepted_stamp = None
         self.last_input = None
         self.last_stamp = None
         self.stream_latched = False
@@ -151,6 +154,7 @@ class LiveTagAlignment(Node):
             self.model_ok = True
         except (ValueError, KeyError, ET.ParseError) as error:
             self.model_ok = False
+            self.display_proof = self.reference_delta = self.reference_accepted_stamp = None
             if self.source_fingerprint is not None:
                 self.stream_latched = True
             self._unavailable(str(error))
@@ -187,6 +191,7 @@ class LiveTagAlignment(Node):
 
     def _reseed(self, request, response):
         self.associator.reset()
+        self.display_proof = None
         self.previous = None
         self.last_stamp = None
         self.last_input = None
@@ -208,7 +213,62 @@ class LiveTagAlignment(Node):
         self.latest_status = status
         self.status.publish(String(data=json.dumps(status, allow_nan=False, separators=(",", ":"))))
 
+    def _validate_display_proof(self, proof):
+        if proof is None:
+            raise ValueError("no admitted exposure for reference visual")
+        frame, stamp, started, fingerprint = proof
+        publishers = self.get_publishers_info_by_topic("/so101_perception/tag_detections")
+        if (len(publishers) != 1 or bytes(publishers[0].endpoint_gid).hex() != fingerprint[2]
+                or self.source_fingerprint != fingerprint):
+            self.stream_latched = True
+            raise ValueError("compact source changed before reference publication")
+        age = self.get_clock().now().nanoseconds*1e-9-stamp.nanoseconds*1e-9
+        now = time.monotonic()
+        if (not 0 <= age <= self.max_age or now-started > self.max_age
+                or now > self.identity_until or not self.model_ok or self.stream_latched
+                or self.count_publishers("/so101_perception/aligned_robot_description") != 1):
+            raise ValueError("reference exposure, receipt, model or identity unavailable")
+        return frame, stamp
+
+    def _reference_visual(self, reason):
+        """Show an explicitly unqualified reference using only a fresh admitted exposure."""
+        proof = self.display_proof
+        frame, exposure = self._validate_display_proof(proof)
+        canonical = self._lookup(frame, "base_link", exposure)
+        matrix = canonical if self.reference_delta is None else canonical @ self.reference_delta
+        transforms = [transform_message(matrix, frame, PREFIX+"base_link", exposure.to_msg())]
+        for parent, child in self.edges:
+            transforms.append(transform_message(self._lookup(parent, child, exposure),
+                PREFIX+parent, PREFIX+child, exposure.to_msg()))
+        clear, label = Marker(), Marker()
+        clear.action = Marker.DELETEALL
+        label.header.frame_id, label.header.stamp = PREFIX+"base_link", exposure.to_msg()
+        label.ns, label.id = "live_tag_alignment_reference", 0
+        label.type, label.action = Marker.TEXT_VIEW_FACING, Marker.ADD
+        label.pose.orientation.w = 1.
+        label.pose.position.z = .4
+        label.scale.z = .018
+        label.color.r, label.color.g, label.color.b, label.color.a = 1., .65, 0., 1.
+        label.text = "REFERENCE - live tag fit unavailable (unqualified)"
+        label.lifetime = Duration(seconds=self.max_age).to_msg()
+        self._validate_display_proof(proof)  # Recheck after every TF lookup, before any publication.
+        if not self.visual_visible:
+            self.description.publish(String(data=self.aligned_description))
+            self.visual_visible = True
+        self.broadcaster.sendTransform(transforms)
+        self.markers.publish(MarkerArray(markers=[clear, label]))
+        self._publish_status(dict(status="unavailable", reason=reason, candidate_available=False,
+            display_mode="reference", display_stamp={"sec": exposure.to_msg().sec,
+            "nanosec": exposure.to_msg().nanosec},
+            reference_alignment_stamp=self.reference_accepted_stamp,
+            reference_alignment="last_accepted_offset" if self.reference_delta is not None else "canonical"))
+
     def _unavailable(self, reason):
+        try:
+            self._reference_visual(reason)
+            return
+        except Exception as error:
+            reference_visual_reason = str(error)
         clear = Marker()
         clear.action = Marker.DELETEALL
         self.markers.publish(MarkerArray(markers=[clear]))
@@ -218,7 +278,8 @@ class LiveTagAlignment(Node):
             ET.SubElement(robot, "link", name=self.get_parameter("camera_frame").value)
             self.description.publish(String(data=ET.tostring(robot, encoding="unicode")))
             self.visual_visible = False
-        self._publish_status(dict(status="unavailable", reason=reason, candidate_available=False))
+        self._publish_status(dict(status="unavailable", reason=reason, candidate_available=False,
+                                  reference_visual_reason=reference_visual_reason))
 
     def _watchdog(self):
         if self.last_input is not None and time.monotonic()-self.last_input > self.max_age:
@@ -237,6 +298,12 @@ class LiveTagAlignment(Node):
         stamp = status.get("stamp")
         age = None if stamp is None else (self.get_clock().now().nanoseconds*1e-9
             - int(stamp["sec"]) - int(stamp["nanosec"])*1e-9)
+        if status.get("display_mode") == "reference":
+            try:
+                self._validate_display_proof(self.display_proof)
+            except Exception as error:
+                self._unavailable(str(error))
+                return
         if status.get("candidate_available") and (
                 age is None or not 0 <= age <= self.max_age
                 or self.last_input is None or time.monotonic()-self.last_input > self.max_age
@@ -253,6 +320,7 @@ class LiveTagAlignment(Node):
 
     def _detections(self, message, message_info):
         started = time.monotonic()
+        self.display_proof = None
         try:
             if len(message.data.encode()) > 65536:
                 raise ValueError("compact detection payload exceeds 64 KiB")
@@ -315,7 +383,8 @@ class LiveTagAlignment(Node):
                 "consumer_epoch", "source_pin_sha256", "producer_generation", "source_generation", "camera_serial")}
             exposure = Time(seconds=int(stamp["sec"]), nanoseconds=int(stamp["nanosec"]))
             # A timestamped lookup also requires the canonical camera/base chain to exist.
-            self._lookup(frame, "base_link", exposure)
+            canonical = self._lookup(frame, "base_link", exposure)
+            self.display_proof = (frame, exposure, started, fingerprint)
             tracked = self.associator.update(payload["observations"], stamp=seconds)
             model_points, camera_points, available = [], [], []
             unavailable_residuals = []
@@ -354,7 +423,7 @@ class LiveTagAlignment(Node):
                 residual.update(instance_name=observation["instance_name"], moving=observation["moving"], qualified=False)
                 residuals.append(residual)
                 self._add_markers(output, index, frame, exposure.to_msg(), residual)
-            fit.update(candidate_available=True, stamp=stamp, source_admission_kind=payload.get("source_admission_kind"),
+            fit.update(candidate_available=True, display_mode="tag_alignment", stamp=stamp, source_admission_kind=payload.get("source_admission_kind"),
                        marker_residuals=residuals, update_ms=(time.monotonic()-started)*1000.)
             final_publishers = self.get_publishers_info_by_topic("/so101_perception/tag_detections")
             if (len(final_publishers) != 1
@@ -375,6 +444,8 @@ class LiveTagAlignment(Node):
             self.markers.publish(output)
             self._publish_status(fit)
             self.previous = matrix
+            self.reference_delta = np.linalg.inv(canonical) @ matrix
+            self.reference_accepted_stamp = dict(stamp)
         except Exception as error:
             self._unavailable(str(error))
 
