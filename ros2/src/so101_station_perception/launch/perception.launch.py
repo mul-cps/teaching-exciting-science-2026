@@ -181,10 +181,12 @@ def generate_launch_description():
     supervisor=IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([FindPackageShare("so101_station_perception"),"launch","perception_supervisor.launch.py"])),
         launch_arguments={"enabled":LaunchConfiguration("perception_supervisor_enabled"),
+            "allow_private_availability_repair":LaunchConfiguration("perception_supervisor_allow_private_availability_repair"),
             **{key:LaunchConfiguration("perception_supervisor_"+key) for key in supervisor_keys}}.items(),
         condition=IfCondition(LaunchConfiguration("perception_supervisor_enabled")))
     return LaunchDescription([
         DeclareLaunchArgument("perception_supervisor_enabled",default_value="false"),
+        DeclareLaunchArgument("perception_supervisor_allow_private_availability_repair",default_value="false"),
         *(DeclareLaunchArgument("perception_supervisor_"+key,default_value="243322071783" if key=="expected_serial" else "") for key in supervisor_keys),
         supervisor,
         DeclareLaunchArgument("marker_allow_derived_source", default_value="false"),
