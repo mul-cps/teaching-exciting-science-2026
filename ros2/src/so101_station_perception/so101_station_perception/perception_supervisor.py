@@ -37,6 +37,10 @@ COORDINATOR='/so101_perception_recovery'
 TERMINAL=frozenset(('idle','completed','failed'))
 
 
+class AdoptionPending(ValueError):
+    """Owned completed job lacks a current prospective lineage; no adoption."""
+
+
 class NativeProofPending(ValueError):
     """Expected absent native witnesses/service; never a contradiction."""
 
@@ -553,14 +557,16 @@ class PerceptionSupervisor(Node):
             v=parse_lineage(raw)
             if v['producer_generation']!=pin['producer_generation']:continue
             now=time.monotonic();now_ns=self.get_clock().now().nanoseconds
-            # Expired retained history is not an admission witness. Never renew
-            # original receipts while preparing the prospective generation.
-            if now-receipt>.250 or any(now_ns-v['original'][k]>500_000_000 for k in
-                    ('depth_stamp_ns','color_stamp_ns','depth_info_stamp_ns','color_info_stamp_ns')):continue
-            validate_statement(v,now_ns=now_ns,now_mono=now,receipt_mono=receipt)
+            # All retained entries passed full intake validation. Recheck their
+            # immutable/future relationships before skipping ONLY known past
+            # leases; an older expired row cannot hide a later current row.
+            try:statement_coverage(v,pin,receipt,now=now,ns=now_ns)
+            except HealthNotCurrent:continue
+            if now-receipt>.250:continue  # Stricter original local adoption lease.
             if ledger.add(raw,gid,now_ns=now_ns,now_mono=now):
                 a,b,_=ledger.entries[-1];ledger.entries[-1]=(a,b,receipt)
-        require(bool(ledger.entries),'no current attributable generation lineage')
+        if not ledger.entries:raise AdoptionPending('no current attributable generation lineage')
+        require(time.monotonic()<=self.policy.job['deadline'],'owned coordinator absolute deadline expired before adoption')
         self.pre_outage.clear();self.pin=deepcopy(pin);self.epochs=epochs;self.ledger=ledger;self.health_progress={};self.health_cache={};self.health_coverage_end=None
         self.adopted=dict(job_id=self.policy.job['job_id'],artifact_sha256=digest,producer_generation=pin['producer_generation'])
         if self.reconciliation is not None:
@@ -588,7 +594,11 @@ class PerceptionSupervisor(Node):
             self.expected_generation=generation;self.accepted_reset_id=reset
         if value.get('state')=='failed':
             self.policy.job=None;raise RuntimeError('owned coordinator job failed; no retry: '+str(value.get('reason'))[:256])
-        if value.get('state')=='completed':self._adopt_completed(value)
+        if value.get('state')=='completed':
+            try:self._adopt_completed(value)
+            except AdoptionPending as error:
+                require(time.monotonic()<=self.policy.job['deadline'],'owned coordinator absolute deadline expired during adoption wait')
+                self.health_error=str(error)[:512]
 
     def _tick(self):
         if self.closed:return
