@@ -3,7 +3,7 @@ from launch.conditions import IfCondition
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, GroupAction, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import EnvironmentVariable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from pathlib import Path
@@ -106,6 +106,7 @@ def _launch_nodes(context):
     if live_world:
         actions.append(Node(
             package="so101_station_perception", executable=("marker_pipeline" if LaunchConfiguration("publish_tag_observations").perform(context).lower() == "true" else "charuco_world"),
+            additional_env={"CYCLONEDDS_URI": LaunchConfiguration("cyclonedds_uri")},
             name="so101_charuco_world", output="screen", parameters=[{
                 "initial_base_from_camera_file": arm_path,
                 "base_registration_file": LaunchConfiguration("base_registration_file").perform(context),
@@ -185,6 +186,9 @@ def generate_launch_description():
             **{key:LaunchConfiguration("perception_supervisor_"+key) for key in supervisor_keys}}.items(),
         condition=IfCondition(LaunchConfiguration("perception_supervisor_enabled")))
     return LaunchDescription([
+        DeclareLaunchArgument("cyclonedds_uri", default_value=EnvironmentVariable(
+            "CYCLONEDDS_URI", default_value=PathJoinSubstitution([
+                FindPackageShare("so101_station_perception"), "config", "cyclonedds_rgbd.xml"]))),
         DeclareLaunchArgument("perception_supervisor_enabled",default_value="false"),
         DeclareLaunchArgument("perception_supervisor_allow_private_availability_repair",default_value="false"),
         *(DeclareLaunchArgument("perception_supervisor_"+key,default_value="243322071783" if key=="expected_serial" else "") for key in supervisor_keys),
