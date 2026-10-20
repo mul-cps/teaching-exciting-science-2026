@@ -1,5 +1,6 @@
 """Real private child/FD ownership with a CPU test factory, never a GPU context."""
 import os
+import sys
 from pathlib import Path
 import subprocess
 import signal
@@ -82,7 +83,7 @@ def test_real_private_process_ownership_finite_failure_and_cleanup(tmp_path, mon
         monkeypatch.setenv(key, '/foreign/ROS3.12/home' if key == 'HOME' else '/foreign/ROS3.12/ABI')
     cpu_private_child(monkeypatch, mode)
     library = tmp_path/'test-only-CPU-library'; library.write_bytes(b'not loaded by CPU test factory')
-    worker = ProjectionWorker(configuration(), '/home/bjoern/miniforge3/bin/python', library, enabled=True)
+    worker = ProjectionWorker(configuration(), sys.executable, library, enabled=True)
     pid = worker.process.pid
     try:
         ready(worker)
@@ -117,7 +118,7 @@ def test_worker_disabled_never_spawns_or_loads_gpu(tmp_path, monkeypatch):
 def test_failed_offer_cannot_pair_new_metadata_with_old_slot_bytes(tmp_path, monkeypatch):
     cpu_private_child(monkeypatch)
     library = tmp_path/'test-only-library'; library.write_bytes(b'CPU stub only')
-    worker = ProjectionWorker(configuration(), '/home/bjoern/miniforge3/bin/python', library, enabled=True)
+    worker = ProjectionWorker(configuration(), sys.executable, library, enabled=True)
     try:
         ready(worker)
         worker.offer(np.ones((2, 2), np.uint16), np.zeros((2, 3, 3), np.uint8), {'valid': 'old'})
@@ -131,10 +132,10 @@ def test_pidfd_group_retires_orphan_after_leader_exit_sentinel_untouched(tmp_pat
     pid_path = tmp_path/'owned-child.pid'; monkeypatch.setenv('TEST_ONLY_CHILD_PID_PATH', str(pid_path))
     # The sentinel is a separately owned test session, not station hardware.
     original = subprocess.Popen
-    sentinel = original(['/home/bjoern/miniforge3/bin/python', '-c', 'import time;time.sleep(10)'], start_new_session=True)
+    sentinel = original([sys.executable, '-c', 'import time;time.sleep(10)'], start_new_session=True)
     cpu_private_child(monkeypatch, 'orphan')
     library = tmp_path/'test-only-library'; library.write_bytes(b'CPU stub only')
-    worker = ProjectionWorker(configuration(), '/home/bjoern/miniforge3/bin/python', library, enabled=True)
+    worker = ProjectionWorker(configuration(), sys.executable, library, enabled=True)
     try:
         deadline = time.monotonic()+3.
         while time.monotonic() < deadline and not pid_path.exists(): time.sleep(.003)
@@ -160,7 +161,7 @@ def test_source_hash_failure_acquires_no_shared_descriptors(monkeypatch, tmp_pat
     library = tmp_path/'test-only-library'; library.write_bytes(b'CPU stub only')
     monkeypatch.setattr(client, 'source_hashes', lambda: (_ for _ in ()).throw(OSError('hash read fixture')))
     monkeypatch.setattr(client.SharedSlots, 'create', lambda layout: pytest.fail('hash failure must precede FD acquisition'))
-    with pytest.raises(OSError): client.ProjectionWorker(configuration(), '/home/bjoern/miniforge3/bin/python', library, enabled=True)
+    with pytest.raises(OSError): client.ProjectionWorker(configuration(), sys.executable, library, enabled=True)
 
 
 def test_pidfd_probe_failure_cannot_send_configuration_or_initialize_gpu(tmp_path, monkeypatch):
@@ -173,7 +174,7 @@ def test_pidfd_probe_failure_cannot_send_configuration_or_initialize_gpu(tmp_pat
     monkeypatch.setattr(client.subprocess, 'Popen', record)
     def unsupported(group): raise OSError('unsupported pidfd group fixture')
     monkeypatch.setattr(client.OwnedProcessGroup, 'probe', unsupported)
-    with pytest.raises(OSError, match='unsupported'): client.ProjectionWorker(configuration(), '/home/bjoern/miniforge3/bin/python', library, enabled=True)
+    with pytest.raises(OSError, match='unsupported'): client.ProjectionWorker(configuration(), sys.executable, library, enabled=True)
     assert len(processes) == 1 and processes[0].poll() is not None
 
 
@@ -184,6 +185,6 @@ def test_installed_source_bootstrap_does_not_add_foreign_ros_abi_parent(tmp_path
         shutil.copyfile(ROOT/'workshop/perception'/name, package/name)
     # run_name avoids main/GPU; this exercises the exact direct-file bootstrap.
     script = 'import runpy,sys,json;runpy.run_path('+repr(str(package/'rocm_worker.py'))+',run_name="inspection_only");print(json.dumps(sys.path))'
-    result = subprocess.run(['/home/bjoern/miniforge3/bin/python', '-I', '-c', script], check=True,
+    result = subprocess.run([sys.executable, '-I', '-c', script], check=True,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     assert str(foreign) not in json.loads(result.stdout)
