@@ -7,7 +7,7 @@ dependencies = []
 
 [project.optional-dependencies]
 camera = ["opencv-python>=4.8,<5", "numpy>=1.26,<3"]
-test = ["pytest>=8,<10", "numpy>=1.26,<3", "opencv-python-headless>=4.8,<5"]
+test = ["pytest>=8,<10", "numpy>=1.26,<3", "opencv-python-headless>=4.8,<5", "scipy==1.17.1", "PyYAML>=6,<7", "trimesh==4.12.2", "mujoco==3.14.0"]
 materials = ["python-docx>=1.1,<2", "python-pptx>=1.0,<2", "Pillow>=10,<13", "cairosvg>=2.7,<3"]
 gopro = ["open-gopro>=0.23,<1"]
 ev3 = ["rpyc>=5,<7"]
