@@ -10,6 +10,8 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
+from so101_station_objects.percentile import linear_percentile
+
 
 DEFAULT_MAX_OBSERVATION_DEPTH_M = 1.2
 MIN_OBSERVATION_DEPTH_M = .10
@@ -108,24 +110,29 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
     for label in range(1, count):
         if int(stats[label, cv2.CC_STAT_AREA]) < min_pixels:
             continue
-        region = labels == label
-        nearby = cv2.dilate(region.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
-        support = parent & nearby
-        # Include invalid holes inside the candidate contour. They must not
-        # vanish merely because only valid-depth pixels reached this function.
-        contours, _ = cv2.findContours(region.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        filled = np.zeros_like(parent, dtype=np.uint8)
-        cv2.drawContours(filled, contours, -1, 1, cv2.FILLED)
-        support |= parent & filled.astype(bool)
         if local_output:
-            # Dilation has radius two. Filled holes remain inside the original
-            # region bounds, so this exact box contains every support pixel.
+            # Every dilation/support pixel fits inside this radius-two halo.
+            # At parent boundaries, retain the original OpenCV border handling.
             rx, ry, rw, rh = (int(stats[label, key]) for key in
                 (cv2.CC_STAT_LEFT, cv2.CC_STAT_TOP, cv2.CC_STAT_WIDTH, cv2.CC_STAT_HEIGHT))
             left, top = max(0, rx-2), max(0, ry-2)
             right, bottom = min(parent.shape[1], rx+rw+2), min(parent.shape[0], ry+rh+2)
             local_crop = (slice(top, bottom), slice(left, right))
-            result_region, result_support = region[local_crop].copy(), support[local_crop].copy()
+            work_labels, work_parent, work_cut = labels[local_crop], parent[local_crop], cut[local_crop]
+        else:
+            work_labels, work_parent, work_cut = labels, parent, cut
+        region = work_labels == label
+        nearby = cv2.dilate(region.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+        support = work_parent & nearby
+        # Include invalid holes inside the candidate contour. They must not
+        # vanish merely because only valid-depth pixels reached this function.
+        contours, _ = cv2.findContours(region.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        filled = np.zeros_like(work_parent, dtype=np.uint8)
+        cv2.drawContours(filled, contours, -1, 1, cv2.FILLED)
+        support |= work_parent & filled.astype(bool)
+        if local_output:
+            # External contour filling stays within the original label bounds.
+            result_region, result_support = region.copy(), support.copy()
             origin = (pixel_origin[0]+x0+left, pixel_origin[1]+y0+top)
         else:
             result_region = np.zeros(full_shape, dtype=bool)
@@ -136,7 +143,7 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
         result_region.setflags(write=False)
         result_support.setflags(write=False)
         output.append(DepthComponent(result_region, result_support, parent_pixels,
-                                     int((cut & nearby).sum()), origin))
+                                     int((work_cut & nearby).sum()), origin))
     return tuple(output)
 
 
@@ -208,9 +215,9 @@ def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distort
     _, _, axes = np.linalg.svd(points-center, full_matrices=False)
     principal = (points-center) @ axes.T
     metrics['centroid_camera_m'] = center.tolist()
-    limits = np.percentile(principal, [5, 95], axis=0)
+    limits = linear_percentile(principal, [5, 95], axis=0)
     metrics['visible_extents_m'] = (limits[1]-limits[0]).tolist()
-    metrics['plane_residual_p95_m'] = float(np.percentile(np.abs(principal[:, 2]), 95))
+    metrics['plane_residual_p95_m'] = float(linear_percentile(np.abs(principal[:, 2]), 95))
     depths = np.sort(depth[y, x])
     gaps = np.diff(depths)
     split_index = int(np.argmax(gaps))
@@ -225,7 +232,7 @@ def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distort
         jumps += int((adjacency & (np.abs(depth[left]-depth[right]) > max_neighbor_jump_m)).sum())
     metrics['depth_neighbor_jump_fraction'] = jumps/max(1, neighbors)
     hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
-    metrics['saturation_p10'] = float(np.percentile(hsv[:, :, 1][region], 10))
+    metrics['saturation_p10'] = float(linear_percentile(hsv[:, :, 1][region], 10))
     contours, _ = cv2.findContours(region.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contour = max(contours, key=cv2.contourArea)
     rectangle = cv2.minAreaRect(contour)

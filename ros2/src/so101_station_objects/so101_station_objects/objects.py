@@ -43,6 +43,7 @@ from so101_station_objects.colored_object_validation import (  # noqa: E402
     validate_child_visibility,
 )
 from so101_station_objects.analysis_worker import LatestOnlyAnalysisWorker  # noqa: E402
+from so101_station_objects.percentile import linear_percentile  # noqa: E402
 from workshop.digital_twin.grasp_geometry import fit_support_plane, footprint_grasps  # noqa: E402
 
 COLOR_NAMES = ("red", "green", "blue", "yellow")
@@ -338,10 +339,10 @@ def _visible_component_geometry(pixel_points, depth_values, intrinsics, distorti
     axes[:, 2] = np.cross(axes[:, 0], axes[:, 1])
     axes[:, 2] /= np.linalg.norm(axes[:, 2])
     principal = centered @ axes
-    limits = np.percentile(principal, [5, 95], axis=0)
+    limits = linear_percentile(principal, [5, 95], axis=0)
     extents = np.maximum(0.001, limits[1]-limits[0])
     long_axis, short_axis, surface_normal = axes.T
-    spread = np.maximum(0.001, np.percentile(np.abs(board - centroid), 90, axis=0))
+    spread = np.maximum(0.001, linear_percentile(np.abs(board - centroid), 90, axis=0))
     return {
         "color": color,
         "position": centroid.copy(),
