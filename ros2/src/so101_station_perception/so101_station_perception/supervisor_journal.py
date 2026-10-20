@@ -46,6 +46,8 @@ class SupervisorJournal:
                 require(type(history.get('last_mono')) in (int,float) and now>=history['last_mono'] and utc>=history['last_utc'] and
                     abs((utc-history['last_utc'])-(now-history['last_mono']))<=2.,'persisted wall/monotonic clock discontinuity')
             else:self.loaded={}
+            from .late_adoption import load_restart_marker
+            load_restart_marker(self)
         except BaseException:self.close();raise
 
     def write(self,policy,**context):

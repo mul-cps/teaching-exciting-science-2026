@@ -10,6 +10,7 @@ ENDPOINTS={
  'perception-supervisor-disable':'/so101_perception_supervisor/disable',
  'perception-supervisor-status':'/so101_perception_supervisor/status',
  'perception-supervisor-reset-fault':'/so101_perception_supervisor/reset_fault',
+ 'perception-supervisor-adopt-completed-job':'/so101_perception_supervisor/adopt_completed_job',
  'perception-supervisor-reconcile-consumers':'/so101_perception_supervisor/reconcile_consumers',
 }
 
@@ -48,6 +49,7 @@ def test_fake_ros_exact_endpoint_one_call_and_no_ready_inference(monkeypatch,cap
  message={'qualified':False,'execution_enabled':False,'operation_success':False,'ready_now':False}
  if command=='perception-recover':message.update(accepted=True,job_id='a'*32,state='native_preflight')
  if command.endswith('reset-fault'):message.update(reset_check_accepted=True,reset_check_pending=True)
+ if command.endswith('adopt-completed-job'):message.update(accepted=True,adoption_id='d'*32,job_id='e'*32,enabled=False)
  if command.endswith('reconcile-consumers'):message.update(accepted=True,reconciliation_id='b'*32,enabled=False)
  calls=install_ros(monkeypatch,message)
  monkeypatch.delenv('ROS_DOMAIN_ID',raising=False);monkeypatch.delenv('ROS_LOCALHOST_ONLY',raising=False)
