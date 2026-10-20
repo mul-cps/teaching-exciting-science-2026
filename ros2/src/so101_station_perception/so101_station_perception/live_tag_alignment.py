@@ -133,6 +133,7 @@ class LiveTagAlignment(Node):
         self.last_input = None
         self.last_stamp = None
         self.stream_latched = False
+        self.display_source_latched = False
         self.source_fingerprint = None
         self.source_context = None
         self.visual_visible = False
@@ -146,6 +147,7 @@ class LiveTagAlignment(Node):
         digest = hashlib.sha256(message.data.encode()).hexdigest()
         try:
             if digest != self.config["model_sha256"]:
+                self.display_source_latched = True
                 raise ValueError("robot_description SHA differs from binding model")
             aligned, edges, links = visual_description(message.data)
             if any(binding["link"] not in links for binding in self.config["bindings"]):
@@ -167,8 +169,11 @@ class LiveTagAlignment(Node):
                 self.rpc = None
                 try:
                     response = future.result()
-                    if now-requested > .5 or response.serial_number != self.config["camera_serial"]:
-                        raise ValueError("camera DeviceInfo identity mismatch or late response")
+                    if response.serial_number != self.config["camera_serial"]:
+                        self.display_source_latched = True
+                        raise ValueError("camera DeviceInfo identity mismatch")
+                    if now-requested > .5:
+                        raise ValueError("camera DeviceInfo late response")
                     self.identity_until = now+1.5
                     self.identity_reason = None
                 except Exception as error:
@@ -196,6 +201,7 @@ class LiveTagAlignment(Node):
         self.last_stamp = None
         self.last_input = None
         self.stream_latched = False
+        self.display_source_latched = False
         self.source_fingerprint = None
         self._unavailable("explicit reseed; waiting for next exposure")
         response.success, response.message = True, "Original configured pixel seeds restored; qualification remains false"
@@ -214,6 +220,8 @@ class LiveTagAlignment(Node):
         self.status.publish(String(data=json.dumps(status, allow_nan=False, separators=(",", ":"))))
 
     def _validate_display_proof(self, proof):
+        if self.display_source_latched:
+            raise ValueError("display source invalidated; explicit reseed required")
         if proof is None:
             raise ValueError("no admitted exposure for reference visual")
         frame, stamp, started, fingerprint = proof
@@ -221,11 +229,12 @@ class LiveTagAlignment(Node):
         if (len(publishers) != 1 or bytes(publishers[0].endpoint_gid).hex() != fingerprint[2]
                 or self.source_fingerprint != fingerprint):
             self.stream_latched = True
+            self.display_source_latched = True
             raise ValueError("compact source changed before reference publication")
         age = self.get_clock().now().nanoseconds*1e-9-stamp.nanoseconds*1e-9
         now = time.monotonic()
         if (not 0 <= age <= self.max_age or now-started > self.max_age
-                or now > self.identity_until or not self.model_ok or self.stream_latched
+                or now > self.identity_until or not self.model_ok
                 or self.count_publishers("/so101_perception/aligned_robot_description") != 1):
             raise ValueError("reference exposure, receipt, model or identity unavailable")
         return frame, stamp
@@ -235,7 +244,8 @@ class LiveTagAlignment(Node):
         proof = self.display_proof
         frame, exposure = self._validate_display_proof(proof)
         canonical = self._lookup(frame, "base_link", exposure)
-        matrix = canonical if self.reference_delta is None else canonical @ self.reference_delta
+        use_fit_delta = self.reference_delta is not None and not self.stream_latched
+        matrix = canonical @ self.reference_delta if use_fit_delta else canonical
         transforms = [transform_message(matrix, frame, PREFIX+"base_link", exposure.to_msg())]
         for parent, child in self.edges:
             transforms.append(transform_message(self._lookup(parent, child, exposure),
@@ -260,8 +270,9 @@ class LiveTagAlignment(Node):
         self._publish_status(dict(status="unavailable", reason=reason, candidate_available=False,
             display_mode="reference", display_stamp={"sec": exposure.to_msg().sec,
             "nanosec": exposure.to_msg().nanosec},
-            reference_alignment_stamp=self.reference_accepted_stamp,
-            reference_alignment="last_accepted_offset" if self.reference_delta is not None else "canonical"))
+            reference_alignment_stamp=self.reference_accepted_stamp if use_fit_delta else None,
+            reference_alignment="last_accepted_offset" if use_fit_delta else "canonical",
+            fit_reseed_required=self.stream_latched))
 
     def _unavailable(self, reason):
         try:
@@ -327,8 +338,6 @@ class LiveTagAlignment(Node):
             payload = json.loads(message.data)
             if not isinstance(payload.get("observations"), list) or len(payload["observations"]) > 64:
                 raise ValueError("compact detection count exceeds 64")
-            if self.stream_latched:
-                raise ValueError("source stream continuity lost; explicit reseed required")
             if payload.get("schema") != "so101-tag-detections-v1" or payload.get("qualified") is not False:
                 raise ValueError("unexpected detection schema or qualification")
             stamp = payload["stamp"]
@@ -340,30 +349,32 @@ class LiveTagAlignment(Node):
                 raise ValueError("repeated or out-of-order detection exposure")
             if self.last_input is not None and started-self.last_input > self.max_age:
                 self.stream_latched = True
-                raise ValueError("source receipt gap; explicit reseed required")
-            self.last_stamp = seconds
-            self.last_input = started
             if (payload["image_width"], payload["image_height"]) != (self.config["image_width"], self.config["image_height"]):
                 raise ValueError("binding image dimensions differ")
             if not self.model_ok or started > self.identity_until:
                 raise ValueError("model or fresh independent camera identity unavailable")
             if self.count_publishers("/so101_perception/tag_detections") != 1:
+                self.display_source_latched = True
                 raise ValueError("expected exactly one compact detection publisher")
             if self.count_publishers("/so101_perception/aligned_robot_description") != 1:
                 raise ValueError("aligned visual model already has another publisher")
             frame = str(payload["frame_id"])
             if frame != self.get_parameter("camera_frame").value or frame.startswith(PREFIX):
+                self.display_source_latched = True
                 raise ValueError("invalid camera frame")
             admission = payload.get("source_admission_kind")
             if admission != "derived_checked":
+                self.display_source_latched = True
                 raise ValueError("native_unattested observations cannot produce live alignment")
             context = payload.get("source_context")
             if not isinstance(context, dict) or context.get("camera_serial") != self.config["camera_serial"]:
+                self.display_source_latched = True
                 raise ValueError("compact admitted source camera serial differs from configuration")
             for key, length in (("consumer_epoch", 32), ("source_pin_sha256", 64),
                                 ("producer_generation", 32), ("source_generation", 64)):
                 value = context.get(key)
                 if type(value) is not str or len(value) != length or any(c not in "0123456789abcdef" for c in value):
+                    self.display_source_latched = True
                     raise ValueError("invalid compact source identity field: "+key)
             publishers = self.get_publishers_info_by_topic("/so101_perception/tag_detections")
             # Jazzy delivers MessageInfo as a dictionary; newer bindings may
@@ -372,19 +383,32 @@ class LiveTagAlignment(Node):
                             else getattr(message_info, "publisher_gid", None))
             actual_gid = bytes(received_gid).hex()
             if len(publishers) != 1 or actual_gid != bytes(publishers[0].endpoint_gid).hex():
+                self.display_source_latched = True
                 raise ValueError("compact message publisher GID differs from unique endpoint")
             fingerprint = (frame, admission, actual_gid, tuple(context[key] for key in (
                 "consumer_epoch", "source_pin_sha256", "producer_generation", "source_generation", "camera_serial")))
             if self.source_fingerprint is not None and fingerprint != self.source_fingerprint:
                 self.stream_latched = True
+                self.display_source_latched = True
                 raise ValueError("compact source publisher/frame/admission changed; explicit reseed required")
+            if self.display_source_latched:
+                raise ValueError("display source invalidated; explicit reseed required")
+            if self.stream_latched and self.source_fingerprint is None:
+                raise ValueError("source stream continuity lost before source pinned; explicit reseed required")
             self.source_fingerprint = fingerprint
             self.source_context = {key: context[key] for key in (
                 "consumer_epoch", "source_pin_sha256", "producer_generation", "source_generation", "camera_serial")}
             exposure = Time(seconds=int(stamp["sec"]), nanoseconds=int(stamp["nanosec"]))
             # A timestamped lookup also requires the canonical camera/base chain to exist.
             canonical = self._lookup(frame, "base_link", exposure)
-            self.display_proof = (frame, exposure, started, fingerprint)
+            proof = (frame, exposure, started, fingerprint)
+            self._validate_display_proof(proof)
+            self.display_proof = proof
+            self.last_stamp = seconds
+            self.last_input = started
+            if self.stream_latched:
+                self._reference_visual("source stream continuity lost; explicit reseed required")
+                return
             tracked = self.associator.update(payload["observations"], stamp=seconds)
             model_points, camera_points, available = [], [], []
             unavailable_residuals = []
@@ -430,6 +454,7 @@ class LiveTagAlignment(Node):
                     or bytes(final_publishers[0].endpoint_gid).hex() != actual_gid
                     or self.source_fingerprint != fingerprint):
                 self.stream_latched = True
+                self.display_source_latched = True
                 raise ValueError("compact source changed before publication")
             final_age = self.get_clock().now().nanoseconds*1e-9-seconds
             final_now = time.monotonic()
