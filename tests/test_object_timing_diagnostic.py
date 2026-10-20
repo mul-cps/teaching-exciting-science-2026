@@ -195,10 +195,33 @@ def stable_ast_digest(node):
     # ast.dump omits empty fields by default on newer Python: pin explicit fields.
     import ast,hashlib,json
     def canonical(value):
-        if isinstance(value,ast.AST):return [type(value).__name__,[[key,canonical(item)] for key,item in ast.iter_fields(value)]]
+        if isinstance(value,ast.AST):
+            fields=list(ast.iter_fields(value))
+            if isinstance(value,(ast.FunctionDef,ast.ClassDef,ast.AsyncFunctionDef)) and not any(key=='type_params' for key,_ in fields):
+                fields.append(('type_params',[]))
+            return [type(value).__name__,[[key,canonical(item)] for key,item in fields]]
         if isinstance(value,list):return [canonical(item) for item in value]
         return value
     return hashlib.sha256(json.dumps(canonical(node),separators=(',',':')).encode()).hexdigest()
+
+def test_stable_ast_digest_normalizes_missing_empty_type_params():
+    import ast,hashlib,json
+    tree=ast.parse('class Example:\n    def method(self):\n        async def nested():\n            pass\n')
+    definitions=[node for node in ast.walk(tree) if isinstance(node,(ast.FunctionDef,ast.ClassDef,ast.AsyncFunctionDef))]
+    for node in definitions:
+        if 'type_params' not in node._fields:
+            node._fields=(*node._fields,'type_params')
+        node.type_params=[]
+    def explicit_fields(value):
+        if isinstance(value,ast.AST):return [type(value).__name__,[[key,explicit_fields(item)] for key,item in ast.iter_fields(value)]]
+        if isinstance(value,list):return [explicit_fields(item) for item in value]
+        return value
+    expected=hashlib.sha256(json.dumps(explicit_fields(tree),separators=(',',':')).encode()).hexdigest()
+    assert stable_ast_digest(tree)==expected
+    for node in definitions:
+        del node.type_params
+    assert stable_ast_digest(tree)==expected
+
 
 # Pinned a25b769 canonical explicit-field AST (runtime independent).
 BASE_PUBLISH_AST='2a76b9fef3bdf776dc35c8c300c67174f62fc5c68e64a844f4e90281a4e093f0'
