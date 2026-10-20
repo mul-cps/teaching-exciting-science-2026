@@ -305,3 +305,13 @@ The preceding full post-repair hour is historical: derived metadata averaged 25.
 Completion-event software remains integrated, independently reviewed and built in an inactive prefix. Optional object timing diagnostics are under isolated development; neither feature has been deployed to the running actors. Physical prerequisites and the unchanged negative 100Hz control gate remain open.
 
 Evidence: `overnight/natural-private-fault-0434/INDEPENDENT-NEW-FAULT-AUDIT.json`, `ROOT-CURRENT-PRODUCER-PROC-SNAPSHOT.json`; `overnight/passive-night-segments/pipeline-night-segment04.INDEPENDENT-AUDIT.json`.
+
+## Overnight checkpoint — 2026-10-20 05:05 UTC
+
+Object timing diagnostics (author c0c2191) have independent 92 native passes/zero skips and an audited inactive one-package build: 3.629645s total, .95s colcon, 15 source-import/8 installed files across 19 distinct source pins. Cold-process allowlisted environment/Python were exported; the pinned verifier attests no node construction. Diagnostic remains **default false/INACTIVE**; no actor restart or availability claim.
+
+A necessary two-path test/docs-only followup (author 88d818c) is now pushed as LIVE d8353e21f27ca18f14bba4a2f55a17ac45b33f48 / STAGED 335baca7cf1f0cb59296ffcc2778aeff0c70e4a0; ROOT verified remotes exact. Baseline ordinary-noROS 1 failure/10 errors remains retained. Independent affected noROS 19 passed/11 explicit skips; native 20 passed/0 skips comprises 11 actual ROS+9 reviewer guards. This is **not full hosted CI**; counts overlap prior scope. Other seven reviewed feature paths, including runtime/package files, remain unchanged from the inactive 718c build; no rebuild/activation.
+
+Evidence root E: `overnight/object-timing-implementation/INDEPENDENT-FINAL-REVIEW.json`, `overnight/object-timing-implementation/INDEPENDENT-ACTUAL-BUILD-COLD-AUDIT.json`, `overnight/object-timing-implementation/INDEPENDENT-OPTIONAL-ROS-REVIEW.json`.
+
+Current private pipeline remains unavailable/supervisor disabled-latched, two rolling-hour attempts/three historical private jobs preserved; worker presence is not health. Physical cycles remain **zero**. Original CURRENT-IMAGE and full-matrix 98.972Hz/100Hz control negatives remain open; all-pass AB diagnostics were inconclusive. Fresh supported arm/home, calibration/registration, jaw/TCP, planner TF/collision, semantic target identity and physical endurance gates remain required.
