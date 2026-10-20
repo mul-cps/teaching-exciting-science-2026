@@ -18,11 +18,12 @@ def stamp_ns(message):
 
 
 class AlignedCohorts:
-    """Four references/stream, eight statements, no fallback to old statements."""
+    """Four image/sixteen info references per stream, eight statements, no fallback."""
     def __init__(self,pin):
         require(pin is not None,'explicit source pins required')
         self.ledger=LineageBuffer(pin)
-        self.streams={kind:deque(maxlen=4) for kind in STREAMS}
+        # Exact info can retain a valid 250 ms receipt lease after four entries at 30 Hz are evicted.
+        self.streams={kind:deque(maxlen=16 if kind in ('color_info','depth_info') else 4) for kind in STREAMS}
         self.last={kind:0 for kind in STREAMS}
         self.emitted=0;self.closed=False;self.epoch=object()
 
