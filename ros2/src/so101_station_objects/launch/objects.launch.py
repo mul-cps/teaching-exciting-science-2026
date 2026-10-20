@@ -1,8 +1,9 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import EnvironmentVariable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -18,6 +19,9 @@ def generate_launch_description():
         "observation_roi_z_min": "-1.0", "observation_roi_z_max": "1.0",
     }
     return LaunchDescription([
+        DeclareLaunchArgument("cyclonedds_uri", default_value=EnvironmentVariable(
+            "CYCLONEDDS_URI", default_value=PathJoinSubstitution([
+                FindPackageShare("so101_station_perception"), "config", "cyclonedds_rgbd.xml"]))),
         DeclareLaunchArgument("analysis_timing_diagnostics", default_value="false"),
         DeclareLaunchArgument("allow_derived_source", default_value="false"),
         DeclareLaunchArgument("derived_source_cohort", default_value=""),
@@ -34,6 +38,7 @@ def generate_launch_description():
         *(DeclareLaunchArgument(name, default_value=value)
           for name, value in roi_defaults.items()),
         Node(package="so101_station_objects", executable="colored_objects",
+             additional_env={"CYCLONEDDS_URI": LaunchConfiguration("cyclonedds_uri")},
              name="so101_colored_objects", output="screen", parameters=[{
                  "analysis_timing_diagnostics": ParameterValue(LaunchConfiguration("analysis_timing_diagnostics"), value_type=bool),
                  "allow_derived_source": ParameterValue(LaunchConfiguration("allow_derived_source"), value_type=bool),
