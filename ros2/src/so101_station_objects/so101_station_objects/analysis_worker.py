@@ -16,7 +16,13 @@ import time
 class LatestOnlyAnalysisWorker:
     """Run one analyzer serially with one replaceable pending input."""
 
-    def __init__(self, analyze, *, min_start_interval_s: float = 0.0, on_ready=None):
+    def __init__(self, analyze, *, min_start_interval_s: float = 0.0, on_ready=None, diagnostics=False):
+        if type(diagnostics) is not bool:
+            raise TypeError("diagnostics must be bool")
+        self._diagnostics = diagnostics
+        self._pending_timing = self._result_timing = None
+        self._diagnostic_active = False
+        self.diagnostic_losses = {"shutdown": 0} if diagnostics else None
         if not callable(analyze):
             raise TypeError("analyze must be callable")
         try:
@@ -52,18 +58,33 @@ class LatestOnlyAnalysisWorker:
             replaced = self._pending is not None
             if replaced:
                 self.pending_replacements += 1
+            if self._diagnostics:
+                self._pending_timing = {"sequence": self._next_sequence, "submit": time.monotonic()}
             self._pending = (self._next_sequence, item)
             self._condition.notify_all()
             return replaced
 
+    def take_result_with_diagnostics(self):
+        """Opt-in sidecar; ordinary take_result retains its public triple."""
+        if not self._diagnostics:
+            raise ValueError("worker diagnostics disabled")
+        return self._take_result(True)
+
     def take_result(self):
+        """Consume newest public (item, value, error), in either mode."""
+        return self._take_result(False)
+
+    def _take_result(self, with_timing):
         """Consume the newest unconsumed ``(item, value, error)`` result."""
         with self._condition:
             if self._result is None:
                 return None
             _, item, value, error = self._result
             self._result = None
-            return (item, value, error)
+            timing = self._result_timing
+            self._result_timing = None
+            result = (item, value, error)
+            return (result, timing) if with_timing else result
 
     @property
     def notification_error(self):
@@ -81,6 +102,8 @@ class LatestOnlyAnalysisWorker:
             raise ValueError("close timeout must be finite and nonnegative")
         deadline = time.monotonic()+timeout
         with self._condition:
+            if self._diagnostics and not self._closed:
+                self.diagnostic_losses["shutdown"] += int(self._pending is not None) + int(self._result is not None) + int(self._diagnostic_active)
             self._closed = True
             self._pending = None
             self._result = None
@@ -124,7 +147,13 @@ class LatestOnlyAnalysisWorker:
                 sequence, item = self._pending
                 self._pending = None
                 self._last_start = time.monotonic()
+                timing = self._pending_timing if self._diagnostics else None
+                if self._diagnostics:
+                    timing["start"] = self._last_start
+                    self._diagnostic_active = True
 
+            if timing is not None:
+                timing["analysis_enter"] = time.monotonic()
             try:
                 value = self._analyze(item)
                 error = None
@@ -132,7 +161,10 @@ class LatestOnlyAnalysisWorker:
                 value = None
                 error = exc
 
+            if timing is not None:
+                timing["analysis_return"] = time.monotonic()
             with self._condition:
+                self._diagnostic_active = False
                 if self._closed:
                     return
                 if self._result is not None:
@@ -140,6 +172,9 @@ class LatestOnlyAnalysisWorker:
                     if sequence <= old_sequence:
                         continue
                     self.overwritten_results += 1
+                if timing is not None:
+                    timing["store_enter"] = time.monotonic()
+                self._result_timing = timing
                 self._result = (sequence, item, value, error)
                 self._condition.notify_all()
             self._notify_result()
