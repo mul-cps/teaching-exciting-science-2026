@@ -2,6 +2,7 @@
 import os
 assert os.environ.get('ROS_DOMAIN_ID')=='177'
 from copy import deepcopy
+from types import SimpleNamespace as NS
 import json
 import pytest
 from std_srvs.srv import Trigger
@@ -411,3 +412,47 @@ def test_buffered_native_whole_control_gate_metadata_benchmark(late,monkeypatch)
     result=dict(scope='whole late-only buffered native selection/BOTH actual CameraInfo KD/exactTF/native graph/fixed identity-result/final originallease validator; fake graph+TF+completedfuture, no DDS/RPC/SDK',
         samples=200,mean_us=statistics.mean(samples),p95_us=samples[189],max_us=max(samples),pair_bound=16,actual_TF_checks_per_call=2)
     if os.environ.get('LATE_NATIVE_BENCHMARK_OUTPUT'):Path(os.environ['LATE_NATIVE_BENCHMARK_OUTPUT']).open('x').write(json.dumps(result,indent=2)+'\n')
+
+
+def test_commit_materialization_cannot_publish_success_after_original_entry_expiry(late,monkeypatch):
+    node,clock,value=late
+    node._late_historical(value);current_gates(node,clock,monkeypatch)
+    construct=m.SupervisorPolicy
+    def slow(history=None):
+        result=construct(history)
+        clock[0]=102.01
+        return result
+    monkeypatch.setattr(m,'SupervisorPolicy',slow)
+    try:node._late_commit()
+    except Exception as error:node._late_failure(error)
+    assert node.late_result['operation_success'] is False
+    assert node.policy.job['job_id']=='d'*32 and node.policy.latched and not node.policy.enabled
+    assert node.pin['producer_generation']=='a'*32
+
+
+def test_admission_cleanup_cannot_accept_after_original_entry_expiry(late,monkeypatch):
+    node,clock,_=late;node.late_intent=None
+    before=bounded_read(node.journal.path)
+    endpoint=m.COORDINATOR+'/recovery_status'
+    future=NS(cancel=lambda:None)
+    node.rpc[endpoint]={'future':future}
+    def slow_remove(_):clock[0]=102.01
+    node.rpc_clients[endpoint]=NS(remove_pending_request=slow_remove)
+    response=node._adopt_completed_job(None,Trigger.Response())
+    assert response.success is False
+    assert node.late_intent is None
+    assert node.policy.job['job_id']=='d'*32 and len(node.policy.attempts)==1 and not node.policy.enabled
+    assert bounded_read(node.journal.path)==before
+
+
+def test_coherently_future_historical_image_clock_is_not_attested(late):
+    from copy import deepcopy
+    import pytest
+    node,clock,value=late
+    for record in value['consumers'].values():
+        for witness in record['witnesses']:
+            for key in ('depth_stamp_ns','color_stamp_ns','checked_ros_ns','original_header_expiry_ros_ns'):
+                witness[key]+=12_000_000_000
+        record['latest']=deepcopy(record['witnesses'][-1])
+    with pytest.raises(ValueError):node._late_historical(value)
+    assert node.late_completion is None

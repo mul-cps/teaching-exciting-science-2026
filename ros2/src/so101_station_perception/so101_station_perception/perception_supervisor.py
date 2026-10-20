@@ -705,6 +705,7 @@ class PerceptionSupervisor(Node):
 
     def _adopt_completed_job(self,request,response):
         started=time.monotonic();ns=self.get_clock().now().nanoseconds
+        created=None;previous_result=self.late_result
         try:
             require(not self.closed and not self.policy.enabled and self.policy.latched is not None and
                 self.policy.job is not None and self.policy.job.get('state')=='accepted' and
@@ -719,6 +720,7 @@ class PerceptionSupervisor(Node):
             require(time.monotonic()<=started+2.,'late local adoption entry2s expired before admission')
             self.late_intent=dict(adoption_id=identity,started_monotonic=started,started_ros_ns=ns,deadline_monotonic=started+2.,last_ros_ns=ns,
                 owned_job=deepcopy(self.policy.job),pin_sha256=pin_digest(self.pin))
+            created=self.late_intent
             self.late_result=dict(schema='so101-late-local-adoption-status-v1',adoption_id=identity,job_id=self.policy.job['job_id'],state='pending',
                 operation_success=False,enabled=False,ready_now=False,qualified=False,execution_enabled=False)
             self.pre_outage.clear();self._clear_health_queries()
@@ -735,8 +737,16 @@ class PerceptionSupervisor(Node):
             self.native_started=started;self.native=NativePairs(start_ns=ns,start_mono=started)
             self.native_infos={k:deque(maxlen=4) for k in ('depth','color')};self.identity_rpc=None
             self.late_progress={};self.late_receipts={};self.late_receipt_sequences={};self.late_completion=None;self.late_coord_receipt=None;self.late_ledger=None;self.late_commit_started=False
-            response.success=True;response.message=message
+            response.message=message
+            final_ns=self.get_clock().now().nanoseconds;final_now=time.monotonic()
+            require(self.late_intent is created and not self.closed and not self.policy.enabled and
+                self.policy.job==created['owned_job'] and self.policy.latched is not None and
+                started<=final_now<=started+2. and final_ns>=ns and abs((final_ns-ns)/1e9-(final_now-started))<=2.,
+                'late local adoption original entry2s/context expired after admission preparation')
+            response.success=True
         except Exception as error:
+            if created is not None and self.late_intent is created:
+                self.late_intent=None;self.late_result=previous_result;self.native=None;self.native_witness=None;self.identity_rpc=None
             response.success=False;response.message=bounded_json(dict(accepted=False,reason=str(error)[:512],enabled=False,ready_now=False,
                 operation_success=False,qualified=False,execution_enabled=False))
         return response
@@ -787,7 +797,8 @@ class PerceptionSupervisor(Node):
                     'historical IMAGE witness context changed')
                 require(all(type(proof.get(k)) is int and proof[k]>0 for k in ('sequence','depth_stamp_ns','color_stamp_ns','checked_ros_ns','original_header_expiry_ros_ns')) and
                     abs(proof['depth_stamp_ns']-proof['color_stamp_ns'])<=40_000_000 and
-                    max(proof['depth_stamp_ns'],proof['color_stamp_ns'])<=proof['checked_ros_ns']<proof['original_header_expiry_ros_ns']<=min(proof['depth_stamp_ns'],proof['color_stamp_ns'])+500_000_000 and
+                    max(proof['depth_stamp_ns'],proof['color_stamp_ns'])<=proof['checked_ros_ns']<=self.get_clock().now().nanoseconds and
+                    proof['checked_ros_ns']<proof['original_header_expiry_ros_ns']<=min(proof['depth_stamp_ns'],proof['color_stamp_ns'])+500_000_000 and
                     finite(proof.get('original_receipt_expiry_monotonic')) and 0<proof['original_receipt_expiry_monotonic']<=job['deadline']+.250,
                     'historical original IMAGE timing invalid')
             require(all(witnesses[1][k]>witnesses[0][k] for k in ('sequence','depth_stamp_ns','color_stamp_ns')),'historical IMAGE witnesses did not advance')
@@ -912,18 +923,24 @@ class PerceptionSupervisor(Node):
             candidate_journal_sha256=late_digest(candidate),prospective_artifact=completion['path'],prospective_artifact_sha256=completion['digest'],
             prospective_pin_sha256=pin_digest(completion['pin']),entry_monotonic=context['started_monotonic'],entry_ros_ns=context['started_ros_ns'],
             deadline_monotonic=context['deadline_monotonic'],phase='prepared')
+        # Every fallible constructor/copy/hash/result materialization precedes
+        # the last original-clock gate. Until it passes, memory retains the old
+        # internally consistent pin/policy/epochs and compensation provenance.
+        next_pin=deepcopy(completion['pin']);next_epochs=deepcopy(completion['epochs'])
+        next_policy=SupervisorPolicy(policy);next_policy.enabled=False;next_policy.state='disabled'
+        next_history=PreOutageHistory();next_ledger=self.late_ledger
+        next_result=dict(self.late_result,state='completed',operation_success=True,artifact_sha256=completion['digest'],
+            producer_generation=next_pin['producer_generation'],source_pin_sha256=pin_digest(next_pin),consumer_epochs=deepcopy(next_epochs),
+            transaction_phase='committed_local_success',historical_attestation='resident_coordinator_code_validated_no_historical_monotonic_replay')
         self.late_transaction_open=True;self.late_commit_started=True;write_marker(self.journal,marker);self._late_final()
         require(known_state(marker,bounded_read(self.journal.path)),
             'late adoption disk journal changed; no overwrite')
         self.journal.write(policy,consumer_epochs=completion['epochs'],adopted=adopted)
         self._late_final();marker['phase']='committed_local_success';write_marker(self.journal,marker);self._late_final()
-        self.pre_outage.clear();self.pin=deepcopy(completion['pin']);self.epochs=deepcopy(completion['epochs']);self.ledger=self.late_ledger
-        latest_pair=(self.policy.last_mono,self.policy.last_utc)
-        self.adopted=adopted;self.policy=SupervisorPolicy(policy)
-        self.policy.last_mono,self.policy.last_utc=latest_pair
-        self.policy.enabled=False;self.policy.state='disabled'
-        self.late_result.update(state='completed',operation_success=True,artifact_sha256=completion['digest'],producer_generation=self.pin['producer_generation'],
-            source_pin_sha256=pin_digest(self.pin),consumer_epochs=deepcopy(self.epochs),transaction_phase='committed_local_success',historical_attestation='resident_coordinator_code_validated_no_historical_monotonic_replay')
+        # Only scalar/reference assignments follow the final post-marker gate.
+        next_policy.last_mono=self.policy.last_mono;next_policy.last_utc=self.policy.last_utc
+        self.pre_outage=next_history;self.pin=next_pin;self.epochs=next_epochs;self.ledger=next_ledger
+        self.adopted=adopted;self.policy=next_policy;self.late_result=next_result
         self.late_intent=None;self.native=None;self.late_transaction_open=False;self.journal.loaded=candidate
 
     def _late_failure(self,error):
