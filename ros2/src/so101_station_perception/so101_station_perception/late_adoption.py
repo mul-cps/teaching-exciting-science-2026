@@ -117,7 +117,12 @@ def load_restart_marker(journal):
         journal.loaded['policy']['latched']='late local adoption marker UNKNOWN; latest accounting retained'
         return
     journal.late_marker=value
-    actual=journal.loaded;known=known_state(value,actual)
+    try:
+        from .adoption_ack import resume_ack
+        if value['phase']=='committed_local_success' and resume_ack(journal):return
+    except (ValueError,TypeError,KeyError,OSError):
+        journal.late_marker_conflict=True
+    actual=journal.loaded;known=not journal.late_marker_conflict and known_state(value,actual)
     if known:
         # Known candidate/compensation descendant retains its latest paired clocks.
         pair=(actual['policy']['last_mono'],actual['policy']['last_utc'])

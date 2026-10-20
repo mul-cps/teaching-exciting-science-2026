@@ -57,9 +57,10 @@ class PerceptionSupervisor(Node):
     def __init__(self):
         super().__init__('so101_perception_supervisor')
         self.journal=None;self.closed=False
+        from .adoption_ack import PARAMETERS
         readonly=ParameterDescriptor(read_only=True)
         for name,value in (('enabled',False),('expected_source_cohort',''),('expected_serial','243322071783'),
-                           ('journal_directory',''),('recovery_artifact_directory','')):
+                           ('journal_directory',''),('recovery_artifact_directory',''),*((name,'') for name in PARAMETERS)):
             self.declare_parameter(name,value,readonly)
         require(self.get_parameter('enabled').value is True,'explicit enabled=true required')
         self.baseline_path=Path(self.get_parameter('expected_source_cohort').value).resolve()
@@ -72,7 +73,8 @@ class PerceptionSupervisor(Node):
         require(bool(directory) and Path(directory).is_dir(),'trusted recovery artifact directory required')
         self.recovery_directory=Path(directory).resolve()
         require(bool(self.get_parameter('journal_directory').value),'trusted journal directory required')
-        self.journal=SupervisorJournal(self.get_parameter('journal_directory').value,self.baseline_sha)
+        self.journal=SupervisorJournal(self.get_parameter('journal_directory').value,self.baseline_sha,
+            confirmed_adoption=tuple(self.get_parameter(name).value for name in PARAMETERS))
         loaded=self.journal.loaded
         try:
             self.policy=SupervisorPolicy(loaded.get('policy'))
@@ -1028,6 +1030,15 @@ class PerceptionSupervisor(Node):
         return response
 
     def _enable(self,request,response):
+        # Historical own-runtime success is finalized before any new policy or source checks.
+        if self.journal.late_marker is not None and self.late_result is not None and self.late_result.get('state')=='completed':
+            try:
+                from .adoption_ack import acknowledge_runtime
+                acknowledge_runtime(self.journal,self.late_result)
+                self.late_transaction_open=False
+            except Exception as error:
+                self.late_transaction_open=True;self._fail(error)
+                response.success=False;response.message=bounded_json(self._snapshot());return response
         if self.reconciliation is not None or self.late_intent is not None or self.late_transaction_open or self.journal.late_marker_conflict:
             response.success=False;response.message=bounded_json(dict(self._snapshot(),reason='operator reconciliation or unresolved local adoption'));return response
         try:
