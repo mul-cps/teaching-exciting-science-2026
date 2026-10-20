@@ -74,8 +74,10 @@ def transform_pose(target: PoseTarget, right_transform):
                       tuple(Rotation.from_matrix(composed[:3, :3]).as_quat()))
 
 
-def candidate_for_track(status, track_id, *, require_pickup_eligible=False):
-    """Select a proposal by numeric track ID or visible detection ID (red-0003)."""
+def candidate_for_track(status, track_id, *, require_pickup_eligible=False, closing_axis_sign=1):
+    """Select source geometry; parallel-jaw 180-degree sign symmetry needs separate IK/collision checks."""
+    if type(closing_axis_sign) is not int or closing_axis_sign not in (-1, 1):
+        raise ValueError("closing_axis_sign must be integer -1 or 1")
     key = str(track_id)
     matches = [item for item in status.get("grasp_candidates", [])
                if (str(item.get("track_id")) == key or
@@ -91,7 +93,9 @@ def candidate_for_track(status, track_id, *, require_pickup_eligible=False):
     return PoseTarget(str(item["frame_id"]),
                       tuple(float(v) for v in item["contact_position_world"]),
                       tuple(float(v) for v in _quaternion_from_axes(
-                          item["closing_axis_world"], item["approach_direction_world"])))
+                          (item["closing_axis_world"] if closing_axis_sign == 1 else
+                           [-float(v) for v in item["closing_axis_world"]]),
+                          item["approach_direction_world"])))
 
 
 def _quaternion_from_axes(closing, approach):

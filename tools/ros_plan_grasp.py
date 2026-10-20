@@ -289,6 +289,8 @@ def parse_args(argv=None):
     selection.add_argument("--track-id", help="tracked detection id such as red-0003")
     selection.add_argument("--pose", nargs=7, type=float, metavar=("X", "Y", "Z", "QX", "QY", "QZ", "QW"),
                            help="explicit contact pose in --frame")
+    parser.add_argument("--flip-closing-axis", action="store_true",
+                        help="rotate parallel-jaw orientation 180 degrees; requires normal IK/collision checks")
     parser.add_argument("--frame", default="charuco_board")
     parser.add_argument("--status-topic", default="/so101/grasp_status")
     parser.add_argument("--joint-states-topic", default="/follower/joint_states")
@@ -682,7 +684,7 @@ def main(argv=None):
             raise TimeoutError(f"MoveIt planning service unavailable: {args.planning_service}")
 
         contact = (candidate_for_track(node.status, args.track_id,
-                                      require_pickup_eligible=args.execute) if args.track_id else
+                                      require_pickup_eligible=args.execute, closing_axis_sign=(-1 if args.flip_closing_axis else 1)) if args.track_id else
                    PoseTarget(args.frame, tuple(args.pose[:3]), tuple(args.pose[3:])))
         if args.execute:
             candidate_record = next(item for item in node.status.get("grasp_candidates", [])
@@ -799,7 +801,7 @@ def main(argv=None):
                 if not (args.execute and attached and name == "place"):
                     try:
                         observed_target = candidate_for_track(node.status, args.track_id,
-                                                              require_pickup_eligible=args.execute)
+                                                              require_pickup_eligible=args.execute, closing_axis_sign=(-1 if args.flip_closing_axis else 1))
                     except (KeyError, TypeError, ValueError):
                         observed_target = None
                     q0 = locked_target.orientation_xyzw
@@ -944,7 +946,7 @@ def main(argv=None):
                         node.status.get("frame_id") != locked_target.frame_id):
                     raise RuntimeError("target tracking became stale while planning")
                 current_candidate = candidate_for_track(node.status, args.track_id,
-                                                        require_pickup_eligible=True)
+                                                        require_pickup_eligible=True, closing_axis_sign=(-1 if args.flip_closing_axis else 1))
                 if (any(abs(a-b) > 0.003 for a, b in zip(current_candidate.position,
                                                            locked_target.position)) or
                         abs(sum(a*b for a, b in zip(current_candidate.orientation_xyzw,
