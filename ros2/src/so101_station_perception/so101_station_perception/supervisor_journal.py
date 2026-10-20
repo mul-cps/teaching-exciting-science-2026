@@ -11,7 +11,7 @@ from .supervisor_policy import SupervisorPolicy
 
 
 class SupervisorJournal:
-    def __init__(self,directory,baseline_sha):
+    def __init__(self,directory,baseline_sha,confirmed_adoption=None):
         self.directory=Path(directory).resolve()
         require(self.directory.is_dir(),'existing trusted supervisor journal directory required')
         self.path=self.directory/'perception-supervisor.json'
@@ -46,6 +46,9 @@ class SupervisorJournal:
                 require(type(history.get('last_mono')) in (int,float) and now>=history['last_mono'] and utc>=history['last_utc'] and
                     abs((utc-history['last_utc'])-(now-history['last_mono']))<=2.,'persisted wall/monotonic clock discontinuity')
             else:self.loaded={}
+            if confirmed_adoption is not None:
+                from .adoption_ack import acknowledge_receipts
+                acknowledge_receipts(self,confirmed_adoption)
             from .late_adoption import load_restart_marker
             load_restart_marker(self)
         except BaseException:self.close();raise
