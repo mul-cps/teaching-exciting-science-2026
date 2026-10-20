@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install -e '.[test,materials]'
-      - run: python -m pytest -q
+      - run: python tools/test_cpu.py
       - run: python -m workshop --cycles 5
       - run: python tools/build_materials.py
       - uses: actions/upload-artifact@v4
