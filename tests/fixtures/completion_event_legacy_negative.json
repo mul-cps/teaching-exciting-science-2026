@@ -1,0 +1,130 @@
+{
+  "schema": "completion-event-legacy-negative-replay-v1",
+  "immutable_historical_input": true,
+  "source_path": "/home/bjoern/.local/share/exciting-science/station/evidence/2026-10-19-sorting/overnight/private-availability-repair/natural-repair-observation/actual-natural-observation-1792465446805013913.json",
+  "source_sha256": "c4d4c58713497e99d50c8e6ea698402080a10c53acd9782f99d7f04146ce4399",
+  "accepted": {
+    "job_id": "2807a4ce9f34434386dbb58f5d496f08",
+    "deadline": 331953.930499427,
+    "reserved_monotonic": 331913.917846428,
+    "outage_id": "96f0bf3d0a19447e97d1cd001a4879ed"
+  },
+  "repair": {
+    "repair_id": "76a695598dc0436e986a32d864d2dd05",
+    "outage_id": "96f0bf3d0a19447e97d1cd001a4879ed",
+    "origin": "private_availability_repair",
+    "entry_monotonic": 331912.900163384,
+    "entry_ros_ns": 1792465405184624195,
+    "deadline_monotonic": 331914.900163384
+  },
+  "raw_rows": [
+    {
+      "kind": "coordinator_status",
+      "raw": "{\"schema\":\"so101-perception-recovery-v1\",\"state\":\"wait_consumer_admissions\",\"job_id\":\"2807a4ce9f34434386dbb58f5d496f08\",\"operation_success\":false,\"ready_now\":false,\"qualified\":false,\"execution_enabled\":false,\"scope\":\"source admission only; not objects/calibration/motion\",\"deadline_monotonic\":331953.930499427,\"reason\":null,\"configured_consumers\":[\"/so101_charuco_world\",\"/so101_colored_objects\"],\"rebound_consumers\":[\"/so101_charuco_world\",\"/so101_colored_objects\"],\"native_pairs\":[[{\"stamp\":1792465406217709473,\"gid\":\"01107ab6ad760a9fcdb810b200001803\",\"receipt\":331913.950834696},{\"stamp\":1792465406217732422,\"gid\":\"01107ab6ad760a9fcdb810b200001b03\",\"receipt\":331913.976396786}],[{\"stamp\":1792465406284417480,\"gid\":\"01107ab6ad760a9fcdb810b200001803\",\"receipt\":331914.018105551},{\"stamp\":1792465406251086426,\"gid\":\"01107ab6ad760a9fcdb810b200001b03\",\"receipt\":331914.010349452}]],\"accepted_reset_id\":\"24348ac104294973a9c39167334bb7ab\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"producer_witnesses\":[{\"sequence\":3,\"depth_stamp_ns\":1792465409086221924,\"color_stamp_ns\":1792465409052889648,\"original_received_monotonic\":331916.857897928},{\"sequence\":4,\"depth_stamp_ns\":1792465409119576904,\"color_stamp_ns\":1792465409086244873,\"original_received_monotonic\":331916.888971286}],\"artifact\":\"/home/bjoern/.local/share/exciting-science/station/evidence/2026-10-19-sorting/overnight/recovery-coordinator/live-artifacts/2807a4ce9f34434386dbb58f5d496f08.json\",\"artifact_sha256\":\"547e35be994d38d1882d1301a0a35f9cdbe406842cc66dcc7bc2d07e112b13ca\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"consumer_status\":{\"/so101_charuco_world\":{\"state\":\"ready\",\"reason\":\"\",\"sequence\":10,\"independent_observations\":1},\"/so101_colored_objects\":{\"state\":\"ready\",\"reason\":\"\",\"sequence\":11,\"independent_observations\":1}}}",
+      "receipt_monotonic": 331917.437274923,
+      "receipt_ros_ns": 1792465409721729413,
+      "rpc_success": true,
+      "request_monotonic": 331917.436051127,
+      "request_ros_ns": 1792465409720499855,
+      "done_monotonic": 331917.437274923,
+      "done_ros_ns": 1792465409721729413,
+      "take_monotonic": 331917.437280343,
+      "take_ros_ns": 1792465409721732969,
+      "check_monotonic": 331917.43735287,
+      "check_ros_ns": 1792465409721804735
+    },
+    {
+      "kind": "coordinator_status",
+      "raw": "{\"schema\":\"so101-perception-recovery-v1\",\"state\":\"completed\",\"job_id\":\"2807a4ce9f34434386dbb58f5d496f08\",\"operation_success\":true,\"ready_now\":false,\"qualified\":false,\"execution_enabled\":false,\"scope\":\"source admission only; not objects/calibration/motion\",\"deadline_monotonic\":331953.930499427,\"reason\":null,\"configured_consumers\":[\"/so101_charuco_world\",\"/so101_colored_objects\"],\"rebound_consumers\":[\"/so101_charuco_world\",\"/so101_colored_objects\"],\"native_pairs\":[[{\"stamp\":1792465406217709473,\"gid\":\"01107ab6ad760a9fcdb810b200001803\",\"receipt\":331913.950834696},{\"stamp\":1792465406217732422,\"gid\":\"01107ab6ad760a9fcdb810b200001b03\",\"receipt\":331913.976396786}],[{\"stamp\":1792465406284417480,\"gid\":\"01107ab6ad760a9fcdb810b200001803\",\"receipt\":331914.018105551},{\"stamp\":1792465406251086426,\"gid\":\"01107ab6ad760a9fcdb810b200001b03\",\"receipt\":331914.010349452}]],\"accepted_reset_id\":\"24348ac104294973a9c39167334bb7ab\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"producer_witnesses\":[{\"sequence\":3,\"depth_stamp_ns\":1792465409086221924,\"color_stamp_ns\":1792465409052889648,\"original_received_monotonic\":331916.857897928},{\"sequence\":4,\"depth_stamp_ns\":1792465409119576904,\"color_stamp_ns\":1792465409086244873,\"original_received_monotonic\":331916.888971286}],\"artifact\":\"/home/bjoern/.local/share/exciting-science/station/evidence/2026-10-19-sorting/overnight/recovery-coordinator/live-artifacts/2807a4ce9f34434386dbb58f5d496f08.json\",\"artifact_sha256\":\"547e35be994d38d1882d1301a0a35f9cdbe406842cc66dcc7bc2d07e112b13ca\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"consumer_status\":{\"/so101_charuco_world\":{\"state\":\"ready\",\"reason\":\"\",\"sequence\":16,\"independent_observations\":1},\"/so101_colored_objects\":{\"state\":\"ready\",\"reason\":\"\",\"sequence\":17,\"independent_observations\":1}},\"consumers\":{\"/so101_charuco_world\":{\"latest\":{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"4da9893ddfd54519a4160fcf7c644a26\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":16,\"depth_stamp_ns\":1792465409553192383,\"color_stamp_ns\":1792465409553215332,\"original_receipt_expiry_monotonic\":331917.536594063,\"original_header_expiry_ros_ns\":1792465410053192383,\"checked_ros_ns\":1792465409727035073},\"witnesses\":[{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"4da9893ddfd54519a4160fcf7c644a26\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":10,\"depth_stamp_ns\":1792465409353062256,\"color_stamp_ns\":1792465409353085205,\"original_receipt_expiry_monotonic\":331917.336430376,\"original_header_expiry_ros_ns\":1792465409853062256,\"checked_ros_ns\":1792465409518332301},{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"4da9893ddfd54519a4160fcf7c644a26\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":16,\"depth_stamp_ns\":1792465409553192383,\"color_stamp_ns\":1792465409553215332,\"original_receipt_expiry_monotonic\":331917.536594063,\"original_header_expiry_ros_ns\":1792465410053192383,\"checked_ros_ns\":1792465409727035073}]},\"/so101_colored_objects\":{\"latest\":{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"88a87610914a46bfa2315bcb55264f11\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":17,\"depth_stamp_ns\":1792465409586547363,\"color_stamp_ns\":1792465409586570313,\"original_receipt_expiry_monotonic\":331917.570408077,\"original_header_expiry_ros_ns\":1792465410086547363,\"checked_ros_ns\":1792465409734996259},\"witnesses\":[{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"88a87610914a46bfa2315bcb55264f11\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":11,\"depth_stamp_ns\":1792465409386417236,\"color_stamp_ns\":1792465409386440186,\"original_receipt_expiry_monotonic\":331917.364862075,\"original_header_expiry_ros_ns\":1792465409853085205,\"checked_ros_ns\":1792465409526807836},{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"88a87610914a46bfa2315bcb55264f11\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":17,\"depth_stamp_ns\":1792465409586547363,\"color_stamp_ns\":1792465409586570313,\"original_receipt_expiry_monotonic\":331917.570408077,\"original_header_expiry_ros_ns\":1792465410086547363,\"checked_ros_ns\":1792465409734996259}]}},\"readiness_reason\":\"derived lineage: source receipts expired/future\"}",
+      "receipt_monotonic": 331917.539819975,
+      "receipt_ros_ns": 1792465409824275225,
+      "rpc_success": true,
+      "request_monotonic": 331917.536577162,
+      "request_ros_ns": 1792465409821026141,
+      "done_monotonic": 331917.539819975,
+      "done_ros_ns": 1792465409824275225,
+      "take_monotonic": 331917.539833711,
+      "take_ros_ns": 1792465409824283601,
+      "check_monotonic": 331917.540086838,
+      "check_ros_ns": 1792465409824534995
+    },
+    {
+      "kind": "coordinator_status",
+      "raw": "{\"schema\":\"so101-perception-recovery-v1\",\"state\":\"completed\",\"job_id\":\"2807a4ce9f34434386dbb58f5d496f08\",\"operation_success\":true,\"ready_now\":false,\"qualified\":false,\"execution_enabled\":false,\"scope\":\"source admission only; not objects/calibration/motion\",\"deadline_monotonic\":331953.930499427,\"reason\":null,\"configured_consumers\":[\"/so101_charuco_world\",\"/so101_colored_objects\"],\"rebound_consumers\":[\"/so101_charuco_world\",\"/so101_colored_objects\"],\"native_pairs\":[[{\"stamp\":1792465406217709473,\"gid\":\"01107ab6ad760a9fcdb810b200001803\",\"receipt\":331913.950834696},{\"stamp\":1792465406217732422,\"gid\":\"01107ab6ad760a9fcdb810b200001b03\",\"receipt\":331913.976396786}],[{\"stamp\":1792465406284417480,\"gid\":\"01107ab6ad760a9fcdb810b200001803\",\"receipt\":331914.018105551},{\"stamp\":1792465406251086426,\"gid\":\"01107ab6ad760a9fcdb810b200001b03\",\"receipt\":331914.010349452}]],\"accepted_reset_id\":\"24348ac104294973a9c39167334bb7ab\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"producer_witnesses\":[{\"sequence\":3,\"depth_stamp_ns\":1792465409086221924,\"color_stamp_ns\":1792465409052889648,\"original_received_monotonic\":331916.857897928},{\"sequence\":4,\"depth_stamp_ns\":1792465409119576904,\"color_stamp_ns\":1792465409086244873,\"original_received_monotonic\":331916.888971286}],\"artifact\":\"/home/bjoern/.local/share/exciting-science/station/evidence/2026-10-19-sorting/overnight/recovery-coordinator/live-artifacts/2807a4ce9f34434386dbb58f5d496f08.json\",\"artifact_sha256\":\"547e35be994d38d1882d1301a0a35f9cdbe406842cc66dcc7bc2d07e112b13ca\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"consumer_status\":{\"/so101_charuco_world\":{\"state\":\"ready\",\"reason\":\"\",\"sequence\":16,\"independent_observations\":1},\"/so101_colored_objects\":{\"state\":\"ready\",\"reason\":\"\",\"sequence\":17,\"independent_observations\":1}},\"consumers\":{\"/so101_charuco_world\":{\"latest\":{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"4da9893ddfd54519a4160fcf7c644a26\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":16,\"depth_stamp_ns\":1792465409553192383,\"color_stamp_ns\":1792465409553215332,\"original_receipt_expiry_monotonic\":331917.536594063,\"original_header_expiry_ros_ns\":1792465410053192383,\"checked_ros_ns\":1792465409727035073},\"witnesses\":[{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"4da9893ddfd54519a4160fcf7c644a26\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":10,\"depth_stamp_ns\":1792465409353062256,\"color_stamp_ns\":1792465409353085205,\"original_receipt_expiry_monotonic\":331917.336430376,\"original_header_expiry_ros_ns\":1792465409853062256,\"checked_ros_ns\":1792465409518332301},{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"4da9893ddfd54519a4160fcf7c644a26\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":16,\"depth_stamp_ns\":1792465409553192383,\"color_stamp_ns\":1792465409553215332,\"original_receipt_expiry_monotonic\":331917.536594063,\"original_header_expiry_ros_ns\":1792465410053192383,\"checked_ros_ns\":1792465409727035073}]},\"/so101_colored_objects\":{\"latest\":{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"88a87610914a46bfa2315bcb55264f11\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":17,\"depth_stamp_ns\":1792465409586547363,\"color_stamp_ns\":1792465409586570313,\"original_receipt_expiry_monotonic\":331917.570408077,\"original_header_expiry_ros_ns\":1792465410086547363,\"checked_ros_ns\":1792465409734996259},\"witnesses\":[{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"88a87610914a46bfa2315bcb55264f11\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":11,\"depth_stamp_ns\":1792465409386417236,\"color_stamp_ns\":1792465409386440186,\"original_receipt_expiry_monotonic\":331917.364862075,\"original_header_expiry_ros_ns\":1792465409853085205,\"checked_ros_ns\":1792465409526807836},{\"schema\":\"so101-derived-admission-status-v1\",\"state\":\"ready\",\"qualified\":false,\"execution_enabled\":false,\"scope\":\"checked source admission; not detection or physical qualification\",\"consumer_epoch\":\"88a87610914a46bfa2315bcb55264f11\",\"source_pin_sha256\":\"6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5\",\"producer_generation\":\"9298aaf5a61e4dc48948a0996b6ab091\",\"sequence\":17,\"depth_stamp_ns\":1792465409586547363,\"color_stamp_ns\":1792465409586570313,\"original_receipt_expiry_monotonic\":331917.570408077,\"original_header_expiry_ros_ns\":1792465410086547363,\"checked_ros_ns\":1792465409734996259}]}},\"readiness_reason\":\"derived lineage: own original lineage receipt expired/future\"}",
+      "receipt_monotonic": 331917.642912258,
+      "receipt_ros_ns": 1792465409927366627,
+      "rpc_success": true,
+      "request_monotonic": 331917.641239635,
+      "request_ros_ns": 1792465409925691229,
+      "done_monotonic": 331917.642912258,
+      "done_ros_ns": 1792465409927366627,
+      "take_monotonic": 331917.642917628,
+      "take_ros_ns": 1792465409927370103,
+      "check_monotonic": 331917.643034628,
+      "check_ros_ns": 1792465409927486463
+    }
+  ],
+  "cohorts": {
+    "9298aaf5a61e4dc48948a0996b6ab091:10": {
+      "sequence": 10,
+      "generation": "9298aaf5a61e4dc48948a0996b6ab091",
+      "pin_sha256": "6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5",
+      "depth_stamp_ns": 1792465409353062256,
+      "color_stamp_ns": 1792465409353085205,
+      "header_expiry_ros_ns": 1792465409853062256,
+      "source_expiry_monotonic": 331917.336602059,
+      "identity_expiry_monotonic": 331917.834659116,
+      "original_receipt_monotonic": 331917.143336645,
+      "statement_sha256": "2d04fa8d8e4306df7782367f65971f4ef905f29ccb7b247b518a8567b3003192"
+    },
+    "9298aaf5a61e4dc48948a0996b6ab091:11": {
+      "sequence": 11,
+      "generation": "9298aaf5a61e4dc48948a0996b6ab091",
+      "pin_sha256": "6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5",
+      "depth_stamp_ns": 1792465409386417236,
+      "color_stamp_ns": 1792465409386440186,
+      "header_expiry_ros_ns": 1792465409853085205,
+      "source_expiry_monotonic": 331917.365578666,
+      "identity_expiry_monotonic": 331917.834659116,
+      "original_receipt_monotonic": 331917.178200739,
+      "statement_sha256": "1d8a5bef2b6d70ba545d7185c1efae1a8125f0987b1d91ee236593ed1f5c22ce"
+    },
+    "9298aaf5a61e4dc48948a0996b6ab091:16": {
+      "sequence": 16,
+      "generation": "9298aaf5a61e4dc48948a0996b6ab091",
+      "pin_sha256": "6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5",
+      "depth_stamp_ns": 1792465409553192383,
+      "color_stamp_ns": 1792465409553215332,
+      "header_expiry_ros_ns": 1792465410053192383,
+      "source_expiry_monotonic": 331917.536594063,
+      "identity_expiry_monotonic": 331917.834659116,
+      "original_receipt_monotonic": 331917.344033558,
+      "statement_sha256": "a34a558f98d51481b0d75bb15b9c3c0b6fdbc530395a4ed1fa1e096088cf33b5"
+    },
+    "9298aaf5a61e4dc48948a0996b6ab091:17": {
+      "sequence": 17,
+      "generation": "9298aaf5a61e4dc48948a0996b6ab091",
+      "pin_sha256": "6daeb990fdb20ff62281d905ebf2c4b15f0246cc106c5b01b6f1f234590b1aa5",
+      "depth_stamp_ns": 1792465409586547363,
+      "color_stamp_ns": 1792465409586570313,
+      "header_expiry_ros_ns": 1792465410086547363,
+      "source_expiry_monotonic": 331917.570694778,
+      "identity_expiry_monotonic": 331917.834659116,
+      "original_receipt_monotonic": 331917.379131482,
+      "statement_sha256": "395a9b93a3dec2ec9285ce101fe69e06ed2ef6dbc3e19c345b65de0a5db94773"
+    }
+  },
+  "expected": {
+    "legacy_current_completion_at_take": false,
+    "historical_operation_success": true,
+    "supervisor_adopted": true,
+    "new_completion_event_available": false,
+    "must_not_synthesize_event": true,
+    "must_not_relabel_original_negative": true
+  },
+  "missing_original_evidence": [
+    "per-witness coordinator consumption monotonic/ROS pair",
+    "per-witness coordinator selected lineage first receipt",
+    "coordinator final completion checked clocks/event digest"
+  ]
+}

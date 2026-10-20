@@ -1,5 +1,6 @@
 """Explicit bounded metadata-only perception recovery. Never motion authority."""
 from copy import deepcopy
+from collections import deque
 import hashlib
 import json
 import os
@@ -61,9 +62,16 @@ class PerceptionRecovery(Node):
     def __init__(self):
         super().__init__('so101_perception_recovery')
         readonly = ParameterDescriptor(read_only=True)
-        for key, default in (('enabled', False), ('artifact_directory', ''),
+        for key, default in (('enabled', False), ('expose_completion_evidence', False), ('artifact_directory', ''),
                 ('expected_source_cohort', ''), ('expected_serial', '243322071783')):
             self.declare_parameter(key, default, readonly)
+        self.expose_completion_evidence = self.get_parameter('expose_completion_evidence').value
+        require(type(self.expose_completion_evidence) is bool, 'evidence exposure requires strict bool')
+        if self.expose_completion_evidence:
+            self._evidence_boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+            self._evidence_instance = uuid.uuid4().hex
+            self._completion_event = None; self._evidence_error = None
+            self._event_witnesses = {}; self._event_high = {}; self._rpc_trace = None
         require(self.get_parameter('enabled').value is True, 'explicit enabled=true required')
         self.directory = Path(self.get_parameter('artifact_directory').value).expanduser().resolve()
         require(bool(self.get_parameter('artifact_directory').value) and self.directory.is_dir(),
@@ -163,6 +171,9 @@ class PerceptionRecovery(Node):
             if reason:
                 response.success = False; response.message = bounded_json(dict(accepted=False, reason=reason)); return response
             started = time.monotonic(); self.last_start = started; self.budget = Budget(started)
+            if getattr(self, 'expose_completion_evidence', False):
+                self._completion_event = None; self._evidence_error = None
+                self._event_witnesses = {}; self._event_high = {}; self._rpc_trace = None
             self.cancel.clear(); self.expected_generation = self.old_generation = None
             self.native = NativePairs(start_ns=self.get_clock().now().nanoseconds, start_mono=started)
             self.ledger = LineageBuffer(); self.progress = {}; self.pin = None
@@ -192,7 +203,7 @@ class PerceptionRecovery(Node):
         self._guard(); self.cancel.wait(min(seconds, max(0., self.budget.deadline-time.monotonic()))); self._guard()
 
     def _rpc(self, endpoint, request):
-        self._guard(); deadline = self.budget.rpc_deadline(time.monotonic()); client = self.rpc_clients[endpoint]
+        self._guard(); started = time.monotonic(); deadline = self.budget.rpc_deadline(started); client = self.rpc_clients[endpoint]
         self.rpc_deadline = deadline
         future = None
         try:
@@ -204,7 +215,10 @@ class PerceptionRecovery(Node):
             while not future.done():
                 self._guard(); require(time.monotonic() <= deadline, 'RPC timeout; completion unknown, no adoption: '+endpoint)
                 self.cancel.wait(.005)
+            if getattr(self, 'expose_completion_evidence', False): observed_done = time.monotonic()
             response = future.result()
+            if getattr(self, 'expose_completion_evidence', False):
+                self._rpc_trace = (started, observed_done, time.monotonic(), deadline)
             self._guard(); require(time.monotonic() <= deadline and response is not None,
                                    'RPC response expired/unknown: '+endpoint)
             return response
@@ -436,7 +450,10 @@ class PerceptionRecovery(Node):
                                 and (now_mono >= proof['original_receipt_expiry_monotonic']
                                      or now_ns >= proof['original_header_expiry_ros_ns'])):
                             progress.clear_current()
-                        else: progress.observe(proof, statement, now_ns=now_ns, now_mono=now_mono)
+                        else:
+                            progress.observe(proof, statement, now_ns=now_ns, now_mono=now_mono)
+                            if getattr(self, 'expose_completion_evidence', False):
+                                self._capture_event_witness(consumer, proof, statement)
                     self._rpc_guard()
                 try:
                     if self._proofs_ready(): break
@@ -448,13 +465,20 @@ class PerceptionRecovery(Node):
                 self._proofs_ready()
                 completed = dict(self.result, state='completed', operation_success=True, ready_now=True,
                     consumers={k:dict(latest=deepcopy(v.current), witnesses=list(v.witnesses)) for k,v in self.progress.items()})
+                event = None
+                if getattr(self, 'expose_completion_evidence', False): event = self._prepare_event()
                 bounded_json(completed); self._guard(); self._proofs_ready()
+                if getattr(self, 'expose_completion_evidence', False):
+                    event = self._event_commit_gate(event)
+                    # New metadata access cannot rescue expired legacy completion.
+                    self._guard(); self._proofs_ready()
+                    self._completion_event = PerceptionRecovery._completion_final(self, event)
                 self.result = completed
                 self.watch_until = min(p.current['original_receipt_expiry_monotonic'] for p in self.progress.values())
         except Exception as error:
             with self.lock: self.result.update(state='failed', operation_success=False, ready_now=False, reason=str(error)[:512])
 
-    def _status(self, request, response):
+    def _legacy_status(self, request, response):
         with self.lock:
             if self._active() and not self.result['operation_success'] and time.monotonic() > self.budget.deadline:
                 self.cancel.set(); self.result.update(state='failed', operation_success=False, ready_now=False,
@@ -471,6 +495,153 @@ class PerceptionRecovery(Node):
                 result['ready_now'] = False; result['readiness_reason'] = str(error)[:512]
                 message = bounded_json(result)
             response.success = True  # status retrieval, not readiness
+            response.message = message
+            return response
+
+    def _capture_event_witness(self, consumer, proof, statement):
+        """Evidence-only, no change to ConsumerProgress or recovery outcome."""
+        from .completion_event import record_witness
+        sequence = proof['sequence']
+        high = self._event_high.get(consumer, 0)
+        if sequence <= high: return  # Never reconstruct missing original evidence.
+        self._event_high[consumer] = sequence
+        records = self._event_witnesses.setdefault(consumer, deque(maxlen=2))
+        try:
+            matched = next(r for r in reversed(self.ledger.entries) if r[0] is statement)
+            request, done, take, deadline = self._rpc_trace
+            ns = self.get_clock().now().nanoseconds; now = time.monotonic()
+            record = record_witness(proof, statement, request_mono=request, observed_done_mono=done,
+                take_mono=take, consumed_mono=now, consumed_ros_ns=ns, rpc_deadline=deadline,
+                lineage_receipt=matched[2], lineage_gid=canonical_gid(matched[1]))
+            # Hash/copy/validation must finish inside the original leases too.
+            final_ns = self.get_clock().now().nanoseconds; final = time.monotonic()
+            require(final <= deadline and final < proof['original_receipt_expiry_monotonic'] and
+                final_ns < proof['original_header_expiry_ros_ns'] and now <= final and ns <= final_ns,
+                'witness evidence materialization crossed original budget')
+            records.append(record)
+        except (ValueError, TypeError, KeyError, StopIteration) as error:
+            self._evidence_error = str(error)[:256]
+        wanted = [p['sequence'] for p in self.progress[consumer].witnesses]
+        self._event_witnesses[consumer] = deque((r for r in records if r['proof']['sequence'] in wanted), maxlen=2)
+
+    def _prepare_event(self):
+        from .completion_event import prepare_completion_event
+        try:
+            consumers = {}
+            for name, progress in self.progress.items():
+                records = list(self._event_witnesses.get(name, ()))
+                require([r['proof']['sequence'] for r in records] == [p['sequence'] for p in progress.witnesses],
+                    'original event witness evidence unavailable')
+                consumers[name] = dict(old_epoch=progress.old_epoch, new_epoch=progress.epoch, witnesses=records)
+            context = dict(boot_id=self._evidence_boot, monotonic_clock_domain='CLOCK_MONOTONIC',
+                coordinator_instance_id=self._evidence_instance, job_id=self.result['job_id'],
+                accepted_reset_id=self.result['accepted_reset_id'], producer_generation=self.expected_generation,
+                source_pin_sha256=pin_digest(self.pin), artifact_sha256=self.artifact_sha, baseline_sha256=self.baseline_sha,
+                job_started_monotonic=self.budget.started, job_deadline_monotonic=self.budget.deadline,
+                job_start_ros_ns=self.native.start_ns)
+            ns = self.get_clock().now().nanoseconds; now = time.monotonic()
+            return prepare_completion_event(context, consumers, checked_mono=now, checked_ros_ns=ns)
+        except (ValueError, TypeError, KeyError, IndexError) as error:
+            self._evidence_error = str(error)[:256]; return None
+
+    def _completion_final(self, event):
+        """Opt-in only: prepare ORIGINAL legacy scalar/ref limits, then no IO."""
+        ledger = self.ledger; producer = self.producer; budget = self.budget
+        generation = self.expected_generation; job = self.result['job_id']
+        currents = [(p, p.current) for p in self.progress.values()]
+        records = list(ledger.entries)
+        require(bool(records) and bool(currents) and producer is not None, 'legacy final context unavailable')
+        matched = [records[-1]]
+        for _, proof in currents:
+            matched.append(next(r for r in reversed(records) if r[0]['sequence'] == proof['sequence'] and
+                all(r[0]['original'][k] == proof[k] for k in ('depth_stamp_ns','color_stamp_ns'))))
+        mono_limit = min([budget.deadline, producer[2]+.250] +
+            [p['original_receipt_expiry_monotonic'] for _,p in currents] +
+            [min(r[0]['health']['source_expiry_monotonic'], r[0]['identity']['expires_monotonic'], r[2]+.250) for r in matched])
+        ros_limit = min([p['original_header_expiry_ros_ns'] for _,p in currents] +
+            [min(r[0]['original'][k] for k in ('depth_stamp_ns','color_stamp_ns','depth_info_stamp_ns','color_info_stamp_ns'))+500_000_000 for r in matched])
+        # All tuple walks, metadata reads, graph validation and event construction
+        # precede these clocks. Keep original references; do not refetch receipts.
+        ns = self.get_clock().now().nanoseconds; now = time.monotonic()
+        require(not self.closed and not self.cancel.is_set() and self.ledger is ledger and self.producer is producer
+            and self.budget is budget and self.expected_generation == generation and self.result['job_id'] == job
+            and all(progress.current is proof for progress,proof in currents), 'legacy final context changed')
+        require(budget.started <= now < mono_limit and self.native.start_ns <= ns < ros_limit,
+            'legacy original deadline expired after evidence access')
+        if event is not None and (now < event['event_checked_monotonic'] or ns < event['event_checked_ros_ns']
+                or now >= event['latest_valid_until_monotonic'] or ns >= event['latest_header_valid_until_ros_ns']):
+            self._evidence_error = 'completion evidence unavailable at final legacy gate'; return None
+        return event
+
+    def _event_commit_gate(self, event):
+        if event is None: return None
+        # All preparation/hash/serialization/graph IO is complete; only original
+        # scalar clocks and the single prepared-reference assignment remain.
+        ns = self.get_clock().now().nanoseconds; now = time.monotonic()
+        if (self.closed or self.cancel.is_set() or now < event['event_checked_monotonic']
+                or ns < event['event_checked_ros_ns'] or now > self.budget.deadline
+                or now >= event['latest_valid_until_monotonic'] or ns >= event['latest_header_valid_until_ros_ns']):
+            self._evidence_error = 'completion evidence final original clock gate unavailable'; return None
+        return event
+
+    def _readiness_snapshot(self, ready, reason):
+        from .completion_event import READINESS_SCHEMA
+        receipt = identity = local = effective = header = None
+        if ready:
+            records = list(self.ledger.entries)
+            proofs = [p.current for p in self.progress.values()]
+            matched = [records[-1]]
+            for proof in proofs:
+                matched.append(next(r for r in reversed(records) if r[0]['sequence'] == proof['sequence'] and
+                    all(r[0]['original'][k] == proof[k] for k in ('depth_stamp_ns','color_stamp_ns'))))
+            receipt = min([self.producer[2]+.250] + [p['original_receipt_expiry_monotonic'] for p in proofs] +
+                [r[0]['health']['source_expiry_monotonic'] for r in matched])
+            identity = min(r[0]['identity']['expires_monotonic'] for r in matched)
+            local = min(r[2]+.250 for r in matched)
+            effective = min(receipt, identity, local)
+            if self._active(): effective = min(effective, self.budget.deadline)
+            header = min([p['original_header_expiry_ros_ns'] for p in proofs] +
+                [min(r[0]['original'][k] for k in ('depth_stamp_ns','color_stamp_ns','depth_info_stamp_ns','color_info_stamp_ns'))+500_000_000 for r in matched])
+        ns = self.get_clock().now().nanoseconds; now = time.monotonic()
+        if ready and (now >= effective or ns >= header): ready=False; reason='current original evidence expired during snapshot'
+        return dict(schema=READINESS_SCHEMA, ready=ready, checked_monotonic=now, checked_ros_ns=ns, reason=reason,
+            original_receipt_valid_until_monotonic=receipt, original_identity_valid_until_monotonic=identity,
+            original_local_lineage_valid_until_monotonic=local, effective_valid_until_monotonic=effective,
+            original_header_valid_until_ros_ns=header, qualified=False, execution_enabled=False)
+
+    def _evidence_status(self, legacy):
+        result = deepcopy(legacy)
+        result['completion_event'] = deepcopy(getattr(self, '_completion_event', None))
+        result['completion_event_unavailable'] = None if result['completion_event'] is not None else (getattr(self, '_evidence_error', None) or 'future owned completion evidence unavailable')
+        try:
+            result['current_readiness'] = self._readiness_snapshot(legacy['ready_now'], legacy.get('readiness_reason'))
+            result['ready_now'] = result['current_readiness']['ready']
+            if not result['ready_now'] and result['current_readiness']['reason'] is not None:
+                result['readiness_reason'] = result['current_readiness']['reason']
+            bounded_json(result)
+            return result
+        except (ValueError, TypeError, KeyError, StopIteration):
+            # New metadata availability can never change legacy operation outcome.
+            return legacy
+
+    def _status(self, request, response):
+        if not getattr(self, 'expose_completion_evidence', False):
+            return PerceptionRecovery._legacy_status(self, request, response)
+        from .completion_event import validate_current_readiness
+        with self.lock:
+            response = PerceptionRecovery._legacy_status(self, request, response)
+            legacy = json.loads(response.message)
+            result = self._evidence_status(legacy)
+            message = bounded_json(result)
+            if result['ready_now']:
+                try:
+                    self._artifact_unchanged(); require(self._proofs_ready(job=False), 'current proofs unavailable after extension materialization')
+                    ns = self.get_clock().now().nanoseconds; now = time.monotonic()
+                    if 'current_readiness' in result:
+                        require(validate_current_readiness(result['current_readiness'], take_mono=now, take_ros_ns=ns), 'original current limits expired after materialization')
+                except (ValueError, OSError, KeyError, TypeError):
+                    legacy['ready_now'] = False; legacy['readiness_reason'] = 'current final evidence unavailable after extension materialization'
+                    result = self._evidence_status(legacy); message = bounded_json(result)
             response.message = message
             return response
 
