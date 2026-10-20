@@ -10,12 +10,14 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('enabled', default_value='false'),
+        DeclareLaunchArgument('expose_completion_evidence', default_value='false'),
         DeclareLaunchArgument('artifact_directory', default_value=''),
         DeclareLaunchArgument('expected_source_cohort', default_value=''),
         DeclareLaunchArgument('expected_serial', default_value='243322071783'),
         Node(package='so101_station_perception', executable='perception_recovery',
              condition=IfCondition(LaunchConfiguration('enabled')), output='screen',
-             parameters=[{'enabled': ParameterValue(LaunchConfiguration('enabled'),value_type=bool),
+             parameters=[{'expose_completion_evidence': ParameterValue(LaunchConfiguration('expose_completion_evidence'),value_type=bool),
+                'enabled': ParameterValue(LaunchConfiguration('enabled'),value_type=bool),
                 'artifact_directory': ParameterValue(LaunchConfiguration('artifact_directory'),value_type=str),
                 'expected_source_cohort': ParameterValue(LaunchConfiguration('expected_source_cohort'),value_type=str),
                 'expected_serial': ParameterValue(LaunchConfiguration('expected_serial'),value_type=str)}]),
