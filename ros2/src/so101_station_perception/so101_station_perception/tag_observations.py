@@ -1,6 +1,7 @@
 """Publish depth-backed AprilTag center observations without adding TF frames."""
 
 import time
+import json
 
 import cv2
 import message_filters
@@ -11,6 +12,7 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, Image
+from std_msgs.msg import String
 from visualization_msgs.msg import Marker, MarkerArray
 
 
@@ -124,6 +126,52 @@ def unassociated_tag_points(detections, depth, intrinsics, depth_scale_m):
     return observations
 
 
+def compact_tag_detections(detections, depth, intrinsics, depth_scale_m, patterns):
+    """Reuse admitted detector corners; no PnP or second image/detector pass."""
+    from so101_station_projection.tag_depth_pose import estimate_tag_pose
+
+    result = []
+    for detection in detections:
+        code_id = int(detection["code_id"])
+        corners = np.asarray(detection["corners_px"], dtype=float).reshape(4, 2)
+        center = corners.mean(axis=0)
+        observation = dict(code_id=code_id, corners_px=corners.tolist(),
+                           center_px=center.tolist(), measurement_valid=False,
+                           center_camera_m=None, size_m=None, qualified=False,
+                           measurement_source="depth_unavailable")
+        try:
+            if code_id not in patterns:
+                dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_25h9)
+                if hasattr(cv2.aruco, "generateImageMarker"):
+                    pattern = cv2.aruco.generateImageMarker(dictionary, code_id, 7)
+                else:
+                    pattern = cv2.aruco.drawMarker(dictionary, code_id, 7)
+                patterns[code_id] = (pattern > 0).astype(np.uint8)
+            pose = estimate_tag_pose(corners, None, depth, intrinsics, depth_scale_m,
+                                     patterns[code_id], max_ransac_iterations=32)
+            point = np.asarray(pose["camera_from_tag"], dtype=float)[:3, 3]
+            edge = float(np.median(pose["black_edge_side_lengths_m"]))
+            candidates = np.asarray([.0075, .0194])
+            nearest = int(np.argmin(np.abs(candidates - edge) / candidates))
+            size = float(candidates[nearest]) if abs(edge-candidates[nearest]) <= .2*candidates[nearest] else None
+            observation.update(center_camera_m=point.tolist(), size_m=size,
+                               measured_black_edge_m=edge, measurement_valid=True,
+                               measurement_source="white_module_depth_plane",
+                               plane=pose["plane"])
+        except (ValueError, IndexError, TypeError, cv2.error) as error:
+            point = depth_center_point(center, depth, intrinsics, depth_scale_m)
+            u, v = np.rint(center).astype(int)
+            if point is not None:
+                patch = np.asarray(depth[v-1:v+2, u-1:u+2], dtype=float) * depth_scale_m
+                valid = patch[np.isfinite(patch) & (patch > 0)]
+                if len(valid) >= 5 and np.ptp(valid) <= .004:
+                    observation.update(center_camera_m=list(point), measurement_valid=True,
+                                       measurement_source="robust_center_depth_patch",
+                                       plane_unavailable=str(error))
+        result.append(observation)
+    return result
+
+
 class TagObservations(Node):
     def __init__(self, *, subscribe_images=True, use_global_arguments=True,
                  parameter_overrides=None):
@@ -156,6 +204,8 @@ class TagObservations(Node):
         # apply an unverified tag size or assign physical arm-link identities.
         self.detector = TagTracker(detector_scale=2)
         self.publisher = self.create_publisher(MarkerArray, "/so101_perception/tag_observations", 10)
+        self.detections_publisher = self.create_publisher(String, "/so101_perception/tag_detections", 10)
+        self.tag_patterns = {}
         self.info_sub = self.color_sub = self.depth_sub = self.sync = None
         if subscribe_images:
             self.info_sub = self.create_subscription(
@@ -183,7 +233,7 @@ class TagObservations(Node):
         output.markers.append(clear)
         self.publisher.publish(output)
 
-    def _images(self, color_msg, depth_msg, prepared_gray=None, admission_check=None):
+    def _images(self, color_msg, depth_msg, prepared_gray=None, admission_check=None, source_context=None):
         now = self.get_clock().now().nanoseconds * 1e-9
         color_stamp = stamp_seconds(color_msg.header.stamp)
         if not stamp_is_fresh(now, color_stamp):
@@ -214,6 +264,8 @@ class TagObservations(Node):
             clear.action = Marker.DELETEALL
             output.markers.append(clear)
             detections = self.detector.detect(gray)
+            compact = compact_tag_detections(detections, depth, base_intrinsics, depth_scale,
+                                             self.tag_patterns)
             points = unassociated_tag_points(detections, depth, base_intrinsics, depth_scale)
             for marker_id, observation in enumerate(points):
                 point = observation["xyz"]
@@ -246,6 +298,16 @@ class TagObservations(Node):
                 output.markers.append(text)
             if admission_check is not None:
                 admission_check()
+            message = String()
+            message.data = json.dumps(dict(
+                schema="so101-tag-detections-v1", qualified=False,
+                stamp=dict(sec=color_msg.header.stamp.sec, nanosec=color_msg.header.stamp.nanosec),
+                frame_id=color_msg.header.frame_id, image_width=int(depth.shape[1]),
+                image_height=int(depth.shape[0]),
+                source_admission_kind="derived_checked" if admission_check is not None else "native_unattested",
+                source_context=source_context if admission_check is not None else None,
+                observations=compact), allow_nan=False, separators=(",", ":"))
+            self.detections_publisher.publish(message)
             self.publisher.publish(output)
         except (ValueError, TypeError, IndexError, cv2.error) as error:
             self.get_logger().warning(f"Tag observation unavailable: {error}")

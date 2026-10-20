@@ -41,17 +41,28 @@ def world_from_opencv_board():
     return np.diag([1.0, -1.0, -1.0, 1.0])
 
 
-def stabilize_pose(previous, measured, alpha=0.35, observation_gap_s=0.0, max_gap_s=1.0):
+def stabilize_pose(previous, measured, alpha=0.05, observation_gap_s=0.0, max_gap_s=1.0,
+                   translation_deadband_m=0.002, rotation_deadband_rad=math.radians(0.3)):
     """Damp small PnP noise; immediately follow substantial camera movement."""
+    if not math.isfinite(alpha) or not 0 < alpha <= 1:
+        raise ValueError("pose filter alpha must be finite and in (0, 1]")
+    if (not math.isfinite(translation_deadband_m) or translation_deadband_m < 0
+            or not math.isfinite(rotation_deadband_rad) or rotation_deadband_rad < 0):
+        raise ValueError("pose filter deadbands must be finite and nonnegative")
     if previous is None or not 0 <= observation_gap_s <= max_gap_s:
         return measured.copy()
     delta_rotation = measured[:3, :3] @ previous[:3, :3].T
     rvec, _ = cv2.Rodrigues(delta_rotation)
-    if np.linalg.norm(measured[:3, 3] - previous[:3, 3]) > 0.03 or np.linalg.norm(rvec) > 0.12:
+    translation_delta = measured[:3, 3] - previous[:3, 3]
+    translation_distance = np.linalg.norm(translation_delta)
+    rotation_angle = np.linalg.norm(rvec)
+    if translation_distance > 0.03 or rotation_angle > 0.12:
         return measured.copy()
     result = np.eye(4)
-    result[:3, :3] = cv2.Rodrigues(alpha * rvec)[0] @ previous[:3, :3]
-    result[:3, 3] = previous[:3, 3] + alpha * (measured[:3, 3] - previous[:3, 3])
+    result[:3, :3] = (previous[:3, :3] if rotation_angle <= rotation_deadband_rad
+                      else cv2.Rodrigues(alpha * rvec)[0] @ previous[:3, :3])
+    result[:3, 3] = (previous[:3, 3] if translation_distance <= translation_deadband_m
+                    else previous[:3, 3] + alpha * translation_delta)
     return result
 
 
@@ -154,6 +165,9 @@ class CharucoWorld(Node):
             "max_reprojection_error_px": 2.5,
             "max_processing_hz": 5.0,
             "transform_hold_s": 1.0,
+            "pose_filter_alpha": 0.05,
+            "pose_translation_deadband_m": 0.002,
+            "pose_rotation_deadband_deg": 0.3,
             "initial_base_from_camera_file": "",
             "base_registration_file": "",
             "initial_camera_from_board_file": "",
@@ -167,6 +181,14 @@ class CharucoWorld(Node):
         self.min_corners = int(self.get_parameter("min_corners").value)
         self.max_error = float(self.get_parameter("max_reprojection_error_px").value)
         self.period = 1.0 / min(5.0, max(0.1, float(self.get_parameter("max_processing_hz").value)))
+        self.pose_filter_alpha = float(self.get_parameter("pose_filter_alpha").value)
+        self.pose_translation_deadband_m = float(self.get_parameter("pose_translation_deadband_m").value)
+        self.pose_rotation_deadband_deg = float(self.get_parameter("pose_rotation_deadband_deg").value)
+        if not math.isfinite(self.pose_filter_alpha) or not 0 < self.pose_filter_alpha <= 1:
+            raise ValueError("pose_filter_alpha must be finite and in (0, 1]")
+        if (not math.isfinite(self.pose_translation_deadband_m) or self.pose_translation_deadband_m < 0
+                or not math.isfinite(self.pose_rotation_deadband_deg) or self.pose_rotation_deadband_deg < 0):
+            raise ValueError("pose deadbands must be finite and nonnegative")
         self.last_process_mono = 0.0
         self.last_stamp = None
         self.last_valid_stamp = None
@@ -266,12 +288,19 @@ class CharucoWorld(Node):
                 admission_check()
             gap = float("inf") if self.last_valid_stamp is None else stamp - self.last_valid_stamp
             self.filtered_pose = stabilize_pose(self.filtered_pose, board_from_link,
-                                                observation_gap_s=gap, max_gap_s=self.hold_s)
+                                                alpha=self.pose_filter_alpha,
+                                                observation_gap_s=gap, max_gap_s=self.hold_s,
+                                                translation_deadband_m=self.pose_translation_deadband_m,
+                                                rotation_deadband_rad=math.radians(self.pose_rotation_deadband_deg))
             self.last_valid_stamp = stamp
             self.pose_estimate = (self.filtered_pose, stamp)
             self._status("tracking", stamp=stamp, charuco_corners=count, reprojection_rms_px=rms,
                          **plane_metrics, transform_model="last_known_calibration", observation_validity_s=self.hold_s,
-                         parent=self.board_frame, child=self.camera_link_frame)
+                         parent=self.board_frame, child=self.camera_link_frame,
+                         pose_filter_alpha=self.pose_filter_alpha,
+                         pose_translation_deadband_m=self.pose_translation_deadband_m,
+                         pose_rotation_deadband_deg=self.pose_rotation_deadband_deg,
+                         pose_filter_scope="camera extrinsic only")
         except (ValueError, cv2.error, TransformException, np.linalg.LinAlgError) as exc:
             self._status("occluded", stamp=stamp, reason=str(exc))
 

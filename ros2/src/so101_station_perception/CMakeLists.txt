@@ -32,6 +32,7 @@ install(PROGRAMS
   scripts/virtual_gripper_camera
   scripts/diagnostic_pointcloud
   scripts/tag_observations
+  scripts/live_tag_alignment
   scripts/rgbd_evidence_sink
   scripts/charuco_world
   scripts/marker_pipeline
