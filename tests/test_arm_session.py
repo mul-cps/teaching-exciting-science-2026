@@ -50,7 +50,8 @@ class FakeBus:
                      "Torque_Limit": dict.fromkeys(JOINTS, 4)}
         self.data["Max_Position_Limit"]["elbow_flex"] = 3055
         self.writes = []
-        self.goal_history = []
+        self.goal_history = []  # Reconstructed full goal register after each dispatch.
+        self.goal_write_payloads = []  # Exact bus payloads, including joint subsets.
         self.eeprom_writes = []
         self.clamp_goal = False
         self.drift_after_goal = None
@@ -114,7 +115,9 @@ class FakeBus:
         self.data[register].update(values)
         if register == "Goal_Position" and self.drift_after_goal is not None:
             self._drift_pending = True
-        if register == "Goal_Position": self.goal_history.append(dict(values))
+        if register == "Goal_Position":
+            self.goal_write_payloads.append(dict(values))
+            self.goal_history.append(dict(self.data[register]))
         if register == "Goal_Position" and self.on_goal_write is not None:
             self.on_goal_write()
         if register == "Goal_Position" and self.delay_after_goal is not None:
