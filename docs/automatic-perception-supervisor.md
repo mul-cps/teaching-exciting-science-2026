@@ -203,3 +203,10 @@ leases, strict five-second continuous overlap, original two-second pre-outage
 history and dispatch deadlines, quota and cooldown remain unchanged. Diagnostics
 report both periods and the scalar refresh callback count. A healthy sample or
 receipt-only matrix is not full five-second qualification or image progress.
+
+Completed-job adoption filters retained, previously validated lineage at its
+original clocks. Known past entries are skipped; future/context contradictions
+remain fatal. If no current prospective entry exists, the same owned completed
+job waits through its original coordinator deadline using read-only status calls.
+The deadline is checked again after artifact/graph/validation access before any
+local mutation. This does not extend the job or refresh any recorded lease.
