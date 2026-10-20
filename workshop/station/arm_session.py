@@ -1455,6 +1455,8 @@ class ArmSession:
                 motion_started = True
             self._enable_current_goal(start_raw, start_time, "trajectory-start",
                 on_goal_dispatch=before_dispatch if supervised_commissioning else None)
+            # _enable_current_goal has already verified this six-joint goal.
+            last_verified_goal = dict(start_raw)
             started = self.clock()
             previous_feedback = started
             for index, (sample, target_raw) in enumerate(zip(prepared.samples, raw_samples)):
@@ -1467,11 +1469,17 @@ class ArmSession:
                 if self.clock() - deadline > MAX_FEEDBACK_GAP_S:
                     raise RuntimeError("trajectory command missed its scheduled tick")
                 self._calibration_guard()
-                self.bus.sync_write("Goal_Position", target_raw, normalize=False, num_retry=0)
+                # Rewriting an unchanged raw goal may restart a servo's onboard
+                # profile. Feedback and goal verification still run every tick.
+                changed = {joint: value for joint, value in target_raw.items()
+                           if value != last_verified_goal[joint]}
+                if changed:
+                    self.bus.sync_write("Goal_Position", changed, normalize=False, num_retry=0)
                 goal_read_started = self.clock()
                 goals = self._read("Goal_Position")
                 if any(abs(goals[joint] - target_raw[joint]) > 1 for joint in JOINTS):
                     raise RuntimeError("trajectory goal readback mismatch")
+                last_verified_goal = target_raw
                 actual = self._read("Present_Position")
                 read_ended = self.clock()
                 position_utc = self.wall_clock() if supervised_commissioning else None
@@ -1503,22 +1511,24 @@ class ArmSession:
                                          "state_timestamp_utc": state["timestamp_utc"]})
                 self._poll_busy_input()
 
-            # Keep commanding the terminal pose until measured state is within
-            # tolerance for three consecutive observations or deadline expires.
+            # Observe the already verified terminal goal without resubmission
+            # until three in-tolerance observations or the unchanged deadline.
             terminal = raw_samples[-1]
             settled = 0
             settle_deadline = self.clock() + 3.0
             settle_samples = []
             while settled < 3 and self.clock() < settle_deadline:
                 self._poll_busy_input()
-                self.bus.sync_write("Goal_Position", terminal, normalize=False, num_retry=0)
                 read_started = self.clock()
+                goals = self._read("Goal_Position")
+                if any(abs(goals[joint] - terminal[joint]) > 1 for joint in JOINTS):
+                    raise RuntimeError("trajectory settle goal readback mismatch")
                 actual = self._read("Present_Position")
                 read_ended = self.clock()
                 position_utc = self.wall_clock()
                 self._check_feedback_freshness(
                     label=goal_id, phase="trajectory-settle", previous_read_at=previous_feedback,
-                    read_started=read_ended, read_ended=read_ended,
+                    read_started=read_started, read_ended=read_ended,
                     total_missed=0, previous_tick_timing=None)
                 previous_feedback = read_ended
                 if supervised_commissioning:
