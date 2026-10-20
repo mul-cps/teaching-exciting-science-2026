@@ -285,6 +285,7 @@ class TrajectoryBridge(Node):
         self.declare_parameter("station_lock", "")
         self.declare_parameter("owner_idle_timeout_s", 3600.0)
         self.declare_parameter("recover_sag", False)
+        self.declare_parameter("startup_observe_only", False)
         self.declare_parameter("action_name", "/follower/arm_trajectory_controller/follow_joint_trajectory")
         self.declare_parameter("gripper_action_name", "/follower/gripper_controller/gripper_cmd")
         self.declare_parameter("gripper_jaw_calibration", "")
@@ -382,7 +383,9 @@ class TrajectoryBridge(Node):
         self._state_validity = None
         # Tail a separately owned resident without starting, locking, or commanding another owner.
         if not self._external_state_only:
-            self._start_owner()
+            self._reconnect_observe = self.get_parameter("startup_observe_only").value is True
+            self._owner_faulted = self._reconnect_observe
+            self._start_owner(observe_only=self._reconnect_observe)
         self._action = ActionServer(
             self, FollowJointTrajectory,
             str(self.get_parameter("action_name").value),
