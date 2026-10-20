@@ -153,6 +153,7 @@ class ROCmRGBD(Node):
         self.unique = {stream: 0 for stream in TOPICS}
         self.counters = dict(admitted=0, superseded=0, published=0, duplicate=0, stale=0, awaiting_identity=0)
         self.last_status = 0.; self.last_result = None
+        self.last_tick_started_monotonic = None; self.last_tick_gap_s = None
         self.device_client = self.parameter_client = None
         self.client_binding = None
         self.depth_publisher = self.create_publisher(Image, '/so101_perception/rocm/aligned_depth', qos_profile_sensor_data)
@@ -208,7 +209,9 @@ class ROCmRGBD(Node):
         ready = False
         if (result['state'] == 'preparing' and not self.invalid and self.worker.ready
                 and not self.worker.closed and self.identity is not None
-                and self.last_result is not None and count >= 2):
+                and self.last_result is not None and count >= 2
+                and result.get('preparation_completed_monotonic') is not None
+                and result['preparation_completed_monotonic'] <= result['preparation_deadline_monotonic']):
             now = self.get_clock().now().nanoseconds; mono = time.monotonic()
             ready = (self.last_result['producer_generation'] == self.generation
                 and all(0 <= now-self.last_result[k] <= MAX_AGE_NS for k in
@@ -255,7 +258,8 @@ class ROCmRGBD(Node):
             self._last_reset = time.monotonic()
             self._reset = dict(accepted_reset_id=uuid.uuid4().hex,
                 new_producer_generation=uuid.uuid4().hex, state='resetting', reason=None,
-                published_at_start=self.counters['published'])
+                published_at_start=self.counters['published'],
+                preparation_deadline_monotonic=self._last_reset+30., source_reacquisitions=0)
             self.generation = self._reset['new_producer_generation']
             self.fault = None  # Explicit accepted reset retires the previous fault identity.
             self._invalidate('explicit source reset accepted; not ready')
@@ -337,13 +341,38 @@ class ROCmRGBD(Node):
             self._invalidate(self.invalid)
 
     def _invalidate(self, reason):
+        now = time.monotonic()
+        transient = isinstance(reason, TypedSourceReceiptGap)
+        snapshot = dict(reason=str(reason)[:1024],
+            code=reason.code if transient else 'unknown_nonrecoverable',
+            producer_generation=self.generation,
+            last_receipt=dict(self.last_receipt),
+            receipt_age_s={stream: now-self.last_receipt[stream] if stream in self.last_receipt else None
+                           for stream in TOPICS},
+            last_header=dict(self.last_header), received=dict(self.received),
+            worker_ready=self.worker.ready if self.worker is not None else None,
+            worker_closed=self.worker.closed if self.worker is not None else None,
+            reset_state=self._reset['state'] if self._reset is not None else None,
+            tick_gap_s=self.last_tick_gap_s)
+        if (transient and self._reset is not None and self._reset['state'] == 'preparing'
+                and self.counters['published']-self._reset['published_at_start'] == 0
+                and now < self._reset['preparation_deadline_monotonic']
+                and self.worker is not None and not self.worker.closed):
+            self._reset['source_reacquisitions'] += 1
+            self._reset['last_source_fault'] = snapshot
+            self._cancel_source_rpc()
+            self.identity = None; self.last_query = float('-inf')
+            self.last_receipt.clear()
+            for buffer in self.buffers.values(): buffer.clear()
+            self.worker.scheduler.pending = None
+            self.preparing_reason = 'explicit reset: reacquiring fresh source after '+str(reason)[:1024]
+            return
         if getattr(self, 'fault', None) is None:
-            transient = isinstance(reason, TypedSourceReceiptGap)
             self.fault = dict(code=reason.code if transient else 'unknown_nonrecoverable',
                 fault_id=uuid.uuid4().hex, producer_generation=self.generation,
-                first_observed_monotonic=time.monotonic(),
+                first_observed_monotonic=now,
                 first_observed_ros_ns=self.get_clock().now().nanoseconds,
-                producer_node_sha256=self.producer_node_sha,
+                producer_node_sha256=self.producer_node_sha, source_snapshot=snapshot,
                 automatic_recovery_class='transient_private_availability' if transient else 'nonrecoverable')
         if (self._reset is not None and self._reset['state'] == 'preparing'
                 and self.counters['published']-self._reset['published_at_start'] < 2):
@@ -544,16 +573,35 @@ class ROCmRGBD(Node):
                 or any(not 0 <= time.monotonic()-receipt <= .250 for receipt in metadata['source_received_monotonic'].values())):
             self.counters['stale'] += 1; return
         started = time.monotonic()
+        if (self._reset is not None and self._reset['state'] == 'preparing'
+                and self.counters['published']-self._reset['published_at_start'] < 2
+                and time.monotonic() > self._reset['preparation_deadline_monotonic']):
+            raise TimeoutError('source reset preparation deadline30s expired')
         self.depth_publisher.publish(image); self.info_publisher.publish(info); self.cloud_publisher.publish(cloud)
         self.lineage_publisher.publish(lineage_message)
         self.counters['published'] += 1
+        if (self._reset is not None and self._reset['state'] == 'preparing'
+                and self.counters['published']-self._reset['published_at_start'] == 2):
+            self._reset['preparation_completed_monotonic'] = time.monotonic()
+            if self._reset['preparation_completed_monotonic'] > self._reset['preparation_deadline_monotonic']:
+                self._reset['state'] = 'reset_failed'
+                self._reset['reason'] = 'source reset preparation deadline30s expired during publication'
+                raise TimeoutError(self._reset['reason'])
         self.last_result = dict(metadata, backend_ms=result['backend_ms'], worker_ms=result['worker_ms'],
             source_age_ms=(final_now-min(metadata['depth_stamp_ns'], metadata['color_stamp_ns']))/1e6,
             cloud_bytes=len(result['cloud']), points=cloud.width, publish_ms=(time.monotonic()-started)*1000)
 
     def _tick(self):
+        now = time.monotonic()
+        self.last_tick_gap_s = (now-self.last_tick_started_monotonic
+                               if self.last_tick_started_monotonic is not None else None)
+        self.last_tick_started_monotonic = now
         if self.closed: return
         try:
+            if (self._reset is not None and self._reset['state'] == 'preparing'
+                    and self.counters['published']-self._reset['published_at_start'] < 2
+                    and now > self._reset['preparation_deadline_monotonic']):
+                raise TimeoutError('source reset preparation deadline30s expired')
             if not self.invalid:
                 if self.identity is not None and any(time.monotonic()-self.last_receipt.get(k, self.identity['confirmed_monotonic']) > .250 for k in TOPICS):
                     raise TypedSourceReceiptGap('private_source_stream_lost', 'source stream lost before publication')

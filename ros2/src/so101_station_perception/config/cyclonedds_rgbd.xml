@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <Internal>
+      <!-- Request the best available receive buffer; no sysctl change is required.
+           This changes neither source identity nor freshness leases. -->
+      <SocketReceiveBufferSize min="default" max="4 MiB"/>
+    </Internal>
+  </Domain>
+</CycloneDDS>
