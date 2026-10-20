@@ -90,3 +90,20 @@ cost. It deliberately excludes image analysis/TF/graph and makes no live
 availability claim. A separate reviewer must ACK static/native/performance
 before integration. Any live objects restart changes consumer epoch: source
 reconciliation/deployment needs separate approval; this feature authorizes none.
+
+Run the dedicated native tests from the repository root:
+
+```bash
+tools/test_perception_supervisor.sh -q \
+  tests/test_object_timing_diagnostic.py \
+  tests/test_object_timing_diagnostic_ros.py
+```
+
+This launcher fixes domain177/localhost before imports. All11 ROS cases must
+pass without skips in the prepared native runtime. Ordinary CPU CI explicitly
+skips these optional cases when `rclpy` cannot be found; an available ROS runtime
+in any other domain still fails before importing/initializing ROS. There is no
+automatic test partitioning: future overnight matrix protocols must explicitly
+add `test_object_timing_diagnostic_ros.py` to both `native177_includes` and
+`native75_excludes` (the station exclusion list derives from the former).
+Historical sealed matrices are unchanged and do not establish this coverage.
