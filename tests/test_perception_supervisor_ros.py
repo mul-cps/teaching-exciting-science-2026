@@ -47,7 +47,7 @@ def test_native_defaults_disabled_and_enable_does_not_trigger_reset(supervisor):
     response=node._status(None,Trigger.Response());state=json.loads(response.message)
     assert response.success and state['qualified'] is False and state['execution_enabled'] is False
     assert node.policy.job is None and not node.rpc
-    assert set(node.rpc_clients)=={module.COORDINATOR+'/start_recovery',module.COORDINATOR+'/recovery_status',*(c+'/derived_source_health' for c in module.CONSUMERS)}
+    assert set(node.rpc_clients)=={module.COORDINATOR+'/start_recovery',module.COORDINATOR+'/recovery_status',*(c+'/derived_source_health' for c in module.CONSUMERS),*(c+'/derived_source_status' for c in module.CONSUMERS)}
     assert not any('reset_source' in k or 'follower' in k for k in node.rpc_clients)
 
 
