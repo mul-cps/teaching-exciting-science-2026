@@ -51,8 +51,8 @@ Startup remains DISABLED. No source/motor/camera/consumer reset calls.
 
 Add optional explicit read-only startup confirmation input (completed CLI receipt
 path+expected SHA, and the acceptance path+SHA for exact pairing). ROOT supplies
-trusted bounded receipts for this migration. Resolve under the trusted station
-artifact directory, cap each input128KiB, reject duplicate/nonfinite JSON, require
+trusted bounded receipts for this migration. Resolve strictly beneath the trusted existing journal
+directory, cap each input128KiB, reject duplicate/nonfinite JSON, require
 exact successful fixed CLI command/service wrapper/raw-vs-parsed status.
 No implicit search for newest artifact. All launch path/SHA parameters typed str.
 
@@ -101,8 +101,9 @@ archive operation and fsync directory. Keep both archive and ACK indefinitely.
   no authority and original marker/journal remain intact.
 - Crash after durable ACK before active-marker removal: new loader recognizes
   ONLY exact matching committed H+ACK+archive+strict candidate descendant and
-  skips UNKNOWN/reconstruction. It may leave the redundant active copy pending
-  explicit cleanup; no source/motor action. Unmatched/malformed ACK remains
+  skips UNKNOWN/reconstruction. It must finish idempotent retirement of the redundant active marker under the
+  lock before normal policy activity. Cleanup failure stays disabled/UNKNOWN.
+  Unmatched/malformed ACK remains
   UNKNOWN, preserving latest journal.
 - Crash after active removal: ordinary constructor restores the already-adopted
   persisted artifact and starts DISABLED. ACK/archive remain audit evidence.
@@ -234,3 +235,7 @@ Read-only string parameters: `confirmed_adoption_acceptance_artifact`, `confirme
 A matching durable ACK encountered with its redundant active marker MUST finish idempotent retirement under the journal lock before normal policy activity. If cleanup cannot be confirmed, remain disabled/UNKNOWN. Do not leave an active old marker while permitting new jobs. Once active marker is absent, ordinary latest journal authority proceeds; historical ACK is not a constraint on later legitimate completed jobs. Existing stale confirmation parameters must never apply an old journal state to new activity.
 
 Implementation is authorized under the overnight instruction after ROOT plan review, with Task A and B independently reviewed and source-pinned in that order. This authorizes no live action by workers.
+
+### Bringup wiring clarification
+
+Source inspection found no existing supervisor include in the aggregate launches. Task A adds a real `perception_supervisor_enabled=false` include in `perception.launch.py` and forwarding in `station_live.launch.py`, including the leaf's existing baseline/journal/artifact/serial inputs plus the four confirmation strings. Aggregate argument names use the `perception_supervisor_` prefix; leaf/node confirmation names remain the exact names above. Defaults do not start another supervisor or change any camera/consumer/motion behavior. The launch flag only spawns an available supervisor whose policy still starts DISABLED. Document the separately launched recovery coordinator dependency; do not add coordinator wiring in this task. Task B forwards its new default-false repair boolean through the same include.

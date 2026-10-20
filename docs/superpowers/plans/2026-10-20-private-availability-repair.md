@@ -28,7 +28,7 @@
 
 ### Task A: Acknowledge proved historical adoption
 
-**Files:** create `ros2/src/so101_station_perception/so101_station_perception/adoption_ack.py`; modify `supervisor_journal.py`, `late_adoption.py`, `perception_supervisor.py` in that package; forward read-only inputs through `ros2/src/so101_station_perception/launch/{perception_supervisor,perception}.launch.py` and `ros2/src/so101_station_bringup/launch/station_live.launch.py`; dedicated `tests/test_supervisor_adoption_ack*.py`; docs.
+**Files:** create `ros2/src/so101_station_perception/so101_station_perception/adoption_ack.py`; modify `supervisor_journal.py`, `late_adoption.py`, `perception_supervisor.py` in that package; add a real default-off supervisor include and forward its existing baseline/journal/artifact/serial plus new read-only inputs through `ros2/src/so101_station_perception/launch/{perception_supervisor,perception}.launch.py` and `ros2/src/so101_station_bringup/launch/station_live.launch.py`; dedicated `tests/test_supervisor_adoption_ack*.py`; docs.
 
 **Interface:** `acknowledge_receipts(journal, acceptance_path, acceptance_sha256, completed_path, completed_sha256)` performs the explicit startup migration under the existing lock before `load_restart_marker`. `acknowledge_runtime(journal, result)` handles only the node's own successful late result before existing explicit enable. Both return bounded historical ACK metadata and preserve actual journal bytes. Controlled H-keyed archive/ACK files are validated on restart if an active marker remains; absent active marker does not resurrect old state.
 
