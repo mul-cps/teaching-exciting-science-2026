@@ -217,3 +217,51 @@ home, gripping, placing and physical acceptance remain unqualified.
 - The live diagnostic succeeded AFTER explicit verified stop:16reads in9.535ms, unchanged exact six raw maps and all torque bits zero. Measured raw values: CW/CCWdeadzone1/1; P/D/I16/32/0; Minimum_Startup_Force driverword16; maximum/current RAM torque limits500/500; load/current/status/moving0. This does not explain the four-count plateau or qualify any force/tolerance change. Installed two-byte startup-word interpretation remains distinct from the current generic vendor table's separate addresses24/25; no physical units conversion or EEPROM change was made.
 - Existing EV3 unit/source/machine identity were verified remotely and ONLY the missing SSH forward restored (PID2601027, local18766→remote8766). New resident API reconnect and coordinated stop succeed; final workflowidle/faultnone/bothstopACKtrue/pendingfalse. Power-save cached EV3 measurements are not fresh physical-reference qualification. Station flags remain all false; camera recovery remains unconfigured; raw gripper remains1955 and elbow2993.
 - Evidence: `2026-10-16-sorting/jaw-diagnostics-software/` (runs actually performedOctober19), `2026-10-19-sorting/jaw-diagnostics-review/`, `jaw-diagnostics-deploy/final-live-validation.json`, and `ev3-reconnect/RESTORATION.md`. Primary reference for the unresolved register-table interpretation: https://docs.waveshare.com/Memory_Map_Explanation/ST_Servo_Memory_Map_Explanation . All calibration, actual recovery/home and sorting acceptance gates remain open.
+
+
+## Overnight checkpoint — 2026-10-20 01:10 UTC
+
+The main acceptance target remains autonomous ROS-only pick/place followed by
+twenty consecutive successful physical sorts. No physical cycle occurred overnight.
+The arm owner exited at 20:48:30 UTC after the unchanged 100 ms endpoint-hold
+health guard. Its final six torque-off readings are historical; telemetry is stale.
+There has been no owner restart, arm STOP, torque command, or calibration motion.
+Fresh supported recovery and the physical calibration/home/grasp gates remain open.
+
+- The independently sealed matrix at STAGED `e5ba970` passed: native75
+  **3045 passed / 64 skipped**, station **2349 passed / 94 skipped**, isolated177
+  **229 passed / zero skipped**. All 712 tracked hashes matched before/after and
+  at the audit. The first two stages share 2390 case IDs; do not sum the counts.
+- Same-job late local adoption is implemented, reviewed, privately built and
+  deployed. Actual acceptance `463b8c87b9fb4f82bfcd2252a63ff329` resolved the
+  already-completed job `ae1222a1bcab47c0bfed06b4d180a5a2` using fresh native and
+  selected-image gates. It preserved the original attempt and deadline, did not
+  reset the worker again, and remained disabled until explicit enable. Historical
+  completion attestation does not replay old monotonic clocks as current proof.
+  The retained transaction marker requires fresh confirmation after a later restart.
+- A direct metadata-only observation captured genuinely ARMED source health:
+  5.041921 seconds since stability began and 83.731 ms original coverage remaining
+  at the check. This is an expired historical witness; current coverage is
+  intermittent. No receipt/header lease or five-second criterion was enlarged.
+- The one preregistered live perception trial ended **NOT_STARTED** after 6.575 ms:
+  callback metadata was a dictionary while the harness expected an object. There
+  was no baseline, process pause, watchdog, fault or new recovery job. Actual
+  producer/worker identities and journal bytes stayed unchanged. The compatibility
+  repair is separate software work, with no second live trial tonight and no
+  automatic recovery qualification claimed.
+- The reviewed idle telemetry patch remains staged, not deployed to the arm. It
+  removes snapshot/log I/O before idle health checks and adds timing diagnostics.
+  Archived data cannot separate the observed post-read stall from scheduling or
+  publication cost; this is not a demonstrated physical fix.
+
+Current camera configuration is native RGB 1920x1080 at 30 Hz and depth 1280x720
+at 30 Hz. Prior bounded metadata observations measured roughly 29.98 Hz native
+Info and 25.87 Hz derived Info; these are acquisition proxies under mixed workload,
+not a controlled performance comparison or a pixel/geometry qualification. Main
+ROS domain remains 76 with localhost discovery.
+
+Evidence under `2026-10-19-sorting/`: `overnight/final-e5ba970/INDEPENDENT-SEALED-MATRIX-AUDIT.json`,
+`automatic-perception-supervisor/INDEPENDENT-ACTUAL-LATE-LOCAL-ADOPTION-AUDIT.json`,
+`automatic-perception-supervisor/actual-outage-qualification/INDEPENDENT-HISTORICAL-ARMED-PREREQUISITE-AUDIT.json`,
+`automatic-perception-supervisor/actual-outage-qualification/INDEPENDENT-ACTUAL-TRIAL-NEGATIVE-AUDIT.json`,
+and `overnight/INDEPENDENT-OWNER-TIMING-PATH-AUDIT.json`.
