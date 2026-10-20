@@ -22,7 +22,7 @@ rclpy = pytest.importorskip("rclpy", reason="native ROS 2 environment required")
 from action_msgs.msg import GoalStatus
 from control_msgs.action import FollowJointTrajectory
 from moveit_msgs.msg import MoveItErrorCodes
-from moveit_msgs.srv import GetMotionPlan
+from moveit_msgs.srv import GetMotionPlan, GetPositionFK
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -190,6 +190,7 @@ class _Fixture(Node):
                                  self._scene_request, 10)
         self.create_service(GetMotionPlan, "/follower/plan_kinematic_path",
                             self._plan)
+        self.create_service(GetPositionFK, "/follower/compute_fk", self._fk)
         self.create_timer(0.04, self._publish_live_observations)
         self.arm_server = ActionServer(
             self, FollowJointTrajectory,
@@ -237,6 +238,8 @@ class _Fixture(Node):
         index = len(self.plans)
         req = request.motion_plan_request
         constraints = req.goal_constraints[0]
+        self.endpoint_pose = constraints.position_constraints[0].constraint_region.primitive_poses[0]
+        self.endpoint_pose.orientation = constraints.orientation_constraints[0].orientation
         requested_position = tuple(
             constraints.position_constraints[0].constraint_region.primitive_poses[0].position.__getattribute__(axis)
             for axis in ("x", "y", "z"))
@@ -266,6 +269,18 @@ class _Fixture(Node):
         point.positions = [0.01 * (index + 1)] * len(ARM_JOINTS)
         point.time_from_start.sec = 1
         trajectory.points = [point]
+        return response
+
+    def _fk(self, request, response):
+        # Synthetic fixture returns the last requested target; real endpoint
+        # kinematics and clamping rejection are covered by independent tests.
+        from geometry_msgs.msg import PoseStamped
+        stamped = PoseStamped()
+        stamped.header = request.header
+        stamped.pose = self.endpoint_pose
+        response.error_code.val = MoveItErrorCodes.SUCCESS
+        response.fk_link_names = list(request.fk_link_names)
+        response.pose_stamped = [stamped]
         return response
 
     def _scene_request(self, message):
