@@ -20,6 +20,56 @@ from tools.so101_grasp_plan import PoseTarget, candidate_for_track, staged_targe
 from so101_station_scene.scene_geometry import matrix_quaternion_xyzw, quaternion_matrix_xyzw
 
 
+def validate_endpoint_pose(target: PoseTarget, actual: PoseTarget, *,
+                           pos_tol=0.008, rot_tol=0.35):
+    """Reject a successful plan whose FK endpoint misses the requested pose.
+
+    Rotation uses a spherical angle bound, conservatively inside the planner's
+    per-axis (0.35, 0.35, 0.45) radian orientation tolerance box.
+    """
+    if not target.frame_id or target.frame_id != actual.frame_id:
+        raise ValueError("endpoint frame does not match target frame")
+    if not all(math.isfinite(value) and value >= 0 for value in (pos_tol, rot_tol)):
+        raise ValueError("endpoint tolerances must be finite and nonnegative")
+    poses = []
+    for pose in (target, actual):
+        values = (*pose.position, *pose.orientation_xyzw)
+        if (len(pose.position) != 3 or len(pose.orientation_xyzw) != 4 or
+                not all(math.isfinite(float(value)) for value in values)):
+            raise ValueError("endpoint pose must contain finite XYZ and XYZW values")
+        norm = math.hypot(*pose.orientation_xyzw)
+        if not math.isfinite(norm) or norm < 1e-12:
+            raise ValueError("endpoint quaternion must be finite and nonzero")
+        poses.append(tuple(float(value) / norm for value in pose.orientation_xyzw))
+    position_error = math.dist(target.position, actual.position)
+    dot = min(1.0, abs(sum(a*b for a, b in zip(*poses))))
+    rotation_error = 2.0 * math.acos(dot)
+    if (position_error > pos_tol or
+            (rotation_error > rot_tol and not math.isclose(
+                rotation_error, rot_tol, rel_tol=0., abs_tol=1e-12))):
+        raise ValueError(f"endpoint misses target: position {position_error:.6f} m "
+                         f"(limit {pos_tol}), rotation {rotation_error:.6f} rad "
+                         f"(limit {rot_tol})")
+    return {"position_error_m": position_error, "rotation_error_rad": rotation_error,
+            "position_tolerance_m": pos_tol, "rotation_tolerance_rad": rot_tol,
+            "frame_id": target.frame_id}
+
+
+def validate_endpoint_fk_response(target, response, tip_link):
+    """Validate the complete FK response before trusting its sole requested link."""
+    if response.error_code.val != 1:  # MoveItErrorCodes.SUCCESS, without ROS import.
+        raise ValueError(f"endpoint FK failed: {response.error_code.val}")
+    if list(response.fk_link_names) != [tip_link] or len(response.pose_stamped) != 1:
+        raise ValueError("endpoint FK must return exactly the requested tip link")
+    stamped = response.pose_stamped[0]
+    pose = stamped.pose
+    actual = PoseTarget(stamped.header.frame_id,
+                        (pose.position.x, pose.position.y, pose.position.z),
+                        (pose.orientation.x, pose.orientation.y,
+                         pose.orientation.z, pose.orientation.w))
+    return validate_endpoint_pose(target, actual)
+
+
 def load_execution_calibration(jaw_path, tcp_path, *, tip_link):
     """Fail closed unless SI jaw and registered TCP/object transforms are qualified."""
     import numpy as np
@@ -281,7 +331,7 @@ def main(argv=None):
     from control_msgs.action import FollowJointTrajectory, GripperCommand
     from moveit_msgs.msg import (Constraints, JointConstraint, MoveItErrorCodes, MotionPlanRequest,
                                  OrientationConstraint, PositionConstraint, RobotState)
-    from moveit_msgs.srv import GetMotionPlan
+    from moveit_msgs.srv import GetMotionPlan, GetPositionFK
     from rclpy.node import Node
     from rclpy.action import ActionClient
     from rclpy.qos import qos_profile_sensor_data
@@ -313,6 +363,8 @@ def main(argv=None):
             self.create_subscription(String, args.attachment_status_topic, self.on_attachment_status, 10)
             self.attachment_pub = self.create_publisher(String, args.attachment_request_topic, 10)
             self.planner = self.create_client(GetMotionPlan, args.planning_service)
+            self.fk = self.create_client(
+                GetPositionFK, args.planning_service.rsplit("/", 1)[0] + "/compute_fk")
             self.tf_buffer = Buffer()
             self.tf_listener = TransformListener(self.tf_buffer, self)
             if args.execute:
@@ -852,6 +904,37 @@ def main(argv=None):
                                      touch_links=args.touch_link)
                     contact_matrix_enabled = False
                 segment["state"] = "invalid_planner_trajectory"
+                result["segments"].append(segment)
+                result["state"] = "incomplete"
+                break
+            try:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not node.fk.wait_for_service(timeout_sec=remaining):
+                    raise TimeoutError("endpoint FK service unavailable within planning deadline")
+                fk_request = GetPositionFK.Request()
+                fk_request.header.frame_id = target.frame_id
+                # Zero stamp asks TF for the latest transform, as for pose lookup.
+                fk_request.header.stamp = Time().to_msg()
+                fk_request.fk_link_names = [args.tip_link]
+                endpoint = {**current, **dict(zip(names, points[-1].positions))}
+                fk_request.robot_state = RobotState()
+                fk_request.robot_state.joint_state.name = list(ALL_JOINTS)
+                fk_request.robot_state.joint_state.position = [endpoint[j] for j in ALL_JOINTS]
+                fk_request.robot_state.is_diff = False
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("planning deadline expired before endpoint FK request")
+                fk_response = _wait_future(node, node.fk.call_async(fk_request), remaining,
+                                           f"{name} endpoint FK")
+                segment["endpoint_validation"] = validate_endpoint_fk_response(
+                    target, fk_response, args.tip_link)
+            except Exception as error:
+                if contact_matrix_enabled:
+                    scene_attachment("disallow_contact", scene_track_id, deadline,
+                                     touch_links=args.touch_link)
+                    contact_matrix_enabled = False
+                segment["state"] = "endpoint_validation_failed"
+                segment["endpoint_validation_error"] = f"{type(error).__name__}: {error}"
                 result["segments"].append(segment)
                 result["state"] = "incomplete"
                 break
