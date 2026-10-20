@@ -12,6 +12,9 @@ from copy import deepcopy
 import cv2
 import numpy as np
 
+from so101_station_objects.timing_diagnostic import (TimingRecorder, begin_node, site as timing_site,
+                                finish_node, worker_timing, count_analyze)
+
 
 def _repository_root():
     configured = os.environ.get("SO101_STATION_ROOT")
@@ -931,6 +934,7 @@ class ColoredObjectsNode:
         from rclpy.time import Time
         from sensor_msgs.msg import CameraInfo, Image
         from std_msgs.msg import String
+        from rcl_interfaces.msg import ParameterDescriptor
         from tf2_ros import Buffer, TransformException, TransformListener
         from vision_msgs.msg import Detection3D, Detection3DArray, ObjectHypothesisWithPose
         from visualization_msgs.msg import Marker, MarkerArray
@@ -970,6 +974,19 @@ class ColoredObjectsNode:
                 }
                 for key, value in defaults.items():
                     self.declare_parameter(key, value)
+                self.declare_parameter("analysis_timing_diagnostics", False, ParameterDescriptor(read_only=True))
+                diagnostic_flag = self.get_parameter("analysis_timing_diagnostics").value
+                if type(diagnostic_flag) is not bool:
+                    raise ValueError("analysis_timing_diagnostics must be bool")
+                self.timing_recorder = TimingRecorder() if diagnostic_flag else None
+                self.timing_timer = None
+                self.timing_last_publish = None
+                self.timing_closing = False
+                if diagnostic_flag:
+                    self.timing_recorder.startup = {"opencv_version": str(cv2.__version__)[:64],
+                                                    "opencv_threads": int(cv2.getNumThreads())}
+                    self.timing_pub = self.create_publisher(String, "~/analysis_timing", 1)
+                    self.timing_timer = self.create_timer(.5, self._publish_timing)
                 self.board_frame = str(self.get_parameter("board_frame").value)
                 self.require_registration_tracking = bool(
                     self.get_parameter("require_registration_tracking").value)
@@ -1046,19 +1063,46 @@ class ColoredObjectsNode:
                 self.analysis_ready_guard = self.create_guard_condition(self._consume_analysis)
                 self.analysis_worker = LatestOnlyAnalysisWorker(
                     self._analyze_job, min_start_interval_s=self.period,
-                    on_ready=self.analysis_ready_guard.trigger)
+                    on_ready=self.analysis_ready_guard.trigger, diagnostics=diagnostic_flag)
                 self.last_analysis_result_stamp = None
                 self.last_analysis_notification_error = None
                 # Keep fault/lease invalidation active even when no result exists.
                 self.analysis_timer = self.create_timer(0.05, self._consume_analysis_faults)
 
+            def _publish_timing(self):
+                try:
+                    recorder = self.timing_recorder
+                    if recorder is None or recorder.closed or self.timing_closing:return
+                    now = time.monotonic()
+                    if self.timing_last_publish is not None and now-self.timing_last_publish < .5:return
+                    worker = getattr(self, "analysis_worker", None)
+                    if worker is not None:
+                        recorder.losses(worker.pending_replacements, worker.overwritten_results,
+                                        worker.diagnostic_losses["shutdown"])
+                    message = String()
+                    message.data = recorder.drain()
+                    self.timing_pub.publish(message)
+                    self.timing_last_publish = time.monotonic()
+                except Exception:
+                    # A diagnostic cannot become a source/admission fault.
+                    if self.timing_recorder is not None:
+                        self.timing_recorder._add("invalid")
+
             def destroy_node(self):
+                self.timing_closing = True
+                timer = getattr(self, "timing_timer", None)
+                if timer is not None:timer.cancel()
                 if getattr(self, "derived", None) is not None:
                     self.derived.close()
                 worker = getattr(self, "analysis_worker", None)
                 if worker is not None and not worker.close():
                     self.get_logger().error("Analysis worker cleanup incomplete; guard/context retained for supervisor")
                     return False
+                recorder = getattr(self, "timing_recorder", None)
+                if recorder is not None:
+                    recorder.losses(worker.pending_replacements, worker.overwritten_results,
+                                    worker.diagnostic_losses["shutdown"])
+                    recorder.close()
                 return super().destroy_node()
 
             def _attachment_status(self, message):
@@ -1102,6 +1146,7 @@ class ColoredObjectsNode:
                     self.markers_pub.publish(markers)
 
             def _publish_unavailable(self, stamp, state, reason, **extra):
+                if getattr(self, "timing_recorder", None) is not None:finish_node(self, 0, reason)
                 from so101_station_perception.tag_observations import stamp_is_fresh, stamp_seconds
                 acquisition_stamp = stamp_seconds(stamp)
                 now = self.get_clock().now().nanoseconds * 1e-9
@@ -1130,16 +1175,21 @@ class ColoredObjectsNode:
             def _process(self, color_msg, depth_msg, info_msg, derived_token=None):
                 from so101_station_perception.tag_observations import (
                     camera_intrinsics, depth_scale_for_encoding, stamp_is_fresh, stamp_seconds)
+                timing = begin_node(self, derived_token) if getattr(self, "timing_recorder", None) is not None else None
+                if timing is not None:timing_site(timing, 1, 14)
                 if derived_token is not None:
                     try:self.derived.check(derived_token)
                     except ValueError as error:
                         self._publish_unavailable(color_msg.header.stamp, "unavailable", str(error))
                         return
+                TimingRecorder.clock(timing, 15) if timing is not None else None
+                if timing is not None:timing_site(timing, 6)
                 now = self.get_clock().now().nanoseconds * 1e-9
                 stamp = stamp_seconds(color_msg.header.stamp)
                 if not stamp_is_fresh(now, stamp, 0.5):
                     self._publish_unavailable(color_msg.header.stamp, "stale", "RGB-D image timestamp is stale")
                     return
+                if timing is not None:timing_site(timing, 7)
                 if self.require_registration_tracking:
                     tracking_stamp = self.registration_last_tracking_stamp
                     age = None if tracking_stamp is None else now - tracking_stamp
@@ -1150,6 +1200,7 @@ class ColoredObjectsNode:
                             registration_observation_age_s=age,
                             registration_status_topic=self.get_parameter("registration_status_topic").value)
                         return
+                if timing is not None:timing_site(timing, 8)
                 if (color_msg.header.frame_id != depth_msg.header.frame_id
                         or color_msg.header.frame_id != info_msg.header.frame_id
                         or abs(stamp - stamp_seconds(depth_msg.header.stamp)) > 0.04
@@ -1158,19 +1209,24 @@ class ColoredObjectsNode:
                                               "RGB-D and CameraInfo frame IDs or timestamps differ")
                     return
                 try:
+                    if timing is not None:timing_site(timing, 9)
                     rgb = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding="rgb8")
                     depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
                     intrinsics = camera_intrinsics(info_msg, depth.shape)
                     scale = depth_scale_for_encoding(depth_msg.encoding, depth, self.depth_scale)
+                    if timing is not None:timing_site(timing, 9, 1)
                     tf = self.tf_buffer.lookup_transform(
                         self.board_frame, color_msg.header.frame_id,
                         Time.from_msg(color_msg.header.stamp), timeout=Duration(seconds=0.35))
+                    TimingRecorder.clock(timing, 2) if timing is not None else None
                     board_from_camera = transform_from_msg(tf)
                     now = self.get_clock().now().nanoseconds * 1e-9
+                    if timing is not None:timing_site(timing, 13)
                     if not stamp_is_fresh(now, stamp, 0.5):
                         self._publish_unavailable(color_msg.header.stamp, "stale",
                                                   "RGB-D pair expired while waiting for timestamped TF")
                         return
+                    if timing is not None:timing_site(timing, 14)
                     if self.require_registration_tracking:
                         tracking_stamp = self.registration_last_tracking_stamp
                         age = now - tracking_stamp if tracking_stamp is not None else None
@@ -1183,9 +1239,13 @@ class ColoredObjectsNode:
                     cache = self.last_support_plane
                     cache_snapshot = None if cache is None else {
                         **cache, "normal": np.asarray(cache["normal"], dtype=float).copy()}
+                    if timing is not None:timing_site(timing, 2, 16)
+                    TimingRecorder.clock(timing, 3) if timing is not None else None
                     if derived_token is not None:
                         self.derived.check(derived_token)
-                    self.analysis_worker.submit({
+                    TimingRecorder.clock(timing, 17) if timing is not None else None
+                    if timing is not None:timing_site(timing, 9)
+                    job = {
                         "derived_token": derived_token,
                         "stamp": stamp, "ros_stamp": color_msg.header.stamp,
                         "rgb": np.asarray(rgb).copy(), "depth": np.asarray(depth).copy(),
@@ -1193,7 +1253,9 @@ class ColoredObjectsNode:
                         "distortion": np.asarray(info_msg.d, dtype=float).copy(),
                         "scale": float(scale), "board_from_camera": board_from_camera.copy(),
                         "support_plane_cache": cache_snapshot,
-                    })
+                    }
+                    if timing is not None:job["_analysis_timing"] = timing
+                    self.analysis_worker.submit(job)
                 except (ValueError, TypeError, cv2.error, TransformException) as error:
                     if time.monotonic() - self.last_warning >= 2.0:
                         self.get_logger().warning(f"Colored object observation unavailable: {error}")
@@ -1202,7 +1264,9 @@ class ColoredObjectsNode:
 
             def _analyze_job(self, job):
                 """Pure CPU analysis; this worker never accesses ROS or mutable tracking state."""
+                diagnostic = job.get("_analysis_timing")
                 try:
+                    if diagnostic is not None:count_analyze(diagnostic)
                     return analyze_rgbd(
                         job["rgb"], job["depth"], job["intrinsics"], job["distortion"],
                         job["scale"], job["board_from_camera"], self.support_roi,
@@ -1214,6 +1278,7 @@ class ColoredObjectsNode:
                     cache_age = None if cache is None else job["stamp"] - cache["stamp"]
                     if (cache is None or cache_age is None or cache_age < 0 or cache_age > 2.0):
                         raise
+                    if diagnostic is not None:count_analyze(diagnostic)
                     report = analyze_rgbd(
                         job["rgb"], job["depth"], job["intrinsics"], job["distortion"],
                         job["scale"], job["board_from_camera"], self.support_roi,
@@ -1230,12 +1295,18 @@ class ColoredObjectsNode:
                 if getattr(self, "derived", None) is not None:
                     fault = self.derived.pop_fault()
                     if fault:
+                        timing = getattr(self, "_timing_current", None)
+                        if timing is not None:timing_site(timing, 15)
                         self._publish_unavailable(self.get_clock().now().to_msg(), "unavailable", fault)
                 error = self.analysis_worker.notification_error
                 if error is not None:
                     self.analysis_worker.take_result()  # Discard after failed wakeup; no timer fallback publication.
                     if error != self.last_analysis_notification_error:
                         self.last_analysis_notification_error = error
+                        recorder = getattr(self, "timing_recorder", None)
+                        timing = getattr(self, "_timing_current", None)
+                        if recorder is not None:recorder._add("notification_lost")
+                        if timing is not None:timing_site(timing, 17)
                         self._publish_unavailable(self.get_clock().now().to_msg(), "unavailable",
                                                   "analysis result notification failed: "+error)
                     return False
@@ -1245,16 +1316,28 @@ class ColoredObjectsNode:
                 from so101_station_perception.tag_observations import stamp_is_fresh
                 if not self._consume_analysis_faults():
                     return
-                result = self.analysis_worker.take_result()
+                recorder = getattr(self, "timing_recorder", None)
+                if recorder is not None:
+                    packet = self.analysis_worker.take_result_with_diagnostics()
+                    result = None if packet is None else packet[0]
+                else:
+                    result = self.analysis_worker.take_result()
                 if result is None:
                     return
                 job, report, error = result
+                timing = job.get("_analysis_timing")
+                if recorder is not None:
+                    self._timing_current = timing
+                    worker_timing(timing, packet[1])
+                if timing is not None:timing_site(timing, 10)
                 stamp = job["stamp"]
                 now = self.get_clock().now().nanoseconds * 1e-9
                 if (stamp <= (self.last_analysis_result_stamp or float("-inf"))
                         or not stamp_is_fresh(now, stamp, 0.5)):
                     self.tracker.invalidate_pending_acquisition(stamp)
+                    if timing is not None:finish_node(self, 0, "result duplicate/stale")
                     return
+                if timing is not None:timing_site(timing, 11)
                 if self.require_registration_tracking:
                     tracking_stamp = self.registration_last_tracking_stamp
                     age = now - tracking_stamp if tracking_stamp is not None else None
@@ -1264,17 +1347,20 @@ class ColoredObjectsNode:
                             "ChArUco localization expired during RGB-D analysis",
                             registration_observation_age_s=age)
                         return
+                if timing is not None:timing_site(timing, 12)
                 if error is not None:
                     if time.monotonic() - self.last_warning >= 2.0:
                         self.get_logger().warning(f"Colored object observation unavailable: {error}")
                         self.last_warning = time.monotonic()
                     self._publish_unavailable(job["ros_stamp"], "unavailable", str(error))
                     return
+                if timing is not None:timing_site(timing, 3, 18)
                 if job.get("derived_token") is not None:
                     try:self.derived.check(job["derived_token"])
                     except ValueError as error:
                         self._publish_unavailable(job["ros_stamp"], "unavailable", str(error))
                         return
+                TimingRecorder.clock(timing, 19) if timing is not None else None
                 self.last_analysis_result_stamp = stamp
                 plane = report["support_plane"]
                 if plane.get("plane_source") != "cached_measured_support_plane":
@@ -1284,6 +1370,7 @@ class ColoredObjectsNode:
                         "support_points": int(plane["support_points"]),
                         "support_inliers": int(plane["support_inliers"]), "stamp": stamp,
                     }
+                TimingRecorder.clock(timing, 10) if timing is not None else None
                 expected_owned_positions = {}
                 for key, record in self.tracker.attachment_records.items():
                     try:
@@ -1297,11 +1384,14 @@ class ColoredObjectsNode:
                         expected_owned_positions[key] = board_from_link[:3, :3] @ local + board_from_link[:3, 3]
                     except (KeyError, TypeError, ValueError, TransformException):
                         continue
+                TimingRecorder.clock(timing, 11) if timing is not None else None
+                if timing is not None:timing_site(timing, 4, 20)
                 if job.get("derived_token") is not None:
                     try:self.derived.check(job["derived_token"])
                     except ValueError as error:
                         self._publish_unavailable(job["ros_stamp"], "unavailable", str(error))
                         return
+                TimingRecorder.clock(timing, 21) if timing is not None else None
                 objects = self.tracker.update(report["objects"], stamp,
                                               expected_owned_positions=expected_owned_positions)
                 report["objects"] = objects
@@ -1441,6 +1531,8 @@ class ColoredObjectsNode:
                 }
                 message = String()
                 message.data = json.dumps(status, sort_keys=True, allow_nan=False)
+                timing = getattr(self, "_timing_current", None)
+                if timing is not None:timing_site(timing, 5, 12)
                 if derived_token is not None:
                     try:self.derived.check(derived_token)
                     except ValueError as error:
@@ -1454,6 +1546,8 @@ class ColoredObjectsNode:
                 self.last_marker_update_stamp = detections.header.stamp
                 self.marker_clear_sent = not bool(report["objects"])
                 self.status_pub.publish(message)
+                TimingRecorder.clock(timing, 13) if timing is not None else None
+                if timing is not None:finish_node(self, 1)
 
         return _Node(*args, **kwargs)
 
