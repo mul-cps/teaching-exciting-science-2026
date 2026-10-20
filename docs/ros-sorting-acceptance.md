@@ -291,3 +291,17 @@ ROOT built an **inactive** private prefix: two packages in 2.20s, with 91 source
 The prior natural-fault repair completed and was adopted, but its CURRENT-IMAGE observer qualification remains negative. Nine historical five-second SOURCE-ARMED samples do not replace IMAGE or physical evidence. Segment03’s final 89.17s observed 25.513Hz derived metadata, producer ready438/438, board tracking434/434, and objects tracking339/427. These are received-message fractions, not uptime, piece identity or a controlled comparison; TF sampling covered only the first five seconds.
 
 The full matrix remains negative on unchanged teleop **98.972Hz <100Hz**; the fixed AB/BA diagnostic was causally inconclusive. No threshold weakening or same-fault/controlled-trial retry occurred.
+
+## Overnight checkpoint — 2026-10-20 04:40 UTC
+
+**Perception is currently unavailable; physical cycles remain zero.** The supervisor latched after its latest automatic repair failed. No manual reset, retry, latch clear, policy re-enable, native-camera restart or arm action followed.
+
+Two additional natural faults occurred after the earlier successful repair. Job `3bc040f1…` completed and was adopted as generation `7ad60c33…`. Subsequent job `39320f2c…` reserved generation `d7b37155…` but failed during producer warmup: source activity was lost before the required two new publications. The coordinator rejected this permanent reset failure before capture/rebinding, and the supervisor disabled itself without retry. Two charged attempts remain in the current hourly window; three historical faults are durably handled. The failed generation must not be confused with the last adopted generation.
+
+Read-only snapshots found all six actor process identities unchanged and producer child 3202485 present. Process presence is not health. The producer’s one-shot callback probe still describes the earlier 01:15 fault, so it cannot explain these new faults. Native Info continuity does not prove image payload delivery. SDK, DDS and scheduling causes remain unresolved.
+
+The preceding full post-repair hour is historical: derived metadata averaged 25.7333Hz; objects tracked in 14792/17136 received statuses and reported unavailable in 2310. These are message fractions, not current availability or physical qualification. Recorded-scene CPU analysis and whole-worker diagnostics likewise do not establish live failure causality.
+
+Completion-event software remains integrated, independently reviewed and built in an inactive prefix. Optional object timing diagnostics are under isolated development; neither feature has been deployed to the running actors. Physical prerequisites and the unchanged negative 100Hz control gate remain open.
+
+Evidence: `overnight/natural-private-fault-0434/INDEPENDENT-NEW-FAULT-AUDIT.json`, `ROOT-CURRENT-PRODUCER-PROC-SNAPSHOT.json`; `overnight/passive-night-segments/pipeline-night-segment04.INDEPENDENT-AUDIT.json`.
