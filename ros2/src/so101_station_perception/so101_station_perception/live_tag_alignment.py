@@ -212,8 +212,11 @@ class LiveTagAlignment(Node):
         clear = Marker()
         clear.action = Marker.DELETEALL
         self.markers.publish(MarkerArray(markers=[clear]))
-        if self.visual_visible:
-            self.description.publish(String(data='<robot name="alignment_unavailable"/>'))
+        if self.visual_visible or self.latest_status is None:
+            # A geometry-free link keeps the hidden placeholder valid URDF.
+            robot = ET.Element("robot", name="alignment_unavailable")
+            ET.SubElement(robot, "link", name=self.get_parameter("camera_frame").value)
+            self.description.publish(String(data=ET.tostring(robot, encoding="unicode")))
             self.visual_visible = False
         self._publish_status(dict(status="unavailable", reason=reason, candidate_available=False))
 

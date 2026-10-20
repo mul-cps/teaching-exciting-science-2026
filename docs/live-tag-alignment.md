@@ -36,7 +36,7 @@ The node validates the latched `/follower/robot_description` SHA and independent
 - `/so101_perception/aligned_robot_description`: transient-local visual-only URDF, with link/joint names prefixed `live_aligned/`.
 - `/tf`: only `live_aligned/*` children, with camera-to-aligned-base candidate and exposure-time canonical joint transforms copied into that separate tree.
 
-Add a RobotModel using the aligned description topic and a MarkerArray using the markers topic. Retain the original RobotModel as a comparison. The aligned description is replaced with an empty robot when unavailable; no fresh aligned TF is broadcast then. TF listeners can still retain old samples in their own caches, so status and exposure time determine availability.
+Add a RobotModel using the aligned description topic and a MarkerArray using the markers topic. Retain the original RobotModel as a comparison. When unavailable, the aligned description contains a valid, geometry-free link in the existing camera frame, hiding the aligned robot without triggering an RViz URDF parse error. This hidden description is also published during startup. No fresh aligned TF is broadcast while unavailable. TF listeners can still retain old samples in their own caches, so status and exposure time determine availability.
 
 Loss, ambiguity, stale stream gaps and compact publisher/frame/admission changes stop current output. Recovery of a lost instance requires explicit reseeding, never automatic association with a same-ID tag after occlusion:
 
