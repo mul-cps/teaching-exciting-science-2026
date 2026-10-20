@@ -39,7 +39,12 @@ class SupervisorPolicy:
                 require(type(job) is dict and job.get('state') in ('dispatch_unknown','accepted') and
                     finite(job.get('reserved_monotonic')) and job['reserved_monotonic']>=0,
                     'invalid persisted in-flight authority')
-                if job.get('origin')=='operator_reconciliation':
+                if job.get('origin')=='private_availability_repair':
+                    keys={'state','reserved_monotonic','origin','repair_id','outage_id'}
+                    if job['state']=='accepted':keys.update(('job_id','deadline'))
+                    require(set(job)==keys and hex_value(job.get('repair_id'),32) and hex_value(job.get('outage_id'),32),
+                        'invalid persisted private repair identity')
+                elif job.get('origin')=='operator_reconciliation':
                     keys={'state','reserved_monotonic','origin','reconciliation_id'}
                     if job['state']=='accepted':keys.update(('job_id','deadline'))
                     require(set(job)==keys and hex_value(job.get('reconciliation_id'),32),
@@ -59,7 +64,7 @@ class SupervisorPolicy:
         self.enabled=False;self.state='disabled';self.latched=None
         self.events=deque(maxlen=128);self.handled=deque(history.get('handled',()),maxlen=128)
         require(len(history.get('handled',()))<=128 and all(hex_value(x,32) for x in self.handled),'invalid outage journal')
-        self.fault=None;self.reconciliation_id=None;self.job=deepcopy(history.get('inflight'));self.stable_since=None;self.last_mono=history.get('last_mono')
+        self.fault=None;self.reconciliation_id=None;self.private_repair_id=None;self.job=deepcopy(history.get('inflight'));self.stable_since=None;self.last_mono=history.get('last_mono')
         if history.get('inflight'):self.fail('persisted in-flight job completion unknown')
         if history.get('latched'):self.fail(str(history['latched'])[:512])
 
@@ -121,6 +126,25 @@ class SupervisorPolicy:
         self.attempts.append(utc)
         self.job=dict(state='dispatch_unknown',reserved_monotonic=now,origin='operator_reconciliation',reconciliation_id=identity)
         self.state='recovering';self.event('operator_reconciliation_reserved',now,reconciliation_id=identity)
+
+    def begin_private_repair(self,identity,fault,now):
+        require(self.enabled and self.state=='warming' and not self.latched and self.job is None
+            and self.reconciliation_id is None and hex_value(identity,32) and hex_value(fault.get('fault_id'),32),
+            'private availability repair requires enabled terminal warming policy')
+        require(fault['fault_id'] not in self.handled,'same outage cannot be automatically retried')
+        self.handled.append(fault['fault_id']);self.fault=deepcopy(fault);self.private_repair_id=identity
+        self.state='private_repair_preflight';self.stable_since=None
+        self.event('private_availability_repair_requested',now,repair_id=identity,outage_id=fault['fault_id'])
+
+    def reserve_private_repair(self,identity,now,utc):
+        self.clocks(now,utc)
+        require(self.enabled and self.state=='private_repair_preflight' and not self.latched and self.job is None
+            and hex_value(identity,32) and identity==self.private_repair_id and self.fault is not None,'private repair reservation not eligible')
+        require(len(self.attempts)<3 and (not self.attempts or utc-self.attempts[-1]>=30.),'automatic quota/cooldown exhausted')
+        self.attempts.append(utc)
+        self.job=dict(state='dispatch_unknown',reserved_monotonic=now,origin='private_availability_repair',
+            repair_id=identity,outage_id=self.fault['fault_id'])
+        self.state='recovering';self.event('private_availability_repair_reserved',now,repair_id=identity,outage_id=self.fault['fault_id'])
 
     def accepted(self,job_id,deadline,now):
         require(self.job is not None and self.job['state']=='dispatch_unknown' and hex_value(job_id,32), 'unknown recovery acceptance')

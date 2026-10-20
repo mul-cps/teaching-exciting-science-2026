@@ -83,7 +83,7 @@ def generate_launch_description():
         'observation_roi_y_min': '-1.0', 'observation_roi_y_max': '1.0',
         'observation_roi_z_min': '-1.0', 'observation_roi_z_max': '1.0',
     }
-    supervisor_defaults={"perception_supervisor_enabled":"false",
+    supervisor_defaults={"perception_supervisor_enabled":"false","perception_supervisor_allow_private_availability_repair":"false",
         **{"perception_supervisor_"+key:("243322071783" if key=="expected_serial" else "") for key in ('expected_source_cohort', 'expected_serial', 'journal_directory', 'recovery_artifact_directory', 'confirmed_adoption_acceptance_artifact', 'confirmed_adoption_acceptance_sha256', 'confirmed_adoption_completed_artifact', 'confirmed_adoption_completed_sha256')}}
     defaults.update(supervisor_defaults)
     def include(package, filename, args, **kwargs):
