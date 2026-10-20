@@ -33,6 +33,7 @@ from .pre_outage_history import PreOutageHistory
 from .supervisor_health import HealthNotCurrent,statement_coverage,proof_coverage
 from .late_adoption import SCHEMA as LATE_SCHEMA,bounded_read,digest as late_digest,write_marker,validate_marker,known_state,compensation_snapshot,buffered_native_pairs
 from .source_binding_health import SourceBindingProgress,binding_context,binding_coverage
+from .private_availability import binding_metadata
 
 COORDINATOR='/so101_perception_recovery'
 TERMINAL=frozenset(('idle','completed','failed'))
@@ -59,10 +60,13 @@ class PerceptionSupervisor(Node):
         self.journal=None;self.closed=False
         from .adoption_ack import PARAMETERS
         readonly=ParameterDescriptor(read_only=True)
-        for name,value in (('enabled',False),('expected_source_cohort',''),('expected_serial','243322071783'),
+        for name,value in (('enabled',False),('allow_private_availability_repair',False),('expected_source_cohort',''),('expected_serial','243322071783'),
                            ('journal_directory',''),('recovery_artifact_directory',''),*((name,'') for name in PARAMETERS)):
             self.declare_parameter(name,value,readonly)
         require(self.get_parameter('enabled').value is True,'explicit enabled=true required')
+        self.allow_private_repair=self.get_parameter('allow_private_availability_repair').value
+        require(type(self.allow_private_repair) is bool,'private repair opt-in must be boolean')
+        self.repair_intent=None;self.repair_result=None;self.repair_bindings={};self.repair_producer_snapshot=None;self.repair_coordinator_receipt=None
         self.baseline_path=Path(self.get_parameter('expected_source_cohort').value).resolve()
         require(bool(self.get_parameter('expected_source_cohort').value),'reviewed source artifact required')
         self.baseline,self.baseline_sha=read_artifact(self.baseline_path)
@@ -126,6 +130,8 @@ class PerceptionSupervisor(Node):
         self.journal.write(self.policy.journal(),consumer_epochs=self.epochs,adopted=self.adopted)
 
     def _fail(self,error):
+        if getattr(self,'repair_intent',None) is not None:
+            self.repair_result.update(state='failed',reason=str(error)[:512]);self.repair_intent=None
         if getattr(self,'late_intent',None) is not None:
             self.late_result.update(state='failed',reason=str(error)[:512],operation_success=False);self.late_intent=None
         self.pre_outage.clear();self.reset_pending=False
@@ -202,7 +208,7 @@ class PerceptionSupervisor(Node):
         if now-receipt>.250:raise HealthNotCurrent('producer heartbeat expired',response_done_monotonic=receipt,check_monotonic=now)
         return value
 
-    def _request(self,name,timeout,*,native_authority=None):
+    def _request(self,name,timeout,*,native_authority=None,private_metadata=False):
         if name in self.rpc:return
         late_context=getattr(self,'late_intent',None) if name==COORDINATOR+'/recovery_status' or name in (c+'/derived_source_status' for c in CONSUMERS) else None
         client=self.rpc_clients[name]
@@ -210,10 +216,17 @@ class PerceptionSupervisor(Node):
             if name in (c+'/derived_source_health' for c in CONSUMERS):raise HealthNotCurrent('consumer metadata service unavailable')
             raise ValueError('metadata service unavailable: '+name)
         started=time.monotonic()
-        if name==COORDINATOR+'/start_recovery':
+        repair=getattr(self,'repair_intent',None)
+        private_start=repair is not None and name==COORDINATOR+'/start_recovery'
+        private_request=Trigger.Request() if private_start else None
+        request_ros_ns=self.get_clock().now().nanoseconds if private_start else None
+        if name==COORDINATOR+'/start_recovery' and not private_start:
             if native_authority is None:self._native_final()
             else:self._native_final(authority=native_authority)
-        if name in (c+'/derived_source_health' for c in CONSUMERS):
+        if private_metadata:
+            require(name in (c+'/derived_source_health' for c in CONSUMERS),'private metadata endpoint forbidden')
+            self._repair_deadline()
+        elif name in (c+'/derived_source_health' for c in CONSUMERS):
             if not PerceptionSupervisor._health_eligible(self):return False
             status=self._producer_now()
             if status.get('state')!='ready':return False
@@ -225,8 +238,14 @@ class PerceptionSupervisor(Node):
         if late_context is not None:
             require(self.late_intent is late_context,'late local operator intent invalidated before request')
             deadline=min(deadline,self._late_deadline())
-        future=client.call_async(Trigger.Request())
-        record=dict(future=future,started=started,deadline=deadline,received=None,request_ros_ns=self.get_clock().now().nanoseconds)
+        repair=getattr(self,'repair_intent',None)
+        if repair is not None and (private_metadata or name==COORDINATOR+'/start_recovery' or name==COORDINATOR+'/recovery_status' and self.policy.job is None):
+            deadline=min(deadline,self._repair_deadline())
+        if private_start:
+            self._repair_final()  # All clock/context/graph IO precedes final original scalars.
+            require(self.repair_intent is repair and time.monotonic()<=deadline,'private start original ENTRY deadline expired')
+        future=client.call_async(private_request if private_start else Trigger.Request())
+        record=dict(future=future,started=started,deadline=deadline,received=None,request_ros_ns=request_ros_ns if private_start else self.get_clock().now().nanoseconds)
         def completed(_,r=record):
             r.update(received=time.monotonic(),done_ros_ns=self.get_clock().now().nanoseconds)
             if name in (c+'/derived_source_health' for c in CONSUMERS):self.health_guard.trigger()
@@ -474,6 +493,46 @@ class PerceptionSupervisor(Node):
         else:self._native_final(authority=authority)
         return True
 
+    def _private_native_proof(self):
+        now=time.monotonic();require(now<=min(self.native_started+2.,self._repair_deadline()),'postfault native preflight2s/original history expired')
+        self._graph();graph=native_graph(self.get_publishers_info_by_topic)
+        require(all(graph['endpoints'][k]['gid']==self.pin['source'][k+'_publisher_gid'] for k in TOPICS),'native source replacement forbids automatic recovery')
+        if not self.native.select(graph,now_ns=self.get_clock().now().nanoseconds,now_mono=now):
+            raise NativeProofPending('two postfault advancing native pairs unavailable')
+        pair=self.native.pairs[-1];records=[]
+        for i,kind in enumerate(('depth','color')):
+            record=next((r for r in reversed(self.native_infos[kind]) if r[3]==pair[i]['stamp']),None)
+            require(record is not None and 0<=now-record[2]<=.250,'native selected Info receipt expired/future');records.append(record)
+        value=deepcopy(self.baseline['camera_evidence']['lineage']['statement'])
+        for i,kind in enumerate(('depth','color')):value['original'][kind+'_info_stamp_ns']=records[i][3]
+        tf=self.buffer.lookup_transform(value['original']['color_frame'],value['original']['depth_frame'],Time(nanoseconds=records[0][3]))
+        validate_camera(value,records[0][0],records[1][0],extrinsic_matrix(tf))
+        if self.identity_rpc is None:
+            if not self.device_client.service_is_ready():raise NativeProofPending('native DeviceInfo unavailable')
+            context=self.repair_intent;message=DeviceInfo.Request();expiry=self._repair_deadline()
+            ns=self.get_clock().now().nanoseconds;request=time.monotonic()
+            require(self.repair_intent is context and not self.closed and self.policy.enabled and not self.policy.latched and
+                not self.reset_pending and self.pin is context['pin'] and self.epochs==context['epochs'] and request<=expiry and len(self.native.pairs)==2 and all(0<=request-r['receipt']<=.250 and
+                0<=ns-r['stamp']<=500_000_000 for pair in self.native.pairs for r in pair) and
+                all(0<=request-r[2]<=.250 and 0<=ns-r[3]<=500_000_000 for r in records),
+                'private DeviceInfo original ENTRY/native proof expired after readiness')
+            future=self.device_client.call_async(message)
+            self.identity_rpc=dict(future=future,request=request,graph=deepcopy(graph),received=None)
+            future.add_done_callback(lambda _,r=self.identity_rpc:r.update(received=time.monotonic()))
+            return False
+        rpc=self.identity_rpc
+        require(native_graph(self.get_publishers_info_by_topic)==rpc['graph'],'native graph changed during identity RPC')
+        require(time.monotonic()-rpc['request']<=1.,'original independent identity lease expired')
+        if not rpc['future'].done():
+            require(time.monotonic()-rpc['request']<=.4,'independent DeviceInfo timeout');return False
+        require(rpc['received'] is not None and rpc['request']<=rpc['received']<=rpc['request']+.4,'DeviceInfo completion late/unknown')
+        response=rpc['future'].result();require(response is not None and response.serial_number==self.serial,'independent camera serial differs')
+        require(native_graph(self.get_publishers_info_by_topic)==rpc['graph'],'native graph changed after identity response')
+        self.native_witness=dict(started=self.native_started,pairs=deepcopy(tuple(self.native.pairs)),
+            selected=tuple((r[2],r[3]) for r in records),request=rpc['request'],received=rpc['received'])
+        self._native_final(authority=self._repair_deadline)
+        return True
+
     def _late_native_proof(self):
         now=time.monotonic();require(now<=min(self.native_started+2.,self._late_deadline()),'postfault native preflight2s/original history expired')
         self._graph();graph=native_graph(self.get_publishers_info_by_topic)
@@ -521,7 +580,7 @@ class PerceptionSupervisor(Node):
         require(now<=history_expiry,'original pre-outage eligibility expired before dispatch')
         require(0<=now-witness['started']<=2.,'postfault native preflight2s expired')
         if authority is not None:
-            context=self.reconciliation if self.reconciliation is not None else self.late_intent
+            context=self.repair_intent if getattr(self,'repair_intent',None) is not None else (self.reconciliation if self.reconciliation is not None else self.late_intent)
             require(witness['started']==context['started_monotonic'] and witness['request']>context['started_monotonic'] and
                 witness['received']>context['started_monotonic'] and all(r['receipt']>=context['started_monotonic'] and
                 r['stamp']>context['started_ros_ns'] for pair in witness['pairs'] for r in pair),
@@ -585,6 +644,114 @@ class PerceptionSupervisor(Node):
         self.expected_generation=None;self.accepted_reset_id=None
         self._request(COORDINATOR+'/start_recovery',2.,native_authority=self._preflight_deadline)
 
+    def _repair_deadline(self):
+        context=self.repair_intent
+        ns=self.get_clock().now().nanoseconds;now=time.monotonic()
+        require(self.repair_intent is context and context is not None and self.allow_private_repair is True and not self.closed and self.policy.enabled and
+            not self.policy.latched and not self.reset_pending and self.reconciliation is None and self.late_intent is None and
+            not self.late_transaction_open and not self.journal.late_marker_conflict and self.pin is context['pin'] and
+            self.epochs==context['epochs'] and self.baseline_sha==context['baseline_sha256'],
+            'private repair intent/context invalidated')
+        require(self.policy.state=='private_repair_preflight' and self.policy.job is None or
+            self.policy.job is not None and self.policy.job.get('origin')=='private_availability_repair' and
+            self.policy.job.get('repair_id')==context['repair_id'] and self.policy.job.get('outage_id')==context['outage_id'],
+            'private repair owned state changed')
+        require(context['started_monotonic']<=now<=context['deadline_monotonic'] and ns>=context['started_ros_ns'] and
+            abs((ns-context['started_ros_ns'])/1e9-(now-context['started_monotonic']))<=2.,'private repair original ENTRY2s/clock expired')
+        return context['deadline_monotonic']
+
+    def _begin_private_repair(self,status):
+        started=time.monotonic();ns=self.get_clock().now().nanoseconds
+        require(self.allow_private_repair is True and self.policy.state=='warming' and not self.closed and
+            self.policy.enabled and not self.policy.latched and self.policy.job is None and not self.reset_pending and
+            self.reconciliation is None and self.late_intent is None and not self.late_transaction_open and
+            not self.journal.late_marker_conflict and set(self.epochs)==set(CONSUMERS) and
+            all(hex_value(v,32) and v!='0'*32 for v in self.epochs.values()),'private repair not eligible')
+        fault=transient_fault(status,self.pin['producer_generation'],self.pin['implementation']['producer_node_sha256'],now_mono=started,now_ns=ns)
+        self._baseline_unchanged();self._graph()
+        require(not self.ledger.invalid_reason,'private source context invalidated')
+        identity=uuid.uuid4().hex
+        self.repair_intent=dict(repair_id=identity,outage_id=fault['fault_id'],started_monotonic=started,
+            started_ros_ns=ns,deadline_monotonic=started+2.,pin=self.pin,pin_sha256=pin_digest(self.pin),epochs=dict(self.epochs),baseline_sha256=self.baseline_sha)
+        self.repair_result=dict(schema='so101-private-availability-repair-v1',repair_id=identity,outage_id=fault['fault_id'],
+            origin='private_availability_repair',state='private_repair_preflight',entry_monotonic=started,entry_ros_ns=ns,
+            deadline_monotonic=started+2.,qualified=False,execution_enabled=False)
+        self.policy.begin_private_repair(identity,fault,started)
+        self.pre_outage.clear();self._clear_health_queries();self.repair_bindings={}
+        self.repair_producer_snapshot=None;self.repair_coordinator_receipt=None
+        self.native_started=started;self.native=NativePairs(start_ns=ns,start_mono=started)
+        self.native_infos={k:deque(maxlen=4) for k in ('depth','color')};self.identity_rpc=None
+        self._repair_current();self._persist();self._repair_current()
+
+    def _repair_current(self,*,bindings=False):
+        self._baseline_unchanged();self._graph()
+        require(self.repair_intent is not None and pin_digest(self.pin)==self.repair_intent['pin_sha256'],'private repair pin/code/calibration changed')
+        heartbeat=self.producer
+        fault=transient_fault(self._producer_now(),self.pin['producer_generation'],self.pin['implementation']['producer_node_sha256'],
+            now_mono=time.monotonic(),now_ns=self.get_clock().now().nanoseconds)
+        require(heartbeat is not None and self.producer is heartbeat,'private producer heartbeat changed during access')
+        require(fault==self.policy.fault,'private repair fault changed')
+        self.repair_producer_snapshot=heartbeat
+        require(not self.ledger.invalid_reason,'private source context invalidated')
+        if bindings:
+            require(set(self.repair_bindings)==set(CONSUMERS),'both known consumer binding replies required')
+            for consumer,(value,receipt) in self.repair_bindings.items():
+                binding_metadata(value,self.pin,self.epochs[consumer],receipt,now=time.monotonic(),ns=self.get_clock().now().nanoseconds)
+        self._repair_deadline()
+
+    def _repair_final(self):
+        self._repair_current(bindings=True)
+        context=self.repair_intent;heartbeat=self.repair_producer_snapshot;witness=self.native_witness
+        bindings=tuple(self.repair_bindings.items());coordinator=self.repair_coordinator_receipt
+        require(coordinator is not None,'private coordinator terminal receipt missing')
+        self._native_final(authority=self._repair_deadline)
+        # No graph, ROS clock, hash, FS, RPC or context acquisition after this
+        # final monotonic sample. Never refetch/renew the original witnesses.
+        now=time.monotonic()
+        require(self.repair_intent is context and self.producer is heartbeat and self.native_witness is witness and
+            self.repair_coordinator_receipt==coordinator and not self.closed and self.policy.enabled and not self.policy.latched and
+            not self.reset_pending and context['started_monotonic']<=now<=context['deadline_monotonic'],
+            'private final lifecycle/ENTRY context changed')
+        require(0<=now-heartbeat[2]<=.250,'private original producer receipt expired/future')
+        require(0<=now-coordinator<=.250,'private original coordinator receipt expired/future')
+        require(all(self.repair_bindings.get(c) is record and 0<=now-record[1]<=.250 for c,record in bindings),
+            'private original binding receipt expired/future')
+        require(0<=now-witness['started']<=2. and all(0<=now-r['receipt']<=.250 for pair in witness['pairs'] for r in pair) and
+            all(0<=now-r<=.250 for r,_ in witness['selected']) and witness['request']<=witness['received']<=now<=witness['request']+1.,
+            'private original native/identity proof expired/future')
+        return context['deadline_monotonic']
+
+    def _dispatch_private_repair(self):
+        self._repair_current()
+        if not self._private_native_proof():return
+        for consumer in CONSUMERS:
+            endpoint=consumer+'/derived_source_health';result=self._take(endpoint)
+            if result is not None:
+                success,value,receipt=result
+                require(type(success) is bool and success==(value.get('state')=='ready'),'private binding RPC state contradictory')
+                binding_metadata(value,self.pin,self.epochs[consumer],receipt,now=time.monotonic(),ns=self.get_clock().now().nanoseconds)
+                self.repair_bindings[consumer]=(value,receipt)
+            if endpoint not in self.rpc:self._request(endpoint,2.,private_metadata=True)
+        if set(self.repair_bindings)!=set(CONSUMERS):return
+        endpoint=COORDINATOR+'/recovery_status';result=self._take(endpoint)
+        if result is None:
+            if endpoint not in self.rpc:self._request(endpoint,2.)
+            return
+        success,value,receipt=result
+        require(success and value.get('schema')=='so101-perception-recovery-v1' and value.get('state') in TERMINAL and
+            0<=time.monotonic()-receipt<=.250,'private repair coordinator not terminal/current')
+        self.repair_coordinator_receipt=receipt
+        self._repair_final()
+        context=self.repair_intent;self._clear_health_queries();self._repair_final()
+        self.policy.reserve_private_repair(context['repair_id'],time.monotonic(),time.time());self._persist()
+        self._repair_final()
+        self.dispatch_ros_ns=self.get_clock().now().nanoseconds;self.expected_generation=None;self.accepted_reset_id=None
+        self.repair_result.update(state='dispatch_unknown',reserved_monotonic=self.policy.job['reserved_monotonic'],
+            native_preflight=deepcopy(self.native_witness),binding_metadata={c:dict(response_done_monotonic=r,
+                state=v['state'],consumer_epoch=v['consumer_epoch'],source_pin_sha256=v['source_pin_sha256'],
+                producer_generation=v['producer_generation'],binding_invalidated=False) for c,(v,r) in self.repair_bindings.items()})
+        self._request(COORDINATOR+'/start_recovery',2.,native_authority=self._repair_final)
+
     def _adopt_completed(self,value):
         require(value.get('operation_success') is True and value.get('state')=='completed','coordinator did not complete successfully')
         require(hex_value(value.get('producer_generation'),32) and value['producer_generation']!=self.pin['producer_generation'] and
@@ -626,6 +793,10 @@ class PerceptionSupervisor(Node):
         if self.reconciliation is not None:
             self.reconciliation_result=dict(self.reconciliation_result,state='completed',job_id=self.policy.job['job_id'],
                 artifact_sha256=digest,producer_generation=pin['producer_generation'])
+        if getattr(self,'repair_intent',None) is not None:
+            self.repair_result.update(state='completed',job_id=self.policy.job['job_id'],artifact_sha256=digest,
+                producer_generation=pin['producer_generation'],source_pin_sha256=pin_digest(pin),consumer_epochs=dict(epochs))
+            self.repair_intent=None;self.repair_bindings={}
         self.policy.completed(time.monotonic());self.reconciliation=None;self.native=None;self._persist()
 
     def _monitor_job(self):
@@ -634,7 +805,9 @@ class PerceptionSupervisor(Node):
             result=self._take(COORDINATOR+'/start_recovery')
             if result is None:return
             success,value,_=result;require(success and value.get('accepted') is True,'recovery start refused/unknown')
-            self.policy.accepted(value.get('job_id'),value.get('deadline_monotonic'),time.monotonic());self._persist()
+            self.policy.accepted(value.get('job_id'),value.get('deadline_monotonic'),time.monotonic())
+            if getattr(self,'repair_intent',None) is not None:self.repair_result.update(state='accepted',job_id=self.policy.job['job_id'],coordinator_deadline_monotonic=self.policy.job['deadline'])
+            self._persist()
         require(time.monotonic()<=self.policy.job['deadline'],'owned coordinator absolute deadline expired/unknown')
         endpoint=COORDINATOR+'/recovery_status';result=self._take(endpoint)
         if result is None:
@@ -646,6 +819,7 @@ class PerceptionSupervisor(Node):
             require(hex_value(generation,32) and generation!=self.pin['producer_generation'] and hex_value(reset,32),'invalid reserved reset generation')
             require(self.expected_generation in (None,generation) and self.accepted_reset_id in (None,reset),'reserved reset identity changed')
             self.expected_generation=generation;self.accepted_reset_id=reset
+            if getattr(self,'repair_intent',None) is not None:self.repair_result.update(producer_generation=generation,accepted_reset_id=reset)
         if value.get('state')=='failed':
             self.policy.job=None;raise RuntimeError('owned coordinator job failed; no retry: '+str(value.get('reason'))[:256])
         if value.get('state')=='completed':
@@ -682,6 +856,13 @@ class PerceptionSupervisor(Node):
                     raise
                 return
             if not self.policy.enabled:return
+            if getattr(self,'repair_intent',None) is not None:
+                try:self._dispatch_private_repair()
+                except (NativeProofPending,TransformException) as error:
+                    if self.policy.job is None and time.monotonic()<=self._repair_deadline():
+                        self.health_error=str(error)[:512];return
+                    raise
+                return
             if self.policy.state=='verifying_native':
                 try:self._dispatch()
                 except (NativeProofPending,TransformException) as error:
@@ -692,6 +873,7 @@ class PerceptionSupervisor(Node):
             status=self._producer_now()
             if status.get('state')=='unavailable':
                 if self.policy.state=='armed' or self.pre_outage.status(now=time.monotonic())['pre_outage_history_available']:self._begin_outage(status)
+                elif getattr(self,'allow_private_repair',False):self._begin_private_repair(status)
                 else:self.health_error='unavailable producer is not a new armed outage';self.policy.healthy(time.monotonic(),False)
                 return
             try:valid=self._current_health();self.health_error=None if valid else 'waiting for two current source bindings'
@@ -1039,7 +1221,7 @@ class PerceptionSupervisor(Node):
             except Exception as error:
                 self.late_transaction_open=True;self._fail(error)
                 response.success=False;response.message=bounded_json(self._snapshot());return response
-        if self.reconciliation is not None or self.late_intent is not None or self.late_transaction_open or self.journal.late_marker_conflict:
+        if getattr(self,'repair_intent',None) is not None or self.reconciliation is not None or self.late_intent is not None or self.late_transaction_open or self.journal.late_marker_conflict:
             response.success=False;response.message=bounded_json(dict(self._snapshot(),reason='operator reconciliation or unresolved local adoption'));return response
         try:
             self.pre_outage.clear();self._baseline_unchanged();self._graph();self._producer_now()
@@ -1049,6 +1231,8 @@ class PerceptionSupervisor(Node):
         response.message=bounded_json(self._snapshot());return response
 
     def _disable(self,request,response):
+        if getattr(self,'repair_intent',None) is not None and self.policy.job is None:
+            self.repair_result.update(state='cancelled_before_reservation');self.repair_intent=None;self.native=None
         if self.late_intent is not None:self._late_failure(RuntimeError('operator disabled pending local adoption'))
         if self.policy.job is None:
             if self.reconciliation is not None:self.reconciliation_result=dict(self.reconciliation_result,state='cancelled_before_reservation')
@@ -1072,7 +1256,7 @@ class PerceptionSupervisor(Node):
         # API acceptance requests a bounded terminal-state check; never clears
         # an unknown job, rewinds quota or implicitly enables supervision.
         try:
-            require(self.policy.job is None and self.reconciliation is None and self.late_intent is None and not self.late_transaction_open and
+            require(self.policy.job is None and getattr(self,'repair_intent',None) is None and self.reconciliation is None and self.late_intent is None and not self.late_transaction_open and
                 not self.journal.late_marker_conflict and not self.reset_pending,'active/unknown job or reconciliation/local adoption/reset check pending')
             self._request(COORDINATOR+'/recovery_status',2.);self.reset_pending=True
             response.success=True
@@ -1080,7 +1264,7 @@ class PerceptionSupervisor(Node):
         response.message=bounded_json(dict(self._snapshot(),reset_check_accepted=response.success));return response
 
     def _snapshot(self):
-        return dict(self.policy.status(),**self.pre_outage.status(now=time.monotonic()),operator_reconciliation=self.reconciliation_result,late_local_adoption=self.late_result,late_transaction_unresolved=self.late_transaction_open or self.journal.late_marker_conflict,late_restart_confirmation_required=self.journal.late_marker is not None,reset_check_pending=self.reset_pending,health_reason=self.health_error,current_producer_generation=self.pin['producer_generation'],
+        return dict(self.policy.status(),**self.pre_outage.status(now=time.monotonic()),allow_private_availability_repair=self.allow_private_repair,private_availability_repair=self.repair_result,operator_reconciliation=self.reconciliation_result,late_local_adoption=self.late_result,late_transaction_unresolved=self.late_transaction_open or self.journal.late_marker_conflict,late_restart_confirmation_required=self.journal.late_marker is not None,reset_check_pending=self.reset_pending,health_reason=self.health_error,current_producer_generation=self.pin['producer_generation'],
                     current_pin_sha256=pin_digest(self.pin),health_observation=dict(health_refresh_period_s=.1,control_period_s=.2,refresh_callbacks=self.health_refresh_callbacks,coverage_end_monotonic=self.health_coverage_end,
                         gap_reason=self.health_gap_reason,request_starts=self.health_request_starts,guard_consumes=self.health_guard_consumes,
                         guard_wakeups=self.health_guard_wakeups,rpc_clocks=self.health_rpc_clocks,rejected=self.health_rejections),health_scope='continuous source binding only',image_admitted=False,processing_progress=False,scope='source-binding health only; never image progress, motion or physical qualification')
