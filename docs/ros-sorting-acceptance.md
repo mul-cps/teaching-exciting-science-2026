@@ -279,3 +279,15 @@ The observer’s full result remains **NEGATIVE**. All 136 retained coordinator 
 Separately, nine historical SOURCE-ARMED callbacks had five-second stability and positive original lease margins. They do not replace current-at-take IMAGE evidence, establish semantic detection, grant present readiness, or qualify physical motion. The earlier controlled trial remains NOT_STARTED with no intervention and was not retried. The staged owner telemetry change is not deployed or proved to explain the owner exit.
 
 Evidence under `2026-10-19-sorting/overnight/`: `final-94cf077/INDEPENDENT-SEALED-NEGATIVE-AUDIT.json`; `teleop-ack-wakeup/INDEPENDENT-SEALED-ACTUAL-AB-AUDIT.json`; `private-availability-repair/natural-repair-observation/INDEPENDENT-SEALED-ACTUAL-NATURAL-REPAIR-AUDIT.json` and `READONLY-COMPLETION-HANDOFF-ANALYSIS.json`; `movegroup-tf-audit/OFFLINE-OPTICAL-RELATIVE-AUDIT.json`.
+
+## Overnight checkpoint — 2026-10-20 03:55 UTC
+
+**Physical cycles remain zero.** One verified ROS-only pick/place cycle, then twenty successful sorts with at least five per color, remain unachieved. Owner 2070720 exited October 19 at 20:48:30 UTC; its final torque-off readings are stale. Fresh support/recovery/home, calibration/registration, jaw/contact/TCP, collision clearance, grasp/release and placement remain prerequisites. MoveGroup’s captured optical transform differs from native calibration by 4.997 mm/0.403°; planner cache correctness and quiescence remain unverified.
+
+Completion-evidence source is integrated at LIVE `c636062` / STAGED `4351b82`; eleven reviewed feature paths match. Independent combined software verification passed **398 cases, zero skips**, including semantically overlapping copies of five regressions. Do not add author/earlier counts. Construction-time exposure is READ_ONLY and default false; legacy responses bypass event work. Historical completion evidence and current readiness remain distinct.
+
+ROOT built an **inactive** private prefix: two packages in 2.20s, with 91 source and 85 installed-file checks and verified new-prefix cold imports. No-init/Node claims are pinned-helper attestations; no runtime environment snapshot was exported. **No live completion event, coordinator deployment or new recovery trial was qualified.**
+
+The prior natural-fault repair completed and was adopted, but its CURRENT-IMAGE observer qualification remains negative. Nine historical five-second SOURCE-ARMED samples do not replace IMAGE or physical evidence. Segment03’s final 89.17s observed 25.513Hz derived metadata, producer ready438/438, board tracking434/434, and objects tracking339/427. These are received-message fractions, not uptime, piece identity or a controlled comparison; TF sampling covered only the first five seconds.
+
+The full matrix remains negative on unchanged teleop **98.972Hz <100Hz**; the fixed AB/BA diagnostic was causally inconclusive. No threshold weakening or same-fault/controlled-trial retry occurred.
