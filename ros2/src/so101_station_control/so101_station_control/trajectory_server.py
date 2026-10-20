@@ -2281,6 +2281,8 @@ class TrajectoryBridge(Node):
                     component.get("mode") != "held_body_raw_jaw" or
                     component.get("command_id") != command["command_id"] or
                     component.get("delta_counts") != delta or component.get("target_raw") != target or
+                    type(component.get("endpoint_tolerance_counts")) is not int or
+                    component["endpoint_tolerance_counts"] != min(2, abs(delta)-1) or
                     component.get("body_profile_unchanged") is not True or
                     component.get("entry_jaw_ram") != component.get("restored_jaw_ram") or
                     final.get("owner_session_id") != command["owner_session_id"] or
@@ -2309,7 +2311,8 @@ class TrajectoryBridge(Node):
                             (("entry_position_monotonic","monotonic"),("entry_torque_monotonic","torque_monotonic")))):
                     raise RuntimeError("held jaw failure proof is invalid")
             elif (reply.get("ok") is not True or final.get("event") != "commission_gripper_held_complete" or
-                    component.get("status") != "complete" or abs(final["raw"]["gripper"]-target)>1):
+                    component.get("status") != "complete" or
+                    abs(final["raw"]["gripper"]-target)>component["endpoint_tolerance_counts"]):
                 raise RuntimeError("held jaw did not strictly arrive")
             message = json.dumps(dict(qualified=False, qualification="SUPERVISED_RAW_JAW_NOT_SI_CALIBRATED",
                 collision_samples_checked=abs(delta)+1, result=reply), allow_nan=False)

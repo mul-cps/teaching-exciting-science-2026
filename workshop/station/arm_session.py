@@ -2390,6 +2390,7 @@ class ArmSession:
         if type(delta_counts) is not int or not 0 < abs(delta_counts) <= 16:
             raise ArmPlanPreflightError("delta_counts must be a nonzero integer in [-16,16]")
         held = held_context is not None
+        endpoint_tolerance_counts = min(2, abs(delta_counts)-1) if held else 1
         admission_started = self.clock()
         entry_goals = entry_ram = None
         if held:
@@ -2421,6 +2422,7 @@ class ArmSession:
         baseline = dict(held_context["expected_start_raw"]) if held else None
         if held:
             self._component_command.update(mode="held_body_raw_jaw", qualified=False,
+                endpoint_tolerance_counts=endpoint_tolerance_counts,
                 command_id=held_context["command_id"], entry_jaw_ram={r: entry_ram[r]["gripper"] for r in RAM_REGISTERS},
                 preserved_body_goals={j: entry_goals[j] for j in JOINTS[:-1]})
         previous_at = started
@@ -2576,7 +2578,7 @@ class ArmSession:
             quiet_since = None
             while True:
                 raw = sample()
-                if abs(raw["gripper"] - target) <= 1:
+                if abs(raw["gripper"] - target) <= endpoint_tolerance_counts:
                     if quiet_since is None:
                         quiet_since = self.clock()
                     if self.clock() - quiet_since >= .2:
