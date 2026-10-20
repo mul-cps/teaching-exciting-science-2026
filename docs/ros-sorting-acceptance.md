@@ -6,6 +6,40 @@ The [plan](superpowers/plans/2026-10-16-ros-sorting-station.md) defines the
 release requirements; the [progress record](superpowers/plans/2026-10-16-ros-sorting-progress.md)
 records commands, limitations and decisions.
 
+## Overnight checkpoint — 2026-10-20, 00:20 UTC
+
+The main acceptance target remains autonomous ROS-only brick pick and place,
+followed by twenty consecutive successful physical sorts. No physical sorting
+cycle or arm motion has been performed during this overnight run.
+
+The follower owner exited on October 19 at 20:48:30 UTC after an endpoint-hold
+health failure. Its final historical readback had all six torque bits off;
+there is no fresh owner telemetry. The running camera and RViz do not qualify
+the arm pose, home, camera/base registration, TCP or jaw measurements.
+
+The frozen software matrix at `4072395` passed: native ROS domain75,
+3019 passed/64 skipped; station vision, 2323 passed/94 skipped; isolated
+domain177, 181 passed/zero skips. These stages overlap and must not be summed.
+An earlier 180-pass/one-failure DDS run is retained; only its outdated fake
+reconciliation response was corrected. All 706 tracked hashes stayed fixed.
+
+The first actual consumer-reconciliation job completed its private-worker reset
+and two advancing IMAGE-admission proofs per consumer. Supervisor adoption then
+latched with `derived lineage: source receipts expired/future`, preserving the
+owned job and its one charged attempt. Deterministic replay reproduced a
+retained-history bug; the exact offending live row was not captured. The fix is
+verified in source and is not deployed to the current supervisor. Explicit
+resolution of that already-completed job is still being implemented. No automatic outage
+test has run, and perception recovery grants no arm execution authority.
+
+Evidence is under `2026-10-19-sorting/overnight/final-4072395/` and
+`2026-10-19-sorting/automatic-perception-supervisor/completed-adoption/` in the
+station evidence directory. The table and hardware description below retain
+their original checkpoint evidence; statements about a running owner or fresh
+elbow telemetry are historical, not the current live state.
+
+## Original acceptance checkpoint
+
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
 | Software suite | Final combined: 1595 passed, 84 skipped, 6 subtests (32.55s); actual station interpreter: 264 passed (6.15s) | Current scoped software gates passed; physical acceptance separate |
@@ -30,7 +64,7 @@ records commands, limitations and decisions.
 | Three successful cold starts | Three camera-only starts passed after reconnection; complete station cold-start gate not exercised | Pending |
 | Release artifacts and publication | Local camera/USB logs retained; implementation branch not a release | Pending |
 
-## Current hardware boundary
+## Hardware boundary at the original checkpoint
 
 The D435i is SDK serial `243322071783`, firmware `5.17.0.10`. After the
 recorded USB outage, three native ROS camera starts each delivered approximately
