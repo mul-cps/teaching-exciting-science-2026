@@ -18,6 +18,7 @@ PERCEPTION_SERVICES = {
     'perception-supervisor-disable': '/so101_perception_supervisor/disable',
     'perception-supervisor-status': '/so101_perception_supervisor/status',
     'perception-supervisor-reset-fault': '/so101_perception_supervisor/reset_fault',
+    'perception-supervisor-adopt-completed-job': '/so101_perception_supervisor/adopt_completed_job',
     'perception-supervisor-reconcile-consumers': '/so101_perception_supervisor/reconcile_consumers',
 }
 
@@ -73,6 +74,12 @@ def _diagnostic_payload(command, result):
                 or status.get('operation_success') is not False or type(identity) is not str or len(identity)!=32
                 or any(c not in '0123456789abcdef' for c in identity)):
             raise ValueError('reconciliation acceptance requires disabled pending operator identity, not readiness')
+    if command=='perception-supervisor-adopt-completed-job' and result.success:
+        identity=status.get('adoption_id');job=status.get('job_id')
+        if (status.get('accepted') is not True or status.get('enabled') is not False or status.get('ready_now') is not False
+                or status.get('operation_success') is not False or any(type(v) is not str or len(v)!=32
+                or any(c not in '0123456789abcdef' for c in v) for v in (identity,job))):
+            raise ValueError('late local adoption acceptance requires disabled pending operator/job identity')
     return dict(success=result.success, rpc_success=result.success, command=command,
                 service=PERCEPTION_SERVICES[command], message=result.message, status=status,
                 operation_success=status.get('operation_success', False),

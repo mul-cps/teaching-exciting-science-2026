@@ -210,3 +210,5 @@ remain fatal. If no current prospective entry exists, the same owned completed
 job waits through its original coordinator deadline using read-only status calls.
 The deadline is checked again after artifact/graph/validation access before any
 local mutation. This does not extend the job or refresh any recorded lease.
+
+Explicit same-job late local adoption and its conservative transaction restart limits are documented in [late-local-adoption.md](late-local-adoption.md). It adds no reset, attempt or automatic eligibility.

@@ -21,16 +21,17 @@ from std_srvs.srv import Trigger
 from tf2_ros import Buffer,TransformListener,TransformException
 
 from .derived_lineage import (TOPICS,LINEAGE_TOPIC,LineageBuffer,canonical_gid,configure_ros_domain,
-    finite,hex_value,parse_lineage,require,statement_pin,validate_graph,validate_statement,validate_camera)
+    finite,integer,hex_value,parse_lineage,require,statement_pin,validate_graph,validate_statement,validate_camera)
 from .derived_aligned import received_gid
 from .admission_proof import pin_digest
-from .recovery_core import NativePairs,native_graph,bounded_json
+from .recovery_core import NativePairs,ConsumerProgress,native_graph,bounded_json
 from .perception_recovery import read_artifact,PRODUCER,PRODUCER_STATUS,CONSUMERS
 from .rocm_rgbd import extrinsic_matrix
 from .supervisor_policy import SupervisorPolicy,transient_fault
 from .supervisor_journal import SupervisorJournal
 from .pre_outage_history import PreOutageHistory
-from .supervisor_health import HealthNotCurrent,statement_coverage
+from .supervisor_health import HealthNotCurrent,statement_coverage,proof_coverage
+from .late_adoption import SCHEMA as LATE_SCHEMA,bounded_read,digest as late_digest,write_marker,validate_marker,known_state,compensation_snapshot,buffered_native_pairs
 from .source_binding_health import SourceBindingProgress,binding_context,binding_coverage
 
 COORDINATOR='/so101_perception_recovery'
@@ -76,7 +77,7 @@ class PerceptionSupervisor(Node):
         try:
             self.policy=SupervisorPolicy(loaded.get('policy'))
             self.epochs=dict(loaded.get('consumer_epochs',{}));self.adopted=loaded.get('adopted')
-            if self.adopted:
+            if self.adopted and not self.journal.late_marker_conflict:
                 path=self.recovery_directory/(self.adopted['job_id']+'.json')
                 artifact,digest=read_artifact(path)
                 require(digest==self.adopted['artifact_sha256'],'persisted attributable artifact changed')
@@ -91,6 +92,9 @@ class PerceptionSupervisor(Node):
             self.dispatch_ros_ns=None;self.health_error='supervisor disabled';self.health_progress={}
             self.rpc={};self.reset_pending=False;self.pre_outage=PreOutageHistory()
             self.reconciliation=None;self.reconciliation_result=None
+            self.late_intent=None;self.late_result=None;self.late_commit_started=False;self.late_transaction_open=self.journal.late_marker is not None or self.journal.late_marker_conflict
+            self.late_completion=None;self.late_coord_receipt=None;self.late_progress={};self.late_receipts={};self.late_receipt_sequences={};self.late_ledger=None;self.native_witness=None
+            self.late_guard=self.create_guard_condition(self._late_guard)
             self.health_cache={};self.health_next_request={};self.health_request_starts={};self.health_rpc_clocks={}
             self.health_coverage_end=None;self.health_candidate_end=None;self.health_gap_reason=None
             self.health_rejections={};self.health_guard_consumes=0;self.health_guard_wakeups=0
@@ -99,13 +103,13 @@ class PerceptionSupervisor(Node):
             self.buffer=Buffer();self.listener=TransformListener(self.buffer,self)
             self.rpc_clients={name:self.create_client(Trigger,name) for name in
                 (COORDINATOR+'/start_recovery',COORDINATOR+'/recovery_status',
-                 *(consumer+'/derived_source_health' for consumer in CONSUMERS))}
+                 *(consumer+'/derived_source_health' for consumer in CONSUMERS),*(consumer+'/derived_source_status' for consumer in CONSUMERS))}
             self.device_client=self.create_client(DeviceInfo,self.pin['source']['camera_node']+'/device_info')
             self.subscriptions_=[self.create_subscription(String,PRODUCER_STATUS,self._producer,qos_profile_sensor_data),
                 self.create_subscription(String,LINEAGE_TOPIC,self._lineage,qos_profile_sensor_data)]
             for kind in ('depth','color'):
                 self.subscriptions_.append(self.create_subscription(CameraInfo,TOPICS[kind+'_info'],self._info(kind),qos_profile_sensor_data))
-            for name,callback in (('enable',self._enable),('disable',self._disable),('status',self._status),('reset_fault',self._reset_fault),('reconcile_consumers',self._reconcile_consumers)):
+            for name,callback in (('enable',self._enable),('disable',self._disable),('status',self._status),('reset_fault',self._reset_fault),('reconcile_consumers',self._reconcile_consumers),('adopt_completed_job',self._adopt_completed_job)):
                 self.create_service(Trigger,'~/'+name,callback)
             self.publisher=self.create_publisher(String,'~/status',1)
             self.timer=self.create_timer(.2,self._tick)
@@ -115,10 +119,13 @@ class PerceptionSupervisor(Node):
             self.journal.close();raise
 
     def _persist(self):
+        if getattr(self,'late_transaction_open',False):return  # Preserve unresolved marker/disk exactly.
         self.policy.clocks(time.monotonic(),time.time())
         self.journal.write(self.policy.journal(),consumer_epochs=self.epochs,adopted=self.adopted)
 
     def _fail(self,error):
+        if getattr(self,'late_intent',None) is not None:
+            self.late_result.update(state='failed',reason=str(error)[:512],operation_success=False);self.late_intent=None
         self.pre_outage.clear();self.reset_pending=False
         if self.reconciliation is not None:self.reconciliation_result=dict(self.reconciliation_result or {},state='failed',reason=str(error)[:512])
         self.reconciliation=None
@@ -195,6 +202,7 @@ class PerceptionSupervisor(Node):
 
     def _request(self,name,timeout,*,native_authority=None):
         if name in self.rpc:return
+        late_context=getattr(self,'late_intent',None) if name==COORDINATOR+'/recovery_status' or name in (c+'/derived_source_status' for c in CONSUMERS) else None
         client=self.rpc_clients[name]
         if not client.service_is_ready():
             if name in (c+'/derived_source_health' for c in CONSUMERS):raise HealthNotCurrent('consumer metadata service unavailable')
@@ -211,11 +219,16 @@ class PerceptionSupervisor(Node):
                 'read-only health producer identity/fault contradiction')
             # Last graph/heartbeat access may have invalidated lifecycle state.
             if not PerceptionSupervisor._health_eligible(self):return False
+        deadline=started+timeout
+        if late_context is not None:
+            require(self.late_intent is late_context,'late local operator intent invalidated before request')
+            deadline=min(deadline,self._late_deadline())
         future=client.call_async(Trigger.Request())
-        record=dict(future=future,started=started,deadline=started+timeout,received=None,request_ros_ns=self.get_clock().now().nanoseconds)
+        record=dict(future=future,started=started,deadline=deadline,received=None,request_ros_ns=self.get_clock().now().nanoseconds)
         def completed(_,r=record):
             r.update(received=time.monotonic(),done_ros_ns=self.get_clock().now().nanoseconds)
             if name in (c+'/derived_source_health' for c in CONSUMERS):self.health_guard.trigger()
+            if name in (c+'/derived_source_status' for c in CONSUMERS) or late_context is not None and name==COORDINATOR+'/recovery_status':self.late_guard.trigger()
         future.add_done_callback(completed)
         self.rpc[name]=record
 
@@ -459,6 +472,45 @@ class PerceptionSupervisor(Node):
         else:self._native_final(authority=authority)
         return True
 
+    def _late_native_proof(self):
+        now=time.monotonic();require(now<=min(self.native_started+2.,self._late_deadline()),'postfault native preflight2s/original history expired')
+        self._graph();graph=native_graph(self.get_publishers_info_by_topic)
+        require(all(graph['endpoints'][k]['gid']==self.pin['source'][k+'_publisher_gid'] for k in TOPICS),'native source replacement forbids automatic recovery')
+        selected=buffered_native_pairs(self.native,graph,now_ns=self.get_clock().now().nanoseconds,now_mono=time.monotonic())
+        if selected is None:raise NativeProofPending('two buffered postentry advancing native pairs unavailable')
+        self.native.graph=deepcopy(graph);self.native.pairs.clear();self.native.pairs.extend(selected)
+        records=[]
+        for pair in selected:
+            records=[]
+            for i,kind in enumerate(('depth','color')):
+                record=next((r for r in self.native_infos[kind] if r[3]==pair[i]['stamp'] and r[1]==pair[i]['gid']),None)
+                require(record is not None and record[2]==pair[i]['receipt'],'native selected original Info missing/receipt changed')
+                records.append(record)
+            value=deepcopy(self.baseline['camera_evidence']['lineage']['statement'])
+            for i,kind in enumerate(('depth','color')):value['original'][kind+'_info_stamp_ns']=records[i][3]
+            tf=self.buffer.lookup_transform(value['original']['color_frame'],value['original']['depth_frame'],Time(nanoseconds=records[0][3]))
+            validate_camera(value,records[0][0],records[1][0],extrinsic_matrix(tf))
+        if self.identity_rpc is None:
+            if not self.device_client.service_is_ready():raise NativeProofPending('native DeviceInfo unavailable')
+            self._late_deadline()
+            require(buffered_native_pairs(self.native,graph,now_ns=self.get_clock().now().nanoseconds,now_mono=time.monotonic()) is not None,'native pairs expired before identity request')
+            request=time.monotonic();future=self.device_client.call_async(DeviceInfo.Request())
+            self.identity_rpc=dict(future=future,request=request,graph=deepcopy(graph),received=None)
+            future.add_done_callback(lambda _,r=self.identity_rpc:r.update(received=time.monotonic()))
+            return False
+        rpc=self.identity_rpc
+        require(native_graph(self.get_publishers_info_by_topic)==rpc['graph'],'native graph changed during identity RPC')
+        require(time.monotonic()-rpc['request']<=1.,'original independent identity lease expired')
+        if not rpc['future'].done():
+            require(time.monotonic()-rpc['request']<=.4,'independent DeviceInfo timeout');return False
+        require(rpc['received'] is not None and rpc['request']<=rpc['received']<=rpc['request']+.4,'DeviceInfo completion late/unknown')
+        response=rpc['future'].result();require(response is not None and response.serial_number==self.serial,'independent camera serial differs')
+        require(native_graph(self.get_publishers_info_by_topic)==rpc['graph'],'native graph changed after identity response')
+        self.native_witness=dict(started=self.native_started,pairs=deepcopy(tuple(self.native.pairs)),
+            selected=tuple((r[2],r[3]) for r in records),request=rpc['request'],received=rpc['received'])
+        self._native_final(authority=self._late_deadline)
+        return True
+
     def _native_final(self,*,authority=None):
         # Scalars from the ORIGINAL proof, checked after all graph/TF/result
         # accesses and again after service readiness immediately before RPC.
@@ -467,7 +519,7 @@ class PerceptionSupervisor(Node):
         require(now<=history_expiry,'original pre-outage eligibility expired before dispatch')
         require(0<=now-witness['started']<=2.,'postfault native preflight2s expired')
         if authority is not None:
-            context=self.reconciliation
+            context=self.reconciliation if self.reconciliation is not None else self.late_intent
             require(witness['started']==context['started_monotonic'] and witness['request']>context['started_monotonic'] and
                 witness['received']>context['started_monotonic'] and all(r['receipt']>=context['started_monotonic'] and
                 r['stamp']>context['started_ros_ns'] for pair in witness['pairs'] for r in pair),
@@ -616,6 +668,7 @@ class PerceptionSupervisor(Node):
             self.policy.clocks(time.monotonic(),time.time())
             if self.pre_outage.token is not None or self.pre_outage.active is not None:
                 self.pre_outage.validate(self._history_context(),now=time.monotonic(),ns=self.get_clock().now().nanoseconds)
+            if getattr(self,'late_intent',None) is not None:self._late_step();return
             if self.reset_pending:self._finish_reset();return
             if self.policy.latched:return
             if self.policy.job is not None:self._monitor_job();return
@@ -650,6 +703,282 @@ class PerceptionSupervisor(Node):
             else:self._fail(error)
         except Exception as error:self._fail(error)
 
+    def _adopt_completed_job(self,request,response):
+        started=time.monotonic();ns=self.get_clock().now().nanoseconds
+        try:
+            require(not self.closed and not self.policy.enabled and self.policy.latched is not None and
+                self.policy.job is not None and self.policy.job.get('state')=='accepted' and
+                self.late_intent is None and self.reconciliation is None and not self.reset_pending and COORDINATOR+'/start_recovery' not in self.rpc and
+                not self.journal.late_marker_conflict and set(self.epochs)==set(CONSUMERS) and all(hex_value(v,32) for v in self.epochs.values()),
+                'late local adoption requires disabled known owned accepted job')
+            self._baseline_unchanged();self._graph()
+            self._late_coordinator_identity()
+            identity=uuid.uuid4().hex
+            message=bounded_json(dict(accepted=True,adoption_id=identity,job_id=self.policy.job['job_id'],
+                state='local_adoption_preflight',enabled=False,ready_now=False,operation_success=False,qualified=False,execution_enabled=False))
+            require(time.monotonic()<=started+2.,'late local adoption entry2s expired before admission')
+            self.late_intent=dict(adoption_id=identity,started_monotonic=started,started_ros_ns=ns,deadline_monotonic=started+2.,last_ros_ns=ns,
+                owned_job=deepcopy(self.policy.job),pin_sha256=pin_digest(self.pin))
+            self.late_result=dict(schema='so101-late-local-adoption-status-v1',adoption_id=identity,job_id=self.policy.job['job_id'],state='pending',
+                operation_success=False,enabled=False,ready_now=False,qualified=False,execution_enabled=False)
+            self.pre_outage.clear();self._clear_health_queries()
+            for endpoint in (COORDINATOR+'/recovery_status',*(c+'/derived_source_status' for c in CONSUMERS)):
+                record=self.rpc.pop(endpoint,None)
+                if record is not None:
+                    try:self.rpc_clients[endpoint].remove_pending_request(record['future'])
+                    except (KeyError,RuntimeError):pass
+                    record['future'].cancel()
+            if self.identity_rpc is not None:
+                try:self.device_client.remove_pending_request(self.identity_rpc['future'])
+                except (KeyError,RuntimeError):pass
+                self.identity_rpc['future'].cancel()
+            self.native_started=started;self.native=NativePairs(start_ns=ns,start_mono=started)
+            self.native_infos={k:deque(maxlen=4) for k in ('depth','color')};self.identity_rpc=None
+            self.late_progress={};self.late_receipts={};self.late_receipt_sequences={};self.late_completion=None;self.late_coord_receipt=None;self.late_ledger=None;self.late_commit_started=False
+            response.success=True;response.message=message
+        except Exception as error:
+            response.success=False;response.message=bounded_json(dict(accepted=False,reason=str(error)[:512],enabled=False,ready_now=False,
+                operation_success=False,qualified=False,execution_enabled=False))
+        return response
+
+    def _late_deadline(self):
+        self.policy.clocks(time.monotonic(),time.time())
+        context=self.late_intent
+        require(context is not None and not self.closed and not self.policy.enabled and
+            self.policy.job==context['owned_job'] and self.policy.latched is not None and
+            pin_digest(self.pin)==context['pin_sha256'],'late local adoption context changed')
+        now=time.monotonic();ns=self.get_clock().now().nanoseconds
+        require(context['started_monotonic']<=now<=context['deadline_monotonic'] and ns>=context.get('last_ros_ns',context['started_ros_ns']) and
+            abs((ns-context['started_ros_ns'])/1e9-(now-context['started_monotonic']))<=2.,'late local adoption original entry2s expired/clock changed')
+        context['last_ros_ns']=ns
+        return context['deadline_monotonic']
+
+    def _late_coordinator_identity(self):
+        nodes=[(n,s) for n,s in self.get_node_names_and_namespaces() if s.rstrip('/')+'/'+n==COORDINATOR]
+        require(len(nodes)==1,'resident coordinator must have one actual node')
+        services=self.get_service_names_and_types_by_node(nodes[0][0],nodes[0][1])
+        require(any(name==COORDINATOR+'/recovery_status' and types==['std_srvs/srv/Trigger'] for name,types in services),
+            'resident coordinator status endpoint unavailable')
+
+    def _late_historical(self,value):
+        context=self.late_intent;job=context['owned_job']
+        require(value.get('schema')=='so101-perception-recovery-v1' and value.get('state')=='completed' and
+            value.get('operation_success') is True and value.get('job_id')==job['job_id'] and
+            value.get('deadline_monotonic')==job['deadline'] and value.get('qualified') is False and value.get('execution_enabled') is False,
+            'resident historical completed job not attributable')
+        require(hex_value(value.get('accepted_reset_id'),32) and hex_value(value.get('producer_generation'),32) and
+            value['producer_generation']!=self.pin['producer_generation'],'historical reset/private generation invalid')
+        path=self.recovery_directory/(job['job_id']+'.json')
+        require(Path(value.get('artifact','')).resolve()==path,'historical owned artifact path changed')
+        artifact,digest=read_artifact(path);require(digest==value.get('artifact_sha256'),'historical owned artifact bytes changed')
+        pin=artifact['derived_source']['pin'];same_auto_context(self.original_pin,pin)
+        require(pin['producer_generation']==value['producer_generation'] and pin_digest(pin)==value.get('source_pin_sha256'),
+            'historical completed pin changed')
+        epochs={};require(set(value.get('consumers',{}))==set(CONSUMERS),'historical two consumer records required')
+        for consumer in CONSUMERS:
+            record=value['consumers'][consumer];witnesses=record.get('witnesses')
+            require(type(witnesses) is list and len(witnesses)==2 and record.get('latest')==witnesses[-1],
+                'historical two actual IMAGE witnesses required')
+            epoch=witnesses[0].get('consumer_epoch');require(hex_value(epoch,32) and epoch!=self.epochs.get(consumer),'historical epoch invalid')
+            for proof in witnesses:
+                require(proof.get('schema')=='so101-derived-admission-status-v1' and proof.get('state')=='ready' and
+                    proof.get('qualified') is False and proof.get('execution_enabled') is False and proof.get('consumer_epoch')==epoch and
+                    proof.get('producer_generation')==pin['producer_generation'] and proof.get('source_pin_sha256')==pin_digest(pin),
+                    'historical IMAGE witness context changed')
+                require(all(type(proof.get(k)) is int and proof[k]>0 for k in ('sequence','depth_stamp_ns','color_stamp_ns','checked_ros_ns','original_header_expiry_ros_ns')) and
+                    abs(proof['depth_stamp_ns']-proof['color_stamp_ns'])<=40_000_000 and
+                    max(proof['depth_stamp_ns'],proof['color_stamp_ns'])<=proof['checked_ros_ns']<proof['original_header_expiry_ros_ns']<=min(proof['depth_stamp_ns'],proof['color_stamp_ns'])+500_000_000 and
+                    finite(proof.get('original_receipt_expiry_monotonic')) and 0<proof['original_receipt_expiry_monotonic']<=job['deadline']+.250,
+                    'historical original IMAGE timing invalid')
+            require(all(witnesses[1][k]>witnesses[0][k] for k in ('sequence','depth_stamp_ns','color_stamp_ns')),'historical IMAGE witnesses did not advance')
+            epochs[consumer]=epoch
+        self._late_coordinator_identity();self._late_deadline()
+        self.late_completion=dict(value=deepcopy(value),pin=deepcopy(pin),digest=digest,path=str(path),epochs=epochs)
+        self.expected_generation=pin['producer_generation'];self.accepted_reset_id=value['accepted_reset_id']
+        self.late_progress={c:ConsumerProgress(self.epochs[c],pin,start_ns=context['started_ros_ns']) for c in CONSUMERS}
+
+    def _late_lineages(self):
+        pin=self.late_completion['pin'];ledger=LineageBuffer(pin)
+        for raw,gid,receipt in self.raw_lineages:
+            value=parse_lineage(raw)
+            if value['producer_generation']!=pin['producer_generation']:continue
+            now=time.monotonic();ns=self.get_clock().now().nanoseconds
+            try:statement_coverage(value,pin,receipt,now=now,ns=ns)
+            except HealthNotCurrent:continue
+            if now-receipt>.250:continue
+            if ledger.add(raw,gid,now_ns=ns,now_mono=now):
+                a,b,_=ledger.entries[-1];ledger.entries[-1]=(a,b,receipt)
+        if not ledger.entries:raise NativeProofPending('current prospective lineage unavailable')
+        self.late_ledger=ledger
+        return ledger
+
+    def _late_collect(self,start_requests):
+        self._late_deadline()
+        coordinator=COORDINATOR+'/recovery_status';result=self._take(coordinator)
+        if result is not None:
+            success,value,receipt=result
+            require(success,'resident completed coordinator status unavailable')
+            if self.late_completion is None:self._late_historical(value)
+            else:
+                previous=self.late_completion['value']
+                require(all(value.get(k)==previous.get(k) for k in ('schema','state','job_id','operation_success','qualified','execution_enabled',
+                    'deadline_monotonic','accepted_reset_id','producer_generation','artifact','artifact_sha256','source_pin_sha256','consumers')),
+                    'resident coordinator completed operation interleaved/changed')
+            now=time.monotonic();require(finite(receipt) and 0<=receipt<=now,'resident coordinator response clock future/invalid')
+            if now-receipt>.250:raise HealthNotCurrent('resident coordinator response expired')
+            self.late_coord_receipt=receipt
+        if start_requests and coordinator not in self.rpc:self._request(coordinator,min(2.,self._late_deadline()-time.monotonic()))
+        if self.late_completion is None:return
+        ledger=self._late_lineages();pin=self.late_completion['pin']
+        for consumer in CONSUMERS:
+            endpoint=consumer+'/derived_source_status';progress=self.late_progress[consumer]
+            result=self._take(endpoint)
+            if result is not None:
+                success,proof,receipt=result
+                require(proof.get('schema')=='so101-derived-admission-status-v1' and proof.get('qualified') is False and
+                    proof.get('execution_enabled') is False and proof.get('consumer_epoch')==self.late_completion['epochs'][consumer] and
+                    proof.get('source_pin_sha256')==pin_digest(pin) and proof.get('producer_generation')==pin['producer_generation'],
+                    'postentry actual IMAGE context changed')
+                require(proof.get('state') in ('ready','awaiting','unavailable') and success is (proof['state']=='ready'),'postentry IMAGE state/success contradiction')
+                if not success:progress.clear_current()
+                else:
+                    ns=self.get_clock().now().nanoseconds;now=time.monotonic()
+                    require(all(integer(proof.get(k)) for k in ('sequence','depth_stamp_ns','color_stamp_ns','checked_ros_ns','original_header_expiry_ros_ns')) and
+                        all(self.late_intent['started_ros_ns']<proof[k]<=ns for k in ('depth_stamp_ns','color_stamp_ns')) and
+                        abs(proof['depth_stamp_ns']-proof['color_stamp_ns'])<=40_000_000 and
+                        max(proof['depth_stamp_ns'],proof['color_stamp_ns'])<=proof['checked_ros_ns']<=ns and
+                        max(proof['depth_stamp_ns'],proof['color_stamp_ns'])<proof['original_header_expiry_ros_ns']<=min(proof['depth_stamp_ns'],proof['color_stamp_ns'])+500_000_000 and
+                        finite(proof.get('original_receipt_expiry_monotonic')) and 0<proof['original_receipt_expiry_monotonic']<=now+.250,
+                        'postentry IMAGE timing schema/future contradiction')
+                    rows=[r for r in ledger.entries if r[0]['sequence']==proof.get('sequence')]
+                    if not rows:progress.clear_current()
+                    else:
+                        statement,_,local=rows[-1]
+                        try:proof_coverage(proof,statement,pin,receipt,lineage_receipt=local,now=time.monotonic(),ns=self.get_clock().now().nanoseconds)
+                        except HealthNotCurrent:progress.clear_current()
+                        else:
+                            progress.observe(proof,statement,now_ns=self.get_clock().now().nanoseconds,now_mono=time.monotonic())
+                            if self.late_receipt_sequences.get(consumer)!=proof['sequence']:
+                                self.late_receipts[consumer]=receipt;self.late_receipt_sequences[consumer]=proof['sequence']
+            if start_requests and endpoint not in self.rpc:self._request(endpoint, min(2.,self._late_deadline()-time.monotonic()))
+
+    def _late_final(self):
+        self._baseline_unchanged();self._graph();self._late_coordinator_identity()
+        status=self._producer_now();pin=self.late_completion['pin']
+        require(status.get('state')=='ready' and status.get('fault') is None and status.get('producer_generation')==pin['producer_generation'],
+            'current completed producer generation not ready')
+        _,digest=read_artifact(Path(self.late_completion['path']))
+        require(digest==self.late_completion['digest'],'completed artifact changed during local adoption')
+        self._late_lineages()
+        self._native_final(authority=self._late_deadline)
+        producer=self.producer;now=time.monotonic();ns=self.get_clock().now().nanoseconds
+        require(producer is not None and 0<=now-producer[2]<=.250 and producer[0].get('producer_generation')==pin['producer_generation'] and
+            producer[0].get('state')=='ready' and producer[0].get('fault') is None,'current original producer heartbeat expired/changed')
+        require(self.late_coord_receipt is not None and 0<=self.late_coord_receipt<=now,'resident coordinator completed attestation clock future/invalid')
+        if now-self.late_coord_receipt>.250:raise HealthNotCurrent('resident coordinator completed attestation expired')
+        receipt_ends=[producer[2]+.250,self.late_coord_receipt+.250];header_ends=[]
+        for consumer,progress in self.late_progress.items():
+            if not progress.complete:raise NativeProofPending('two fresh postentry IMAGE proofs unavailable')
+            rows=[r for r in self.late_ledger.entries if r[0]['sequence']==progress.current['sequence']]
+            if not rows:raise NativeProofPending('current postentry IMAGE lineage unavailable')
+            value,_,receipt=rows[-1]
+            proof_coverage(progress.current,value,pin,self.late_receipts[consumer],lineage_receipt=receipt,now=now,ns=ns)
+            progress.check(value,now_ns=ns,now_mono=now)
+            receipt_ends.extend((self.late_receipts[consumer]+.250,progress.current['original_receipt_expiry_monotonic'],
+                receipt+.250,value['health']['source_expiry_monotonic'],value['identity']['expires_monotonic']))
+            header_ends.extend((progress.current['original_header_expiry_ros_ns'],value['identity']['confirmed_ros_ns']+1_000_000_000,
+                *(value['original'][k]+500_000_000 for k in ('depth_stamp_ns','color_stamp_ns','depth_info_stamp_ns','color_info_stamp_ns'))))
+        self._native_final(authority=self._late_deadline)
+        witness=self.native_witness
+        receipt_ends.extend((witness['started']+2.,witness['request']+1.,*(r['receipt']+.250 for pair in witness['pairs'] for r in pair),
+            *(r+.250 for r,_ in witness['selected'])))
+        header_ends.extend((*(r['stamp']+500_000_000 for pair in witness['pairs'] for r in pair),*(stamp+500_000_000 for _,stamp in witness['selected'])))
+        self._late_deadline()
+        final_ns=self.get_clock().now().nanoseconds;final_now=time.monotonic()
+        require(self.producer is producer and final_now>=self.policy.last_mono and final_ns>=self.late_intent['last_ros_ns'],
+            'late local final reference/clock contradiction')
+        if not (final_now<min(receipt_ends) and final_ns<min(header_ends) and final_now<=self.late_intent['deadline_monotonic']):
+            raise HealthNotCurrent('late local original proof expired after final access')
+
+    def _late_commit(self):
+        self._late_final();context=self.late_intent;completion=self.late_completion
+        original=deepcopy(self.journal.late_marker['original_journal']) if self.journal.late_marker else bounded_read(self.journal.path)
+        policy=deepcopy(self.policy.journal());policy.update(inflight=None,latched=None)
+        adopted=dict(job_id=context['owned_job']['job_id'],artifact_sha256=completion['digest'],producer_generation=completion['pin']['producer_generation'])
+        candidate=dict(schema='so101-perception-supervisor-persistence-v1',baseline_sha256=self.baseline_sha,boot_id=self.journal.boot,
+            policy=policy,consumer_epochs=completion['epochs'],adopted=adopted)
+        marker=dict(schema=LATE_SCHEMA,boot_id=self.journal.boot,baseline_sha256=self.baseline_sha,adoption_id=context['adoption_id'],
+            owned_job=context['owned_job'],original_journal=original,original_journal_sha256=late_digest(original),candidate_journal=candidate,
+            candidate_journal_sha256=late_digest(candidate),prospective_artifact=completion['path'],prospective_artifact_sha256=completion['digest'],
+            prospective_pin_sha256=pin_digest(completion['pin']),entry_monotonic=context['started_monotonic'],entry_ros_ns=context['started_ros_ns'],
+            deadline_monotonic=context['deadline_monotonic'],phase='prepared')
+        self.late_transaction_open=True;self.late_commit_started=True;write_marker(self.journal,marker);self._late_final()
+        require(known_state(marker,bounded_read(self.journal.path)),
+            'late adoption disk journal changed; no overwrite')
+        self.journal.write(policy,consumer_epochs=completion['epochs'],adopted=adopted)
+        self._late_final();marker['phase']='committed_local_success';write_marker(self.journal,marker);self._late_final()
+        self.pre_outage.clear();self.pin=deepcopy(completion['pin']);self.epochs=deepcopy(completion['epochs']);self.ledger=self.late_ledger
+        latest_pair=(self.policy.last_mono,self.policy.last_utc)
+        self.adopted=adopted;self.policy=SupervisorPolicy(policy)
+        self.policy.last_mono,self.policy.last_utc=latest_pair
+        self.policy.enabled=False;self.policy.state='disabled'
+        self.late_result.update(state='completed',operation_success=True,artifact_sha256=completion['digest'],producer_generation=self.pin['producer_generation'],
+            source_pin_sha256=pin_digest(self.pin),consumer_epochs=deepcopy(self.epochs),transaction_phase='committed_local_success',historical_attestation='resident_coordinator_code_validated_no_historical_monotonic_replay')
+        self.late_intent=None;self.native=None;self.late_transaction_open=False;self.journal.loaded=candidate
+
+    def _late_failure(self,error):
+        if self.late_transaction_open and self.journal.late_marker is None:
+            try:self.journal.late_marker=validate_marker(bounded_read(self.journal.late_marker_path),self.journal)
+            except Exception as failure:
+                self.journal.late_marker_conflict=True;error=RuntimeError(str(error)+'; marker UNKNOWN: '+str(failure))
+        if self.journal.late_marker is not None:
+            self.late_transaction_open=True;marker=self.journal.late_marker
+            try:
+                actual=bounded_read(self.journal.path)
+                original=compensation_snapshot(marker,actual,time.monotonic(),time.time())
+                self.journal.write(original['policy'],consumer_epochs=original['consumer_epochs'],adopted=original['adopted'])
+            except Exception as failure:
+                self.journal.late_marker_conflict=True
+                try:
+                    latest=bounded_read(self.journal.path)
+                    if known_state(marker,latest):latest=compensation_snapshot(marker,latest,time.monotonic(),time.time())
+                    self.policy=SupervisorPolicy(latest['policy'])
+                    self.epochs=deepcopy(latest['consumer_epochs']);self.adopted=deepcopy(latest['adopted'])
+                except Exception:pass  # Keep disk/marker evidence; no guessed authority defaults.
+                error=RuntimeError(str(error)+'; compensation UNKNOWN: '+str(failure))
+        if self.late_result is not None:self.late_result.update(state='failed',reason=str(error)[:512],operation_success=False)
+        self.late_intent=None;self.native=None;self._fail(error)
+
+    def _late_ready_to_commit(self):
+        return self.late_completion is not None and self.native_witness is not None and set(self.late_progress)==set(CONSUMERS) and all(p.complete for p in self.late_progress.values()) and not any(c+'/derived_source_status' in self.rpc for c in CONSUMERS)
+
+    def _late_guard(self):
+        if self.closed or self.late_intent is None:return
+        try:
+            self._late_collect(False)
+            if self._late_ready_to_commit():self._late_commit()
+        except (NativeProofPending,HealthNotCurrent,TransformException) as error:
+            if self.late_commit_started:self._late_failure(error);return
+            try:self._late_deadline()
+            except Exception as expired:self._late_failure(expired)
+            else:self.health_error=str(error)[:512]
+        except Exception as error:self._late_failure(error)
+
+    def _late_step(self):
+        try:
+            self._late_deadline()
+            self._late_collect(True)
+            if self.late_completion is None:return
+            if not self._late_native_proof():return
+            # Only completion guards finalize the newly requested IMAGE round.
+            # Cached pairs never race a new in-flight round into filesystem IO.
+        except (NativeProofPending,HealthNotCurrent,TransformException) as error:
+            if self.late_commit_started:self._late_failure(error);return
+            try:self._late_deadline()
+            except Exception as expired:self._late_failure(expired)
+            else:self.health_error=str(error)[:512]
+        except Exception as error:self._late_failure(error)
+
     def _reconcile_consumers(self,request,response):
         # ENTRY clocks include admission, FS/graph access and reply materialization.
         started=time.monotonic();start_ns=self.get_clock().now().nanoseconds;admitted=False
@@ -682,8 +1011,8 @@ class PerceptionSupervisor(Node):
         return response
 
     def _enable(self,request,response):
-        if self.reconciliation is not None:
-            response.success=False;response.message=bounded_json(dict(self._snapshot(),reason='operator reconciliation pending'));return response
+        if self.reconciliation is not None or self.late_intent is not None or self.late_transaction_open or self.journal.late_marker_conflict:
+            response.success=False;response.message=bounded_json(dict(self._snapshot(),reason='operator reconciliation or unresolved local adoption'));return response
         try:
             self.pre_outage.clear();self._baseline_unchanged();self._graph();self._producer_now()
             self.policy.clocks(time.monotonic(),time.time());self.policy.enable(time.monotonic());self._persist()
@@ -692,6 +1021,7 @@ class PerceptionSupervisor(Node):
         response.message=bounded_json(self._snapshot());return response
 
     def _disable(self,request,response):
+        if self.late_intent is not None:self._late_failure(RuntimeError('operator disabled pending local adoption'))
         if self.policy.job is None:
             if self.reconciliation is not None:self.reconciliation_result=dict(self.reconciliation_result,state='cancelled_before_reservation')
             self.reconciliation=None;self.native=None
@@ -714,14 +1044,15 @@ class PerceptionSupervisor(Node):
         # API acceptance requests a bounded terminal-state check; never clears
         # an unknown job, rewinds quota or implicitly enables supervision.
         try:
-            require(self.policy.job is None and self.reconciliation is None and not self.reset_pending,'active/unknown job or reconciliation/reset check pending')
+            require(self.policy.job is None and self.reconciliation is None and self.late_intent is None and not self.late_transaction_open and
+                not self.journal.late_marker_conflict and not self.reset_pending,'active/unknown job or reconciliation/local adoption/reset check pending')
             self._request(COORDINATOR+'/recovery_status',2.);self.reset_pending=True
             response.success=True
         except Exception as error:response.success=False;self.health_error=str(error)[:512]
         response.message=bounded_json(dict(self._snapshot(),reset_check_accepted=response.success));return response
 
     def _snapshot(self):
-        return dict(self.policy.status(),**self.pre_outage.status(now=time.monotonic()),operator_reconciliation=self.reconciliation_result,reset_check_pending=self.reset_pending,health_reason=self.health_error,current_producer_generation=self.pin['producer_generation'],
+        return dict(self.policy.status(),**self.pre_outage.status(now=time.monotonic()),operator_reconciliation=self.reconciliation_result,late_local_adoption=self.late_result,late_transaction_unresolved=self.late_transaction_open or self.journal.late_marker_conflict,late_restart_confirmation_required=self.journal.late_marker is not None,reset_check_pending=self.reset_pending,health_reason=self.health_error,current_producer_generation=self.pin['producer_generation'],
                     current_pin_sha256=pin_digest(self.pin),health_observation=dict(health_refresh_period_s=.1,control_period_s=.2,refresh_callbacks=self.health_refresh_callbacks,coverage_end_monotonic=self.health_coverage_end,
                         gap_reason=self.health_gap_reason,request_starts=self.health_request_starts,guard_consumes=self.health_guard_consumes,
                         guard_wakeups=self.health_guard_wakeups,rpc_clocks=self.health_rpc_clocks,rejected=self.health_rejections),health_scope='continuous source binding only',image_admitted=False,processing_progress=False,scope='source-binding health only; never image progress, motion or physical qualification')
