@@ -439,9 +439,9 @@ def trace(frame,event,arg):
             def serve(self,**kwargs):
                 provider=self.camera_scene_provider
                 assert isinstance(provider.policy,g['CameraRecoveryPolicy'])
-                from workshop.station.recovery_types import owner_source_sha256
+                from workshop.station.recovery_types import OWNER_SOURCE_MODULES, owner_source_sha256
                 assert self._owner_source_sha256 == owner_source_sha256(Path(g['__file__']).parent)
-                assert set(self._owner_source_sha256) == {'arm','arm_session','recovery_runtime','recovery_types','recovery_runtime_config','camera_recovery'}
+                assert set(self._owner_source_sha256) == set(OWNER_SOURCE_MODULES)
                 prepare_factory_fixture_ticks(self,clock)
                 original_stamp=provider._latest.stamp_monotonic
                 host_time.sleep(float(os.environ['RECOVERY_HOST_PAUSE']))
