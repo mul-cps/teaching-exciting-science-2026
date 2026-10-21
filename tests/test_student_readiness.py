@@ -43,7 +43,8 @@ def test_portable_bundle_all_entries(tmp_path):
     with zipfile.ZipFile(bundle) as archive:
         assert not any("station/" in name or name == "workshop/vision.py" for name in archive.namelist())
         archive.extractall(extracted)
-    subprocess.run([sys.executable, str(extracted / "exercises/check_setup.py")], cwd=tmp_path, check=True)
+    for name in ("check_setup.py", "01_python.py", "02_robot.py", "03_vision.py", "04_sort.py"):
+        subprocess.run([sys.executable, "-S", str(extracted / "exercises" / name)], cwd=tmp_path, check=True)
     report = tmp_path / "sorting.html"
     subprocess.run([sys.executable, str(extracted / "exercises/05_visual_sort.py"), "--output", str(report)], cwd=tmp_path, check=True)
     html = report.read_text()
@@ -54,7 +55,59 @@ def test_portable_bundle_all_entries(tmp_path):
 
 def test_first_exercise_greeting_and_decision(tmp_path):
     source = (ROOT / "exercises/01_python.py").read_text()
-    for color, expected in (("red", "Move left"), ("blue", "Move right")):
-        result = subprocess.run([sys.executable, "-S", "-c", source.replace('color = "red"', f'color = "{color}"')],
+    for color, expected in (("red", "left"), ("blue", "right"), ("yellow", "reject")):
+        result = subprocess.run([sys.executable, "-S", "-c", source.replace('COLOR = "red"', f'COLOR = "{color}"')],
                                 cwd=tmp_path, capture_output=True, text=True, check=True)
-        assert result.stdout.splitlines() == ["Hello robot 1", "Hello robot 2", "Hello robot 3", expected]
+        assert "Object number 3" in result.stdout
+        assert "Decision: " + expected in result.stdout
+
+
+def test_all_plain_entries_without_site_packages(tmp_path):
+    for name in ("check_setup.py", "01_python.py", "02_robot.py", "03_vision.py", "04_sort.py", "05_visual_sort.py"):
+        result = subprocess.run([sys.executable, "-S", str(ROOT / "exercises" / name)],
+                                cwd=tmp_path, capture_output=True, text=True, check=True)
+        if name == "03_vision.py":
+            assert "{'left': 2, 'right': 2, 'reject': 1}" in result.stdout
+        if name == "04_sort.py":
+            assert "left : 2" in result.stdout and "right : 2" in result.stdout and "reject : 1" in result.stdout
+    assert (tmp_path / "sorting-result.html").is_file()
+
+
+def test_bundle_has_learner_notebook_no_answers(tmp_path):
+    bundle = tmp_path / "student.zip"
+    subprocess.run([sys.executable, str(ROOT / "exercises/make_student_bundle.py"), "--output", str(bundle)], check=True)
+    with zipfile.ZipFile(bundle) as archive:
+        names=archive.namelist()
+        assert "notebooks/Robot_Candy_Factory_Student.ipynb" in names
+        assert "exercises/student_visuals.py" in names
+        assert "notebooks/assets/red.jpg" in names
+        assert not any("Instructor" in n or "instructor" in n for n in names)
+        assert "Instructor guidance" not in archive.read("notebooks/Robot_Candy_Factory_Student.ipynb").decode()
+
+
+def test_factory_sequence_stops_before_sensor_and_action():
+    events=[]
+    class Belt:
+        def advance(self): events.append("move")
+        def stop(self): events.append("stop")
+    class Camera:
+        def detect(self):
+            events.append("read")
+            return "red"
+    class Robot:
+        def sort(self, destination): events.append(destination)
+    factory=Factory(Belt(), Camera(), Robot())
+    factory.one_cycle()
+    assert events == ["move", "stop", "read", "left", "stop"]
+
+
+def test_factory_stops_after_sensor_error():
+    events=[]
+    class Belt:
+        def advance(self): events.append("move")
+        def stop(self): events.append("stop")
+    class Camera:
+        def detect(self): raise RuntimeError("camera disconnected")
+    with pytest.raises(RuntimeError, match="disconnected"):
+        Factory(Belt(), Camera(), SimRobot()).one_cycle()
+    assert events == ["move", "stop", "stop"]
