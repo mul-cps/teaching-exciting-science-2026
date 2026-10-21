@@ -62,6 +62,8 @@ def generate_launch_description():
         'sorting_config': str(station / 'sorting.json'),
         'sorting_evidence_dir': str(station / 'evidence/sorting'),
         'ev3_api_port': '18766',
+        'ev3_left_end_deg': '-1.0',
+        'ev3_right_end_deg': '-1.0',
         'use_ev3_tunnel': 'false',
         'ev3_remote': 'robot@192.168.0.1',
         'ev3_ssh_key': str(station / 'ssh/id_ev3'),
@@ -151,6 +153,8 @@ def generate_launch_description():
              additional_env={'SO101_STATION_ROOT': LaunchConfiguration('station_root')},
              parameters=[{'sorting_config': LaunchConfiguration('sorting_config'),
                           'evidence_dir': LaunchConfiguration('sorting_evidence_dir'),
+                          'ev3_left_end_deg': ParameterValue(LaunchConfiguration('ev3_left_end_deg'), value_type=float),
+                          'ev3_right_end_deg': ParameterValue(LaunchConfiguration('ev3_right_end_deg'), value_type=float),
                           'ev3_port': ParameterValue(
                               LaunchConfiguration('ev3_api_port'), value_type=int)}],
              condition=IfCondition(LaunchConfiguration('use_station_api'))),

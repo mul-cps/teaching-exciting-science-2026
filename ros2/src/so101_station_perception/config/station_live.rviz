@@ -1,6 +1,8 @@
 Panels:
   - Class: so101_station_operator/Operations
     Name: Station operations
+  - Class: so101_station_operator/EV3Operations
+    Name: LEGO EV3 operations
   - Class: rviz_common/Displays
     Name: Displays
   - Class: rviz_common/Selection

@@ -98,7 +98,8 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: shutdown.set())
     node = Node('station_workflow')
     for key, value in {'sorting_config': '', 'evidence_dir': str(Path.home()/'.local/state/exciting-science/sorting'),
-                       'ev3_host': '127.0.0.1', 'ev3_port': 18766}.items():
+                       'ev3_host': '127.0.0.1', 'ev3_port': 18766,
+                       'ev3_left_end_deg': -1.0, 'ev3_right_end_deg': -1.0}.items():
         node.declare_parameter(key, value)
     get = lambda key: node.get_parameter(key).value
     api_lock = station_lock(state_dir()/'ros-workflow.lock')
@@ -114,6 +115,8 @@ def main():
     evidence = Path(str(get('evidence_dir')))
     evidence.mkdir(parents=True, exist_ok=True)
     publisher = node.create_publisher(String, '/station/status', 10)
+    ev3_operator_pub = node.create_publisher(String, '/station/ev3/operator_status', 1)
+    cache_updated = [0.0]
 
     record_lock = threading.Lock()
     def record(event):
@@ -145,6 +148,7 @@ def main():
             ev3 = EV3LiveClient(host=str(get('ev3_host')), port=int(get('ev3_port')), timeout=.75)
             ev3.connect()
         cache.update(connected=True, error=None, status=ev3.call('status'))
+        cache_updated[0] = time.monotonic()
         return cache
 
     def refresh():
@@ -153,12 +157,20 @@ def main():
         if ev3.connected and not (workflow.thread and workflow.thread.is_alive()):
             try:
                 cache.update(connected=True, error=None, status=ev3.call('status'))
+                cache_updated[0] = time.monotonic()
             except Exception as error:
                 cache.update(connected=False, error=str(error))
         message = String()
-        message.data = json.dumps(dict(workflow=workflow.snapshot(), ev3=cache,
+        workflow_snapshot = workflow.snapshot()
+        message.data = json.dumps(dict(workflow=workflow_snapshot, ev3=cache,
                                        selected_destinations=destinations, stop=stop_state), allow_nan=False)
         publisher.publish(message)
+        from workshop.station.ev3_operator import operator_status
+        compact = String()
+        compact.data = json.dumps(operator_status(cache, workflow_snapshot, stop_state,
+            fresh=time.monotonic()-cache_updated[0] < 1.5,
+            endpoints={side: get('ev3_'+side+'_end_deg') for side in ('left', 'right')}), allow_nan=False)
+        ev3_operator_pub.publish(compact)
 
     def ev3_command(request, response):
         bridge_started = time.monotonic()
@@ -188,6 +200,7 @@ def main():
             backend_finished = time.monotonic()
             if operation in {'status', 'critical_status'}:
                 cache.update(connected=True, error=None, status=result)
+                cache_updated[0] = time.monotonic()
             response.message = json.dumps(dict(backend_call_s=backend_finished-backend_started,
                 bridge_processing_s=backend_finished-bridge_started))
             response.success, response.result_json = True, json.dumps(result, allow_nan=False)
@@ -302,6 +315,11 @@ def main():
 
     def simple_ev3(operation):
         def work(worker, proxy, cancel):
+            if operation == 'eject':
+                from workshop.station.ev3_readiness import require_fresh_stationary
+                require_fresh_stationary(proxy, session=proxy.session,
+                    deadline=time.monotonic()+2., cancel=cancel,
+                    spin=lambda deadline, cancel: time.sleep(.05))
             result = proxy.call(operation)
             job = result.get('job', {})
             if result.get('accepted'):
@@ -412,6 +430,18 @@ def main():
         return reply(response, admit)
     node.create_service(SorterPosition, '/station/ev3/sorter_position', sorter_position)
 
+    def endpoint(side, response):
+        # Fixed deployment mapping only; use exactly the existing conservative
+        # position path, including switch/guard boundaries and phase deadline.
+        target = get('ev3_'+side+'_end_deg')
+        if not isinstance(target, (int, float)) or not 0 < target < 550:
+            response.success, response.message = False, 'Conveyor '+side+' endpoint configuration required'
+            return response
+        return sorter_position(SimpleNamespace(target_deg=target), response)
+    for side in ('left', 'right'):
+        node.create_service(Trigger, '/station/ev3/'+side+'_end',
+            lambda request, response, side=side: endpoint(side, response))
+
     def confirm(request, response):
         def action():
             idle()
@@ -493,6 +523,7 @@ def main():
     for name, function in {'diagnostics': diagnostics, 'check_ready': check_ready, 'status': lambda: dict(workflow=workflow.snapshot(), ev3=cache, stop=stop_state),
                            'cancel': stop, 'stop': stop, 'reset_fault': reset_fault,
                            'ev3/connect': connect, 'ev3/home': lambda: simple_ev3('home_touch'),
+                           'ev3/eject': lambda: simple_ev3('eject'),
                            'wake': lambda: simple_ev3('wake'), 'sleep': lambda: simple_ev3('power_save'),
                            'arm/home': arm_home, 'arm/prepare': arm_prepare}.items():
         node.create_service(Trigger, '/station/'+name, lambda request, response, fn=function: reply(response, fn))
