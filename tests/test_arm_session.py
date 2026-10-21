@@ -1263,6 +1263,7 @@ def test_cancel_hold_rewrites_measured_pose_without_disabling_torque(tmp_path):
 def test_resident_teleop_tracks_direct_targets_and_rejects_stale_or_finite_motion(tmp_path):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
+    session.home()
     initial = dict(arm.bus.data["Present_Position"])
     started = session.handle({"command": "teleop_start", "session_id": "bridge-1"})
     assert started["ok"]
@@ -1292,28 +1293,19 @@ def test_resident_teleop_tracks_direct_targets_and_rejects_stale_or_finite_motio
     session.close_log()
 
 
-def test_resident_teleop_holds_small_saved_home_limit_overshoot_then_reenters_bounds(tmp_path):
+def test_resident_teleop_refuses_configured_overshoot_without_clamping(tmp_path):
     session, arm, clock = make_session(tmp_path)
-    saved_home = json.loads(Path(arm.settings["home_file"]).read_text())["position"]
-    arm.settings["limits"]["elbow_flex"]["max"] = saved_home["elbow_flex"]
-    home_raw = arm._raw_goal(saved_home)
-    actual = dict(arm.bus.data["Present_Position"])
-    actual["elbow_flex"] = home_raw["elbow_flex"] + 10
-    arm.bus.data["Present_Position"] = dict(actual)
-    arm.bus.data["Goal_Position"] = dict(actual)
     session.initialize()
-    assert actual["elbow_flex"] > session.admitted_max["elbow_flex"]
-    started = session.handle({"command": "teleop_start", "session_id": "saved-home-overshoot"})
-    assert started["ok"]
-    assert arm.bus.data["Goal_Position"] == actual  # initial goal is an exact measured hold
-    assert session._teleop["previous"]["elbow_flex"] == session.admitted_max["elbow_flex"]
-    clock.sleep(.1)
-    result = session.handle({"command": "teleop_step", "session_id": "saved-home-overshoot",
-                             "sequence": 1, "pose": dict(saved_home)})
-    assert result["ok"]
-    assert arm.bus.data["Goal_Position"]["elbow_flex"] == session.admitted_max["elbow_flex"]
-    assert arm.bus.data["Goal_Position"]["elbow_flex"] < actual["elbow_flex"]
-    session.handle({"command": "teleop_stop", "session_id": "saved-home-overshoot"})
+    session.home()
+    actual = dict(arm.bus.data["Present_Position"])
+    actual["elbow_flex"] = session.admitted_max["elbow_flex"] + 1
+    arm.bus.data["Present_Position"] = actual
+    arm.bus.data["Goal_Position"] = dict(actual)
+    before = len(arm.bus.writes)
+    with pytest.raises(ValueError, match="configured limits"):
+        session.handle({"command": "teleop_start", "session_id": "configured-overshoot"})
+    assert len(arm.bus.writes) == before
+    assert session._teleop is None
     session.shutdown(reason="test_cleanup")
     session.close_log()
 
@@ -1325,7 +1317,7 @@ def test_resident_teleop_start_rejects_measured_pose_outside_saved_home_toleranc
     actual["elbow_flex"] += 60
     arm.bus.data["Present_Position"] = actual
     arm.bus.goal_history.clear()
-    with pytest.raises(ValueError, match="saved home"):
+    with pytest.raises(ValueError, match="completed measured home"):
         session.handle({"command": "teleop_start", "session_id": "away-from-home"})
     assert not arm.bus.goal_history
     assert arm.bus.data["Torque_Enable"] == dict.fromkeys(JOINTS, 0)
@@ -1337,6 +1329,7 @@ def test_resident_teleop_start_rejects_measured_pose_outside_saved_home_toleranc
 def test_resident_teleop_step_bus_read_budget_keeps_goal_and_torque_checks_periodic(tmp_path):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
+    session.home()
     session.handle({"command": "teleop_start", "session_id": "read-budget"})
     before = dict(arm.bus.sync_read_calls)
     pose = dict.fromkeys(JOINTS, 0.0)
@@ -1359,6 +1352,7 @@ def test_resident_teleop_step_bus_read_budget_keeps_goal_and_torque_checks_perio
 def test_resident_teleop_watchdog_holds_measured_pose_and_invalidates_session(tmp_path):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
+    session.home()
     session.handle({"command": "teleop_start", "session_id": "bridge-2"})
     actual = dict(arm.bus.data["Present_Position"])
     actual["wrist_roll"] += 9
@@ -1378,6 +1372,7 @@ def test_resident_teleop_watchdog_holds_measured_pose_and_invalidates_session(tm
 def test_resident_teleop_stale_buffered_step_holds_and_cannot_refresh_session(tmp_path):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
+    session.home()
     session.handle({"command": "teleop_start", "session_id": "bridge-3"})
     actual = dict(arm.bus.data["Present_Position"])
     actual["shoulder_lift"] += 7
@@ -1399,6 +1394,7 @@ def test_resident_teleop_stale_buffered_step_holds_and_cannot_refresh_session(tm
 def test_resident_teleop_rejects_gripper_outside_percent_range_without_goal_write(tmp_path):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
+    session.home()
     session.handle({"command": "teleop_start", "session_id": "bridge-4"})
     before = len(arm.bus.goal_history)
     pose = dict.fromkeys(JOINTS, 0.0)
@@ -1415,6 +1411,7 @@ def test_resident_teleop_rejects_gripper_outside_percent_range_without_goal_writ
 def test_resident_teleop_start_and_stop_through_json_stdio(tmp_path):
     session, arm, _clock = make_session(tmp_path)
     session.initialize()
+    session.home()
     read_fd, write_fd = os.pipe()
     commands = [
         {"command": "teleop_start", "session_id": "stdio-bridge"},
@@ -1446,6 +1443,7 @@ def test_resident_teleop_start_and_stop_through_json_stdio(tmp_path):
 def test_teleop_watchdog_and_stale_stdio_error_echo_session_id(tmp_path):
     session, _arm, clock = make_session(tmp_path)
     session.initialize()
+    session.home()
     read_fd, write_fd = os.pipe()
     os.write(write_fd, (json.dumps({"command": "teleop_start", "session_id": "watchdog-1"}) + "\n").encode())
     calls = 0
@@ -1506,6 +1504,7 @@ def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):
 def test_teleop_removes_servo_velocity_cap_and_home_restores_native_profile(tmp_path):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
+    session.home()
     started = session.handle({"command": "teleop_start", "session_id": "uncapped"})
     assert started["state"]["profile_registers"]["Goal_Velocity"] == dict.fromkeys(JOINTS, 0)
     assert arm.bus.data["Goal_Velocity"] == dict.fromkeys(JOINTS, 0)
