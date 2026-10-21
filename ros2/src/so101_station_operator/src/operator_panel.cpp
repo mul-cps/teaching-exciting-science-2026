@@ -18,6 +18,7 @@ OperatorPanel::OperatorPanel(QWidget * parent) : rviz_common::Panel(parent) {
     {"Reset station (torque OFF)", "emergency_reset"}, {"Saved home position", "start"},
     {"Release for manual setup", "base_release"}, {"Record manual reference", "base_confirm"},
     {"Leader teleop", "teleop"}, {"MoveIt mode", "moveit"},
+    {"Teleop: relative", "teleop_relative"}, {"Teleop: absolute", "teleop_absolute"},
     {"Gentle damping / renew 60 s", "damping"}, {"ZERO TORQUE / STOP", "zero_torque"},
     {"Restart camera", "restart_camera"}, {"Restart depth", "restart_depth"},
     {"Restart tags", "restart_tags"}, {"Restart perception", "restart_all"},
@@ -94,9 +95,12 @@ void OperatorPanel::tick() {
     auto command = button->property("command").toString();
     const auto capability = capabilities_.value(command).toObject();
     const bool supported = capability.value("enabled").toBool(false);
-    button->setToolTip(capability.value("reason").toString());
+    auto tooltip = capability.value("reason").toString();
+    if (command == "teleop_relative") tooltip += "\nRelative teleop anchors at the current pose. Select only while teleop is disabled.";
+    if (command == "teleop_absolute") tooltip += "\nAbsolute teleop follows the calibrated leader through a bounded transition. Select only while teleop is disabled.";
+    button->setToolTip(tooltip);
     button->setEnabled(command == "zero_torque" || (live && command == "emergency_reset" && supported) || (live && !pending_ && supported && command == "verify_restart") ||
-      (live && !pending_ && !uncertain_ && !api_uncertain_ && supported && (fresh_ || command == "reset" || command == "emergency_reset" || command == "emergency_reset")));
+      (live && !pending_ && !uncertain_ && !api_uncertain_ && supported && (fresh_ || command == "reset" || command == "emergency_reset")));
   }
 }
 }

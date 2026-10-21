@@ -21,7 +21,7 @@ from std_srvs.srv import SetBool, Trigger
 from so101_station_operator.srv import OperatorMaintenance
 
 JOINTS = {"shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"}
-COMMANDS = ("emergency_reset", "reset", "start", "base_release", "base_confirm", "teleop", "moveit",
+COMMANDS = ("emergency_reset", "reset", "start", "base_release", "base_confirm", "teleop", "teleop_relative", "teleop_absolute", "moveit",
             "damping", "zero_torque", "restart_camera", "restart_depth", "restart_tags", "restart_all", "verify_restart")
 
 
@@ -99,6 +99,7 @@ class OperatorAPI(Node):
         self.service_clients["recovery_start"] = self.create_client(Trigger, "/so101_perception_recovery/start_recovery", callback_group=self.group)
         self.service_clients["recovery_status"] = self.create_client(Trigger, "/so101_perception_recovery/recovery_status", callback_group=self.group)
         self.service_clients["teleop"] = self.create_client(SetBool, "/follower/teleop_enable", callback_group=self.group)
+        self.service_clients["teleop_mode"] = self.create_client(SetBool, "/follower/teleop_absolute_mode", callback_group=self.group)
         self.service_clients["maintenance"] = self.create_client(OperatorMaintenance, "/follower/operator_maintenance_enable", callback_group=self.group)
         alignment = self.get_parameter("alignment_reseed_service").value
         if alignment not in ("", "/so101_perception/live_tag_alignment/reseed"):
@@ -801,6 +802,20 @@ class OperatorAPI(Node):
                 self.rpc("stop")
                 self.uncertain = False
                 message += "; external manager outcome verified; all six joints remain OFF"
+            elif command in {"teleop_relative", "teleop_absolute"}:
+                data = self.snapshot()
+                if data.get("teleop_state") == "active":
+                    raise RuntimeError("disable leader teleop first before changing teleop mapping")
+                self.idle(data)
+                if self.teleop_unavailable(data):
+                    raise RuntimeError(self.teleop_unavailable(data))
+                data = self.rearm_if_required(data)
+                self.idle(data)
+                selected = "absolute" if command == "teleop_absolute" else "relative"
+                message = self.rpc("teleop_mode", SetBool.Request(data=selected == "absolute"))
+                final = self.snapshot()
+                if final.get("fresh") is not True or final.get("teleop_mode") != selected:
+                    raise RuntimeError("teleop mapping acknowledged without fresh measured " + selected + " selection")
             else:
                 data = self.snapshot()
                 if command == "base_confirm":
@@ -871,7 +886,8 @@ class OperatorAPI(Node):
     def capabilities(self, data):
         dependencies = {"emergency_reset": ("status", "stop", "reconnect", "reset_owner", "maintenance", "recovery_start", "recovery_status"), "reset": ("status", "stop", "rearm"), "start": ("status", "home", "rearm"),
                         "base_release": ("status", "stop"), "base_confirm": ("status",),
-                        "teleop": ("status", "teleop", "rearm"), "moveit": ("status", "teleop", "rearm"),
+                        "teleop": ("status", "teleop", "rearm"),
+                        "teleop_relative": ("status", "teleop_mode", "rearm"), "teleop_absolute": ("status", "teleop_mode", "rearm"), "moveit": ("status", "teleop", "rearm"),
                         "damping": ("status", "damping"), "verify_restart": ("status", "maintenance", "stop")}
         result = {}
         for command in COMMANDS:
@@ -895,6 +911,15 @@ class OperatorAPI(Node):
                     reason = "Restart disabled: exact unit missing from API or bridge allowlist"
             elif command == "damping" and data.get("native_damping_supported") is not True:
                 reason = "Native torque value 2 needs exact firmware support and physical backdrive qualification"
+            elif command in {"teleop_relative", "teleop_absolute"}:
+                if data.get("teleop_state") == "active":
+                    reason = "Disable leader teleop first before changing teleop mapping"
+                else:
+                    try:
+                        self.idle(data)
+                    except RuntimeError as error:
+                        reason = str(error)
+                    reason = reason or self.teleop_unavailable(data)
             elif command == "teleop":
                 reason = self.teleop_unavailable(data)
             elif command == "base_confirm" and self.manual_reference is None:
@@ -944,14 +969,16 @@ class OperatorAPI(Node):
                            if isinstance(external, dict) else "")
         measured_label = "Measured" if fresh else "STALE / LAST KNOWN; current torque/stop/fault UNKNOWN"
         stale_label = "" if fresh else " (STALE last known)"
+        mapping = {"relative": "leader displacement from enable pose",
+                   "absolute": "leader joint angles"}.get(data.get("teleop_mode"), "unknown")
         payload = {"schema": 1, "fresh": fresh, "mode": mode, "pending": self.pending,
                    "outcome_unknown": self.uncertain, "manual_start_confirmed": self.manual_confirmed,
-                   "follower": data, "streams": streams, "last_result": self.last_result,
-                   "manual_reference": self.manual_record, "capabilities": self.capabilities(data),
+                   "teleop_mode": data.get("teleop_mode"), "follower": data, "streams": streams, "last_result": self.last_result,
+                   "manual_reference": self.manual_record, "capabilities": self.capabilities({**data, "fresh": fresh}),
                    "station_reset": self.reset_progress, "station_reset_units": self.reset_units,
                    "restart_units": self.units, "damping_supported": data.get("native_damping_supported") is True,
                    "damping_lease_remaining_s": lease,
-                   "summary": f"Mode: {mode}" + (f" | Damping expires OFF in {lease:.1f} s" if lease is not None else "") +
+                   "summary": f"Mode: {mode} | Teleop mapping{stale_label}: {data.get('teleop_mode', 'unknown')} ({mapping})" + (f" | Damping expires OFF in {lease:.1f} s" if lease is not None else "") +
                        ("\nReset: " + self.reset_progress["phase"] if self.reset_progress else "") +
                        f"\n{measured_label}\nTorque{stale_label}: {data.get('torque')}\nStop latch{stale_label}: {data.get('stop_latched')} | Fault{stale_label}: {data.get('owner_faulted')}\nRGB info: {'fresh' if streams['rgb']['fresh'] else 'stale'} | Depth info: {'fresh' if streams['depth']['fresh'] else 'stale'} | Tags: {'fresh' if streams['tags']['fresh'] else 'stale'}" + restart_summary +
                        (f"\nTags: {streams['tags']['publishers']} publisher(s); {streams['tags']['reason']}" if not streams['tags']['fresh'] else "") +
