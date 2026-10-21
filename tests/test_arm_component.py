@@ -183,7 +183,8 @@ def test_component_no_body_hold_write_after_success(tmp_path):
 def test_component_freshness_fault_before_enabling(tmp_path):
     session, bus, clock = setup(tmp_path)
     bus.present_read_delays = [.101]
-    with pytest.raises(RuntimeError, match='feedback'):
+    # Reject at the stricter transport deadline, before enabling jaw torque.
+    with pytest.raises(TimeoutError, match='sync read Present_Position exceeded 20 ms deadline'):
         session.handle({'command': 'commission_gripper_step', 'delta_counts': 8})
     assert ('Torque_Enable', 'gripper', 1) not in bus.writes
     jaw_only(bus)
@@ -246,8 +247,16 @@ def test_component_real_arm_close_semantics_never_escape_process_teardown(tmp_pa
     read_fd, write_fd = os.pipe()
     os.write(write_fd, b'{"command":"commission_gripper_step","delta_counts":8}\n')
     write_open = True
+    fault_replies = []
     def emit(reply):
         nonlocal write_open
+        if terminal == 'fault' and reply.get('ok') is False:
+            fault_replies.append(reply)
+            # A verified all-off fault keeps the resident owner observable.
+            # End this fixture through EOF instead of waiting for completion
+            # that the intentionally rejected command cannot emit.
+            os.close(write_fd)
+            write_open = False
         if reply.get('state', {}).get('event') == 'commission_gripper_complete':
             if terminal == 'exit': os.write(write_fd, b'{"command":"exit"}\n')
             else:
@@ -273,6 +282,13 @@ def test_component_real_arm_close_semantics_never_escape_process_teardown(tmp_pa
         if write_open: os.close(write_fd)
     # Actual completion/fault traverses the production finally path; the final
     # SDK disconnect must be explicit and must not call the global arm stop.
+    if terminal == 'fault':
+        assert len(fault_replies) == 1
+        assert fault_replies[0]['error_type'] == 'ConnectionError'
+        assert fault_replies[0]['error'] == 'partial profile'
+    else:
+        assert fault_replies == []
+    assert not any(arm.bus.data['Torque_Enable'].values())
     jaw_only(arm.bus)
     assert disconnected == [False]
 

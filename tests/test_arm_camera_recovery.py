@@ -228,17 +228,37 @@ def test_camera_recovery_cancel_before_setup_confirms_hold_without_arming(tmp_pa
         close(session)
 
 
-def test_stale_encoder_feedback_stops_before_first_inward_goal(tmp_path):
+def test_stale_encoder_feedback_stops_before_first_inward_goal(tmp_path, monkeypatch):
     session, arm, _, _ = recovery_session(tmp_path)
     arm.bus.delay_after_goal = .3
+    failed_reads = []
+    original_read = session._read
+    def read(register):
+        try:
+            return original_read(register)
+        except TimeoutError:
+            failed_reads.append((register, dict(session._read_diagnostics[register])))
+            raise
+    monkeypatch.setattr(session, "_read", read)
     try:
         result = session.handle({"command": "recover_camera"})
         assert not result["ok"]
-        assert "freshness" in result["recovery"]["error"]
+        # The per-read deadline now rejects this fake 300 ms transport stall
+        # before the enclosing feedback-cadence check can admit another goal.
+        assert "sync read Present_Position exceeded 20 ms deadline" in result["recovery"]["error"]
+        assert failed_reads == [("Present_Position", {
+            "attempts": 1, "retries": 0, "duration_s": pytest.approx(.3),
+            "success": False, "deadline_exceeded": True,
+            "error": "sync read Present_Position exceeded 20 ms deadline"})]
         assert arm.bus.goal_history == [target(elbow_flex=2993), target(elbow_flex=2993)]
         assert arm.bus.data["Goal_Position"] == arm.bus.data["Present_Position"]
     finally:
+        # Remove the fixture's recurring fault before deliberate shutdown;
+        # the held goal otherwise schedules another artificial delayed read.
+        arm.bus.delay_after_goal = None
+        arm.bus._delay_present_pending = False
         close(session)
+    assert not any(arm.bus.data["Torque_Enable"].values())
 
 
 def test_recovery_cannot_run_during_teleop_even_with_trusted_provider(tmp_path):
