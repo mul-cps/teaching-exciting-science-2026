@@ -59,3 +59,25 @@ Before starting hardware tomorrow, the instructor must identify attached devices
 ## Rehearsal evidence
 
 The final report is copied into the instructor evidence directory `workshop-beginner-rebuild/fwmini4-final`. It records checkout SHA, dependency checks, fresh kernel notebook output, authenticated loopback HTTP, console exercises, and the extracted learner ZIP. Hardware, USB cameras, physical display, live control rate, and pick and place remain separate acceptance steps.
+
+
+## First hardware connection: passive contract bootstrap
+
+The classroom notebook checks are complete without devices. The robot launcher additionally requires a **new contract generated on this PC**, after the identified arms are connected and all previous owners are stopped. A transferred historical home or another machine's runtime contract cannot satisfy this step.
+
+Run this once from a bjoern terminal after connecting and supporting the arms. It starts the existing **observe-only** owner briefly, reads the saved calibration and actual firmware/admitted bounds, exports the contract, then closes that owner. It does not calibrate, home, enable teleoperation, or command motion. Do not run it while a resident owner is already running.
+
+```bash
+cd ~/git/teaching-exciting-science-2026-current-20261021
+~/.local/share/exciting-science/station/venv/bin/python tools/freeze_ros_joint_limits.py \
+  --config ~/.local/share/exciting-science/station/station-fwmini4-20261022.json \
+  --state-file "${XDG_RUNTIME_DIR:-/dev/shm}/exciting-science/arm-state.json" \
+  --output ~/.local/share/exciting-science/station/joint-limits-current.json \
+  --lock "${XDG_STATE_HOME:-$HOME/.local/state}/exciting-science/station.lock" \
+  --log-dir "${XDG_RUNTIME_DIR:-/dev/shm}/exciting-science/arm-owner-logs" \
+  --bootstrap-owner
+```
+
+Only after successful bootstrap, open **Instructor robot and RViz**. Its launch forwards that exact contract, state file, lock and log directory to the existing resident owner. The planner and owner independently validate calibration, source and bounds; source changes can require a fresh bootstrap. The retained historical measured home remains separate from current live pose and homing admission. This physical bootstrap has **not** been tested on fwmini4 because no devices were connected during preparation.
+
+R5 software rehearsal on 21 October passed three fresh notebook kernels, authenticated loopback Student/Instructor apps, all six extracted ZIP entrypoints with system Python without installed packages, both ZIP notebooks with the prepared kernel, nine bundled training PNGs, 18 slide PDF pages, domain75 fake ROS freshness recovery, and offscreen native Qt plugin checks. Actual display/login, webcam permissions, Teachable Machine training, EV3 hardware and physical robot execution remain unverified.
