@@ -32,6 +32,22 @@ with sync_playwright() as p:
     assert page.evaluate("workspace.getAllBlocks(false).some(b=>b.type==='station_wait')")
     stop_count=page.evaluate("(window.stationStatus.events || []).filter(e=>e==='STOP').length")
     page.click('#stop');page.wait_for_function("count => (window.stationStatus.events || []).filter(e=>e==='STOP').length > count",arg=stop_count)
+    page.evaluate("workspace.clear();const block=workspace.newBlock('station_sort_cycle');block.initSvg();block.render();")
+    assert page.evaluate('compile()')==[{'op':'sort_cycle'}]
+    page.click('#python')
+    assert 'station.command({"op":"sort_cycle"}, cancel, deadline)' in page.locator('#code').inner_text()
+    page.locator('#preview button').click();page.click('#run')
+    page.wait_for_function("window.stationStatus.job.state==='complete' && window.stationStatus.job.result.sort_cycles?.[0]?.completed===1")
+    assert 'sort_cycle: red' in page.locator('#trace').inner_text()
+    # Preview follows the compiled tree, including loops and non-taken branches.
+    page.evaluate("""workspace.clear();const repeat=workspace.newBlock('station_repeat');repeat.setFieldValue(2,'COUNT');const condition=workspace.newBlock('station_color');condition.setFieldValue('blue','COLOR');const cycle=workspace.newBlock('station_sort_cycle');repeat.getInput('BODY').connection.connect(condition.previousConnection);condition.getInput('THEN').connection.connect(cycle.previousConnection);for(const block of workspace.getAllBlocks(false)){block.initSvg();block.render();}""")
+    assert page.evaluate('compile()')==[{'op':'repeat','count':2,'body':[{'op':'if_color','color':'blue','then':[{'op':'sort_cycle'}],'else':[]}]}]
+    page.click('#python')
+    preview=page.locator('#code').inner_text()
+    assert 'for _ in range(2):\n    if station.color() == "blue":\n        result = station.command({"op":"sort_cycle"}, cancel, deadline)\n    else:\n        pass' in preview
+    assert 'not standalone execution code' in preview
+    page.locator('#preview button').click()
+    page.click('#run');page.wait_for_function("window.stationStatus.job.state==='complete' && !window.stationStatus.job.result.sort_cycles")
     assert not errors,errors
     # Screenshots capture only the real simulation, before injected readiness fixtures.
     page.screenshot(path=args.screenshot)

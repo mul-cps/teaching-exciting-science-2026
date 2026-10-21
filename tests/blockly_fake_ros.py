@@ -21,6 +21,7 @@ from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from control_msgs.action import FollowJointTrajectory, GripperCommand
+from so101_station_workflow.srv import RunCycles
 from tools.run_blockly_station import Application
 
 context=Context(); rclpy.init(context=context)
@@ -28,7 +29,7 @@ node=Node('blockly_fake_station',context=context); group=ReentrantCallbackGroup(
 state={'workflow':{'state':'idle','job_id':None,'result':None},
        'stop':{'pending':False,'ev3_stopped':True,'arm_disarmed':True},
        'ev3':{'status':{'color':'Color.RED'}}}
-counts={'arm':0,'jaw':0,'stop':0}; points=[]; publishing=[True]; slow=[False]
+counts={'arm':0,'jaw':0,'stop':0,'sort':0}; points=[]; publishing=[True]; slow=[False]
 def trigger(endpoint,request,response):
     response.success=True
     if endpoint=='/follower/status': data={'schema':1,'kind':'follower_status','position_age_s':.01,'torque_age_s':.01,'fresh':True,'sampled_monotonic':time.monotonic(),'arm_id':'fake','calibration_sha256':'a'*64,'owner_started_monotonic':123.,'owner_source_sha256':{'owner':'b'*64},'owner_faulted':False,'stop_latched':False,'active_operation':None,'teleop_state':'disabled','torque':dict.fromkeys(['shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll','gripper'],0)}
@@ -42,6 +43,18 @@ def trigger(endpoint,request,response):
 services=[]
 for endpoint in ('/follower/status','/station/status','/station/stop','/follower/gripper_calibration_status','/station/ev3/eject','/station/operator/moveit'):
     services.append(node.create_service(Trigger,endpoint,lambda request,response,e=endpoint:trigger(e,request,response),callback_group=group))
+
+
+def run_cycle(request,response):
+    assert request.cycles==1
+    counts['sort']+=1; job='fake-sort-'+str(counts['sort'])
+    state['workflow']={'state':'sorting','job_id':job,'fault':None,'result':None}
+    def finish():
+        time.sleep(.15)
+        state['workflow']={'state':'idle','job_id':job,'fault':None,'result':{'completed':1,'colors':{'red':1}}}
+    threading.Thread(target=finish,daemon=True).start()
+    response.success=True;response.message=json.dumps({'job_id':job});return response
+services.append(node.create_service(RunCycles,'/station/run_cycles',run_cycle,callback_group=group))
 
 def arm_execute(handle):
     counts['arm']+=1; points.append(handle.request.trajectory.points)
@@ -101,6 +114,13 @@ try:
         assert len(points[1])==4
         compressed_duration=points[1][-1].time_from_start.sec+points[1][-1].time_from_start.nanosec*1e-9
         assert compressed_duration<original_duration
+        app.thread.join(timeout=2)
+        app.run([{'op':'sort_cycle'}])
+        deadline=time.monotonic()+6
+        while app.status()['job']['state']=='running' and time.monotonic()<deadline: time.sleep(.03)
+        assert app.status()['job']['state']=='complete',app.status()
+        assert app.status()['job']['result']['sort_cycles']==[{'completed':1,'colors':{'red':1}}]
+        assert counts['sort']==1
         assert app.backend.color()=='red'
         assert app.operator('moveit')['acknowledged'] is True
         publishing[0]=False; time.sleep(.4)
@@ -111,7 +131,7 @@ try:
         deadline=time.monotonic()+3
         while app.status()['job']['state']=='running' and time.monotonic()<deadline: time.sleep(.03)
         assert app.status()['job']['state']=='failed'; assert counts['stop']>=1
-        print(json.dumps({'fake_ros':'passed','recorded_samples':recorded['samples'],'counts':counts,'stale_rejected':True,'cancel_stopped':True,'optional_timing_shortened':True}))
+        print(json.dumps({'fake_ros':'passed','recorded_samples':recorded['samples'],'counts':counts,'stale_rejected':True,'cancel_stopped':True,'optional_timing_shortened':True,'native_cycle_exact_terminal':True}))
 finally:
     if app: app.close()
     for timer in tuple(node.timers): timer.cancel()
