@@ -9,6 +9,9 @@
 #include <std_srvs/srv/trigger.hpp>
 #include <QThread>
 #include <iostream>
+#include <QMessageBox>
+#include <QTimer>
+#include <so101_station_workflow/srv/confirm_reference.hpp>
 int main(int argc, char ** argv) {
   if (!std::getenv("ROS_DOMAIN_ID") || std::string(std::getenv("ROS_DOMAIN_ID")) != "75") return 2;
   rclcpp::init(argc, argv); QApplication app(argc, argv);
@@ -16,7 +19,7 @@ int main(int argc, char ** argv) {
     pluginlib::ClassLoader<rviz_common::Panel> loader("rviz_common", "rviz_common::Panel");
     auto panel = loader.createSharedInstance("so101_station_operator/EV3Operations");
     auto buttons = panel->findChildren<QPushButton *>();
-    if (buttons.size() != 9) return 3;
+    if (buttons.size() != 10) return 3;
     for (auto button : buttons) {
       if (button->isEnabled() != button->text().startsWith("STOP")) return 4;
     }
@@ -41,7 +44,34 @@ int main(int argc, char ** argv) {
     if (!stop || !stop->isEnabled()) return 7;
     stop->click(); pump();
     if (calls != 1) return 8;
-    std::cout << "EV3 plugin loaded; nine actions; only STOP enabled before status; no services called\n";
+    int confirmations = 0;
+    bool correct_request = false;
+    auto reference_service = node->create_service<so101_station_workflow::srv::ConfirmReference>(
+      "/station/ev3/confirm_reference",
+      [&](const so101_station_workflow::srv::ConfirmReference::Request::SharedPtr request,
+          so101_station_workflow::srv::ConfirmReference::Response::SharedPtr response) {
+        ++confirmations;
+        correct_request = request->name == "feeder" && request->reference == "eject" && request->physically_verified;
+        response->success = true; response->message = "physical reference recorded";
+      });
+    pump();
+    status.data = R"({"schema":1,"connected":true,"fresh":true,"busy":false,"references":{"feeder":null},"capabilities":{"confirm_feeder":{"enabled":true}}})";
+    publisher->publish(status); pump();
+    QPushButton * reference = nullptr;
+    for (auto button : buttons) if (button->text().startsWith("Record feeder")) reference = button;
+    if (!reference || !reference->isEnabled()) return 9;
+    auto answer = [&](QMessageBox::StandardButton choice) {
+      QTimer::singleShot(0, [choice] {
+        auto dialog = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+        if (dialog && dialog->button(choice)) dialog->button(choice)->click();
+      });
+      reference->click(); pump();
+    };
+    answer(QMessageBox::No);
+    if (confirmations != 0) return 10;
+    answer(QMessageBox::Yes);
+    if (confirmations != 1 || !correct_request) { std::cerr << "confirmations=" << confirmations << " correct=" << correct_request << std::endl; return 11; }
+    std::cout << "EV3 plugin: ten actions; zero startup calls; busy/stale STOP; reference No sends zero; Yes sends exact typed physical acknowledgement\n";
   }
   rclcpp::shutdown();
 }

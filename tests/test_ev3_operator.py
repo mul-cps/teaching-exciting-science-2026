@@ -25,7 +25,10 @@ class EV3OperatorStatusTests(unittest.TestCase):
             self.assertEqual(result['capabilities']['left_end']['enabled'], expected)
 
     def test_missing_feeder_reference_blocks_eject(self):
-        self.assertFalse(self.state(references={'sorter':'home','feeder':None})['capabilities']['eject']['enabled'])
+        status = self.state(references={'sorter':'home','feeder':None})
+        self.assertFalse(status['capabilities']['eject']['enabled'])
+        self.assertIn('Record feeder eject reference', status['capabilities']['eject']['reason'])
+        self.assertTrue(status['capabilities']['confirm_feeder']['enabled'])
 
     def test_busy_and_fault_block_motion(self):
         for changes in ({'busy':True}, {'last_error':{'code':'fault'}}):

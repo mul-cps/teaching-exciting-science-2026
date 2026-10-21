@@ -341,103 +341,27 @@ def main():
         return worker_task(operation, work)
 
     def sorter_position(request, response):
-        from workshop.station.sorter_position import (validate_target, stationary_snapshot,
-            position_arguments, PHASE_DEADLINE_S, motion_progress, terminal_position, control_diagnostics, critical_status_read)
+        from workshop.station.sorter_position import validate_target
+        from workshop.station.sorter_endpoint import move_phase
         def admit():
             validate_target(request.target_deg)
-            def move(worker, proxy, cancel):
-                latest_observation = None
-                def check(deadline):
-                    if cancel.is_set():
-                        raise InterruptedError('sorter position cancelled')
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError('sorter position deadline exceeded')
-                slow_reads = [0]
-                latest_rpc_timing = None
-                def observe(result, timing):
-                    nonlocal latest_observation, latest_rpc_timing
-                    latest_observation, latest_rpc_timing = result, timing
-                    record(dict(event='sorter_critical_observation', timing=timing,
-                        session=result.get('session'), busy=result.get('busy'),
-                        sampled_ms=result.get('sampled_ms'),
-                        encoder_sample_ms={name: control.get('angle_sample_ms')
-                            for name, control in result.get('motor_control', {}).items()},
-                        speed_sample_ms={name: control.get('speed_sample', {}).get('sampled_ms')
-                            for name, control in result.get('motor_control', {}).items()}))
-                def status(deadline, stage):
-                    return critical_status_read(proxy, deadline=deadline, cancel=cancel,
-                        stage=stage, slow_reads=slow_reads, record=record,
-                        observe=observe, clock=time.monotonic)
-                try:
-                    admission_deadline = time.monotonic()+2.
-                    first = status(admission_deadline, 'admission')
-                    initial_angle, initial_stamp = stationary_snapshot(first, session=proxy.session)
-                    while True:
-                        time.sleep(.05)
-                        current = status(admission_deadline, 'admission')
-                        angle, stamp = stationary_snapshot(current, session=proxy.session)
-                        if stamp > initial_stamp:
-                            if stamp-initial_stamp > 1500 or abs(angle-initial_angle) > 1.:
-                                raise ValueError('sorter telemetry changed unexpectedly during admission')
-                            break
-                    arguments = position_arguments(current, session=proxy.session, target=request.target_deg)
-                    check(admission_deadline)
-                    # The one native target phase also has its own six-second watchdog.
-                    deadline = time.monotonic()+PHASE_DEADLINE_S
-                    accepted = proxy.call('motor_target', arguments)
-                    job = accepted.get('job', {})
-                    if accepted.get('accepted') is not True or type(job.get('id')) is not int:
-                        raise RuntimeError('sorter target did not return a unique native job')
-                    diagnostics = control_diagnostics(current)
-                    record(dict(event='sorter_position_started', target_deg=request.target_deg,
-                                native_job_id=job['id'], profile=arguments,
-                                diagnostics=diagnostics, native_job=job, command_timing=proxy.last_call_timing))
-                    last_sample, last_progress = stamp, time.monotonic()
-                    while True:
-                        observed = status(deadline, 'motion_or_terminal')
-                        last_sample, last_progress = motion_progress(observed, session=proxy.session,
-                            previous_stamp=last_sample, progress_time=last_progress, now=time.monotonic())
-                        if observed.get('busy') is False:
-                            final_angle = terminal_position(observed, session=proxy.session,
-                                job_id=job['id'], target=request.target_deg, after_stamp=stamp)
-                            result = dict(target_deg=request.target_deg, measured_deg=final_angle,
-                                session=proxy.session, native_job_id=job['id'],
-                                diagnostics_before=diagnostics, diagnostics_after=control_diagnostics(observed),
-                                native_job=observed['last_job'], angles=observed['angles'])
-                            record(dict(event='sorter_position_complete', **result))
-                            return result
-                        active = observed.get('job') or {}
-                        if active.get('id') != job['id'] or active.get('operation') != 'motor_target':
-                            raise RuntimeError('sorter native active job identity changed')
-                        time.sleep(.05)
-                except BaseException as error:
-                    # Preserve the failing native state before cleanup changes
-                    # power mode, active-job state, or cached diagnostics.
-                    try:
-                        record(dict(event='sorter_position_failed', target_deg=request.target_deg,
-                                    error=str(error), native_observation=latest_observation, rpc_timing=latest_rpc_timing))
-                    except Exception as logging_error:
-                        error.add_note('sorter failure evidence write failed: '+str(logging_error))
-                    try:
-                        reply = proxy.call('stop')
-                        if reply.get('stopped') is not True:
-                            raise RuntimeError('EV3 stop acknowledgement missing')
-                    except BaseException as stop_error:
-                        error.add_note('sorter cleanup stop failed: '+str(stop_error))
-                        stop_state['pending'] = True
-                    raise
-            return worker_task('sorter_position', move)
+            return worker_task('sorter_position', lambda worker, proxy, cancel:
+                move_phase(proxy, cancel, request.target_deg, record, stop_state))
         return reply(response, admit)
     node.create_service(SorterPosition, '/station/ev3/sorter_position', sorter_position)
 
     def endpoint(side, response):
-        # Fixed deployment mapping only; use exactly the existing conservative
-        # position path, including switch/guard boundaries and phase deadline.
-        target = get('ev3_'+side+'_end_deg')
-        if not isinstance(target, (int, float)) or not 0 < target < 550:
-            response.success, response.message = False, 'Conveyor '+side+' endpoint configuration required'
-            return response
-        return sorter_position(SimpleNamespace(target_deg=target), response)
+        from workshop.station.sorter_position import validate_target
+        from workshop.station.sorter_endpoint import move_endpoint
+        def admit():
+            target = get('ev3_'+side+'_end_deg')
+            try:
+                validate_target(target)
+            except ValueError:
+                raise ValueError('Conveyor '+side+' endpoint configuration required: finite interior target 0 < degrees < 550')
+            return worker_task('conveyor_'+side+'_end', lambda worker, proxy, cancel:
+                move_endpoint(proxy, cancel, target, record, stop_state))
+        return reply(response, admit)
     for side in ('left', 'right'):
         node.create_service(Trigger, '/station/ev3/'+side+'_end',
             lambda request, response, side=side: endpoint(side, response))
