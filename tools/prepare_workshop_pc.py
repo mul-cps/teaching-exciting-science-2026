@@ -6,6 +6,11 @@ import argparse
 import hashlib
 import fcntl
 import json
+import re
+import signal
+import socket
+import time
+import urllib.request
 import os
 from pathlib import Path
 import subprocess
@@ -48,9 +53,9 @@ def prepare():
             destinations.append(desktop)
     except (FileNotFoundError, subprocess.CalledProcessError):
         pass
-    choices = [('Student workshop', 'student'), ('Instructor live lab', 'live'), ('Instructor robot and RViz', 'station')]
+    choices = [('Student workshop', 'student'), ('Instructor live lab', 'live'), ('Instructor robot and RViz', 'station'), ('Student Blockly simulation', 'blockly-simulation'), ('Instructor Blockly PHYSICAL ROS', 'blockly-physical')]
     for title, mode in choices:
-        terminal = 'true' if mode == 'station' else 'false'
+        terminal = 'true' if mode in ('station', 'blockly-simulation', 'blockly-physical') else 'false'
         content = ('[Desktop Entry]\nType=Application\nName=' + title + '\n'
                    'Comment=Open the prepared local workshop notebook\n'
                    f'Exec="{python}" "{Path(__file__).resolve()}" {mode}\n'
@@ -161,11 +166,133 @@ def start_station():
             raise SystemExit(result.returncode)
 
 
+
+def blockly_probe(port=8877):
+    """Child-only direct loopback read; the parent enforces the total deadline."""
+    if not 1 <= port <= 65535:
+        raise ValueError('Invalid loopback probe port.')
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            raise RuntimeError('Blockly probe redirects are not allowed.')
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    url = f'http://127.0.0.1:{port}'
+    with opener.open(url, timeout=1) as response:
+        page = response.read(262144).decode()
+    token = re.search(r"window\.STATION_TOKEN='([A-Za-z0-9_-]+)'", page)
+    if token is None:
+        raise RuntimeError('Port 8877 does not serve the prepared Blockly app.')
+    request = urllib.request.Request(url + '/api/status', headers={'X-Station-Token': token.group(1)})
+    with opener.open(request, timeout=1) as response:
+        result = json.loads(response.read(262144))
+    if not isinstance(result, dict) or type(result.get('physical')) is not bool:
+        raise RuntimeError('Blockly probe returned an invalid mode.')
+    return {'physical': result['physical']}
+
+
+def blockly_status(port=8877):
+    try:
+        result = subprocess.run([sys.executable, '-I', str(Path(__file__).resolve()), '_blockly-probe',
+                                 '--probe-port', str(port)], capture_output=True, text=True, timeout=2,
+                                env=clean_env(), check=False)
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError('Blockly probe exceeded its absolute two-second deadline.') from error
+    if result.returncode:
+        raise RuntimeError('Blockly direct loopback probe failed; no mode or server was changed.')
+    return json.loads(result.stdout)
+
+
+def blockly_command(physical):
+    script = str(ROOT / 'tools/run_blockly_station.py')
+    recordings = STATE / ('blockly-physical-recordings' if physical else 'blockly-simulation-recordings')
+    arguments = [script, '--port', '8877', '--recordings', str(recordings)]
+    if physical:
+        return [str(Path.home() / '.local/bin/station-fwmini4'), 'ros-vulkan', 'python',
+                *arguments, '--physical', '--instructor']
+    return [sys.executable, *arguments]
+
+
+def blockly(action):
+    # Reuse the existing session/PID-reuse checks and bounded pidfd cleanup.
+    sys.path.insert(0, str(ROOT))
+    from tools.station_process import process_identity, same_process, cleanup_session, save
+    STATE.mkdir(parents=True, exist_ok=True)
+    path = STATE / 'blockly-server.json'
+    physical = action == 'blockly-physical'
+    with (STATE / 'blockly-launch.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            record = json.loads(path.read_text())
+        except FileNotFoundError:
+            record = None
+        if record is not None:
+            if record.get('root') != str(ROOT):
+                raise RuntimeError('Blockly ownership record belongs to a different checkout; inspect it before starting.')
+            if not same_process(record['process']):
+                path.replace(path.with_suffix('.stale-' + str(time.time_ns()) + '.json'))
+                record = None
+        if record is not None:
+            if action == 'blockly-close':
+                cleanup_session(record, [(signal.SIGTERM, 35), (signal.SIGKILL, 3)], path=path)
+                path.unlink()
+                print('Blockly server closed. For physical mode inspect its log and station STOP acknowledgement.')
+                return
+            if record.get('physical') is not physical:
+                raise RuntimeError('Blockly is already running in the other mode. Close it explicitly with blockly-close before changing mode.')
+            if blockly_status().get('physical') is not physical:
+                raise RuntimeError('Blockly HTTP mode differs from the recorded launch; no new server was started.')
+        elif action == 'blockly-close':
+            print('No managed Blockly server record; no process was signalled.')
+            return
+        else:
+            for port in (8877, 8878):
+                with socket.socket() as probe:
+                    try:
+                        probe.bind(('127.0.0.1', port))
+                    except OSError as error:
+                        raise RuntimeError(f'Blockly port {port} is occupied by an unmanaged server. Inspect it before starting.') from error
+            env = clean_env()
+            if physical:
+                env.update(ROS_DOMAIN_ID='177', ROS_LOCALHOST_ONLY='1', ROS_AUTOMATIC_DISCOVERY_RANGE='LOCALHOST')
+            with (STATE / 'blockly-server.log').open('a') as log:
+                child = subprocess.Popen(blockly_command(physical), cwd=ROOT, env=env,
+                                         stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                                         start_new_session=True)
+            identity = process_identity(child.pid)
+            if identity is None:
+                raise RuntimeError('Blockly exited before its process identity could be recorded; inspect blockly-server.log.')
+            record = {'process': identity, 'members': [identity], 'root': str(ROOT), 'physical': physical}
+            save(path, record)
+            deadline = time.monotonic() + 20
+            while True:
+                if child.poll() is not None:
+                    raise RuntimeError('Blockly exited during startup; inspect blockly-server.log and its ownership record.')
+                try:
+                    if blockly_status().get('physical') is physical:
+                        break
+                except (OSError, ValueError, RuntimeError):
+                    pass
+                if time.monotonic() >= deadline:
+                    raise RuntimeError('Blockly readiness timed out. Inspect the managed process/log; it was not automatically replaced.')
+                time.sleep(.1)
+    webbrowser.open('http://127.0.0.1:8877')
+    print('Blockly ' + ('PHYSICAL ROS' if physical else 'SIMULATION') + ' opened. Close server: prepare_workshop_pc.py blockly-close')
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['prepare', 'student', 'live', 'station', 'station-preflight'])
+    parser.add_argument('action', choices=['prepare', 'student', 'live', 'station', 'station-preflight', 'blockly-simulation', 'blockly-physical', 'blockly-close', '_blockly-probe'])
+    parser.add_argument('--probe-port', type=int, default=8877, help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.action == 'prepare':
+    if args.action == '_blockly-probe':
+        print(json.dumps(blockly_probe(args.probe_port)))
+    elif args.action.startswith('blockly-'):
+        try:
+            blockly(args.action)
+        except (OSError, ValueError, RuntimeError, KeyError) as error:
+            print(str(error), file=sys.stderr)
+            if sys.stdin.isatty():
+                input('Blockly was not started or changed. Press Enter to close. ')
+            raise SystemExit(1) from error
+    elif args.action == 'prepare':
         prepare()
     elif args.action == 'station-preflight':
         print(' '.join(station_command()))

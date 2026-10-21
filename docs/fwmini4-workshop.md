@@ -83,3 +83,25 @@ cd ~/git/teaching-exciting-science-2026-current-20261021
 Only after successful bootstrap, open **Instructor robot and RViz**. Its launch forwards that exact contract, state file, lock and log directory to the existing resident owner. The planner and owner independently validate calibration, source and bounds; source changes can require a fresh bootstrap. The retained historical measured home remains separate from current live pose and homing admission. This physical bootstrap has **not** been tested on fwmini4 because no devices were connected during preparation.
 
 R5 software rehearsal on 21 October passed three fresh notebook kernels, authenticated loopback Student/Instructor apps, all six extracted ZIP entrypoints with system Python without installed packages, both ZIP notebooks with the prepared kernel, nine bundled training PNGs, 18 slide PDF pages, domain75 fake ROS freshness recovery, and offscreen native Qt plugin checks. Actual display/login, webcam permissions, Teachable Machine training, EV3 hardware and physical robot execution remain unverified.
+
+## Blockly launchers
+
+The bjoern desktop and application menu also provide **Student Blockly simulation** and **Instructor Blockly PHYSICAL ROS**. Both open `http://127.0.0.1:8877`; keep its separate STOP port `8878` free. All editor assets are local files. The simulation server uses standard Python and does not import ROS or hardware drivers. On another student laptop, extract the full repository and run:
+
+```bash
+python3 tools/run_blockly_station.py
+```
+
+The physical launcher is an explicit instructor action. It uses `station-fwmini4 ros-vulkan` with domain **177**, `--physical --instructor`, and the existing station's guarded ROS interfaces. Start and qualify the station separately first. Opening Blockly never starts a serial driver, starts the station, homes, enables teleoperation, or executes a program. Real program execution and instructor controls can command the already running station. Unconfigured restart controls remain unqualified.
+
+Repeated clicks reuse only the same checkout and mode, with a matching live process identity and HTTP mode. A simulation server is never converted into a physical server. If the other mode is running, close it explicitly before selecting the new mode:
+
+```bash
+cd ~/git/teaching-exciting-science-2026-current-20261021
+python3 tools/prepare_workshop_pc.py blockly-close
+python3 tools/prepare_workshop_pc.py blockly-simulation
+# Explicit instructor physical adapter, after station qualification:
+python3 tools/prepare_workshop_pc.py blockly-physical
+```
+
+The launcher records the managed process/session identity under `~/.local/share/exciting-science/workshop-20261022/blockly-server.json` and keeps simulation and physical recordings in separate directories there. Explicit close uses the existing bounded process cleanup; closing a physical adapter requests station STOP, whose acknowledgement must be checked in its log and the station. Stale records are archived without signalling a reused PID. An occupied port without matching ownership is refused; the launcher never replaces an unrelated server. Logs are in `blockly-server.log` alongside the record. See [blockly-workshop.md](blockly-workshop.md) for the lesson and program limits. Physical Blockly acceptance on fwmini4 remains unverified.

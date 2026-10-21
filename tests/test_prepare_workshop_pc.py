@@ -4,6 +4,10 @@ import os
 import json
 import hashlib
 import tempfile
+import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -63,6 +67,110 @@ class LauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module, 'station_command', return_value=['existing-wrapper']), patch.object(module.fcntl, 'flock', side_effect=BlockingIOError), patch.object(module.subprocess, 'run') as run, patch.object(module.sys.stdin, 'isatty', return_value=False), self.assertRaises(SystemExit):
             module.start_station()
         run.assert_not_called()
+
+    def test_blockly_reuses_only_matching_managed_mode(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = Path(temporary)
+            (state / 'blockly-server.json').write_text(json.dumps({'process': {'pid': 123}, 'root': str(module.ROOT), 'physical': False}))
+            with patch.object(module, 'STATE', state), patch('tools.station_process.same_process', return_value=True), patch.object(module, 'blockly_status', return_value={'physical': False}), patch.object(module.subprocess, 'Popen') as launch, patch.object(module.webbrowser, 'open') as browser:
+                module.blockly('blockly-simulation')
+                browser.assert_called_once_with('http://127.0.0.1:8877')
+                with self.assertRaisesRegex(RuntimeError, 'other mode'):
+                    module.blockly('blockly-physical')
+                launch.assert_not_called()
+
+    def test_blockly_stale_pid_is_never_signalled(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = Path(temporary)
+            (state / 'blockly-server.json').write_text(json.dumps({'process': {'pid': 123}, 'root': str(module.ROOT), 'physical': True}))
+            with patch.object(module, 'STATE', state), patch('tools.station_process.same_process', return_value=False), patch('tools.station_process.cleanup_session') as cleanup:
+                module.blockly('blockly-close')
+                cleanup.assert_not_called()
+            self.assertFalse((state / 'blockly-server.json').exists())
+            self.assertEqual(len(list(state.glob('*.stale-*.json'))), 1)
+
+    def test_blockly_refuses_unmanaged_occupied_port(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module.socket, 'socket') as socket, patch.object(module.subprocess, 'Popen') as launch:
+            socket.return_value.__enter__.return_value.bind.side_effect = OSError('busy')
+            with self.assertRaisesRegex(RuntimeError, 'unmanaged server'):
+                module.blockly('blockly-simulation')
+            launch.assert_not_called()
+
+    def test_blockly_physical_launch_is_explicit_and_uses_station_domain(self):
+        identity = {'pid': 123, 'starttime': '10', 'pgrp': 123, 'session': 123}
+        with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module.socket, 'socket'), patch('tools.station_process.process_identity', return_value=identity), patch.object(module, 'blockly_status', return_value={'physical': True}), patch.object(module.subprocess, 'Popen') as launch, patch.object(module.webbrowser, 'open'):
+            launch.return_value.poll.return_value = None
+            module.blockly('blockly-physical')
+            command = launch.call_args.args[0]
+            self.assertEqual(command[1:3], ['ros-vulkan', 'python'])
+            self.assertIn('--physical', command)
+            self.assertIn('--instructor', command)
+            self.assertEqual(launch.call_args.kwargs['env']['ROS_DOMAIN_ID'], '177')
+            self.assertTrue(launch.call_args.kwargs['start_new_session'])
+
+    def test_blockly_probe_has_absolute_deadline_for_slow_drip(self):
+        class Slow(BaseHTTPRequestHandler):
+            def log_message(self, *args): pass
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header('Content-Length', '100')
+                self.end_headers()
+                try:
+                    for _ in range(100):
+                        self.wfile.write(b'x'); self.wfile.flush(); time.sleep(.1)
+                except OSError:
+                    pass
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Slow)
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        try:
+            started = time.monotonic()
+            with self.assertRaisesRegex(RuntimeError, 'absolute two-second deadline'):
+                module.blockly_status(server.server_port)
+            self.assertLess(time.monotonic() - started, 4)
+        finally:
+            server.shutdown(); server.server_close(); thread.join(2)
+
+    def test_blockly_probe_refuses_redirect_and_ignores_proxy(self):
+        redirected = []
+        class Redirect(BaseHTTPRequestHandler):
+            def log_message(self, *args): pass
+            def do_GET(self):
+                if self.path != '/': redirected.append(self.path)
+                self.send_response(302)
+                self.send_header('Location', '/unexpected')
+                self.end_headers()
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Redirect)
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        try:
+            with patch.dict(os.environ, {'HTTP_PROXY': 'http://127.0.0.1:1', 'http_proxy': 'http://127.0.0.1:1', 'NO_PROXY': '', 'no_proxy': ''}), self.assertRaisesRegex(RuntimeError, 'direct loopback probe failed'):
+                module.blockly_status(server.server_port)
+            self.assertEqual(redirected, [])
+        finally:
+            server.shutdown(); server.server_close(); thread.join(2)
+
+    def test_blockly_probe_ignores_environment_proxy_and_returns_only_mode(self):
+        class Local(BaseHTTPRequestHandler):
+            def log_message(self, *args): pass
+            def do_GET(self):
+                body = b"window.STATION_TOKEN='local_test';" if self.path == '/' else b'{"physical":false,"private_status":"not returned"}'
+                if self.path == '/api/status':
+                    assert self.headers.get('X-Station-Token') == 'local_test'
+                self.send_response(200); self.send_header('Content-Length', str(len(body)))
+                self.end_headers(); self.wfile.write(body)
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Local)
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        try:
+            with patch.dict(os.environ, {'HTTP_PROXY': 'http://127.0.0.1:1', 'http_proxy': 'http://127.0.0.1:1', 'NO_PROXY': '', 'no_proxy': ''}):
+                self.assertEqual(module.blockly_status(server.server_port), {'physical': False})
+        finally:
+            server.shutdown(); server.server_close(); thread.join(2)
+
+    def test_blockly_simulation_command_has_no_ros_or_physical_flags(self):
+        command = module.blockly_command(False)
+        self.assertEqual(command[0], sys.executable)
+        self.assertNotIn('--physical', command)
+        self.assertNotIn('--instructor', command)
+        self.assertNotIn('ros-vulkan', command)
 
     def test_new_server_has_loopback_and_default_auth(self):
         with patch.object(Path, 'is_file', return_value=True), patch.object(module.subprocess, 'check_output', return_value=''), patch.object(module.os, 'chdir'), patch.object(module.os, 'execve') as execute:
