@@ -756,6 +756,19 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             self._process.terminate()
         raise RuntimeError("ArmSession state did not become fresh within 20 seconds")
 
+    def _active_goal_is(self, *reservations):
+        """Match named operations by string value and action/token objects by identity.
+
+        rclpy goal-handle equality assumes the other object has goal_id; it
+        cannot safely compare against this bridge's string reservations.
+        Callers retain their existing _active_lock ownership.
+        """
+        active = self._active_goal
+        return any(active is reservation or
+                   (isinstance(active, str) and isinstance(reservation, str) and
+                    active == reservation)
+                   for reservation in reservations)
+
     def _read_responses(self, process=None):
         process = self._process if process is None else process
         generation = self._owner_started
@@ -771,7 +784,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                                             generation=generation, process=process)
                 if isinstance(response, dict) and response.get("command") in {"joint_diagnostics", "native_damping_inventory", "rearm_motion_profile"}:
                     with self._active_lock:
-                        expected = self._active_goal == response["command"]
+                        expected = self._active_goal_is(response["command"])
                     if not expected:
                         self._mark_owner_fault("unexpected_" + response["command"] + "_reply")
                         continue
@@ -857,7 +870,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 raise RuntimeError("owner is alive; reconnect never kills or retries a live owner")
             with self._stop_condition:
                 with self._active_lock:
-                    if (self._active_goal in ("native_damping", "operator_maintenance", "operator_maintenance_unknown", "native_damping_inventory") and
+                    if (self._active_goal_is("native_damping", "operator_maintenance", "operator_maintenance_unknown", "native_damping_inventory") and
                             not self._control_callbacks and self._process is not None and self._process.poll() is not None):
                         # Explicit reconnect retires only quiesced modes of this already-dead generation.
                         self._active_goal = None
@@ -906,7 +919,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         finally:
             if reserved:
                 with self._active_lock:
-                    if self._active_goal == "reconnect":
+                    if self._active_goal_is("reconnect"):
                         self._active_goal = None
                 self._stop_latched = old_barrier
             self._stop_lock.release()
@@ -953,7 +966,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 self._cancel_before_start = True
                 self._gripper_goal_cancelled = True
                 self._home_completed_owner_started = None
-                if self._active_goal in {"native_damping", "operator_maintenance", "operator_maintenance_unknown"}:
+                if self._active_goal_is("native_damping", "operator_maintenance", "operator_maintenance_unknown"):
                     self._active_goal = "operator_maintenance_unknown" if self._operator_external_job is not None else None
                     if self._operator_external_job is None:
                         self._operator_maintenance_token = None
@@ -972,7 +985,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                     self._stop_condition.wait(min(.02, remaining))
                 ack = self._stop_ack
             with self._active_lock:
-                if self._active_goal is not None and not (self._active_goal == "operator_maintenance_unknown" and self._operator_external_job is not None):
+                if self._active_goal is not None and not (self._active_goal_is("operator_maintenance_unknown") and self._operator_external_job is not None):
                     raise RuntimeError("pending owner operation has not quiesced; stop remains latched")
             state = ack.get("state", ack.get("final_state"))
             if not ack.get("ok") or ack.get("stopped") is not True or not isinstance(state, dict):
@@ -1054,7 +1067,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 else:
                     if self._operator_external_job is not None:
                         raise RuntimeError("external systemd job outcome is unresolved; reservation cannot release")
-                    if (self._active_goal != "operator_maintenance" or not request.token or
+                    if (not self._active_goal_is("operator_maintenance") or not request.token or
                             request.token != self._operator_maintenance_token):
                         raise RuntimeError("operator maintenance token does not own the reservation")
                     if self._prepare_owner_state(state, process, generation, torque=0) != "normal":
@@ -1086,9 +1099,9 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                      state.get("torque") == {j: 0 for j in TELEOP_JOINTS} and
                      state.get("native_damping_restore_pending") is False)
         with self._active_lock:
-            if fresh_off and self._active_goal == "native_damping" and state.get("native_damping") is None:
+            if fresh_off and self._active_goal_is("native_damping") and state.get("native_damping") is None:
                 self._active_goal = None
-            if (self._active_goal == "operator_maintenance" and self._operator_maintenance_deadline is not None and
+            if (self._active_goal_is("operator_maintenance") and self._operator_maintenance_deadline is not None and
                     now >= self._operator_maintenance_deadline):
                 if self._operator_external_job is not None:
                     self._active_goal = "operator_maintenance_unknown"
@@ -1132,7 +1145,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         finally:
             if reserved:
                 with self._active_lock:
-                    if self._active_goal == reservation:
+                    if self._active_goal_is(reservation):
                         self._active_goal = None
         return response
 
@@ -1168,7 +1181,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         finally:
             if reserved:
                 with self._active_lock:
-                    if self._active_goal == reservation:
+                    if self._active_goal_is(reservation):
                         self._active_goal = None
         return response
 
@@ -1186,7 +1199,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             if phase is None and self._prepare_owner_state(state, process, generation, torque=0) != "normal":
                 raise RuntimeError("native damping requires fresh normal six-joint torque OFF")
             with self._active_lock:
-                renewing = self._active_goal == "native_damping" and isinstance(phase, dict)
+                renewing = self._active_goal_is("native_damping") and isinstance(phase, dict)
                 if self._active_goal is not None and not renewing:
                     raise RuntimeError("another owner operation is active")
                 if self._teleop_state != "disabled":
@@ -1339,7 +1352,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
     def _clear_teleop(self):
         reason = self._teleop_stop_reason or "teleoperation_disabled"
         with self._active_lock:
-            if self._active_goal in {"teleop", "teleop_starting", "teleop_stopping"}:
+            if self._active_goal_is("teleop", "teleop_starting", "teleop_stopping"):
                 self._active_goal = None
             self._teleop_state = "disabled"
             self._teleop_session = None
@@ -1699,8 +1712,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
     def _assert_owner_reservation(self, reservation, process, generation):
         with self._active_lock:
             own_prepare = (reservation is not None and reservation is self._prepare_reservation and
-                           self._active_goal == "prepare")
-            own_operation = (isinstance(reservation, str) and self._active_goal == reservation)
+                           self._active_goal_is("prepare"))
+            own_operation = (isinstance(reservation, str) and self._active_goal_is(reservation))
             if (not (own_prepare or own_operation) or self._closed or self._stop_latched or
                     self._cancel_before_start or self._process is not process or
                     self._owner_started != generation or process.poll() is not None):
@@ -2016,7 +2029,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             response.success = False
             response.message = "home_timeout_s must be in (0, 90] seconds"
             with self._active_lock:
-                if self._active_goal == "home":
+                if self._active_goal_is("home"):
                     self._active_goal = None
             return response
         deadline = time.monotonic() + timeout_s
@@ -2052,7 +2065,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             response.message = str(error)
         finally:
             with self._active_lock:
-                if self._active_goal == "home":
+                if self._active_goal_is("home"):
                     self._active_goal = None
         return response
 
@@ -2127,7 +2140,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         finally:
             with self._active_lock:
                 self._home_completed_owner_started = None
-                if self._active_goal == "recover_camera":
+                if self._active_goal_is("recover_camera"):
                     self._active_goal = None
         return response
 
@@ -2601,7 +2614,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 available=False, error=str(error), error_type=type(error).__name__), allow_nan=False)
         finally:
             with self._active_lock:
-                if self._active_goal == "joint_diagnostics":
+                if self._active_goal_is("joint_diagnostics"):
                     self._active_goal = None
         return response
 
@@ -2718,7 +2731,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                     and math.isfinite(generation) else None)), allow_nan=False)
         finally:
             with self._active_lock:
-                if self._active_goal == "jaw_diagnostics":
+                if self._active_goal_is("jaw_diagnostics"):
                     self._active_goal = None
         return response
 
@@ -2798,7 +2811,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 pass
         finally:
             with self._active_lock:
-                if self._active_goal == "commission_gripper":
+                if self._active_goal_is("commission_gripper"):
                     self._active_goal = None
         return response
 
@@ -2948,7 +2961,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                     pass
         finally:
             with self._active_lock:
-                if self._active_goal == reservation:
+                if self._active_goal_is(reservation):
                     self._active_goal = None
         return response
 
@@ -3057,7 +3070,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             self._assert_owner_reservation(reservation, process, generation)
             with self._active_lock:
                 self._held_jaw_ack_state(final, process, generation, context, after=dispatched, acknowledged=True)
-                if (self._active_goal != reservation or self._stop_latched or self._cancel_before_start
+                if (not self._active_goal_is(reservation) or self._stop_latched or self._cancel_before_start
                         or self._closed or not self._clear_owner_fault("held_jaw_acknowledged", expected_context=context)):
                     raise RuntimeError("held jaw acknowledgment lost its fault reservation")
             terminal_verified = True
@@ -3072,14 +3085,14 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 target_reached=False,error=str(error)), allow_nan=False)
         finally:
             with self._active_lock:
-                if self._active_goal == reservation:self._active_goal = None
+                if self._active_goal_is(reservation):self._active_goal = None
         return response
 
     def _sorting_ready_value(self, state, *, reservation=None):
         process = self._process
         with self._active_lock:
             own_prepare = (reservation is not None and reservation is self._prepare_reservation and
-                           self._active_goal == "prepare")
+                           self._active_goal_is("prepare"))
             active = self._active_goal is not None and not own_prepare
             teleop_state = self._teleop_state
         try:
@@ -3203,7 +3216,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 "stop_verified": stop_verified}, allow_nan=False)
         finally:
             with self._active_lock:
-                if self._active_goal == "calibration_ready":
+                if self._active_goal_is("calibration_ready"):
                     self._active_goal = None
         return response
 
@@ -3575,7 +3588,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
 
     def _gripper_cancel_request(self, _goal_handle):
         with self._active_lock:
-            if self._active_goal != "gripper" or not getattr(_goal_handle, "is_active", True):
+            if not self._active_goal_is("gripper") or not getattr(_goal_handle, "is_active", True):
                 return CancelResponse.REJECT
             self._gripper_goal_cancelled = True
             if not self._gripper_command_submitted:
@@ -3589,7 +3602,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
     def _submit_gripper_plan(self, command):
         """Serialize cancel-before-submit against owner command admission."""
         with self._active_lock:
-            if (self._active_goal != "gripper" or self._gripper_goal_cancelled or
+            if (not self._active_goal_is("gripper") or self._gripper_goal_cancelled or
                     self._gripper_command_submitted):
                 return False
             while True:
@@ -3734,7 +3747,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             return result
         finally:
             with self._active_lock:
-                if self._active_goal == "gripper" and (not self._owner_faulted or getattr(self, "_stop_latched", False)):
+                if self._active_goal_is("gripper") and (not self._owner_faulted or getattr(self, "_stop_latched", False)):
                     self._active_goal = None
                 self._gripper_command_submitted = False
 
@@ -3751,10 +3764,9 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         with self._active_lock:
             if self._active_goal is None:
                 return CancelResponse.REJECT
-            if isinstance(self._active_goal, str) and self._active_goal in {
-                    "native_damping", "operator_maintenance", "operator_maintenance_unknown", "native_damping_inventory", "rearm_motion_profile"}:
+            if isinstance(self._active_goal, str) and self._active_goal_is("native_damping", "operator_maintenance", "operator_maintenance_unknown", "native_damping_inventory", "rearm_motion_profile"):
                 return CancelResponse.REJECT
-            if isinstance(self._active_goal, str) and self._active_goal in ("pending", "validating"):
+            if isinstance(self._active_goal, str) and self._active_goal_is("pending", "validating"):
                 self._cancel_before_start = True
                 return CancelResponse.ACCEPT
             if self._active_goal is not goal_handle:

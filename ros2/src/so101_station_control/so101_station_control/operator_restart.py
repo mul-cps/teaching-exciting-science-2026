@@ -106,7 +106,7 @@ class OperatorRestartMixin:
         with self._operator_restart_lock:
             if unit not in self._operator_restart_units or self._operator_external_job is not None:
                 raise RuntimeError("restart unit is not allowlisted or another external job is unresolved")
-            if token != self._operator_maintenance_token or self._active_goal != "operator_maintenance":
+            if token != self._operator_maintenance_token or not self._active_goal_is("operator_maintenance"):
                 raise RuntimeError("restart does not own a live maintenance reservation")
             before = read_unit(unit)
             if before["Job"] != "0":
@@ -115,7 +115,7 @@ class OperatorRestartMixin:
                 state = self._cached_owner_state
                 now = time.monotonic()
                 if (self._closed or self._stop_latched or self._owner_faulted or
-                        token != self._operator_maintenance_token or self._active_goal != "operator_maintenance" or
+                        token != self._operator_maintenance_token or not self._active_goal_is("operator_maintenance") or
                         self._process is None or self._process.poll() is not None or
                         self._cached_owner_generation != self._owner_started or
                         not isinstance(state, dict) or state.get("arm_id") != self._expected_arm_id or
