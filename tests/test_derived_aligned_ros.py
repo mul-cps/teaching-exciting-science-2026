@@ -113,7 +113,7 @@ def test_expired_tag_admission_only_clears_markers():
     node=NS(get_clock=lambda:NS(now=lambda:NS(nanoseconds=10_100_000_000)),last_processing=0.,min_processing_period=.2,
         max_pair_delta=.04,camera_info=info,camera_info_max_age=.5,depth_scale=.001,
         bridge=NS(imgmsg_to_cv2=lambda *args,**kwargs:np.ones((2,2),np.uint16)),detector=NS(detect=lambda image:[]),
-        diagnostic_frame='color',publisher=NS(publish=published.append),_empty=lambda *args:cleared.append(args),
+        diagnostic_frame='color',tag_patterns={},publisher=NS(publish=published.append),_empty=lambda *args:cleared.append(args),
         get_logger=lambda:NS(warning=lambda *args:None))
     def expired():raise ValueError('source lease expired after CV')
     TagObservations._images(node,msg,msg,prepared_gray=np.zeros((2,2),np.uint8),admission_check=expired)
@@ -138,13 +138,13 @@ def test_expired_object_result_does_not_publish_or_acquire(notification_error):
         isinstance(call.args[1],ast.Attribute) and call.args[1].attr=='_consume_analysis_faults' for call in calls)
     namespace={}
     exec(compile(ast.fix_missing_locations(ast.Module(body=list(callbacks.values()),type_ignores=[])),str(path),'exec'),namespace)
-    updates=[];publications=[];order=[]
+    updates=[];publications=[];order=[];invalidations=[]
     def expired(token):
         order.append('admission');raise ValueError('source lease expired during analysis')
     def pop_fault():order.append('fault_gate');return None
     job={'stamp':10.,'ros_stamp':Stamp(sec=10,nanosec=0),'derived_token':object()}
     def take_result():order.append('result');return job,{},None
-    node=NS(derived=NS(pop_fault=pop_fault,check=expired),
+    node=NS(derived=NS(pop_fault=pop_fault,check=expired),_offer_derived=invalidations.append,
         analysis_worker=NS(take_result=take_result,notification_error=notification_error),last_analysis_notification_error=None,
         get_clock=lambda:NS(now=lambda:NS(nanoseconds=10_100_000_000,to_msg=lambda:Stamp(sec=10,nanosec=100_000_000))),
         last_analysis_result_stamp=None,require_registration_tracking=False,
@@ -152,6 +152,7 @@ def test_expired_object_result_does_not_publish_or_acquire(notification_error):
     node._consume_analysis_faults=MethodType(namespace['_consume_analysis_faults'],node)
     namespace['_consume_analysis'](node)
     assert not updates and node.last_analysis_result_stamp is None
+    assert invalidations == ([None] if notification_error is not None else [])
     assert len(publications)==1 and publications[0][1]=='unavailable'
     if notification_error is None:
         assert order==['fault_gate','result','admission']

@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import time
 from copy import deepcopy
+from threading import Lock
 
 import cv2
 import numpy as np
@@ -939,6 +940,7 @@ class ColoredObjectsNode:
         from rclpy.node import Node
         from rclpy.qos import qos_profile_sensor_data
         from rclpy.time import Time
+        from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
         from sensor_msgs.msg import CameraInfo, Image
         from std_msgs.msg import String
         from rcl_interfaces.msg import ParameterDescriptor
@@ -1054,9 +1056,20 @@ class ColoredObjectsNode:
                     String, self.get_parameter("registration_status_topic").value,
                     self._registration_status, 10)
                 self.derived = None
+                self._fresh_lock = Lock()
+                self._fresh_signal_gate = Lock()
+                self._fresh_pending = None
+                self._fresh_generation = 0
+                self._fresh_closed = False
+                self._fresh_next_attempt = 0.0
+                self._fresh_guard = self.create_guard_condition(self._process_offered_derived)
+                self._derived_group = MutuallyExclusiveCallbackGroup()
                 if self.get_parameter("allow_derived_source").value:
                     from so101_station_perception.derived_aligned import DerivedAligned
-                    self.derived = DerivedAligned(self, self.tf_buffer, self._process, period_s=self.period)
+                    self.derived = DerivedAligned(
+                        self, self.tf_buffer, self._process, period_s=self.period,
+                        callback_group=self._derived_group, health_callback_group=self._derived_group,
+                        metadata_offer=self._offer_derived)
                 else:
                     color = message_filters.Subscriber(
                         self, Image, self.get_parameter("color_topic").value,
@@ -1079,6 +1092,41 @@ class ColoredObjectsNode:
                 # Keep fault/lease invalidation active even when no result exists.
                 self.analysis_timer = self.create_timer(0.05, self._consume_analysis_faults)
 
+            def _offer_derived(self, token):
+                # Metadata/reference handoff only, never decode, TF or image copies.
+                with self._fresh_signal_gate:
+                    with self._fresh_lock:
+                        if self._fresh_closed:return
+                        if token is None:
+                            self._fresh_generation += 1
+                            self._fresh_pending = None
+                            return
+                        self._fresh_pending = (token, self._fresh_generation)
+                    self._fresh_guard.trigger()
+
+            def _fresh_current(self, token, generation):
+                with self._fresh_lock:
+                    current = not self._fresh_closed and generation == self._fresh_generation
+                return current and self.derived.token_is_current(token)
+
+            def _process_offered_derived(self):
+                with self._fresh_lock:
+                    pending, self._fresh_pending = self._fresh_pending, None
+                worker = getattr(self, "analysis_worker", None)
+                if pending is None or worker is None:return
+                token, generation = pending
+                readiness = worker.availability()
+                ready_after = max(readiness["ready_after"], self._fresh_next_attempt)
+                if (not readiness["available"] or time.monotonic() < ready_after
+                        or token["lineage_receipt"] < ready_after
+                        or not self._fresh_current(token, generation)):
+                    return
+                # Bound expensive attempts even when TF/admission fails before submit.
+                # This scheduling clock never replaces a token's original receipts.
+                self._fresh_next_attempt = time.monotonic() + self.period
+                self._process(token["color"], token["aligned"], token["color_info"],
+                              token, fresh_generation=generation)
+
             def _publish_timing(self):
                 try:
                     recorder = self.timing_recorder
@@ -1099,6 +1147,12 @@ class ColoredObjectsNode:
                         self.timing_recorder._add("invalid")
 
             def destroy_node(self):
+                with self._fresh_lock:
+                    self._fresh_closed = True
+                    self._fresh_generation += 1
+                    self._fresh_pending = None
+                # Join any metadata trigger/handoff before ROS guard destruction.
+                with self._fresh_signal_gate:pass
                 self.timing_closing = True
                 timer = getattr(self, "timing_timer", None)
                 if timer is not None:timer.cancel()
@@ -1182,7 +1236,7 @@ class ColoredObjectsNode:
                 }, sort_keys=True, allow_nan=False)
                 self.status_pub.publish(message)
 
-            def _process(self, color_msg, depth_msg, info_msg, derived_token=None):
+            def _process(self, color_msg, depth_msg, info_msg, derived_token=None, *, fresh_generation=None):
                 from so101_station_perception.tag_observations import (
                     camera_intrinsics, depth_scale_for_encoding, stamp_is_fresh, stamp_seconds)
                 timing = begin_node(self, derived_token) if getattr(self, "timing_recorder", None) is not None else None
@@ -1255,6 +1309,9 @@ class ColoredObjectsNode:
                         self.derived.check(derived_token)
                     TimingRecorder.clock(timing, 17) if timing is not None else None
                     if timing is not None:timing_site(timing, 9)
+                    if (fresh_generation is not None
+                            and not self._fresh_current(derived_token, fresh_generation)):
+                        raise ValueError("derived offer cancelled before image copy")
                     job = {
                         "derived_token": derived_token,
                         "stamp": stamp, "ros_stamp": color_msg.header.stamp,
@@ -1265,7 +1322,15 @@ class ColoredObjectsNode:
                         "support_plane_cache": cache_snapshot,
                     }
                     if timing is not None:job["_analysis_timing"] = timing
-                    self.analysis_worker.submit(job)
+                    if fresh_generation is None:
+                        self.analysis_worker.submit(job)
+                    else:
+                        # Cancellation and submission have a single ownership boundary.
+                        # No offer lock is held while accessing worker/adapter locks.
+                        with self._fresh_signal_gate:
+                            if not self._fresh_current(derived_token, fresh_generation):
+                                raise ValueError("derived offer cancelled before submission")
+                            self.analysis_worker.submit(job)
                 except (ValueError, TypeError, cv2.error, TransformException) as error:
                     if time.monotonic() - self.last_warning >= 2.0:
                         self.get_logger().warning(f"Colored object observation unavailable: {error}")
@@ -1307,11 +1372,13 @@ class ColoredObjectsNode:
                 if getattr(self, "derived", None) is not None:
                     fault = self.derived.pop_fault()
                     if fault:
+                        self._offer_derived(None)
                         timing = getattr(self, "_timing_current", None)
                         if timing is not None:timing_site(timing, 15)
                         self._publish_unavailable(self.get_clock().now().to_msg(), "unavailable", fault)
                 error = self.analysis_worker.notification_error
                 if error is not None:
+                    self._offer_derived(None)
                     self.analysis_worker.take_result()  # Discard after failed wakeup; no timer fallback publication.
                     if error != self.last_analysis_notification_error:
                         self.last_analysis_notification_error = error

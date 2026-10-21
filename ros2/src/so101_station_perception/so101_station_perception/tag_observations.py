@@ -128,7 +128,7 @@ def unassociated_tag_points(detections, depth, intrinsics, depth_scale_m):
 
 def compact_tag_detections(detections, depth, intrinsics, depth_scale_m, patterns):
     """Reuse admitted detector corners; no PnP or second image/detector pass."""
-    from so101_station_projection.tag_depth_pose import estimate_tag_pose
+    from workshop.perception.tag_depth_pose import estimate_tag_pose
 
     result = []
     for detection in detections:

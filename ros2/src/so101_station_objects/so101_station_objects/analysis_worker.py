@@ -44,6 +44,8 @@ class LatestOnlyAnalysisWorker:
         self._next_sequence = 0
         self._closed = False
         self._last_start = None
+        self._active = False
+        self._result_consumed_monotonic = time.monotonic()
         self.pending_replacements = 0
         self.overwritten_results = 0
         self._thread = Thread(target=self._run, name="rgbd-analysis", daemon=True)
@@ -81,10 +83,22 @@ class LatestOnlyAnalysisWorker:
                 return None
             _, item, value, error = self._result
             self._result = None
+            self._result_consumed_monotonic = time.monotonic()
             timing = self._result_timing
             self._result_timing = None
             result = (item, value, error)
             return (result, timing) if with_timing else result
+
+    def availability(self):
+        """Scalar scheduling snapshot only; it is not source admission."""
+        with self._condition:
+            next_start = (self._last_start + self._min_start_interval_s
+                          if self._last_start is not None else self._result_consumed_monotonic)
+            return {
+                "available": not (self._closed or self._active or self._pending is not None
+                                  or self._result is not None or self._notification_error is not None),
+                "ready_after": max(next_start, self._result_consumed_monotonic),
+            }
 
     @property
     def notification_error(self):
@@ -147,6 +161,7 @@ class LatestOnlyAnalysisWorker:
                 sequence, item = self._pending
                 self._pending = None
                 self._last_start = time.monotonic()
+                self._active = True
                 timing = self._pending_timing if self._diagnostics else None
                 if self._diagnostics:
                     timing["start"] = self._last_start
@@ -165,6 +180,7 @@ class LatestOnlyAnalysisWorker:
                 timing["analysis_return"] = time.monotonic()
             with self._condition:
                 self._diagnostic_active = False
+                self._active = False
                 if self._closed:
                     return
                 if self._result is not None:

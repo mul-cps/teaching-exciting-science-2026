@@ -29,7 +29,10 @@ def received_gid(info):
 
 
 class DerivedAligned:
-    def __init__(self,node,buffer,callback,*,callback_group=None,health_callback_group=None,period_s=0.):
+    def __init__(self,node,buffer,callback,*,callback_group=None,health_callback_group=None,period_s=0.,metadata_offer=None):
+        if metadata_offer is not None and not callable(metadata_offer):
+            raise TypeError('metadata_offer must be callable or None')
+        self.metadata_offer=metadata_offer
         self.node=node;self.buffer=buffer;self.callback=callback
         self.lock=RLock();self.closed=False;self.fault=None
         self.period=max(.2,float(period_s)) if period_s else 0.
@@ -49,7 +52,10 @@ class DerivedAligned:
         self.status_service=node.create_service(Trigger,'~/derived_source_status',self._admission_status)
         self.health_service=node.create_service(Trigger,'~/derived_source_health',self._source_health,
                                                 callback_group=health_callback_group)
-        self.timer=node.create_timer(.01,self.drain) if self.period else None
+        if self.metadata_offer is not None:
+            self.timer=node.create_timer(1./30.,self.drain,callback_group=callback_group)
+        else:
+            self.timer=node.create_timer(.01,self.drain) if self.period else None
 
     def reload(self):
         path=str(self.node.get_parameter('derived_source_cohort').value)
@@ -65,6 +71,10 @@ class DerivedAligned:
             self.consumer_epoch=uuid.uuid4().hex
             self.source_pin_sha256=pin_digest(core.ledger.pin)
             self.last_proof=None
+        self._invalidate_offers()
+
+    def _invalidate_offers(self):
+        if self.metadata_offer is not None:self.metadata_offer(None)
 
     def _reset(self,request,response):
         try:
@@ -73,6 +83,7 @@ class DerivedAligned:
             with self.lock:
                 if self.core:self.core.close()
                 self.fault=str(error)
+            self._invalidate_offers()
             response.success=False;response.message=str(error)
         return response
 
@@ -85,7 +96,7 @@ class DerivedAligned:
         self._intake('lineage',message,received_gid(info))
 
     def _intake(self,kind,message,gid):
-        token=None
+        token=None;invalidated=False
         with self.lock:
             if self.closed:return
             try:
@@ -94,20 +105,33 @@ class DerivedAligned:
                 else:
                     if kind in ('depth_info','color_info'):self._validate_received_info(kind,message)
                     self.core.receive(kind,message,gid,**clocks)
-                if not self.period:token=self.core.take(**clocks)
+                if not self.period and self.metadata_offer is None:token=self.core.take(**clocks)
             except (ValueError,KeyError,TypeError,AttributeError) as error:
-                self.core.clear_observations();self.fault=str(error)
+                self.core.clear_observations();self.fault=str(error);invalidated=True
+        if invalidated:self._invalidate_offers()
         # Marker callback only offers metadata to its existing latest scheduler.
         if token is not None:self.callback(token['color'],token['aligned'],token['color_info'],token)
 
     def drain(self):
-        token=None
+        token=None;invalidated=False
         with self.lock:
-            if self.closed or time.monotonic()-self.last_take<self.period:return
+            if self.closed:return
+            if self.metadata_offer is None and time.monotonic()-self.last_take<self.period:return
             try:token=self.core.take(now_ns=self.node.get_clock().now().nanoseconds,now_mono=time.monotonic())
-            except (ValueError,KeyError,TypeError) as error:self.fault=str(error)
+            except (ValueError,KeyError,TypeError) as error:
+                self.fault=str(error);invalidated=True
             if token is not None:self.last_take=time.monotonic()
-        if token is not None:self.callback(token['color'],token['aligned'],token['color_info'],token)
+        if invalidated:self._invalidate_offers()
+        if token is not None:
+            if self.metadata_offer is not None:self.metadata_offer(token)
+            else:self.callback(token['color'],token['aligned'],token['color_info'],token)
+
+    def token_is_current(self,token):
+        """Epoch/pin fence only; never a replacement for check(token)."""
+        with self.lock:
+            return (not self.closed and not self.core.ledger.invalid_reason
+                    and token.get('epoch') is self.core.epoch
+                    and token['statement']['producer_generation']==self.core.ledger.pin['producer_generation'])
 
     def pop_fault(self):
         with self.lock:
@@ -308,3 +332,4 @@ class DerivedAligned:
         with self.lock:
             self.closed=True;self.core.close();self.last_proof=None
         if self.timer:self.timer.cancel()
+        self._invalidate_offers()
