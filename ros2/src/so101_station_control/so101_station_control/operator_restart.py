@@ -28,6 +28,8 @@ def read_unit(unit):
         raise RuntimeError("unit identity or complete systemd state is unavailable")
     if not row["StateChangeTimestampMonotonic"].isdigit():
         raise RuntimeError("unit state-change timestamp is unavailable")
+    if row["Job"] == "":
+        row["Job"] = "0"
     return row
 
 
