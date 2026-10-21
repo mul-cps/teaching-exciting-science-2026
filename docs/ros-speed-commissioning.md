@@ -32,6 +32,23 @@ The resident ROS path previously used its independent fixed dynamics envelope;
 path. Nondefault tier resolution now explicitly checks these permissions. A
 high permission value cannot select a faster tier by itself.
 
+## Approved default pace
+
+The user approved the observed `speed-clearance-baseline` move as the default
+pace: its exact two-knot trajectory duration was 4.092212123 seconds and its
+maximum measured endpoint error was 1.637362637 degrees. The helper paced it
+at the default profile limits (0.125 rad/s velocity, 0.2 rad/s² acceleration,
+2 rad/s³ jerk) under `v375-a400` commissioning admission. The selected
+persistent profile is now `default` with the same native body Goal_Velocity
+160. No faster pacing was physically tested.
+
+MoveGroup and RViz now start with velocity and acceleration scaling 1.0, using
+the selected profile's full planning envelope. The profile defaults and native
+settings remain unchanged. This preserves trajectory construction and all
+admission guards; dense RViz plans can still require uniform timing dilation
+under the same C2 spline and jerk checks, so their observed pace can be slower
+than this two-knot baseline.
+
 ## Owner, bridge and planner coherence
 
 The owner and bridge independently resolve the same station JSON through

@@ -1,8 +1,8 @@
 # Safety envelope for the station's real-body pose domain. These MoveIt bounds
 # are a deliberately conservative planning envelope, not measured speed/effort
 # capabilities or a replacement for hardware limits.
-default_velocity_scaling_factor: 0.25
-default_acceleration_scaling_factor: 0.25
+default_velocity_scaling_factor: 1.0
+default_acceleration_scaling_factor: 1.0
 joint_limits:
   shoulder_pan: &station_arm_limits
     has_position_limits: true
