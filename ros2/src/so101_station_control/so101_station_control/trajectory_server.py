@@ -1083,8 +1083,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 return response
             if request.operation == "restart":
                 self._assert_owner_reservation("operator_maintenance", process, generation)
-                if self._prepare_owner_state(state, process, generation, torque=0) != "normal":
-                    raise RuntimeError("restart submission requires fresh normal all-six OFF")
+                self._prepare_owner_state(state, process, generation, torque=0, nonactuating_maintenance=True)
                 job_id = self._operator_restart_begin(request.token, request.unit)
                 response.success = True
                 response.token = request.token
@@ -1098,8 +1097,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                         raise RuntimeError("new maintenance reservation must not supply a token")
                     if self._active_goal is not None or self._teleop_state != "disabled":
                         raise RuntimeError("owner must be idle before maintenance")
-                    if self._prepare_owner_state(state, process, generation, torque=0) != "normal":
-                        raise RuntimeError("maintenance requires fresh normal six-joint torque OFF")
+                    self._prepare_owner_state(state, process, generation, torque=0, nonactuating_maintenance=True)
                     self._operator_maintenance_token = uuid.uuid4().hex
                     self._operator_maintenance_deadline = time.monotonic()+60.
                     self._active_goal = "operator_maintenance"
@@ -1109,8 +1107,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                     if (not self._active_goal_is("operator_maintenance") or not request.token or
                             request.token != self._operator_maintenance_token):
                         raise RuntimeError("operator maintenance token does not own the reservation")
-                    if self._prepare_owner_state(state, process, generation, torque=0) != "normal":
-                        raise RuntimeError("maintenance release requires fresh normal six-joint torque OFF")
+                    self._prepare_owner_state(state, process, generation, torque=0, nonactuating_maintenance=True)
                     self._active_goal = None
                 response.token = self._operator_maintenance_token
                 if not request.enable:
@@ -1793,7 +1790,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             except queue.Empty:
                 continue
 
-    def _prepare_owner_state(self, state, process, generation, *, after=None, torque=None):
+    def _prepare_owner_state(self, state, process, generation, *, after=None, torque=None,
+                             nonactuating_maintenance=False):
         now = time.monotonic()
         freshness = min(.1, float(self.get_parameter("state_freshness_s").value))
         if (self._closed or self._external_state_only or self._process is not process or
@@ -1820,7 +1818,10 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         if torque is not None and any(v != torque for v in state["torque"].values()):
             raise RuntimeError("prepare completion lacks verified torque-on hold")
         bounds = _arm_bounds_observation(state)
-        if bounds is None or bounds["classification"] not in {"normal", "bounded_reentry_required"}:
+        # Perception-unit maintenance never commands the arm. A real but out-of-range
+        # passive pose may reserve/release it only while every joint is verified OFF.
+        if bounds is None or (bounds["classification"] not in {"normal", "bounded_reentry_required"} and
+                not (nonactuating_maintenance and torque == 0 and bounds["classification"] == "unrecoverable")):
             raise RuntimeError("owner bounds classification is unknown or unrecoverable")
         return bounds["classification"]
 
