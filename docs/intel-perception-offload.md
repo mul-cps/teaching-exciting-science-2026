@@ -25,32 +25,66 @@ operation ran on GPU. The offline benchmark additionally requires own DRM engine
 counter activity.
 
 A normal install needs SlangPy in the Python environment that runs the object
-node and a hardware Vulkan driver. For fwmini4's existing isolated installation,
-the tested SlangPy package is in
-`~/.local/share/exciting-science/fwmini4/intel-venv/lib/python3.12/site-packages`.
-The following explicit environment exposes it to the existing Conda wrapper;
-use after installing this reviewed package into a separate ROS overlay:
+node and a hardware Vulkan driver. The prepared fwmini4 user wrapper provides
+these tested commands after the reviewed package is installed:
 
 ```bash
-export PYTHONPATH="$HOME/.local/share/exciting-science/fwmini4/intel-venv/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
-export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/intel_icd.json
-station-fwmini4 ros ros2 launch so101_station_objects objects.launch.py color_mask_backend:=vulkan
+station-fwmini4 objects-vulkan
+# Or run an explicit ROS command with the optional Vulkan runtime available:
+station-fwmini4 ros-vulkan ros2 launch so101_station_objects objects.launch.py color_mask_backend:=vulkan
 ```
 
-The package directory also contains NumPy/OpenCV; keep this environment local
-to the selected process. The implementation never edits driver discovery or
-process environment at import. Missing dependencies truthfully produce CPU
-fallback. No accepted fwmini4 install or running service was changed during
-qualification.
+`objects-vulkan` launches the colored-object consumer; its camera source is
+configured separately. Use this explicit option with an existing 1920x1080
+stream when its measured CPU reduction is useful. Ordinary station commands
+and the 640x480 low-power profile retain CPU masks.
 
-Optional OpenCL uses one shared HSV conversion and downloads the four masks
-only after classification. OpenCV owns its temporary buffer pool. For the
-existing fwmini4 private ICD, discovery requires these explicit process values:
+The underlying ROS wrapper clears caller `PYTHONPATH` and `LD_LIBRARY_PATH`
+during clean activation. The fwmini4 `ros-vulkan` and `objects-vulkan` modes
+expose the optional runtime **after** activation and ROS overlay setup,
+preserving the pinned ROS/GID paths and Conda NumPy/OpenCV. They select the
+installed Intel Vulkan ICD. No caller environment exports are required.
+
+This is optional host setup, not a path assumed by the implementation or a
+portable ROS installation. On fwmini4,
+`~/.local/share/exciting-science/fwmini4/slang-runtime-0.43.1` contains only
+symlinks to SlangPy and its distribution metadata in the existing private
+`intel-venv`; it does not expose that environment's NumPy/OpenCV. The original
+user wrapper is backed up under
+`~/.local/share/exciting-science/fwmini4/offload-20261021/station-fwmini4.before-vulkan`.
+
+On another host, make SlangPy available in the actual ROS Python environment.
+If a separate runtime directory is necessary, prepare one containing only the
+SlangPy package and its metadata, then inject it after the clean ROS wrapper
+has activated its environment and overlay. Replace the example path below
+with that host's prepared directory:
 
 ```bash
-export OCL_ICD_VENDORS="$HOME/.local/share/exciting-science/fwmini4/intel-icd"
-export LD_LIBRARY_PATH="$HOME/.local/share/exciting-science/fwmini4/intel-rootfs/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-station-fwmini4 ros ros2 launch so101_station_objects objects.launch.py color_mask_backend:=opencl
+ros2/conda/so101-conda.sh run bash --noprofile --norc -c '
+  runtime="$1"; shift
+  export PYTHONPATH="$runtime${PYTHONPATH:+:$PYTHONPATH}"
+  exec "$@"
+' so101-slang-runtime /absolute/path/to/slang-only-runtime \
+  ros2 launch so101_station_objects objects.launch.py color_mask_backend:=vulkan
+```
+
+Use the host's installed hardware Vulkan driver; the fwmini4 Intel ICD path
+is not a generic requirement. The implementation never edits driver discovery
+or process environment at import. Missing dependencies truthfully produce CPU
+fallback on the current frame. Installation was verified using a frozen frame
+without starting ROS publishers, camera devices or motion.
+
+Optional OpenCL uses one shared HSV conversion and downloads the four masks
+only after classification. OpenCV owns its temporary buffer pool. The fwmini4
+private ICD is also optional host setup. Its loader paths must be set inside
+the activated ROS command, since an outer `LD_LIBRARY_PATH` export is cleared:
+
+```bash
+station-fwmini4 ros bash --noprofile --norc -c '
+  export OCL_ICD_VENDORS="$HOME/.local/share/exciting-science/fwmini4/intel-icd"
+  export LD_LIBRARY_PATH="$HOME/.local/share/exciting-science/fwmini4/intel-rootfs/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  exec ros2 launch so101_station_objects objects.launch.py color_mask_backend:=opencl
+'
 ```
 
 CPU remains the sensible default for fwmini4. In the recorded frame plus two
