@@ -1,0 +1,408 @@
+{
+  "cases": [
+    {
+      "arms": {
+        "A_current_bridge": {
+          "command_grid_duration_s": 6.04,
+          "command_points": [
+            {
+              "positions": [
+                1.1975643790607244,
+                -1.1116404774240807,
+                0.827784730945882,
+                1.0610067496739155,
+                0.7602730939456618
+              ],
+              "time": 0.0
+            },
+            {
+              "positions": [
+                0.9572820396801264,
+                -1.2892595349082305,
+                0.43737186569376063,
+                0.9619293163422035,
+                0.7601075544854955
+              ],
+              "time": 6.031878769
+            }
+          ],
+          "endpoint_error_linf_rad": 7.216449660063518e-16,
+          "finite_difference_limit_pass": true,
+          "finite_difference_peak_acceleration_rad_s2": 0.06195013300958063,
+          "finite_difference_peak_jerk_rad_s3": 0.10357002711014474,
+          "finite_difference_peak_velocity_rad_s": 0.12135739249177768,
+          "max_input_waypoint_distance_to_sample_polyline_l2_rad": 1.0835344452754878e-15,
+          "max_sample_distance_to_input_polyline_l2_rad": 5.568502139314484e-16,
+          "retiming_factor": 1.6092112795995024,
+          "reversals_per_joint": {
+            "elbow_flex": 0,
+            "shoulder_lift": 0,
+            "shoulder_pan": 0,
+            "wrist_flex": 0,
+            "wrist_roll": 0
+          },
+          "sample_count": 303,
+          "sample_joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow_flex",
+            "wrist_flex",
+            "wrist_roll"
+          ],
+          "samples_sha256": "a6ac16b80286602ff36bcf47607e6839b236caf5c2f3fed6fe203be484c58967",
+          "timing_method": "monotone_collinear_rest_to_rest_quintic",
+          "trajectory_duration_s": 6.031878769,
+          "wall_ms": 45.665824029129
+        },
+        "B_moveit_then_current_bridge": {
+          "command_grid_duration_s": 6.04,
+          "command_points": [
+            {
+              "positions": [
+                1.1975643790607244,
+                -1.1116404774240807,
+                0.827784730945882,
+                1.0610067496739155,
+                0.7602730939456618
+              ],
+              "time": 0.0
+            },
+            {
+              "positions": [
+                0.9572820396801264,
+                -1.2892595349082305,
+                0.43737186569376063,
+                0.9619293163422035,
+                0.7601075544854955
+              ],
+              "time": 6.031878769
+            }
+          ],
+          "endpoint_error_linf_rad": 7.216449660063518e-16,
+          "finite_difference_limit_pass": true,
+          "finite_difference_peak_acceleration_rad_s2": 0.06195013300958063,
+          "finite_difference_peak_jerk_rad_s3": 0.10357002711014474,
+          "finite_difference_peak_velocity_rad_s": 0.12135739249177768,
+          "interpolation_wall_ms": 94.01500795502216,
+          "max_input_waypoint_distance_to_sample_polyline_l2_rad": 1.0835344452754878e-15,
+          "max_sample_distance_to_input_polyline_l2_rad": 5.568502139314484e-16,
+          "retiming_factor": 0.6610515106630858,
+          "reversals_per_joint": {
+            "elbow_flex": 0,
+            "shoulder_lift": 0,
+            "shoulder_pan": 0,
+            "wrist_flex": 0,
+            "wrist_roll": 0
+          },
+          "sample_count": 303,
+          "sample_joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow_flex",
+            "wrist_flex",
+            "wrist_roll"
+          ],
+          "samples_sha256": "a6ac16b80286602ff36bcf47607e6839b236caf5c2f3fed6fe203be484c58967",
+          "timing_method": "monotone_collinear_rest_to_rest_quintic",
+          "trajectory_duration_s": 6.031878769
+        },
+        "C_direct_derivative_hermite": {
+          "analytic_peak_acceleration_rad_s2": 3.348420217160684,
+          "analytic_peak_jerk_rad_s3": 301.21316847357184,
+          "analytic_peak_velocity_rad_s": 0.1333933046991677,
+          "command_grid_duration_s": 9.14,
+          "endpoint_error_linf_rad": 2.220446049250313e-16,
+          "finite_difference_limit_pass": false,
+          "finite_difference_peak_acceleration_rad_s2": 3.0479491142798576,
+          "finite_difference_peak_jerk_rad_s3": 107.8789810414621,
+          "finite_difference_peak_velocity_rad_s": 0.12731439748954743,
+          "interpolation_wall_ms": 31.964169000275433,
+          "max_input_waypoint_distance_to_sample_polyline_l2_rad": 4.26550039981339e-16,
+          "max_sample_distance_to_input_polyline_l2_rad": 1.2869351987472978e-12,
+          "reversals_per_joint": {
+            "elbow_flex": 2,
+            "shoulder_lift": 2,
+            "shoulder_pan": 2,
+            "wrist_flex": 2,
+            "wrist_roll": 2
+          },
+          "sample_count": 458,
+          "sample_joint_names": [
+            "elbow_flex",
+            "shoulder_lift",
+            "shoulder_pan",
+            "wrist_flex",
+            "wrist_roll"
+          ],
+          "samples_sha256": "231c0ae96fc44df3469bc46a71e18c3779f1beb81791a87b579b2a43e0d64938"
+        }
+      },
+      "backend_wall_ms": {
+        "ruckig_wall_ms": 0.834825,
+        "totg_wall_ms": 1.959414
+      },
+      "frozen_input_sha256": "e9fb3227d559d0b6154f753b3fc83cd4b42b7efdd6348281f296bfd588cbf81c",
+      "moveit_knot_end_derivatives": {
+        "end": {
+          "accelerations": [
+            0.12309140442419954,
+            0.09099037113831994,
+            0.20000000005427132,
+            0.050755209255010376,
+            8.480225676133922e-05
+          ],
+          "velocities": [
+            -1.1324004226444015e-17,
+            -8.37081477911446e-18,
+            -1.8399341988969267e-17,
+            -4.6693122627561205e-18,
+            -7.80152861582431e-21
+          ]
+        },
+        "start": {
+          "accelerations": [
+            -0.12309140439076002,
+            -0.09099037111360933,
+            -0.2,
+            -0.050755209241243195,
+            -8.480225675010661e-05
+          ],
+          "velocities": [
+            -0.00012309140439076003,
+            -9.099037111360933e-05,
+            -0.0002,
+            -5.07552092412432e-05,
+            -8.480225675010662e-08
+          ]
+        }
+      },
+      "source": "/home/bjoern/.local/share/exciting-science/station/evidence/2026-10-21-sorting/speed-qualification/baseline-clearance-pose/controller-terminal-artifact.json",
+      "source_sha256": "bad51ed1c52fbfc26b278d2071ec2b76a85f85ba7c611f3899dc9f134d983251"
+    },
+    {
+      "arms": {
+        "A_current_bridge": {
+          "command_grid_duration_s": 1.6400000000000001,
+          "command_points": [
+            {
+              "positions": [
+                1.6348556641757872,
+                -1.3954962239022792,
+                1.3939618685159108,
+                0.9674110711054285,
+                0.7556700277865559
+              ],
+              "time": 0.0
+            },
+            {
+              "positions": [
+                1.5475892015760708,
+                -1.3954962239022792,
+                1.3939618685159108,
+                0.9674110711054285,
+                0.7556700277865559
+              ],
+              "time": 1.634803652
+            }
+          ],
+          "endpoint_error_linf_rad": 2.220446049250313e-16,
+          "finite_difference_limit_pass": true,
+          "finite_difference_peak_acceleration_rad_s2": 0.1883953518672099,
+          "finite_difference_peak_jerk_rad_s3": 1.087709912028778,
+          "finite_difference_peak_velocity_rad_s": 0.10006184094250026,
+          "max_input_waypoint_distance_to_sample_polyline_l2_rad": 2.220446049250313e-16,
+          "max_sample_distance_to_input_polyline_l2_rad": 1.3877787807814457e-17,
+          "retiming_factor": 1.0,
+          "reversals_per_joint": {
+            "elbow_flex": 0,
+            "shoulder_lift": 0,
+            "shoulder_pan": 0,
+            "wrist_flex": 0,
+            "wrist_roll": 0
+          },
+          "sample_count": 83,
+          "sample_joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow_flex",
+            "wrist_flex",
+            "wrist_roll"
+          ],
+          "samples_sha256": "42a75d54210fce77901f9b7fcf624d30c421ca4d95d68c91d6211d05e45533ce",
+          "timing_method": "uniform_controller_timing",
+          "trajectory_duration_s": 1.634803652,
+          "wall_ms": 38.61533000599593
+        },
+        "B_moveit_then_current_bridge": {
+          "command_grid_duration_s": 1.6400000000000001,
+          "command_points": [
+            {
+              "positions": [
+                1.6348556641757872,
+                -1.3954962239022792,
+                1.3939618685159108,
+                0.9674110711054285,
+                0.7556700277865559
+              ],
+              "time": 0.0
+            },
+            {
+              "positions": [
+                1.5475892015760708,
+                -1.3954962239022792,
+                1.3939618685159108,
+                0.9674110711054285,
+                0.7556700277865559
+              ],
+              "time": 1.634803652
+            }
+          ],
+          "endpoint_error_linf_rad": 2.220446049250313e-16,
+          "finite_difference_limit_pass": true,
+          "finite_difference_peak_acceleration_rad_s2": 0.1883953518672099,
+          "finite_difference_peak_jerk_rad_s3": 1.087709912028778,
+          "finite_difference_peak_velocity_rad_s": 0.10006184094250026,
+          "interpolation_wall_ms": 55.323142965789884,
+          "max_input_waypoint_distance_to_sample_polyline_l2_rad": 2.220446049250313e-16,
+          "max_sample_distance_to_input_polyline_l2_rad": 1.3877787807814457e-17,
+          "retiming_factor": 0.24401869625795158,
+          "reversals_per_joint": {
+            "elbow_flex": 0,
+            "shoulder_lift": 0,
+            "shoulder_pan": 0,
+            "wrist_flex": 0,
+            "wrist_roll": 0
+          },
+          "sample_count": 83,
+          "sample_joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow_flex",
+            "wrist_flex",
+            "wrist_roll"
+          ],
+          "samples_sha256": "42a75d54210fce77901f9b7fcf624d30c421ca4d95d68c91d6211d05e45533ce",
+          "timing_method": "monotone_collinear_rest_to_rest_quintic",
+          "trajectory_duration_s": 1.634803652
+        },
+        "C_direct_derivative_hermite": {
+          "analytic_peak_acceleration_rad_s2": 2.577630281528161,
+          "analytic_peak_jerk_rad_s3": 230.69514555877902,
+          "analytic_peak_velocity_rad_s": 0.12635336487589988,
+          "command_grid_duration_s": 6.7,
+          "endpoint_error_linf_rad": 0.0,
+          "finite_difference_limit_pass": false,
+          "finite_difference_peak_acceleration_rad_s2": 2.3471754551751545,
+          "finite_difference_peak_jerk_rad_s3": 81.77699528588711,
+          "finite_difference_peak_velocity_rad_s": 0.12619689751576235,
+          "interpolation_wall_ms": 15.74806304415688,
+          "max_input_waypoint_distance_to_sample_polyline_l2_rad": 0.0,
+          "max_sample_distance_to_input_polyline_l2_rad": 0.06098544485667068,
+          "reversals_per_joint": {
+            "elbow_flex": 2,
+            "shoulder_lift": 0,
+            "shoulder_pan": 0,
+            "wrist_flex": 0,
+            "wrist_roll": 0
+          },
+          "sample_count": 336,
+          "sample_joint_names": [
+            "elbow_flex",
+            "shoulder_lift",
+            "shoulder_pan",
+            "wrist_flex",
+            "wrist_roll"
+          ],
+          "samples_sha256": "b53f36262daf690875bfcd6da9e6218f9cf56ae6a7eadbdae9818099765760a0"
+        }
+      },
+      "backend_wall_ms": {
+        "ruckig_wall_ms": 0.332186,
+        "totg_wall_ms": 0.223772
+      },
+      "frozen_input_sha256": "8ecb2d8a12aef09d2a34409091caef5103b4fc1655467d517a146edf5e379b21",
+      "moveit_knot_end_derivatives": {
+        "end": {
+          "accelerations": [
+            0.19999999999424886,
+            0,
+            0,
+            0,
+            0
+          ],
+          "velocities": [
+            -2.710505431213761e-20,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "start": {
+          "accelerations": [
+            -0.20000000000000004,
+            0,
+            0,
+            0,
+            0
+          ],
+          "velocities": [
+            -0.00020000000000000004,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "source": "/home/bjoern/.local/share/exciting-science/station/evidence/2026-10-21-sorting/speed-qualification/control50-elbow-lift-5deg/controller-terminal-artifact.json",
+      "source_sha256": "a0773d29cf6c416fe34161362f0db0f6d43cc1c1110d6d9540f4b38a99226895"
+    }
+  ],
+  "conda_backend_packages": {
+    "ros2-moveit-core-2.12.4-np2py312h7de5627_25": "2.12.4",
+    "ros2-ruckig-0.9.2-np2py312h1bab3cf_25": "0.9.2"
+  },
+  "libraries": {
+    "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libmoveit_trajectory_processing.so": "9bfafb2027279d70e9d74649b557170ae0894fb66b4ad63f39e25bcabd0b6ffd",
+    "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libmoveit_trajectory_processing.so.2.12.4": "9bfafb2027279d70e9d74649b557170ae0894fb66b4ad63f39e25bcabd0b6ffd",
+    "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libruckig.so": "851cd9a7f7ec3f07c9867f7ef1c5ab43629648f7afb575e6a4b2a43ddd7a8e85"
+  },
+  "limits": {
+    "acceleration_rad_s2": 0.2,
+    "jerk_rad_s3": 2.0,
+    "velocity_rad_s": 0.125
+  },
+  "period_s": 0.02,
+  "provenance": {
+    "/home/bjoern/git/teaching-exciting-science-2026-timing-comparison/ros2/src/so101_station_control/config/model_offsets.yaml": "5d3adf54135e7c2db085d7ecfb84efb1e63a69503e721f81b626d7e353e8d7a6",
+    "/home/bjoern/git/teaching-exciting-science-2026-timing-comparison/ros2/src/so101_station_control/so101_station_control/trajectory_server.py": "3148ab1786b3a06e9e5a3d93df7ec07c3d53c5ef2b101ae13a2987e75022b02d",
+    "/home/bjoern/git/teaching-exciting-science-2026-timing-comparison/tools/trajectory_benchmark/compare.py": "8f69162f46e243b6bd2f76338991e539078e036ce47af8812478d431e726f858",
+    "/home/bjoern/git/teaching-exciting-science-2026-timing-comparison/tools/trajectory_benchmark/moveit_timing.cpp": "aee86cc1bb3ae7c35cbd55489dca8d64d8caaa2001fdb085db594fb672c12277",
+    "/home/bjoern/git/teaching-exciting-science-2026-timing-comparison/workshop/station/ros_trajectory.py": "52c44720a64d7c96fe8f1de580b413fa2b84490b516c9628370c174581096fbe",
+    "/home/bjoern/miniforge3/envs/so101-jazzy/share/moveit_core/package.xml": "1788c27b3d39f45f7444dc46dcf84b1e00504ea8ca2ec25bcd9f5998b35f1e02",
+    "/home/bjoern/miniforge3/envs/so101-jazzy/share/rclcpp/package.xml": "2a44fcf2aa4ac75a95e9268ee6cae97f280276b2247c727e902de1f022d3bb4f",
+    "/home/bjoern/miniforge3/envs/so101-jazzy/share/ruckig/package.xml": "2a653ebca30339e41b898661fb29302aeca07e684cf3f1a0c6b9b6f0932d8417",
+    "/tmp/timing-comparison-build/moveit_timing": "31bcb1f703ebf2fe1d87c486f75f18be066b4a24c6b1177016f4f04e5bbbc8b8",
+    "/tmp/timing-comparison-model/model-sources.json": "bd142e91966ed3f83100d9e92a0685903a1e4e57edbb90f40e3d1723c4ccec4b",
+    "/tmp/timing-comparison-model/model.srdf": "8703b0001dd6e29c9caf9c019b65f2eb0d72d3a36a1adbcebc9b49b5add9e000",
+    "/tmp/timing-comparison-model/model.urdf": "24085b067432f5ee575780c845b0f35d37fe4228927649b2112bceb5f8088fc2"
+  },
+  "ruckig": {
+    "mitigate_overshoot": true,
+    "overshoot_threshold_rad": 0.001
+  },
+  "schema": 1,
+  "source_sha": "df302ad26e633096dd4e06dbc5fa7221d7c694db",
+  "status": "OFFLINE_ONLY_NOT_OWNER_ADMISSIBLE_NOT_COLLISION_APPROVED",
+  "totg": {
+    "min_angle_change_rad": 0.001,
+    "path_tolerance_rad": 0.001,
+    "resample_dt_s": 0.1
+  },
+  "versions": {
+    "moveit_core": "2.12.4",
+    "rclcpp": "28.1.22",
+    "ruckig": "0.9.2"
+  }
+}

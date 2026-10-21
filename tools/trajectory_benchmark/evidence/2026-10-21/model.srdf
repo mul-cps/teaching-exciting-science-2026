@@ -1,0 +1,56 @@
+<robot name="so101_arm">
+    
+    
+    
+    
+    
+    <group name="manipulator">
+        <chain base_link="base_link" tip_link="gripper_frame_link" />
+    </group>
+    <group name="gripper">
+        <joint name="gripper" />
+    </group>
+    
+    <group_state name="zero" group="manipulator">
+        <joint name="elbow_flex" value="0" />
+        <joint name="shoulder_lift" value="0" />
+        <joint name="shoulder_pan" value="0" />
+        <joint name="wrist_flex" value="0" />
+        <joint name="wrist_roll" value="0" />
+    </group_state>
+    <group_state name="open" group="gripper">
+        <joint name="gripper" value="1.5" />
+    </group_state>
+    <group_state name="closed" group="gripper">
+        <joint name="gripper" value="-0.16" />
+    </group_state>
+    <group_state name="rest" group="manipulator">
+        <joint name="elbow_flex" value="1.57" />
+        <joint name="shoulder_lift" value="-1.57" />
+        <joint name="shoulder_pan" value="0" />
+        <joint name="wrist_flex" value="0.75" />
+        <joint name="wrist_roll" value="0" />
+    </group_state>
+    <group_state name="extended" group="manipulator">
+        <joint name="elbow_flex" value="-1.57" />
+        <joint name="shoulder_lift" value="1.57" />
+        <joint name="shoulder_pan" value="0" />
+        <joint name="wrist_flex" value="0" />
+        <joint name="wrist_roll" value="0" />
+    </group_state>
+    
+    <end_effector name="ee" parent_link="gripper_frame_link" group="gripper" parent_group="manipulator" />
+    
+    <virtual_joint name="fixed_base" type="fixed" parent_frame="world" child_link="base_link" />
+    
+    <disable_collisions link1="base_link" link2="shoulder_link" reason="Adjacent" />
+    <disable_collisions link1="base_link" link2="upper_arm_link" reason="Never" />
+    <disable_collisions link1="gripper_link" link2="lower_arm_link" reason="Never" />
+    <disable_collisions link1="gripper_link" link2="moving_jaw_so101_v1_link" reason="Adjacent" />
+    <disable_collisions link1="gripper_link" link2="wrist_link" reason="Adjacent" />
+    <disable_collisions link1="lower_arm_link" link2="moving_jaw_so101_v1_link" reason="Never" />
+    <disable_collisions link1="lower_arm_link" link2="upper_arm_link" reason="Adjacent" />
+    <disable_collisions link1="lower_arm_link" link2="wrist_link" reason="Adjacent" />
+    <disable_collisions link1="moving_jaw_so101_v1_link" link2="wrist_link" reason="Never" />
+    <disable_collisions link1="shoulder_link" link2="upper_arm_link" reason="Adjacent" />
+</robot>

@@ -1,0 +1,9 @@
+# Conservative starting points, not measured load/dynamics compensation.
+# Relative to current configured limits: v=.125 rad/s, a=.2 rad/s², jerk=2 rad/s³.
+# Existing MoveIt MotionPlanRequest scalings only; full exact-sample bridge preflight remains mandatory.
+transfer: {max_velocity_scaling_factor: 1.0, max_acceleration_scaling_factor: 0.75}
+approach: {max_velocity_scaling_factor: 0.35, max_acceleration_scaling_factor: 0.35}
+contact: {max_velocity_scaling_factor: 0.15, max_acceleration_scaling_factor: 0.15}
+loaded_lift: {max_velocity_scaling_factor: 0.35, max_acceleration_scaling_factor: 0.25}
+placement: {max_velocity_scaling_factor: 0.25, max_acceleration_scaling_factor: 0.25}
+home: {max_velocity_scaling_factor: 0.5, max_acceleration_scaling_factor: 0.4}
