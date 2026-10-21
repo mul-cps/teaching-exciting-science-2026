@@ -931,6 +931,17 @@ class ArmSession:
     def _ensure_profile(self, *, teleop=False):
         if self._observe_only:
             raise ArmPlanPreflightError("observe-only owner requires explicit verified stop before motion")
+        native_320 = not teleop and self._ros_motion_profile.name == "v375-a400"
+        phase_raw = None
+        if native_320:
+            try:
+                phase_raw = self._read("Phase")
+            except (ConnectionError, TimeoutError, ValueError) as error:
+                raise ArmPlanPreflightError("native body320 Phase proof unavailable") from error
+            if (set(phase_raw) != set(JOINTS) or
+                    any(type(value) is not int or not 0 <= value <= 254 or not value & 4
+                        for value in phase_raw.values())):
+                raise ArmPlanPreflightError("native body320 requires Phase bit2 on all six joints")
         self._release_component_scope()
         self._poll_busy_input()
         self._calibration_guard()
@@ -947,7 +958,9 @@ class ArmSession:
             self._poll_busy_input()
             actual[register] = self._read(register)
             self._poll_busy_input()
-        profile = dict(PROFILE)
+        profile = {register: dict(values) for register, values in PROFILE.items()}
+        if native_320:
+            profile["Goal_Velocity"] = {joint: (220 if joint == "gripper" else 320) for joint in JOINTS}
         if teleop:
             # Position mode: zero selects the servo's maximum velocity.
             # Retain acceleration smoothing and the existing torque limits.
@@ -960,9 +973,13 @@ class ArmSession:
                     raise RuntimeError("native RAM profile readback mismatch: " + register)
         self._active_profile = {register: dict(values) for register, values in profile.items()}
         self.profile = ("teleop-8-uncapped-velocity-torque-700-250" if teleop else
+                        "native-8-320-220-torque-700-250" if native_320 else
                         "native-8-160-220-torque-700-250")
         if self._elbow_trial_live:
             self.profile += ";elbow-p24-v1"
+
+        if native_320:
+            self._event("native_profile_selected", native_profile=self.profile, phase_raw=phase_raw)
 
     def _enable_current_goal(self, target, started, label, *, on_goal_dispatch=None):
         if self._observe_only:
