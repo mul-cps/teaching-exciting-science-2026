@@ -60,10 +60,15 @@ def _launch_nodes(context):
     sdk_prefix = Path(LaunchConfiguration("camera_sdk_prefix").perform(context)).expanduser().resolve()
     # The vendor Node resolves its executable through this same ament index.
     # Refuse an overlay executable different from the one traced by the guard.
-    if Path(get_package_prefix("realsense2_camera")).resolve() != sdk_prefix:
-        raise ValueError("camera package prefix differs from loader-validated SDK prefix")
-    repair = validate_repair(LaunchConfiguration("camera_repair_prefix").perform(context),
-                             sdk_prefix, environment=context.environment)
+    camera_enabled = LaunchConfiguration('use_camera').perform(context).lower()
+    if camera_enabled not in ('true','false'):
+        raise ValueError('use_camera must be true or false')
+    repair = {"camera_environment": {"LD_PRELOAD": ""}}
+    if camera_enabled == 'true':
+        if Path(get_package_prefix("realsense2_camera")).resolve() != sdk_prefix:
+            raise ValueError("camera package prefix differs from loader-validated SDK prefix")
+        repair = validate_repair(LaunchConfiguration("camera_repair_prefix").perform(context),
+                                 sdk_prefix, environment=context.environment)
     realsense_launch = PathJoinSubstitution([
         FindPackageShare("realsense2_camera"), "launch", "rs_launch.py"])
     rviz_config = PathJoinSubstitution([
@@ -102,7 +107,7 @@ def _launch_nodes(context):
         }.items(),
     )
     actions = [GroupAction(scoped=True, actions=[
-        SetEnvironmentVariable("LD_PRELOAD", repair["camera_environment"]["LD_PRELOAD"]), camera_action])]
+        SetEnvironmentVariable("LD_PRELOAD", repair["camera_environment"]["LD_PRELOAD"]), camera_action])] if camera_enabled == 'true' else []
     if live_world:
         actions.append(Node(
             package="so101_station_perception", executable=("marker_pipeline" if LaunchConfiguration("publish_tag_observations").perform(context).lower() == "true" else "charuco_world"),
@@ -117,7 +122,7 @@ def _launch_nodes(context):
                     "depth_topic": LaunchConfiguration("marker_depth_topic").perform(context)}
                    if LaunchConfiguration("publish_tag_observations").perform(context).lower()=="true" else {}),
             }]))
-    if transforms and not live_world:
+    if transforms and not live_world and LaunchConfiguration('use_calibration_tf').perform(context).lower() == 'true':
         actions.append(Node(
             package="so101_station_perception", executable="calibration_tf_publisher",
             name="so101_calibration_tf", output="screen",
@@ -143,7 +148,7 @@ def _launch_nodes(context):
                 "diagnostic_frame": "so101_diag_camera_optical" if unqualified_arm and not attach_candidate and not live_world else "",
             }],
         ))
-    if unqualified_arm and not attach_candidate and not live_world:
+    if unqualified_arm and not attach_candidate and not live_world and LaunchConfiguration('use_diagnostic_pointcloud').perform(context).lower() == 'true':
         actions.append(Node(
             package="so101_station_perception", executable="diagnostic_pointcloud",
             name="so101_diagnostic_pointcloud", output="screen",
@@ -186,6 +191,8 @@ def generate_launch_description():
             **{key:LaunchConfiguration("perception_supervisor_"+key) for key in supervisor_keys}}.items(),
         condition=IfCondition(LaunchConfiguration("perception_supervisor_enabled")))
     return LaunchDescription([
+        *(DeclareLaunchArgument(name, default_value="true") for name in
+          ("use_camera", "use_calibration_tf", "use_diagnostic_pointcloud")),
         DeclareLaunchArgument("cyclonedds_uri", default_value=EnvironmentVariable(
             "CYCLONEDDS_URI", default_value=PathJoinSubstitution([
                 FindPackageShare("so101_station_perception"), "config", "cyclonedds_rgbd.xml"]))),

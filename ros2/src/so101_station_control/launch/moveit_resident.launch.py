@@ -145,6 +145,8 @@ def _launch_nodes(context):
         "planning_position_limits_json": json.dumps(limits),
         "operator_service_units": [LaunchConfiguration(key).perform(context) for key in
                                    ("operator_camera_unit", "operator_depth_unit", "operator_tags_unit")],
+        "operator_station_reset_units": [LaunchConfiguration(key).perform(context) for key in
+                                   ("operator_movegroup_unit", "operator_objects_unit", "operator_scene_unit", "operator_leader_readonly_unit")],
         "operator_maintenance_journal": LaunchConfiguration("operator_maintenance_journal"),
         "enable_hardware": LaunchConfiguration("enable_hardware"),
         "external_state_only": LaunchConfiguration("external_state_only"),
@@ -174,10 +176,12 @@ def _launch_nodes(context):
     return [
         Node(package="robot_state_publisher", executable="robot_state_publisher",
              namespace="follower", name="robot_state_publisher",
+             condition=IfCondition(LaunchConfiguration("use_robot_state_publisher")),
              parameters=[moveit_config.robot_description],
              remappings=[("joint_states", "/follower/joint_states")], output="screen"),
         Node(package="moveit_ros_move_group", executable="move_group",
              namespace="follower", name="move_group", parameters=[parameters],
+             condition=IfCondition(LaunchConfiguration("use_move_group")),
              remappings=[("joint_states", "/follower/joint_states")], output="screen"),
         Node(package="so101_station_gpu", executable="rviz_gpu_guard",
              namespace="follower", name="rviz2",
@@ -198,12 +202,17 @@ def _launch_nodes(context):
              remappings=[("joint_states", "/follower/joint_states")], output="screen"),
         Node(package="so101_station_control", executable="trajectory_server",
              namespace="follower", name="trajectory_server",
+             condition=IfCondition(LaunchConfiguration("use_trajectory_server")),
              parameters=[bridge_parameters], output="screen"),
     ]
 
 
 def generate_launch_description():
     return LaunchDescription([
+        *(DeclareLaunchArgument(name, default_value="true") for name in
+          ("use_robot_state_publisher", "use_move_group", "use_trajectory_server")),
+        *(DeclareLaunchArgument("operator_"+key+"_unit", default_value="") for key in
+          ("movegroup", "objects", "scene", "leader_readonly")),
         DeclareLaunchArgument("leader", default_value="true",
                               description="Start the read-only calibrated leader publisher; does not enable follower teleop"),
         DeclareLaunchArgument("leader_port", default_value="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AB9068765-if00"),

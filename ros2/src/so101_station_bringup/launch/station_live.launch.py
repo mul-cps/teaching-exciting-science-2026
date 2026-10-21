@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from launch import LaunchDescription
+from launch.substitution import Substitution
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -12,11 +13,31 @@ from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 
+COMPONENTS = ('integrated','owner','camera','tags','movegroup','objects','scene','leader','apis','rviz')
+
+
+class ComponentSwitch(Substitution):
+    """Select only fixed launch roles; no executable names or evaluated code."""
+    def __init__(self, roles, integrated_flag=None):
+        super().__init__()
+        self.roles, self.integrated_flag = roles, integrated_flag
+
+    def perform(self, context):
+        role = LaunchConfiguration('component').perform(context)
+        if role not in COMPONENTS:
+            raise ValueError('component must be one of '+', '.join(COMPONENTS))
+        if role != 'integrated' and role not in self.roles:
+            return 'false'
+        return LaunchConfiguration(self.integrated_flag).perform(context) if self.integrated_flag else 'true'
+
+
 def generate_launch_description():
     home = Path.home()
     station = home / '.local/share/exciting-science/station'
     runtime = Path(os.environ.get('XDG_RUNTIME_DIR', '/dev/shm')) / 'exciting-science'
     defaults = {
+        'component': 'integrated',
+        'serial_no': '243322071783',
         'external_state_only': 'false',
         'enable_hardware': 'true',
         'station_root': os.getcwd(),
@@ -59,6 +80,8 @@ def generate_launch_description():
         'operator_depth_unit': '',
         'operator_tags_unit': '',
         'operator_service_restarts': 'false',
+        'operator_movegroup_unit': '', 'operator_objects_unit': '', 'operator_scene_unit': '',
+        'operator_leader_readonly_unit': '', 'operator_leader_required': 'false',
         # Native recovery is explicit; the local derived ROCm profile is unchanged.
         'operator_recovery_profile': 'derived_rocm',
         'operator_native_publisher_nodes_json': '',
@@ -124,15 +147,26 @@ def generate_launch_description():
                   'station_lock', 'joint_limit_contract', 'rviz', 'trajectory_log_dir',
                   'gripper_action_name', 'gripper_jaw_calibration',
                   'recovery_depth_topic', 'recovery_camera_info_topic',
-                  'operator_camera_unit', 'operator_depth_unit', 'operator_tags_unit', 'operator_maintenance_journal']
+                  'operator_camera_unit', 'operator_depth_unit', 'operator_tags_unit', 'operator_maintenance_journal',
+                  'operator_movegroup_unit', 'operator_objects_unit', 'operator_scene_unit', 'operator_leader_readonly_unit']
     robot = include('so101_station_control', 'moveit_resident.launch.py',
-                    {**{k: LaunchConfiguration(k) for k in robot_keys}, 'leader': 'false'})
+                    {**{k: LaunchConfiguration(k) for k in robot_keys}, 'leader': 'false',
+                     'use_robot_state_publisher': ComponentSwitch(('owner',)),
+                     'use_move_group': ComponentSwitch(('movegroup',)),
+                     'use_trajectory_server': ComponentSwitch(('owner',)),
+                     'rviz': ComponentSwitch(('rviz',), 'rviz')},
+                    condition=IfCondition(ComponentSwitch(('owner','movegroup','rviz'))))
     perception = include('so101_station_perception', 'perception.launch.py', {
         **{key:LaunchConfiguration(key) for key in supervisor_defaults},
         **{key:LaunchConfiguration(key) for key in ('color_profile','depth_profile','enable_sync','camera_wait_timeout_s','camera_reconnect_timeout_s','camera_repair_prefix','camera_sdk_prefix')},
         **{key: LaunchConfiguration(key) for key in ('marker_allow_derived_source', 'marker_derived_source_cohort', 'marker_depth_topic')},
+        'serial_no': LaunchConfiguration('serial_no'),
+        'use_camera': ComponentSwitch(('camera',)),
+        'use_calibration_tf': ComponentSwitch(('tags',)),
+        'use_diagnostic_pointcloud': ComponentSwitch(('tags',)),
+        'publish_tag_observations': ComponentSwitch(('tags',)),
         'far_depth_m': LaunchConfiguration('far_depth_m'),
-        'track_charuco_world': LaunchConfiguration('track_charuco_world'),
+        'track_charuco_world': ComponentSwitch(('tags',), 'track_charuco_world'),
         'base_registration_file': LaunchConfiguration('base_registration_file'),
         'camera_arm_calibration': LaunchConfiguration('camera_arm_calibration'),
         'attach_candidate': LaunchConfiguration('attach_candidate'),
@@ -140,15 +174,15 @@ def generate_launch_description():
         'resident_state_file': LaunchConfiguration('state_file'),
         'evidence_folder': LaunchConfiguration('evidence_folder'),
         'rviz': 'false',
-    }, condition=IfCondition(LaunchConfiguration('use_camera')))
+    }, condition=IfCondition(ComponentSwitch(('camera','tags'), 'use_camera')))
     leader = include('so101_station_control', 'leader_teleop.launch.py', {
         'station_python': LaunchConfiguration('station_python'),
         'station_root': LaunchConfiguration('station_root'),
         'leader_port': LaunchConfiguration('leader_port'),
         'calibration_dir': LaunchConfiguration('calibration_dir'),
-    })
+    }, condition=IfCondition(ComponentSwitch(('leader',))))
     return LaunchDescription([
-        *(DeclareLaunchArgument(k, default_value=v) for k, v in defaults.items()),
+        *(DeclareLaunchArgument(k, default_value=v, **({'choices': list(COMPONENTS)} if k=='component' else {})) for k, v in defaults.items()),
         # Camera repair preparation must fail before constructing owner actions.
         # This orders launch validation; it does not assert camera stream readiness.
         perception, robot, leader,
@@ -159,17 +193,19 @@ def generate_launch_description():
                     'depth_unit': LaunchConfiguration('operator_depth_unit'),
                     'tags_unit': LaunchConfiguration('operator_tags_unit'),
                     'enable_service_restarts': LaunchConfiguration('operator_service_restarts'),
+                    'leader_required': LaunchConfiguration('operator_leader_required'),
+                    **{key+'_unit': LaunchConfiguration('operator_'+key+'_unit') for key in ('movegroup','objects','scene','leader_readonly')},
                     **{name: LaunchConfiguration('operator_'+name) for name in (
                         'recovery_profile', 'native_publisher_nodes_json', 'native_mask_backend', 'native_pair_delta_s',
                         'rgb_image_topic', 'depth_image_topic', 'rgb_topic', 'depth_topic', 'tags_topic',
                         'objects_topic', 'objects_status_topic', 'scene_status_topic', 'joint_states_topic', 'movegroup_scene_topic')},
-                }, condition=IfCondition(LaunchConfiguration('use_operator_panel_api'))),
+                }, condition=IfCondition(ComponentSwitch(('apis',), 'use_operator_panel_api'))),
         ExecuteProcess(cmd=['ssh', '-N', '-T', '-o', 'ExitOnForwardFailure=yes',
                             '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
                             '-o', 'IdentitiesOnly=yes', '-i', LaunchConfiguration('ev3_ssh_key'),
                             '-L', ['127.0.0.1:', LaunchConfiguration('ev3_api_port'), ':127.0.0.1:8766'],
                             LaunchConfiguration('ev3_remote')], output='screen',
-                       condition=IfCondition(LaunchConfiguration('use_ev3_tunnel'))),
+                       condition=IfCondition(ComponentSwitch(('apis',), 'use_ev3_tunnel'))),
         Node(package='so101_station_workflow', executable='station_api',
              name='station_workflow', output='screen',
              additional_env={'SO101_STATION_ROOT': LaunchConfiguration('station_root')},
@@ -179,14 +215,14 @@ def generate_launch_description():
                           'ev3_right_end_deg': ParameterValue(LaunchConfiguration('ev3_right_end_deg'), value_type=float),
                           'ev3_port': ParameterValue(
                               LaunchConfiguration('ev3_api_port'), value_type=int)}],
-             condition=IfCondition(LaunchConfiguration('use_station_api'))),
+             condition=IfCondition(ComponentSwitch(('apis',), 'use_station_api'))),
         include('so101_station_bringup', 'ros_web_twin.launch.py', {
                     'station_root': LaunchConfiguration('station_root'),
                     'host': LaunchConfiguration('web_twin_host'),
                     'port': LaunchConfiguration('web_twin_port'),
                     'viewer_python': LaunchConfiguration('web_twin_python'),
                 },
-                condition=IfCondition(LaunchConfiguration('use_web_twin'))),
+                condition=IfCondition(ComponentSwitch(('apis',), 'use_web_twin'))),
         include('so101_station_objects', 'objects.launch.py', {
                     'color_mask_backend': LaunchConfiguration('color_mask_backend'),
                     'allow_derived_source': LaunchConfiguration('objects_allow_derived_source'),
@@ -204,10 +240,10 @@ def generate_launch_description():
                         'observation_roi_x_min', 'observation_roi_x_max',
                         'observation_roi_y_min', 'observation_roi_y_max',
                         'observation_roi_z_min', 'observation_roi_z_max')}},
-                condition=IfCondition(LaunchConfiguration('use_objects'))),
+                condition=IfCondition(ComponentSwitch(('objects',), 'use_objects'))),
         include('so101_station_scene', 'station_scene.launch.py', {},
-                condition=IfCondition(LaunchConfiguration('use_planning_scene'))),
+                condition=IfCondition(ComponentSwitch(('scene',), 'use_planning_scene'))),
         Node(package='so101_station_map', executable='surface_voxel_map',
              name='so101_surface_voxel_map', output='screen',
-             condition=IfCondition(LaunchConfiguration('use_map'))),
+             condition=IfCondition(ComponentSwitch(('apis',), 'use_map'))),
     ])
