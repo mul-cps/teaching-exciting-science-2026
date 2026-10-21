@@ -55,6 +55,17 @@ def test_real_bridge_selects_mode_without_joint_writes_and_enables_without_home(
     assert not json.loads(status.message)['home_completed_this_session']
     assert not mode(node, not absolute).success
     assert node._teleop_mode == selected
+    # The bridge owns mode mapping; the owner receives final position targets.
+    mapped = {joint: float(index * 3) for index, joint in enumerate(current(node)['raw'])}
+    node._teleop_latest.update(stamp_s=time.monotonic(), sequence=2, pose=mapped)
+    node._teleop_tick()
+    step = process.commands[-1]
+    assert step['command'] == 'teleop_step'
+    expected = (mapped if absolute else
+                {joint: node._teleop_follower_start[joint] + mapped[joint] - node._teleop_origin[joint]
+                 for joint in mapped})
+    assert step['pose'] == expected
+    assert node._home_completed_owner_started is None
 
 
 @pytest.mark.parametrize('fault', ['stale', 'fault', 'stop', 'busy', 'bounds'])
