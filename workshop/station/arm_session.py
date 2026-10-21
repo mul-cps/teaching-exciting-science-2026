@@ -30,7 +30,8 @@ from .camera_recovery import plan_bound_reentry
 from .recovery_types import CAMERA_RECOVERY_MAX_DISPLACEMENT_COUNTS, CAMERA_RECOVERY_INWARD_COUNTS, CameraRecoveryPolicy, owner_source_sha256
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
                              ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S, ROS_TRAJECTORY_PERIOD_S,
-                             path_digest, prepare_trajectory, resolve_ros_motion_profile,
+                             path_digest, prepare_trajectory, resolve_ros_motion_profile, admitted_raw_limits,
+                             validate_joint_limit_contract, check_joint_limit_state,
                              SUPERVISED_LIMITS, SUPERVISED_QUALIFICATION)
 
 RUNTIME_OWNER_SOURCE_SHA256 = owner_source_sha256(Path(__file__).parent)
@@ -727,24 +728,8 @@ class ArmSession(NativeDampingMixin):
             for joint in JOINTS:
                 if not 0 <= self.firmware_min[joint] < self.firmware_max[joint] <= 4095:
                     raise ValueError("invalid firmware raw limits for " + joint)
-            self.admitted_min, self.admitted_max = {}, {}
-            for joint in JOINTS:
-                entry = self.arm.calibration[joint]
-                lo, hi = self.arm.bounds[joint]
-                if joint == "gripper":
-                    scale = entry["range_max"] - entry["range_min"]
-                    config_min = math.ceil(lo * scale / 100 + entry["range_min"])
-                    config_max = math.floor(hi * scale / 100 + entry["range_min"])
-                else:
-                    midpoint = (entry["range_min"] + entry["range_max"]) / 2
-                    config_min = math.ceil(lo * 4095 / 360 + midpoint)
-                    config_max = math.floor(hi * 4095 / 360 + midpoint)
-                self.admitted_min[joint] = max(entry["range_min"], config_min,
-                                               self.firmware_min[joint])
-                self.admitted_max[joint] = min(entry["range_max"], config_max,
-                                               self.firmware_max[joint])
-                if self.admitted_min[joint] > self.admitted_max[joint]:
-                    raise ValueError("empty firmware/calibration/configured raw intersection: " + joint)
+            self.admitted_min, self.admitted_max = admitted_raw_limits(
+                self.arm.calibration, self.arm.settings["limits"], self.firmware_min, self.firmware_max)
             # Cache only the owner's already admitted intersection. Consumers
             # must not rederive calibration/configuration math from telemetry.
             self._arm_bounds_metadata = dict(schema="arm-bounds-observation-v1",
@@ -1831,9 +1816,18 @@ class ArmSession(NativeDampingMixin):
                            max_jerk=ROS_MAX_JERK_RAD_S3,
                            expected_path_sha256=None, period=ROS_TRAJECTORY_PERIOD_S,
                            calibration_endpoint=False, supervised_commissioning=False,
-                           expected_start_raw=None, ros_motion_profile="default"):
+                           expected_start_raw=None, ros_motion_profile="default", joint_limit_contract=None):
         """Execute one prevalidated C2 ROS trajectory without waypoint dwells."""
         self._require_initialized()
+        if joint_limit_contract is not None:
+            try:
+                validate_joint_limit_contract(joint_limit_contract, self.arm.settings,
+                    self.arm.calibration, self._owner_source_sha256)
+                for key in ("admitted_min", "admitted_max", "firmware_min", "firmware_max"):
+                    if joint_limit_contract[key] != getattr(self, key):
+                        raise ValueError("planning contract differs from owner admission: " + key)
+            except (ValueError, KeyError, TypeError) as error:
+                raise ArmPlanPreflightError(str(error)) from error
         profile = self._ros_motion_profile
         if ros_motion_profile != profile.name or not isinstance(ros_motion_profile, str):
             raise ArmPlanPreflightError("trajectory ROS motion profile differs from owner startup selection")
@@ -1863,6 +1857,11 @@ class ArmSession(NativeDampingMixin):
         try:
             start_raw = self._read("Present_Position")
             start_time = self.clock()
+            if joint_limit_contract is not None:
+                check_joint_limit_state(joint_limit_contract, dict(
+                    arm_id=self.arm.settings["id"], calibration_sha256=self.calibration_digest,
+                    owner_source_sha256=self._owner_source_sha256, raw=start_raw,
+                    arm_bounds=self._arm_bounds_observation(start_raw, start_time)))
             if supervised_commissioning:
                 if (not isinstance(expected_start_raw, dict) or set(expected_start_raw) != set(JOINTS) or
                         any(type(v) is not int or not 0 <= v <= 4095 for v in expected_start_raw.values()) or
@@ -3635,7 +3634,7 @@ class ArmSession(NativeDampingMixin):
             return self.recover_camera()
         if name == "execute_trajectory":
             required = {"command", "goal_id", "joint_names", "points", "path_sha256", "ros_motion_profile"}
-            allowed = required | {"calibration_endpoint", "supervised_commissioning", "expected_start_raw"}
+            allowed = required | {"calibration_endpoint", "supervised_commissioning", "expected_start_raw", "joint_limit_contract"}
             if not required <= set(command) <= allowed:
                 raise ArmPlanPreflightError("execute_trajectory requires goal_id, joint_names, points, "
                                             "ROS motion profile, and collision-checked path_sha256")
@@ -3648,7 +3647,8 @@ class ArmSession(NativeDampingMixin):
                     ros_motion_profile=command["ros_motion_profile"],
                     calibration_endpoint=calibration_endpoint,
                     supervised_commissioning=command.get("supervised_commissioning", False),
-                    expected_start_raw=command.get("expected_start_raw"))
+                    expected_start_raw=command.get("expected_start_raw"),
+                    joint_limit_contract=command.get("joint_limit_contract"))
             response = {"ok": True, **result}
             if result.get("trajectory", {}).get("status") == "calibration_measured_endpoint_held":
                 response.update(status=result["trajectory"]["status"],

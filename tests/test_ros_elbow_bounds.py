@@ -43,11 +43,10 @@ def test_each_joint_keeps_its_own_model_envelope(joint, sign):
         prepare(start, points)
 
 
-def test_optional_admitted_intersection_cannot_widen_model_or_other_joints():
+def test_explicit_calibrated_admission_replaces_portable_model_envelope():
     start, points = wrist_path(96.84)
     wide = dict.fromkeys(ARM_JOINTS, (-2., 2.))
-    with pytest.raises(ValueError, match='position limit exceeded: elbow_flex'):
-        prepare(start, points, position_limits=wide)
+    assert prepare(start, points, position_limits=wide).samples[0].positions[2] == start['elbow_flex']
     start, points = wrist_path()
     narrow = dict.fromkeys(ARM_JOINTS, (-1., 1.))
     with pytest.raises(ValueError, match='position limit exceeded: elbow_flex'):
