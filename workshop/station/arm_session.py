@@ -217,45 +217,72 @@ class ArmSession:
 
     def _read(self, register):
         started = self.clock()
+        deadline = started + SYNC_READ_DEADLINE_S
         error = None
         attempts = 0
         deadline_exceeded = False
         for attempt in range(1, SYNC_READ_MAX_ATTEMPTS + 1):
+            attempt_started = self.clock()
+            if attempt_started >= deadline:
+                deadline_exceeded = True
+                error = TimeoutError(
+                    f"sync read {register} exhausted its 20 ms deadline before attempt {attempt}")
+                break
             attempts = attempt
+            port = getattr(self.bus, "port_handler", None)
+            packet_timeout = getattr(port, "setPacketTimeout", None)
+            millis_timeout = getattr(port, "setPacketTimeoutMillis", None)
+            override_timeout = callable(packet_timeout) and callable(millis_timeout)
+            attempt_deadline = min(deadline, attempt_started + 0.005)
+
+            def bounded_timeout(*args, **kwargs):
+                # Both SDK setters share this absolute receive deadline: a
+                # repeated setter must never restart the attempt's 5 ms wait.
+                return millis_timeout(
+                    min(0.005, max(0.0, attempt_deadline - self.clock())) * 1000.0)
+
             try:
-                # Each SDK call rebuilds the GroupSyncRead parameter list via
-                # clearParam/addParam. Only idempotent reads are retried; writes
-                # remain single-shot to avoid replaying partially applied goals.
-                values = self.bus.sync_read(register, normalize=False, num_retry=0)
+                try:
+                    if override_timeout:
+                        port.setPacketTimeout = bounded_timeout
+                        port.setPacketTimeoutMillis = bounded_timeout
+                    # Each call rebuilds the full GroupSyncRead parameter list.
+                    # Only idempotent reads retry; writes remain single-shot.
+                    values = self.bus.sync_read(register, normalize=False, num_retry=0)
+                finally:
+                    if override_timeout:
+                        port.setPacketTimeout = packet_timeout
+                        port.setPacketTimeoutMillis = millis_timeout
                 result = self._six_ints(values, register)
-                duration = max(0.0, self.clock() - started)
-                retry_deadline_exceeded = (
-                    attempts > 1 and duration >= SYNC_READ_DEADLINE_S)
+                finished = self.clock()
+                duration = max(0.0, finished - started)
+                deadline_exceeded = finished >= deadline
+                if deadline_exceeded:
+                    raise TimeoutError(
+                        f"sync read {register} exceeded {SYNC_READ_DEADLINE_S * 1000:.0f} ms deadline")
                 self._read_diagnostics[register] = {
                     "attempts": attempts, "retries": attempts - 1,
-                    "duration_s": duration, "success": not retry_deadline_exceeded,
-                    "deadline_exceeded": retry_deadline_exceeded,
+                    "duration_s": duration, "success": True,
+                    "deadline_exceeded": False,
                 }
-                if retry_deadline_exceeded:
-                    raise TimeoutError(
-                        f"sync read {register} exceeded {SYNC_READ_DEADLINE_S * 1000:.0f} ms retry deadline")
                 return result
-            except ConnectionError as exc:
+            except (ConnectionError, TimeoutError) as exc:
                 error = exc
-                duration = max(0.0, self.clock() - started)
-                deadline_exceeded = duration >= SYNC_READ_DEADLINE_S
-                if deadline_exceeded or attempt == SYNC_READ_MAX_ATTEMPTS:
-                    self._read_diagnostics[register] = {
-                        "attempts": attempts, "retries": attempts - 1,
-                        "duration_s": duration, "success": False,
-                        "deadline_exceeded": deadline_exceeded,
-                        "error": str(exc),
-                    }
+                deadline_exceeded = self.clock() >= deadline
+                if deadline_exceeded:
                     break
-        diagnostic = self._read_diagnostics[register]
-        raise ConnectionError(
+        duration = max(0.0, self.clock() - started)
+        deadline_exceeded = deadline_exceeded or duration >= SYNC_READ_DEADLINE_S
+        self._read_diagnostics[register] = {
+            "attempts": attempts, "retries": max(0, attempts - 1),
+            "duration_s": duration, "success": False,
+            "deadline_exceeded": deadline_exceeded,
+            "error": str(error),
+        }
+        failure_type = TimeoutError if isinstance(error, TimeoutError) else ConnectionError
+        raise failure_type(
             f"sync read {register} failed after {attempts} attempts "
-            f"({attempts - 1} retries, {diagnostic['duration_s']:.6f}s): {error}") from error
+            f"({max(0, attempts - 1)} retries, {duration:.6f}s): {error}") from error
 
     def _write_each(self, register, values):
         if self._observe_only or self._component_scope:
