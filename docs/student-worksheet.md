@@ -1,52 +1,51 @@
 # My sorting factory
 22 October 2026 · Pair names ______________________________
 
-Use this page to record ideas. The notebook explains each step. One partner predicts, one types; swap roles after each activity. Open your team copy and run with Shift+Enter. Save with Ctrl+S or Command+S.
+Predict → change one thing → run → check. One partner predicts and one types; swap. Run notebook cells with Shift+Enter and save with Ctrl+S or Command+S. Red → left; blue → right; everything else → reject.
 
-## A First program 25 minutes
-Before running, I predict the last object number and destination:
+## Logic and Python 25 to 65 minutes
+Blockly levels 1–3: one wrong step and its repair __________________
+
+Python value we changed ______________ Predicted output ___________
+
+Observed output ___________________ = stores; == asks if equal.
+
+## Camera learning 65 to 85 minutes
+A red object reported as blue goes __________ A missing report goes _______
+
+Changed background or lighting and result ________________________
+
+## Break 85 to 95 minutes
+Save. Your group starts at _______________________________
+
+## Three stations 95 to 140 minutes
+Robot and twin evidence circle one: LIVE / invented DEMO
+
+Joint ______________ Relative prediction ______ Absolute prediction ______
+
+One observed direction or possible twin mismatch __________________
+
+Camera and conveyor: why stop before picking _____________________
+
+Virtual robot: predicted destinations __________ Observed __________
+
+## Complete factory 140 to 190 minutes
+Our rule change ______________________________________________
+
+Predicted left ____ right ____ reject ____ total ____
+
+Observed left ____ right ____ reject ____ total ____
+
+Does the action order also match _________________________________
+
+## Challenges 190 to 225 minutes
+Experiment 1 prediction ________________________________________
+
+Evidence _____________________________________________________
+
+Experiment 2 prediction and evidence ____________________________
+
+## Demos 225 to 240 minutes
+One change, one result, one real-world limitation __________________
 
 ____________________________________________________________
-
-One value we changed __________________ Output __________________
-
-## B Camera decisions 35 minutes
-For the original five reports, predict: left ____ right ____ reject ____
-
-After running: left ____ right ____ reject ____
-
-An actual red object reported as blue goes ______________________
-
-A report I would reject and why _______________________________
-
-## C Three station rotations 45 minutes
-Spend 15 minutes each at robot, conveyor and camera.
-
-A sensor measures __________________ An actuator changes __________
-
-Why stop before picking ______________________________________
-
-## D Our complete factory 45 minutes
-Our changed rule _____________________________________________
-
-Prediction: left ____ right ____ reject ____ total ____
-
-Observed: left ____ right ____ reject ____ total ____
-
-Did the action order also match __________________________________
-
-## E Our experiments 40 minutes
-Challenge and prediction ______________________________________
-
-Observed result ______________________________________________
-
-A second challenge and what it taught us _______________________
-
-____________________________________________________________
-
-## Closing 15 minutes
-One difference between the simulation and a real factory:
-
-____________________________________________________________
-
-Notebook route A → B → break → C rotations → D → E → closing. Introduction 25 minutes; break 10 minutes. Total 4 hours. Save your work and keep the original notebook as a clean copy.

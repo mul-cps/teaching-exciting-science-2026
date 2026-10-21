@@ -1,19 +1,22 @@
 # Sorting factory lesson plan
-22 October 2026 · Four hours · First semester with no programming or robotics background
+22 October 2026 · Four hours · First semester · No coding or robotics prerequisites
 
-Students work in pairs using a prepared Jupyter notebook. By the end they can change a value, predict and run a short program, describe how a sensor report affects a decision, and test a simulated sorting factory. Students do not install software or connect hardware. The optional physical demonstrations are instructor controlled; the complete learning route works offline in simulation.
+Work in pairs. One partner predicts, one types; swap often. Every task follows predict, change one thing, run, check. Use the prepared local Jupyter notebook; no software installation during class. The complete lesson also works with offline controlled examples. Red goes left, blue goes right, everything else goes to reject.
 
-| Elapsed time | Duration | Activity | Evidence of learning |
+| Elapsed minutes | Duration | Activity | Evidence of learning |
 | --- | --- | --- | --- |
-| 00:00–00:25 | 25 min | Introduction with eight slides | Students identify sensing, deciding and acting |
-| 00:25–00:50 | 25 min | A First Python instructions | Change name, repeat count and color; explain output |
-| 00:50–01:25 | 35 min | B Camera observations | Compare actual objects with reported labels; reject uncertainty |
-| 01:25–01:35 | 10 min | Break | Save notebooks |
-| 01:35–02:20 | 45 min | C Three rotations of 15 min | Robot sequence, stop-before-pick, camera uncertainty |
-| 02:20–03:05 | 45 min | D Integrated factory | Predict routes and baseline totals; change one rule |
-| 03:05–03:45 | 40 min | E Independent challenges | Record two predictions and experimental results |
-| 03:45–04:00 | 15 min | Closing | Show a change, evidence, and a simulation limitation |
+| 00–25 | 25 min | Introduction and notebook demonstration | Identify sensor, decision, actuator and feedback |
+| 25–35 | 10 min | Blockly Maze levels 1–3 | Predict a sequence and fix one wrong step; levels 4–5 optional |
+| 35–65 | 30 min | A Python names, repeats and decisions | Change one value; distinguish = from == |
+| 65–85 | 20 min | B Teachable Machine perception | Compare red, blue and background; test changed lighting or background |
+| 85–95 | 10 min | Break | Save and assign rotation groups |
+| 95–140 | 45 min | C Three stations of 15 min | Robot and twin; camera and conveyor; virtual robot |
+| 140–190 | 50 min | D Complete sorting factory | Trace stop, observe, decide, sort and compare routes and totals |
+| 190–225 | 35 min | E Challenges | Two predictions, one change per experiment, recorded evidence |
+| 225–240 | 15 min | Demos and reflection | Show one change, one result and one real-world limitation |
 
-Exactly 240 minutes. Activity 02 robot runs inside its 15 minute rotation, not as an additional 20 minute lesson. Keep the order A then B then C then D even though the script filenames are numbered by topic.
+Total 240 minutes including transitions. At each rotation use 2 minutes to explain, 9 to try, 3 to explain a result and 1 to save and rotate. Three groups rotate in opposite starting positions: group 1 robot → camera → virtual; group 2 camera → virtual → robot; group 3 virtual → robot → camera.
 
-Use the notebook for substantial explanations and the one page worksheet for navigation and records. Do not teach a list of programming definitions before students see output. The instructor guide gives prompts, pacing and solutions. Student and instructor notebooks share their executable mission code with the four scripts; regenerate with `python tools/build_notebooks.py` after editing scripts.
+The robot station uses Robot_Candy_Factory_Live_SO101.ipynb. Its default data are invented DEMO examples. A separately launched LIVE mode reads existing ROS topics only; the instructor controls physical enable, mode and stop using the RViz operations panel. The virtual station uses the short command sequence in the student notebook. The camera station combines observation uncertainty with paper conveyor sequencing; only the instructor demonstrates qualified hardware.
+
+Use the worksheet to record answers; use the student notebook for explanations. External sites and their offline alternatives are in workshop-resources.md. The handbook reproduces the notebook text and code; build_notebooks.py is its source generator. Integrated physical sorting remains subject to the station's commissioning and acceptance evidence, independently of the notebook tests.

@@ -10,4 +10,8 @@ Restarting the kernel resets variables in memory. It does not restore edited fil
 
 Fallback: run `python3 exercises/check_setup.py`, then the four scripts in order 01,03,02,04. Edit their STUDENT AREA, save and rerun. For visual results run `python3 exercises/05_visual_sort.py` and open sorting-result.html in a browser. These scripts use only Python's standard library. The full explanations are in docs/student-exercises.md.
 
-All notebook activities are simulation only. The photographs show the teaching station; the simulated reports are controlled examples and do not come from a live classifier.
+The main student factory notebook activities are simulation only. The photographs show the teaching station; the simulated reports are controlled examples and do not come from a live classifier.
+
+The robot and twin station uses Robot_Candy_Factory_Live_SO101.ipynb. In the learner ZIP it runs invented DEMO data without ROS. This is a separate 15-minute station task, not an extra lesson. LIVE requires the full prepared station checkout and the instructor launcher described in docs/instructor.md. No cell commands an actuator; only the instructor controls hardware through RViz.
+
+The exact lesson route is introduction 00–25, Blockly 25–35, Python 35–65, perception 65–85, break 85–95, stations 95–140, factory 140–190, challenges 190–225, demos 225–240 minutes.
