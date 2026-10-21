@@ -68,7 +68,26 @@
     "Feeder EJECT reference and dispensing cycle",
     "Measured SI jaw-gap and joint-angle calibration",
     "Payload grasp and complete autonomous pick/place",
-    "Remote-PC physical devices and restart commissioning"
+    "Remote-PC physical devices and restart commissioning",
+    "Optional skip-stationary-pauses physical replay comparison"
   ],
-  "evidence_directory": "station/evidence/2026-10-21-sorting/pick-place-resume/restored-station/deploy-v7-start-retry"
+  "evidence_directory": "station/evidence/2026-10-21-sorting/pick-place-resume/restored-station/deploy-v7-start-retry",
+  "app_update": {
+    "source_commit": "cf27231d90b10503611c24a6a06fcdfcc0c97e74",
+    "source_archive_sha256": "2ed3d4289ccc4004262e8875c6d35119f36f82e0645b6f8b5f5b3008b0b32495",
+    "existing_owner_restarted": false,
+    "saved_stroke_retained": true,
+    "new_ui_source_hash_verified": true,
+    "stop": {
+      "request_id": "fcc6bdd9-bee8-4c68-b8cc-179ca05d4e37",
+      "pending": false,
+      "ev3_stopped": true,
+      "arm_disarmed": true,
+      "fresh_measured_six_torque_off": true
+    },
+    "jaw_measurement_pose_unchanged": true,
+    "physical_new_pause_timing_tested": false,
+    "physical_atomic_sort_cycle_tested": false,
+    "evidence_directory": "station/evidence/2026-10-21-sorting/pick-place-resume/restored-station/deploy-v8-blockly-cycle"
+  }
 }
