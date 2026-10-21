@@ -231,8 +231,10 @@ def _duration(seconds):
     return Duration(sec=sec, nanosec=int((seconds - sec) * 1e9))
 
 
-def prepare_with_controller_timing(helper, joint_names, points, *, start_radians, max_jerk):
+def prepare_with_controller_timing(helper, joint_names, points, *, start_radians, max_jerk,
+                                   motion_profile=None):
     """Retry controller limit failures up to 4x timing, retaining the 300s duration guard."""
+    profile = motion_profile if motion_profile is not None else helper.resolve_ros_motion_profile({})
     retry_prefixes = ("velocity limit exceeded:", "acceleration limit exceeded:",
                       "jerk limit exceeded:")
     last_error = None
@@ -247,8 +249,8 @@ def prepare_with_controller_timing(helper, joint_names, points, *, start_radians
         try:
             prepared = helper.prepare_trajectory(
                 joint_names, effective_points, start_radians=start_radians,
-                max_velocity=helper.ROS_MAX_VELOCITY_RAD_S,
-                max_acceleration=helper.ROS_MAX_ACCELERATION_RAD_S2,
+                max_velocity=profile.max_velocity,
+                max_acceleration=profile.max_acceleration,
                 max_jerk=max_jerk, period=0.05)
         except ValueError as error:
             if not str(error).startswith(retry_prefixes):
@@ -412,6 +414,7 @@ class TrajectoryBridge(Node):
         self._gripper_command_submitted = False
         self._external_state_only = bool(self.get_parameter("external_state_only").value)
         self._trajectory_helper = None
+        self._ros_motion_profile = None
         self._state_validity = None
         # Tail a separately owned resident without starting, locking, or commanding another owner.
         if not self._external_state_only:
@@ -504,7 +507,8 @@ class TrajectoryBridge(Node):
             callback_group=self._teleop_control_group)
         self.create_timer(1.0, self._publish_teleop_monitor)
         if not self._external_state_only:
-            self._trajectory_helper = self._load_trajectory_helper()
+            if self._trajectory_helper is None:
+                self._trajectory_helper = self._load_trajectory_helper()
             self._state_validity = self.create_client(
                 GetStateValidity, str(self.get_parameter("state_validity_service").value),
                 callback_group=self._action_group)
@@ -555,10 +559,12 @@ class TrajectoryBridge(Node):
         source = Path(str(self.get_parameter("station_root").value)) / "workshop/station/ros_trajectory.py"
         if not source.is_file():
             raise RuntimeError(f"pure trajectory helper not found: {source}")
+        source_bytes = source.read_bytes()
         spec = importlib.util.spec_from_file_location("so101_ros_trajectory_shared", source)
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
+        exec(compile(source_bytes, str(source), "exec"), module.__dict__)
+        self._trajectory_helper_sha256 = hashlib.sha256(source_bytes).hexdigest()
         return module
 
     def _start_owner(self, *, observe_only=False):
@@ -592,6 +598,9 @@ class TrajectoryBridge(Node):
         if (not expected_arm_id or len(expected_calibration_sha256) != 64 or
                 any(character not in "0123456789abcdef" for character in expected_calibration_sha256)):
             raise RuntimeError("station_config has invalid arm identity or calibration SHA256")
+        if self._trajectory_helper is None:
+            self._trajectory_helper = self._load_trajectory_helper()
+        self._ros_motion_profile = self._trajectory_helper.resolve_ros_motion_profile(config_data["arm"])
         self._prepare_config_path = config_path
         option = config_data.get("arm", {}).get("camera_recovery")
         if isinstance(option, dict) and option.get("enabled") is True:
@@ -642,6 +651,8 @@ class TrajectoryBridge(Node):
             self.get_parameter("owner_idle_timeout_s").value,
             self.get_parameter("recover_sag").value, observe_only=observe_only)
         self._owner_source_expected = _load_owner_source_hashes(station_root)
+        if self._owner_source_expected["ros_trajectory"] != self._trajectory_helper_sha256:
+            raise RuntimeError("trajectory helper changed between bridge loading and owner source pinning")
         child_env = os.environ.copy()
         for key in tuple(child_env):
             if (key.startswith(("PYTHON", "LD_", "ROS_", "AMENT_", "COLCON_", "RMW_",
@@ -1884,9 +1895,11 @@ class TrajectoryBridge(Node):
                        None if inactive or valid_wait else "invalid_owner_observation")}
         sources = state.get("owner_source_sha256")
         expected_sources = self._owner_source_expected
+        # This trusted startup map is generated from OWNER_SOURCE_MODULES;
+        # its exact registered keyset bounds the copy, independently of received input.
         retained["owner_source_sha256"] = (dict(sources) if
             isinstance(sources, dict) and isinstance(expected_sources, dict) and
-            0 < len(expected_sources) <= 6 and set(sources) == set(expected_sources) and
+            bool(expected_sources) and set(sources) == set(expected_sources) and
             all(isinstance(value, str) and len(value) == 64 for value in sources.values()) else None)
         collector = None
         with self._state_cache_lock:
@@ -2217,7 +2230,7 @@ class TrajectoryBridge(Node):
                     not started <= acquisition_start <= acquisition_end <= time.monotonic() or
                     acquisition_end-acquisition_start > .08 or diagnostic.get("read_budget_s") != .08):
                 raise RuntimeError("joint diagnostic read acquisition exceeded its 80 ms bound")
-            expected = {"Goal_Position", "Present_Position", "Torque_Enable", "P_Coefficient",
+            expected = {"Goal_Position", "Phase", "Present_Position", "Torque_Enable", "P_Coefficient",
                 "I_Coefficient", "D_Coefficient", "CW_Dead_Zone", "CCW_Dead_Zone",
                 "Minimum_Startup_Force", "Torque_Limit", "Max_Torque_Limit", "Present_Load",
                 "Present_Current", "Present_Voltage", "Present_Temperature", "Status", "Moving"}
@@ -2821,7 +2834,8 @@ class TrajectoryBridge(Node):
             self._home_completed_owner_started = None
             command = {"command": "execute_trajectory", "goal_id": "supervised-calibration-"+uuid.uuid4().hex,
                        "joint_names": list(ARM_JOINTS), "points": points, "path_sha256": digest,
-                       "supervised_commissioning": True, "expected_start_raw": observation['start_raw']}
+                       "supervised_commissioning": True, "expected_start_raw": observation['start_raw'],
+                       "ros_motion_profile": self._ros_motion_profile.name}
             dispatched = time.monotonic()
             delivery_possible = True
             result = self._reserved_owner_reply(command, process, generation,
@@ -3026,7 +3040,7 @@ class TrajectoryBridge(Node):
             raise ValueError(f"max_jerk_rad_s3 must be in (0, {helper.ROS_MAX_JERK_RAD_S3}]")
         retiming_factor, command_points, prepared = prepare_with_controller_timing(
             helper, trajectory.joint_names, parsed_points, start_radians=start,
-            max_jerk=max_jerk)
+            max_jerk=max_jerk, motion_profile=self._ros_motion_profile)
         dense = helper.dense_path_samples(prepared, max_joint_step_rad=0.01)
         jaw_opening = min(100.0, max(0.0, float(state["pose"]["gripper"])))
         jaw_position = math.radians(-10.0 + 1.1 * jaw_opening)
@@ -3043,6 +3057,9 @@ class TrajectoryBridge(Node):
             "original_points": parsed_points,
             "joint_names": list(trajectory.joint_names),
             "retiming_factor": retiming_factor, "command_points": command_points,
+            "ros_motion_profile": self._ros_motion_profile.name,
+            "max_velocity_rad_s": self._ros_motion_profile.max_velocity,
+            "max_acceleration_rad_s2": self._ros_motion_profile.max_acceleration,
             "effective_path_sha256": helper.path_digest(
                 prepared, held_gripper_raw=state["raw"]["gripper"]),
             "effective_samples": [{"time": sample.time, "positions": list(sample.positions)}
@@ -3518,7 +3535,8 @@ class TrajectoryBridge(Node):
                     self._active_goal = goal_handle
                     command = {"command": "execute_trajectory", "goal_id": goal_id,
                                "joint_names": names, "points": command_points,
-                               "path_sha256": artifact["effective_path_sha256"]}
+                               "path_sha256": artifact["effective_path_sha256"],
+                               "ros_motion_profile": artifact["ros_motion_profile"]}
                     if bool(self.get_parameter("calibration_endpoint_mode").value):
                         command["calibration_endpoint"] = True
                     self._send(command)

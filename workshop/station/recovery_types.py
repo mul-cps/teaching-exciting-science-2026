@@ -17,7 +17,7 @@ CAMERA_RECOVERY_MAX_DISPLACEMENT_COUNTS = 32
 CAMERA_RECOVERY_INWARD_COUNTS = 2
 
 
-OWNER_SOURCE_MODULES = ('arm', 'arm_session', 'recovery_runtime', 'recovery_types', 'recovery_runtime_config', 'camera_recovery')
+OWNER_SOURCE_MODULES = ('arm', 'arm_session', 'ros_trajectory', 'recovery_runtime', 'recovery_types', 'recovery_runtime_config', 'camera_recovery')
 
 
 def owner_source_sha256(station_dir):

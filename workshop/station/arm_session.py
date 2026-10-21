@@ -29,7 +29,8 @@ from .camera_recovery import plan_bound_reentry
 from .recovery_types import CAMERA_RECOVERY_MAX_DISPLACEMENT_COUNTS, CAMERA_RECOVERY_INWARD_COUNTS, CameraRecoveryPolicy, owner_source_sha256
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
                              ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S,
-                             path_digest, prepare_trajectory, SUPERVISED_LIMITS, SUPERVISED_QUALIFICATION)
+                             path_digest, prepare_trajectory, resolve_ros_motion_profile,
+                             SUPERVISED_LIMITS, SUPERVISED_QUALIFICATION)
 
 RUNTIME_OWNER_SOURCE_SHA256 = owner_source_sha256(Path(__file__).parent)
 RUNTIME_SOURCE_SHA256 = RUNTIME_OWNER_SOURCE_SHA256["arm_session"]
@@ -83,7 +84,7 @@ JAW_DIAGNOSTIC_DEADLINE_S = .5
 JOINT_DIAGNOSTIC_DEADLINE_S = .08
 # Ordered passive inventory: position error first, then controller configuration.
 JOINT_DIAGNOSTIC_REGISTERS = (
-    "Goal_Position", "P_Coefficient", "I_Coefficient", "D_Coefficient",
+    "Goal_Position", "Phase", "P_Coefficient", "I_Coefficient", "D_Coefficient",
     "CW_Dead_Zone", "CCW_Dead_Zone", "Minimum_Startup_Force",
     "Torque_Limit", "Max_Torque_Limit", "Present_Load", "Present_Current",
     "Present_Voltage", "Present_Temperature", "Status", "Moving",
@@ -153,6 +154,7 @@ class ArmSession:
                  camera_scene_provider=None, camera_recovery_policy=None, observe_only=False):
         self.arm = arm
         self._observe_only = bool(observe_only)
+        self._ros_motion_profile = resolve_ros_motion_profile(arm.settings)
         self._owner_source_sha256 = dict(RUNTIME_OWNER_SOURCE_SHA256)
         self.bus = arm.bus
         self.state_file = Path(state_file)
@@ -715,7 +717,7 @@ class ArmSession:
             state = self.publish_state(event="connected", torque=torque, raw=actual,
                 position_monotonic=position_stamp, position_utc=position_utc,
                 torque_monotonic=torque_stamp, torque_utc=torque_utc)
-            self._event("connected", state=state)
+            self._event("connected", state=state, ros_motion_profile=self._ros_motion_profile.name)
             self._initialized = True
             self._jaw_diagnostic_cohort = (self.arm.settings["id"], self.calibration_digest,
                 dict(self._owner_source_sha256), tuple(self.bus.motors[j].id for j in JOINTS))
@@ -1735,14 +1737,21 @@ class ArmSession:
                 raise RuntimeError("supervised held axis drift: " + joint)
 
     def execute_trajectory(self, goal_id, joint_names, points, *,
-                           max_velocity=ROS_MAX_VELOCITY_RAD_S,
-                           max_acceleration=ROS_MAX_ACCELERATION_RAD_S2,
+                           max_velocity=None,
+                           max_acceleration=None,
                            max_jerk=ROS_MAX_JERK_RAD_S3,
                            expected_path_sha256=None, period=PERIOD_S,
                            calibration_endpoint=False, supervised_commissioning=False,
-                           expected_start_raw=None):
+                           expected_start_raw=None, ros_motion_profile="default"):
         """Execute one prevalidated C2 ROS trajectory without waypoint dwells."""
         self._require_initialized()
+        profile = self._ros_motion_profile
+        if ros_motion_profile != profile.name or not isinstance(ros_motion_profile, str):
+            raise ArmPlanPreflightError("trajectory ROS motion profile differs from owner startup selection")
+        if max_velocity is None:
+            max_velocity = profile.max_velocity
+        if max_acceleration is None:
+            max_acceleration = profile.max_acceleration
         if type(supervised_commissioning) is not bool:
             raise ArmPlanPreflightError("supervised_commissioning must be a boolean")
         if supervised_commissioning:
@@ -1755,9 +1764,9 @@ class ArmSession:
             raise ArmPlanPreflightError("calibration_endpoint must be a boolean")
         if not isinstance(goal_id, str) or not goal_id.strip() or len(goal_id) > 128:
             raise ArmPlanPreflightError("goal_id must be a nonempty string up to 128 characters")
-        if (max_velocity > ROS_MAX_VELOCITY_RAD_S or
-                max_acceleration > ROS_MAX_ACCELERATION_RAD_S2 or
-                max_jerk > ROS_MAX_JERK_RAD_S3):
+        if (max_velocity > profile.max_velocity or
+                max_acceleration > profile.max_acceleration or
+                max_jerk > profile.max_jerk):
             raise ArmPlanPreflightError("requested dynamics exceed the station software envelope")
         if (not isinstance(expected_path_sha256, str) or len(expected_path_sha256) != 64 or
                 any(char not in "0123456789abcdef" for char in expected_path_sha256)):
@@ -1808,6 +1817,7 @@ class ArmSession:
                     original_points=list(prepared.input_points),
                     commanded_samples=sample_record,
                     derivatives_ignored=prepared.ignored_derivatives,
+                    ros_motion_profile=profile.name,
                     max_velocity_rad_s=max_velocity,
                     max_acceleration_rad_s2=max_acceleration,
                     max_jerk_rad_s3=max_jerk,
@@ -3406,16 +3416,18 @@ class ArmSession:
                 raise ArmPlanPreflightError("recover_camera accepts no caller target, path, clearance or policy")
             return self.recover_camera()
         if name == "execute_trajectory":
-            required = {"command", "goal_id", "joint_names", "points", "path_sha256"}
+            required = {"command", "goal_id", "joint_names", "points", "path_sha256", "ros_motion_profile"}
             allowed = required | {"calibration_endpoint", "supervised_commissioning", "expected_start_raw"}
             if not required <= set(command) <= allowed:
-                raise ValueError("execute_trajectory requires goal_id, joint_names, points, and collision-checked path_sha256")
+                raise ArmPlanPreflightError("execute_trajectory requires goal_id, joint_names, points, "
+                                            "ROS motion profile, and collision-checked path_sha256")
             calibration_endpoint = command.get("calibration_endpoint", False)
             if type(calibration_endpoint) is not bool:
                 raise ValueError("calibration_endpoint must be a boolean")
             result = self.execute_trajectory(command["goal_id"],
                     command["joint_names"], command["points"],
                     expected_path_sha256=command["path_sha256"],
+                    ros_motion_profile=command["ros_motion_profile"],
                     calibration_endpoint=calibration_endpoint,
                     supervised_commissioning=command.get("supervised_commissioning", False),
                     expected_start_raw=command.get("expected_start_raw"))

@@ -1,5 +1,9 @@
 """Real planning stack plus the ArmSession action bridge; no ros2_control mock."""
+import importlib.util
+import json
 import os
+from pathlib import Path
+import sys
 import xml.etree.ElementTree as ET
 import yaml
 
@@ -8,7 +12,7 @@ from so101_station_gpu.gpu_renderer import rviz_preload_value
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -18,7 +22,21 @@ from moveit_configs_utils import MoveItConfigsBuilder
 ARM_JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
 
 
-def generate_launch_description():
+def _launch_nodes(context):
+    station_root = Path(LaunchConfiguration("station_root").perform(context)).resolve()
+    config_value = LaunchConfiguration("station_config").perform(context)
+    arm_settings = {}
+    if config_value:
+        config_path = Path(config_value)
+        if not config_path.is_absolute():
+            config_path = station_root / config_path
+        arm_settings = json.loads(config_path.read_text())["arm"]
+    source = station_root / "workshop/station/ros_trajectory.py"
+    spec = importlib.util.spec_from_file_location("so101_launch_motion_profiles", source)
+    helper = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = helper
+    exec(compile(source.read_bytes(), str(source), "exec"), helper.__dict__)
+    profile = helper.resolve_ros_motion_profile(arm_settings)
     description_share = get_package_share_directory("so101_description")
     config_share = get_package_share_directory("so101_moveit_config")
     xacro_path = os.path.join(description_share, "urdf", "so101_arm.urdf.xacro")
@@ -38,6 +56,12 @@ def generate_launch_description():
         )
         .to_moveit_configs()
     )
+    for joint in ARM_JOINTS:
+        moveit_config.joint_limits["robot_description_planning"]["joint_limits"][joint].update({
+            "has_velocity_limits": True, "max_velocity": profile.max_velocity,
+            "has_acceleration_limits": True, "max_acceleration": profile.max_acceleration,
+            "has_jerk_limits": True, "max_jerk": profile.max_jerk,
+        })
     # Anchor the marker at the configured TCP to avoid a rotating 98 mm offset.
     semantic = ET.fromstring(
         moveit_config.robot_description_semantic["robot_description_semantic"])
@@ -97,6 +121,38 @@ def generate_launch_description():
         "max_jerk_rad_s3": LaunchConfiguration("max_jerk_rad_s3"),
         "action_name": "/follower/arm_trajectory_controller/follow_joint_trajectory",
     }
+    return [
+        Node(package="robot_state_publisher", executable="robot_state_publisher",
+             namespace="follower", name="robot_state_publisher",
+             parameters=[moveit_config.robot_description],
+             remappings=[("joint_states", "/follower/joint_states")], output="screen"),
+        Node(package="moveit_ros_move_group", executable="move_group",
+             namespace="follower", name="move_group", parameters=[parameters],
+             remappings=[("joint_states", "/follower/joint_states")], output="screen"),
+        Node(package="so101_station_gpu", executable="rviz_gpu_guard",
+             namespace="follower", name="rviz2",
+             condition=IfCondition(LaunchConfiguration("rviz")),
+             additional_env=rviz_environment,
+             arguments=["-d", LaunchConfiguration("rviz_config")],
+             parameters=[moveit_config.robot_description,
+                         moveit_config.robot_description_semantic,
+                         moveit_config.robot_description_kinematics,
+                         moveit_config.joint_limits,
+                         # 5DOF RViz position-drag mode; set orientation via joint
+                         # controls. MoveGroup keeps strict kinematics.
+                         {"default_planning_pipeline": "ompl",
+                          "robot_description_kinematics.manipulator.rotation_scale": 0.0,
+                          "robot_description_kinematics.manipulator.approximate_solution_position_threshold": 0.002,
+                          "robot_description_planning.default_velocity_scaling_factor": 0.4,
+                          "robot_description_planning.default_acceleration_scaling_factor": 0.4}],
+             remappings=[("joint_states", "/follower/joint_states")], output="screen"),
+        Node(package="so101_station_control", executable="trajectory_server",
+             namespace="follower", name="trajectory_server",
+             parameters=[bridge_parameters], output="screen"),
+    ]
+
+
+def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("enable_hardware", default_value="false",
                               description="Explicitly enable the station Python bus owner"),
@@ -138,31 +194,5 @@ def generate_launch_description():
                               description="Bounded total timeout for pre-motion state-validity calls"),
         DeclareLaunchArgument("max_jerk_rad_s3", default_value="2.0",
                               description="Software jerk admission limit; values above the 2 rad/s^3 station cap are rejected"),
-        Node(package="robot_state_publisher", executable="robot_state_publisher",
-             namespace="follower", name="robot_state_publisher",
-             parameters=[moveit_config.robot_description],
-             remappings=[("joint_states", "/follower/joint_states")], output="screen"),
-        Node(package="moveit_ros_move_group", executable="move_group",
-             namespace="follower", name="move_group", parameters=[parameters],
-             remappings=[("joint_states", "/follower/joint_states")], output="screen"),
-        Node(package="so101_station_gpu", executable="rviz_gpu_guard",
-             namespace="follower", name="rviz2",
-             condition=IfCondition(LaunchConfiguration("rviz")),
-             additional_env=rviz_environment,
-             arguments=["-d", LaunchConfiguration("rviz_config")],
-             parameters=[moveit_config.robot_description,
-                         moveit_config.robot_description_semantic,
-                         moveit_config.robot_description_kinematics,
-                         moveit_config.joint_limits,
-                         # 5DOF RViz position-drag mode; set orientation via joint
-                         # controls. MoveGroup keeps strict kinematics.
-                         {"default_planning_pipeline": "ompl",
-                          "robot_description_kinematics.manipulator.rotation_scale": 0.0,
-                          "robot_description_kinematics.manipulator.approximate_solution_position_threshold": 0.002,
-                          "robot_description_planning.default_velocity_scaling_factor": 0.4,
-                          "robot_description_planning.default_acceleration_scaling_factor": 0.4}],
-             remappings=[("joint_states", "/follower/joint_states")], output="screen"),
-        Node(package="so101_station_control", executable="trajectory_server",
-             namespace="follower", name="trajectory_server",
-             parameters=[bridge_parameters], output="screen"),
+        OpaqueFunction(function=_launch_nodes),
     ])

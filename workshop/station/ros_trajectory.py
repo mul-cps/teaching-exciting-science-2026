@@ -2,8 +2,7 @@
 
 MoveIt point derivatives are retained in the audit record but are not used to
 drive the arm: planners may emit acceleration jumps at adjacent knots. A
-clamped cubic spline through positions gives a C2 path with zero endpoint
-velocity. The original knot times are retained; unsafe timing is rejected.
+C2 quintic spline through positions has zero endpoint velocity and acceleration. The original knot times are retained; unsafe timing is rejected.
 """
 from __future__ import annotations
 
@@ -30,6 +29,48 @@ ROS_MAX_VELOCITY_RAD_S = 0.125
 ROS_MAX_ACCELERATION_RAD_S2 = 0.2
 ROS_MAX_JERK_RAD_S3 = 2.0
 MAX_COLLISION_CHECK_STATES = 12000
+ROS_MOTION_PROFILES = MappingProxyType({
+    "default": (0.125, 0.2, 2.0),
+    "v187": (0.1875, 0.2, 2.0),
+    "v250": (0.25, 0.2, 2.0),
+    "v250-a300": (0.25, 0.3, 2.0),
+    "v250-a400": (0.25, 0.4, 2.0),
+    "v375-a400": (0.375, 0.4, 2.0),
+})
+
+
+@dataclass(frozen=True)
+class RosMotionProfile:
+    name: str
+    max_velocity: float
+    max_acceleration: float
+    max_jerk: float
+
+
+def resolve_ros_motion_profile(arm_settings):
+    """Resolve one startup-only profile; faster tiers require configured permission."""
+    if not isinstance(arm_settings, dict):
+        raise ValueError("arm settings must be an object for ROS motion profile selection")
+    name = arm_settings.get("ros_motion_profile", "default")
+    if not isinstance(name, str) or name not in ROS_MOTION_PROFILES:
+        raise ValueError("unknown or malformed arm.ros_motion_profile")
+    profile = RosMotionProfile(name, *ROS_MOTION_PROFILES[name])
+    if name != "default":
+        limits = arm_settings.get("limits")
+        if not isinstance(limits, dict):
+            raise ValueError("nondefault ROS motion profile requires configured joint dynamics")
+        for joint in ARM_JOINTS:
+            bound = limits.get(joint)
+            if not isinstance(bound, dict):
+                raise ValueError("ROS motion profile lacks configured dynamics: " + joint)
+            for key, required, ceiling in (("speed", math.degrees(profile.max_velocity), 25.0),
+                                           ("acceleration", math.degrees(profile.max_acceleration), 50.0)):
+                value = bound.get(key)
+                if (type(value) not in (int, float) or not math.isfinite(value) or
+                        not required <= value <= ceiling):
+                    raise ValueError(f"ROS motion profile {name} requires {joint}.{key} "
+                                     f"in [{required:.9g}, {ceiling}] degrees-based units")
+    return profile
 
 
 @dataclass(frozen=True)
