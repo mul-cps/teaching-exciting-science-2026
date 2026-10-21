@@ -4,6 +4,31 @@ Use the **bjoern** Linux login. The active graphical session found during remote
 
 The deployed checkout is `/home/bjoern/git/teaching-exciting-science-2026-current-20261021`, tracking `https://github.com/mul-cps/teaching-exciting-science-2026.git`. Update only with a clean working tree and `git pull --ff-only origin main`.
 
+## Latest verified preparation — 21 October, 23:56 CEST
+
+The native component recipe was installed **disabled** on fwmini4. Its verified
+build source was `11bd1e711e287d0571a18f8d9e3d59c377b971ef`: all 21 ROS packages
+built in 16.4 seconds, and production `systemd-analyze --user verify` exited 0.
+All eight `so101-fwmini4-{owner,camera,tags,movegroup,objects,scene,leader,apis}`
+units were loaded, inactive and static, with no `WantedBy` autostart target.
+The ten manifest source hashes, four installed launch files and both API origins
+matched the reviewed source. The manifest selects native ROS, domain177,
+Vulkan masks, and candidate 640×480×30 RGB/depth profiles.
+
+The classroom Blockly launcher was also reopened after its source update. Its
+served editor and learner ZIP hashes matched the published files, and a repeated
+conditional program completed two simulated sorting cycles. It remains in
+**simulation mode**. The separate physical controller remains on the local PC.
+
+This installs the software needed for later native recovery commissioning.
+No remote component unit was started or enabled, no fresh hardware contract was
+created, and no remote device or actuator was accessed. Connected-device startup,
+restart/reset, physical STOP, camera throughput and pick/place are still open.
+The active graphical session still belongs to cpsadmin; bjoern's display has not
+been rehearsed. Detailed evidence is in
+`~/.local/share/exciting-science/workshop-20261022/evidence/native-disabled-install/`
+and `blockly-cycle-refresh.json` in the same evidence directory.
+
 ## Prepared launchers
 
 In the bjoern application menu, open **Student workshop** , **Instructor live lab**, or **Instructor robot and RViz**. Preparation also creates the configured bjoern desktop directory and places the same launchers there. A desktop may ask to trust the launcher on first use.
@@ -117,7 +142,7 @@ The final remote software rehearsal used published source **`a4e859464f16144b09f
 
 A fresh, idle **SIMULATION** server was left ready on ports 8877/8878 with an empty action trace; the desktop launcher reopens it. Results are stored under `~/.local/share/exciting-science/workshop-20261022/evidence/` and copied to the instructor's `workshop-beginner-rebuild/fwmini4-final` evidence folder. The generated reference is outside the checkout at `~/.local/share/exciting-science/workshop-20261022/code-reference/site/index.html`.
 
-**Hardware commissioning remains open on fwmini4.** No real joint-limit contract was generated, no physical Blockly server or station units were started, and no actuators were accessed. Updated owner source requires the real passive bootstrap after device attachment. Individual service units are still unconfigured and service restarts disabled: browser capability checks and Qt mocks do not qualify Restart MoveIt, full reset or physical STOP here. Display/login, cameras, Teachable Machine training, EV3 hardware and pick/place remain unverified. Only bjoern's launchers were prepared; cpsadmin's desktop was not changed.
+**Hardware commissioning remains open on fwmini4.** No real joint-limit contract was generated, no physical Blockly server or station units were started, and no actuators were accessed. Updated owner source requires the real passive bootstrap after device attachment. At that earlier rehearsal, service units were unconfigured. The later disabled installation does not qualify connected-device Restart MoveIt, full reset or physical STOP; browser capability checks and Qt mocks cannot establish that. Display/login, cameras, Teachable Machine training, EV3 hardware and pick/place remain unverified. Only bjoern's launchers were prepared; cpsadmin's desktop was not changed.
 
 ## Explicit native recovery profile (software verified; hardware uncommissioned)
 
@@ -307,7 +332,7 @@ after disabled installation. This component-unit revision has not
 been installed remotely; no native units were started, and no physical/domain76
 acceptance is claimed by this report.
 
-## N100 synthetic gripper camera replay, 2026-10-22
+## N100 synthetic gripper camera replay, 2026-10-21
 
 The existing `GpuPointCamera` EGL/GLES visualization renderer passed a bounded,
 offscreen replay on fwmini4's Intel N100. GL vendor was `Intel`, renderer
