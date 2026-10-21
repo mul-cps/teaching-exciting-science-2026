@@ -30,6 +30,7 @@ def generate_launch_description():
         'gripper_action_name': '/follower/gripper_controller/gripper_cmd',
         'gripper_jaw_calibration': '',
         'station_lock': '',
+        'joint_limit_contract': '',
         'rviz': 'true',
         'use_camera': 'true',
         'recovery_depth_topic': '/camera/aligned_depth_to_color/image_raw',
@@ -103,12 +104,12 @@ def generate_launch_description():
 
     robot_keys = ['external_state_only', 'enable_hardware', 'station_root',
                   'station_python', 'station_config', 'state_file', 'log_dir',
-                  'station_lock', 'rviz', 'trajectory_log_dir',
+                  'station_lock', 'joint_limit_contract', 'rviz', 'trajectory_log_dir',
                   'gripper_action_name', 'gripper_jaw_calibration',
                   'recovery_depth_topic', 'recovery_camera_info_topic',
                   'operator_camera_unit', 'operator_depth_unit', 'operator_tags_unit', 'operator_maintenance_journal']
     robot = include('so101_station_control', 'moveit_resident.launch.py',
-                    {k: LaunchConfiguration(k) for k in robot_keys})
+                    {**{k: LaunchConfiguration(k) for k in robot_keys}, 'leader': 'false'})
     perception = include('so101_station_perception', 'perception.launch.py', {
         **{key:LaunchConfiguration(key) for key in supervisor_defaults},
         **{key:LaunchConfiguration(key) for key in ('color_profile','depth_profile','enable_sync','camera_wait_timeout_s','camera_reconnect_timeout_s','camera_repair_prefix','camera_sdk_prefix')},
