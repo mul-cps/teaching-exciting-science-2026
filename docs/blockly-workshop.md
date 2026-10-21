@@ -9,11 +9,13 @@ there is no serial driver, arbitrary code execution or ROS topic publishing.
 One program runs at a time. Cancellation, deadlines and any failure request
 station STOP; an uncertain service/action delivery is never automatically retried.
 
-ROS Blocky upstream `a34adbdef1c4b92374d2880a755e53436ca24754` is Windows-specific
-and does not yet implement service/action clients. This Linux station extension
-ports its logging blocks and Python generators with compatible block IDs and
-workspace JSON; station automation blocks are additional, explicitly labelled
-extensions. It does not claim to run the unmodified Windows application.
+[ROS Blocky upstream](https://github.com/ros-blocky/ros-blocky), pinned at
+`a34adbdef1c4b92374d2880a755e53436ca24754`, targets Windows and lists Linux support
+and service/action clients on its roadmap. This Linux station extension ports
+its two logging blocks and Python generators with compatible block IDs and
+inputs. It saves its own Blockly workspace JSON; upstream XML `.nodeblocks`
+files are not interchangeable. Station automation blocks use the existing ROS 2
+gateway. This is not the unmodified ROS Blocky desktop application.
 
 ## Implementation plan
 
@@ -26,13 +28,19 @@ extensions. It does not claim to run the unmodified Windows application.
 ## Lesson (replace the 35-minute independent challenge)
 
 - 0–5 min: predict the supplied dispense/wait/transfer sequence, run simulation.
-- 5–12 min: in pairs teach one fixed-jaw transfer stroke using RViz teleoperation.
-  Record measured follower positions, stop recording, then disable teleoperation.
-- 12–22 min: connect replay and separate jaw-position blocks. Add a repeat block.
-  Treat detected-object grasping as the missing ownership step described below.
-- 22–30 min: choose paths using red/blue EV3 color-sensor observations; reject unknowns.
-- 30–35 min: demonstrate one simulated cycle; instructor may qualify and run one
-  physical cycle. Swap driver and observer roles halfway through.
+- 5–12 min: change a repeat count and add a conveyor movement in simulation.
+  Swap driver and observer roles.
+- 12–22 min: build red/blue decisions with the simulated EV3 color sensor and
+  compare their action lists.
+- 22–30 min: test unknown, placing its log/STOP before manipulation. Try a starter
+  workspace or extend a working sequence one instruction at a time.
+- 30–35 min: save and demonstrate the blocks, prediction and corrected mistake.
+
+The [supervised physical challenge](blockly-student.md#supervised-physical-automation-challenge)
+uses time within the robot rotation or this challenge slot. Teach and replay one
+short fixed-jaw stroke before adding EV3 actions. Add dispensing and measured
+jaw-gap instructions only when those components are commissioned. The 35-minute
+class activity remains achievable entirely in simulation.
 
 A recording is not a qualified plan. Replay retains the bridge's collision and
 sample-hash checks and may reject a demonstrated path. It starts at the recorded
@@ -53,11 +61,14 @@ Start the existing full station first for a physical session, then in a separate
 terminal use the same ROS environment/domain as that station:
 
 ```bash
-ros2/conda/so101-conda.sh run python tools/run_blockly_station.py --physical --instructor
+ros2/conda/so101-conda.sh run python tools/run_blockly_station.py --physical --instructor --port 8897
+# Open http://127.0.0.1:8897; reuse it if the live editor is already running.
 ```
 
-The server binds only loopback. Port 8878 is a separate STOP-only listener with
-its own bounded request pool; keep it free together with 8877. The editor's STOP
+The server binds only loopback. Simulation uses ports 8877/8878; the physical
+command above uses 8897/8898 so both editors can stay open. The second port in
+each pair is a separate STOP-only listener with its own bounded request pool.
+Keep both ports free before starting an editor. The editor's STOP
 button uses that listener even when ordinary API requests are occupied. A random
 in-memory token and exact host/origin checks protect requests; no token is saved
 in the repository. This is a local instructor workstation application, not a
@@ -69,6 +80,23 @@ The application never starts a second hardware owner, enables torque at startup,
 changes firmware limits or connects USB devices directly. Instructor mode
 exposes the existing operator services; those services retain their own admission
 checks. Closing physical mode requests a verified station STOP.
+
+### Starter workspaces
+
+Use **Starter → Load starter** in the editor; **Download starter** saves a JSON
+copy for **Open blocks**. Save an edited workspace before loading another.
+
+1. **EV3 endpoints:** connect, home, left end, right end. Predict and change the
+   order in simulation before using the commissioned conveyor.
+2. **Teach and replay:** record the placeholder `my_short_move`, then replay at
+   speed 0.5. In simulation only, deliberately replace its name with `demo`.
+3. **Color factory:** connect, repeat, route red/blue through dispensing and the
+   corresponding conveyor endpoint; unknown logs and stops before manipulation.
+   Its physical use requires a fresh color measurement and a commissioned feeder.
+
+The physical editor initially loads an instructional log, not a dispense/replay
+demonstration. Student instructions link to all three workspaces. Jaw blocks and
+the separate commissioned sorting-cycle block remain in the station toolbox.
 
 ### Recording and replay
 
@@ -157,6 +185,7 @@ limits. The replay speed is a request, not a guaranteed execution duration.
 | Replay stroke | `/follower/arm_trajectory_controller/follow_joint_trajectory` (`FollowJointTrajectory`) | Accepted goal **and** terminal successful result, error code 0 |
 | Jaw gap | `/follower/gripper_controller/gripper_cmd` (`GripperCommand`, metres) | Qualified calibration; reached goal and not stalled |
 | Jaw readiness | `/follower/gripper_calibration_status` (`Trigger`) | Structured calibrated status |
+| One complete sorting cycle | `/station/run_cycles` (`so101_station_workflow/srv/RunCycles`, `cycles=1`) | Exact workflow job and verified one-object result; commissioning required |
 | EV3 connect/home/left/right/eject | `/station/ev3/connect`, `/home`, `/left_end`, `/right_end`, `/eject` under `/station/ev3` | Exact workflow `job_id` reaches idle with result; faults reject |
 | EV3 wake/sleep | `/station/wake`, `/station/sleep` (`Trigger`) | Acknowledged guarded service, workflow terminal where supplied |
 | Color condition | `/station/ev3/operator_status` | Fresh connected native EV3 S3 color; unknown is explicit |
@@ -194,6 +223,11 @@ program deadline 180 s. HTTP bodies are limited to 256 KiB, request sockets to 2
 with eight worker slots per listener. Saved workspace JSON is editable Blockly
 state; generated Python is a learning preview and is never executed by the server.
 
+Before starting a sequence, every replay name is checked against the saved
+recordings, including both sides of color decisions and nested repeats. A missing
+stroke rejects the sequence before dispensing or any other command is sent.
+The controller still checks identity, starting pose, jaw and collisions at replay.
+
 ## Rehearsal commands
 
 ```bash
@@ -215,7 +249,7 @@ must be qualified on the connected hardware separately.
 
 ### Software qualification
 
-- 19 focused tests cover program limits, strict JSON/auth/origin checks, fixed-jaw
+- Focused tests cover program limits, strict JSON/auth/origin checks, fixed-jaw
   recording, source/cohort changes, stale/unknown responses, correlated STOP,
   cancellation failures, mandatory EV3 motion job IDs and explicit recovery.
 - Headless Chromium: offline editor, drag a block, save/reopen workspace, ported
@@ -233,6 +267,27 @@ must be qualified on the connected hardware separately.
 Physical platform commissioning and a complete autonomous pick/place cycle remain
 separate acceptance steps. In particular, a feeder reference, calibrated jaw gap,
 valid demonstrated strokes and current collision scene are required.
+
+### Classroom update, 22 October
+
+The preflight, recording/replay, sorting-cycle and learner-bundle suites passed
+73 tests. The isolated browser rehearsal passed starter download/import, red,
+blue and unknown branches, saving/reopening, STOP, and non-actuating initial
+workspaces for physical or unknown mode, with no JavaScript errors. An isolated
+fake ROS station passed arm, jaw, EV3, exact cycle completion, stale-input rejection
+and cancellation checks. These checks did not operate physical devices.
+
+Missing replay names now reject a whole sequence before dispatch, including
+names inside either conditional branch. The independent static guard prevents
+backend calls or recording-payload reads in this check. On this workstation,
+the largest accepted nested program took about 1.40 ms for validation plus
+preflight, versus 1.29 ms for validation alone. No work was added to the robot
+control or feedback tick. Reproduce the guard and measurement with:
+
+```bash
+python -m pytest tests/test_blockly_station.py tests/test_blockly_preflight_guard.py -q
+python tests/blockly_preflight_benchmark.py
+```
 
 ### Connected-station rehearsal, 21 October
 
