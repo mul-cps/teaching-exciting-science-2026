@@ -652,43 +652,128 @@ class OperatorAPI(Node):
                 return job_id
             time.sleep(.1)
 
-    def fresh_source_admissions(self, token, deadline):
-        """Current checked leases must match the completed historical adoption."""
-        binding = self.recovery_binding
-        if not isinstance(binding, dict):
-            raise RuntimeError("fresh source proof lacks completed recovery binding")
-        leases = []
-        for key, endpoint in (("marker_admission", "/so101_charuco_world"), ("objects_admission", "/so101_colored_objects")):
-            if self.pending == "emergency_reset":
-                self.reset_phase("fresh checked source admission", deadline)
-            elif time.monotonic() >= deadline:
-                raise RuntimeError("fresh source proof deadline elapsed")
-            self.maintenance_state(token)
-            proof = self.recovery_reply(key, min(2., deadline-time.monotonic()))
-            now, ns = time.monotonic(), self.get_clock().now().nanoseconds
-            if (proof.get("schema") != "so101-derived-admission-status-v1" or proof.get("state") != "ready" or
-                    proof.get("qualified") is not False or proof.get("execution_enabled") is not False or
-                    any(proof.get(k) != binding[k] for k in ("producer_generation", "source_pin_sha256")) or
-                    proof.get("consumer_epoch") != binding["consumer_epochs"][endpoint] or
-                    type(proof.get("original_receipt_expiry_monotonic")) not in (int, float) or
-                    not math.isfinite(proof["original_receipt_expiry_monotonic"]) or
-                    now >= proof["original_receipt_expiry_monotonic"] or
-                    type(proof.get("original_header_expiry_ros_ns")) is not int or ns >= proof["original_header_expiry_ros_ns"] or
-                    type(proof.get("checked_ros_ns")) is not int or not 0 <= ns-proof["checked_ros_ns"] < 500_000_000):
-                raise RuntimeError("current checked source admission is stale or differs from completed recovery")
-            leases.append((proof["original_receipt_expiry_monotonic"], proof["original_header_expiry_ros_ns"]))
-        self.maintenance_state(token)
+    def source_admission_phase(self, deadline, stop_generation):
+        if self.stop_generation != stop_generation:
+            raise RuntimeError("source admission interrupted by STOP")
         if self.pending == "emergency_reset":
             self.reset_phase("fresh checked source admission", deadline)
         elif time.monotonic() >= deadline:
-            raise RuntimeError("fresh source proof deadline elapsed")
-        context = self.tag_source_context
-        if (context is None or any(context.get(k) != binding[k] for k in ("producer_generation", "source_pin_sha256")) or
-                context.get("consumer_epoch") != binding["consumer_epochs"]["/so101_charuco_world"]):
-            raise RuntimeError("fresh tag source context differs from completed recovery")
-        now, ns = time.monotonic(), self.get_clock().now().nanoseconds
-        if any(now >= receipt or ns >= header for receipt, header in leases):
-            raise RuntimeError("checked source admission expired while collecting both consumers")
+            raise RuntimeError("fresh source admission deadline elapsed")
+
+    def source_admission_pause(self, delay):
+        if self.pending == "emergency_reset":
+            self.reset_cancel.wait(delay)
+        else:
+            # The reset event can remain latched after a previous STOP. Ordinary
+            # restart waits use stop_generation and must not spin on that event.
+            time.sleep(delay)
+
+    def source_admission_round(self, token, deadline):
+        """Three concurrent read-only RPCs; no queued work survives this round."""
+        stop_generation = self.stop_generation
+        keys = ("status", "marker_admission", "objects_admission")
+        pending, received = {}, {}
+        try:
+            for key in keys:
+                self.source_admission_phase(deadline, stop_generation)
+                client = self.service_clients[key]
+                if not client.service_is_ready():
+                    raise RuntimeError(key + " service unavailable during source admission")
+                future = client.call_async(Trigger.Request())
+                pending[key] = (client, future)
+                future.add_done_callback(lambda _, key=key: received.setdefault(key, time.monotonic()))
+            limit = min(deadline, time.monotonic()+2.)
+            while not all(future.done() for _, future in pending.values()):
+                self.source_admission_phase(deadline, stop_generation)
+                remaining = limit-time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError("read-only source admission status timed out")
+                self.source_admission_pause(min(.05, remaining))
+            self.source_admission_phase(deadline, stop_generation)
+            replies = {}
+            for key, (_, future) in pending.items():
+                result = future.result()
+                # Admission services deliberately return success=False with a
+                # structured unavailable proof. Only these read-only endpoints
+                # may supply negative replies; mutation RPC handling is unchanged.
+                if result is None or (key == "status" and not result.success):
+                    raise RuntimeError(key + " source admission status failed")
+                try:
+                    value = json.loads(result.message)
+                    if not isinstance(value, dict):
+                        raise ValueError("object required")
+                except (ValueError, TypeError) as error:
+                    raise RuntimeError("malformed source admission status") from error
+                if key != "status" and result.success != (value.get("state") == "ready"):
+                    raise RuntimeError("inconsistent source admission status")
+                replies[key] = value
+            state = replies.pop("status")
+            if (state.get("kind") != "follower_status" or state.get("fresh") is not True or
+                    not self.all_off(state) or state.get("active_operation") != "operator_maintenance" or
+                    state.get("operator_maintenance_token") != token):
+                raise RuntimeError("operator maintenance reservation revoked or measured all-OFF state unavailable")
+            replies["owner_received_monotonic"] = received.get("status", float("-inf"))
+            return replies
+        finally:
+            for client, future in pending.values():
+                client.remove_pending_request(future)
+
+    def fresh_source_admissions(self, token, deadline):
+        """Wait for current leases of the exact completed adoption, without renewal."""
+        stop_generation = self.stop_generation
+        binding = self.recovery_binding
+        if not isinstance(binding, dict):
+            raise RuntimeError("fresh source proof lacks completed recovery binding")
+        transient_reasons = {
+            "derived lineage: waiting for checked source admission",
+            "derived lineage: current newest lineage unavailable",
+            "derived lineage: original received image lease expired/future",
+            "derived lineage: source receipts expired/future",
+            "derived lineage: invalid/stale receipt clock",
+            "derived lineage: original exposures future/stale/noninteger",
+            "derived lineage: DeviceInfo identity lease expired/invalid",
+            "derived lineage: future/stale identity ROS clock",
+            "derived lineage: source health lease invalid/expired",
+            "derived lineage: original consumer lineage receipt expired/future",
+            "derived lineage: original native CameraInfo receipt expired/future",
+        }
+        while True:
+            self.source_admission_phase(deadline, stop_generation)
+            proofs = self.source_admission_round(token, deadline)
+            self.source_admission_phase(deadline, stop_generation)
+            leases = []
+            now, ns = time.monotonic(), self.get_clock().now().nanoseconds
+            owner_received = proofs["owner_received_monotonic"]
+            ready = 0 <= now-owner_received < .250
+            for key, endpoint in (("marker_admission", "/so101_charuco_world"), ("objects_admission", "/so101_colored_objects")):
+                proof = proofs[key]
+                if (proof.get("schema") != "so101-derived-admission-status-v1" or
+                        proof.get("qualified") is not False or proof.get("execution_enabled") is not False or
+                        any(proof.get(k) != binding[k] for k in ("producer_generation", "source_pin_sha256")) or
+                        proof.get("consumer_epoch") != binding["consumer_epochs"][endpoint]):
+                    raise RuntimeError("current checked source admission differs from completed recovery")
+                if proof.get("state") == "unavailable" and proof.get("reason") in transient_reasons:
+                    ready = False
+                    continue
+                if (proof.get("state") != "ready" or
+                        type(proof.get("original_receipt_expiry_monotonic")) not in (int, float) or
+                        not math.isfinite(proof["original_receipt_expiry_monotonic"]) or
+                        type(proof.get("original_header_expiry_ros_ns")) is not int or
+                        type(proof.get("checked_ros_ns")) is not int or proof["checked_ros_ns"] > ns):
+                    raise RuntimeError("invalid current checked source admission: " + str(proof.get("reason")))
+                leases.append((proof["original_receipt_expiry_monotonic"], proof["original_header_expiry_ros_ns"]))
+                ready = ready and now < leases[-1][0] and ns < leases[-1][1] and ns-proof["checked_ros_ns"] < 500_000_000
+            context = self.tag_source_context
+            if (context is None or any(context.get(k) != binding[k] for k in ("producer_generation", "source_pin_sha256")) or
+                    context.get("consumer_epoch") != binding["consumer_epochs"]["/so101_charuco_world"]):
+                raise RuntimeError("fresh tag source context differs from completed recovery")
+            self.source_admission_phase(deadline, stop_generation)
+            now, ns = time.monotonic(), self.get_clock().now().nanoseconds
+            if ready and 0 <= now-owner_received < .250 and all(now < receipt and ns < header for receipt, header in leases):
+                return
+            # Fixed cadence, one in-flight round, bounded by the original reset
+            # deadline. No owner, producer, restart or recovery mutation is retried.
+            self.source_admission_pause(min(.1, max(0., deadline-time.monotonic())))
 
     def restart(self, key, *, station_reset=False, deadline=None):
         if self.get_parameter("enable_service_restarts").value is not True:

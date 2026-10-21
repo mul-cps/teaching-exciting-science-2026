@@ -777,7 +777,7 @@ def test_recovery_adopts_historical_completion_without_renewing_original_lease(m
         assert replies == ['recovery_start', 'recovery_status']
 
 
-@pytest.mark.parametrize('failure', [None, 'generation', 'pin', 'epoch', 'expired', 'old_header', 'tags'])
+@pytest.mark.parametrize('failure', [None, 'generation', 'pin', 'epoch', 'tags'])
 def test_current_checked_admissions_must_match_historical_recovery(failure):
     api = harness()
     api.state.update(active_operation='operator_maintenance', operator_maintenance_token='a'*32)
@@ -794,7 +794,7 @@ def test_current_checked_admissions_must_match_historical_recovery(failure):
     if failure == 'expired': proof['original_receipt_expiry_monotonic'] = time.monotonic()-1.
     if failure == 'old_header': proof['original_header_expiry_ros_ns'] = 9_000_000_000
     if failure == 'tags': api.tag_source_context['source_pin_sha256'] = 'f'*64
-    api.recovery_reply = lambda *args: proof
+    api.source_admission_round = lambda *args: dict(marker_admission=proof, objects_admission=proof, owner_received_monotonic=time.monotonic())
     if failure:
         with pytest.raises(RuntimeError, match='admission|context'):
             api.fresh_source_admissions('a'*32, time.monotonic()+2.)
@@ -819,23 +819,155 @@ def test_reset_joint_payload_retains_only_bounded_admitted_advancing_measurement
     assert api.reset_measured_joints[3][message.name[0]] == .2
 
 
-def test_current_checked_admissions_expire_during_final_owner_observation(monkeypatch):
+def admission_harness(monkeypatch):
     api = harness()
+    api.pending = 'emergency_reset'
     api.recovery_binding = adopted_binding()
     api.tag_source_context = dict(consumer_epoch='a'*32, producer_generation='c'*32, source_pin_sha256='b'*64)
-    clock = SimpleNamespace(value=10., owners=0)
+    clock = SimpleNamespace(value=10.)
     monkeypatch.setitem(NS, 'time', SimpleNamespace(monotonic=lambda: clock.value))
     api.get_clock = lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=int(clock.value*1e9)))
-    proof = dict(schema='so101-derived-admission-status-v1', state='ready', qualified=False, execution_enabled=False,
-                 consumer_epoch='a'*32, producer_generation='c'*32, source_pin_sha256='b'*64,
-                 original_receipt_expiry_monotonic=10.1, original_header_expiry_ros_ns=10_100_000_000,
-                 checked_ros_ns=10_000_000_000)
-    api.recovery_reply = lambda *args: proof
-    def owner_observation(token):
-        clock.owners += 1
-        if clock.owners == 3:
-            clock.value = 10.2
-    api.maintenance_state = owner_observation
-    with pytest.raises(RuntimeError, match='admission expired'):
+    api.reset_cancel = SimpleNamespace(is_set=lambda: False, wait=lambda delay: setattr(clock, 'value', clock.value+delay))
+    def proof(**updates):
+        return dict(schema='so101-derived-admission-status-v1', state='ready', qualified=False, execution_enabled=False,
+                    consumer_epoch='a'*32, producer_generation='c'*32, source_pin_sha256='b'*64,
+                    original_receipt_expiry_monotonic=clock.value+.2,
+                    original_header_expiry_ros_ns=int((clock.value+.2)*1e9), checked_ros_ns=int(clock.value*1e9)) | updates
+    return api, clock, proof
+
+
+@pytest.mark.parametrize('first', ['warming', 'receipt', 'header', 'collect_expiry'])
+def test_admission_waits_for_new_current_cohort(monkeypatch, first):
+    api, clock, proof = admission_harness(monkeypatch)
+    rounds = []
+    def replies(*args):
+        rounds.append(clock.value)
+        marker, objects = proof(), proof()
+        if len(rounds) == 1:
+            if first == 'warming':
+                objects = proof(state='unavailable', reason='derived lineage: source receipts expired/future')
+            elif first == 'receipt': marker['original_receipt_expiry_monotonic'] = clock.value-.1
+            elif first == 'header': marker['original_header_expiry_ros_ns'] = int((clock.value-.1)*1e9)
+            else: clock.value += .21
+        return dict(marker_admission=marker, objects_admission=objects, owner_received_monotonic=clock.value)
+    api.source_admission_round = replies
+    api.fresh_source_admissions('a'*32, 12.)
+    assert len(rounds) == 2
+    assert rounds[1]-rounds[0] >= .1-1e-9
+    assert api.calls == []
+
+
+@pytest.mark.parametrize('bad', ['epoch', 'schema', 'reason', 'expiry_type', 'future_check'])
+def test_admission_invalid_proof_is_not_retried(monkeypatch, bad):
+    api, clock, proof = admission_harness(monkeypatch)
+    updates = {'epoch': dict(consumer_epoch='f'*32), 'schema': dict(schema='bad'),
+               'reason': dict(state='unavailable', reason='derived lineage: admission source pin changed'),
+               'expiry_type': dict(original_receipt_expiry_monotonic=True),
+               'future_check': dict(checked_ros_ns=int(clock.value*1e9)+1)}[bad]
+    calls = []
+    api.source_admission_round = lambda *args: calls.append(1) or dict(marker_admission=proof(), objects_admission=proof(**updates), owner_received_monotonic=clock.value)
+    with pytest.raises(RuntimeError, match='admission'):
         api.fresh_source_admissions('a'*32, 12.)
-    assert clock.owners == 3
+    assert calls == [1]
+    assert api.calls == []
+
+
+def test_unavailable_admission_wait_respects_original_deadline(monkeypatch):
+    api, clock, proof = admission_harness(monkeypatch)
+    rounds = []
+    api.source_admission_round = lambda *args: rounds.append(clock.value) or dict.fromkeys(
+        ('marker_admission', 'objects_admission'), proof(state='unavailable', reason='derived lineage: source receipts expired/future')) | dict(owner_received_monotonic=clock.value)
+    with pytest.raises(RuntimeError, match='deadline'):
+        api.fresh_source_admissions('a'*32, 10.25)
+    assert clock.value == 10.25
+    assert len(rounds) == 3
+    assert api.calls == []
+
+
+def test_stop_interrupts_admission_wait_before_another_round(monkeypatch):
+    api, clock, proof = admission_harness(monkeypatch)
+    stopped, rounds = [], []
+    api.reset_cancel = SimpleNamespace(is_set=lambda: bool(stopped), wait=lambda delay: stopped.append(True))
+    api.source_admission_round = lambda *args: rounds.append(1) or dict.fromkeys(
+        ('marker_admission', 'objects_admission'), proof(state='unavailable', reason='derived lineage: source receipts expired/future')) | dict(owner_received_monotonic=clock.value)
+    with pytest.raises(RuntimeError, match='STOP'):
+        api.fresh_source_admissions('a'*32, 12.)
+    assert rounds == [1]
+    assert api.calls == []
+
+
+@pytest.mark.parametrize('outcome', ['ready', 'stop', 'timeout', 'owner', 'malformed'])
+def test_admission_round_is_parallel_read_only_and_cleans_pending(monkeypatch, outcome):
+    api, clock, proof = admission_harness(monkeypatch)
+    started, removed = [], []
+    state = owner(active_operation='operator_maintenance', operator_maintenance_token='a'*32)
+    if outcome == 'owner': state['torque']['gripper'] = 1
+    monkeypatch.setitem(NS, 'Trigger', SimpleNamespace(Request=lambda: object()))
+    def client(key):
+        def call(request):
+            started.append(key)
+            def done():
+                assert len(started) == 3
+                return outcome not in ('stop', 'timeout')
+            payload = state if key == 'status' else proof(state='unavailable', reason='derived lineage: source receipts expired/future')
+            return SimpleNamespace(done=done, add_done_callback=lambda callback: callback(None), result=lambda: SimpleNamespace(success=key=='status', message='bad' if outcome=='malformed' else json.dumps(payload)))
+        return SimpleNamespace(service_is_ready=lambda: True, call_async=call,
+                               remove_pending_request=lambda future: removed.append(key))
+    api.service_clients = {key: client(key) for key in ('status', 'marker_admission', 'objects_admission')}
+    if outcome == 'stop':
+        stopped = []
+        api.reset_cancel = SimpleNamespace(is_set=lambda: bool(stopped), wait=lambda delay: stopped.append(True))
+    if outcome == 'ready':
+        result = api.source_admission_round('a'*32, 12.)
+        assert result['objects_admission']['state'] == 'unavailable'
+    else:
+        with pytest.raises(RuntimeError): api.source_admission_round('a'*32, 12.)
+    assert started == removed == ['status', 'marker_admission', 'objects_admission']
+    assert api.calls == []
+
+
+@pytest.mark.parametrize('interrupt', ['stop', 'deadline'])
+def test_ready_admission_cannot_escape_final_interrupt_check(monkeypatch, interrupt):
+    api, clock, proof = admission_harness(monkeypatch)
+    stopped = []
+    api.reset_cancel = SimpleNamespace(is_set=lambda: bool(stopped))
+    def replies(*args):
+        ready = dict.fromkeys(('marker_admission', 'objects_admission'), proof()) | dict(owner_received_monotonic=clock.value)
+        if interrupt == 'stop': stopped.append(True)
+        else: clock.value = 12.
+        return ready
+    api.source_admission_round = replies
+    with pytest.raises(RuntimeError, match='STOP|deadline'):
+        api.fresh_source_admissions('a'*32, 12.)
+    assert api.calls == []
+
+
+def test_old_parallel_owner_status_requires_another_round(monkeypatch):
+    api, clock, proof = admission_harness(monkeypatch)
+    rounds = []
+    def replies(*args):
+        rounds.append(clock.value)
+        return dict(marker_admission=proof(), objects_admission=proof(),
+                    owner_received_monotonic=clock.value-(.3 if len(rounds)==1 else 0))
+    api.source_admission_round = replies
+    api.fresh_source_admissions('a'*32, 12.)
+    assert len(rounds) == 2
+
+
+def test_ordinary_restart_ignores_old_reset_event_without_spinning(monkeypatch):
+    api, clock, proof = admission_harness(monkeypatch)
+    api.pending = 'restart_all'
+    api.reset_cancel = SimpleNamespace(is_set=lambda: True, wait=lambda delay: pytest.fail('latched event used'))
+    sleeps, rounds = [], []
+    def sleep(delay):
+        sleeps.append(delay)
+        clock.value += delay
+    monkeypatch.setitem(NS, 'time', SimpleNamespace(monotonic=lambda: clock.value, sleep=sleep))
+    def replies(*args):
+        rounds.append(1)
+        value = proof() if len(rounds)>1 else proof(state='unavailable', reason='derived lineage: source receipts expired/future')
+        return dict(marker_admission=value, objects_admission=value, owner_received_monotonic=clock.value)
+    api.source_admission_round = replies
+    api.fresh_source_admissions('a'*32, 12.)
+    assert sleeps == [.1]
+    assert api.reset_progress is None
