@@ -162,7 +162,9 @@ def test_payload_admission_accepts_empty_objects_but_rejects_stale_and_empty_ima
 def test_endpoint_button_and_launch_configuration_wiring():
     assert 'emergency_reset' in NS['COMMANDS']
     panel = (ROOT/'ros2/src/so101_station_operator/src/operator_panel.cpp').read_text()
-    assert '{"Reset station (torque OFF)", "emergency_reset"}' in panel
+    assert '{"Restart entire station", "emergency_reset"}' in panel
+    assert '{"Restart MoveIt", "restart_moveit"}' in panel
+    assert '{"Reset (torque OFF)", "reset"}' in panel
     launch = (ROOT/'ros2/src/so101_station_operator/launch/operator.launch.py').read_text()
     for slot in ('movegroup_unit', 'objects_unit', 'scene_unit', 'leader_readonly_unit'):
         assert slot in launch
