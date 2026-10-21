@@ -382,3 +382,31 @@ def test_child_visibility_requires_actual_integer_pixels_in_the_declared_image(p
     from so101_station_objects.colored_object_validation import validate_child_visibility
     with pytest.raises(ValueError):
         validate_child_visibility(np.asarray(pixels),shape)
+
+
+def test_depth_splitter_precomputes_safe_depth_before_neighbor_axis_loop():
+    """Keep repeated full-depth temporaries out of the two neighbor passes."""
+    import ast
+    import inspect
+
+    function = ast.parse(inspect.getsource(split_depth_coherent_components)).body[0]
+    loops = [node for node in function.body if isinstance(node, ast.For)
+             and isinstance(node.target, ast.Name) and node.target.id == 'axis']
+    assert len(loops) == 1
+    loop = loops[0]
+
+    def is_np_where(node):
+        return (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == 'np' and node.func.attr == 'where')
+
+    assert not any(is_np_where(node) for node in ast.walk(loop))
+    assignments = [node for node in function.body if isinstance(node, ast.Assign)
+                   and any(isinstance(target, ast.Name) and target.id == 'safe_depth'
+                           for target in node.targets)]
+    assert len(assignments) == 1
+    assignment = assignments[0]
+    assert assignment.lineno < loop.lineno
+    assert is_np_where(assignment.value)
+    assert not assignment.value.keywords
+    assert ast.dump(assignment.value) == ast.dump(ast.parse('np.where(valid, depth, 0)', mode='eval').body)
