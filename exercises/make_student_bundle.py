@@ -16,7 +16,8 @@ def main():
     names += ['docs/student-exercises.md', 'docs/student-worksheet.md', 'docs/workshop-resources.md']
     # The learner Blockly route is simulation only: no ROS/physical adapter.
     names += ['tools/run_blockly_station.py', 'workshop/blockly_program.py',
-              'workshop/blockly_recording.py', 'docs/blockly-student.md']
+              'workshop/blockly_recording.py', 'docs/blockly-student.md',
+              'docs/assets/blockly/simulation-complete.png']
     names += [str(p.relative_to(root)) for p in sorted((root/'web/blockly-station').rglob('*')) if p.is_file()]
     names += [str(p.relative_to(root)) for p in sorted((root/'docs/assets/lecture/tm-samples').rglob('*.png'))]
     names += ['docs/' + name for name in ('student-handbook.docx', 'student-handbook.pdf', 'student-worksheet.docx', 'student-worksheet.pdf') if (root/'docs'/name).exists()]

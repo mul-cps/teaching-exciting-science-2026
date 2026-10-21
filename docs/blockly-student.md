@@ -15,6 +15,8 @@ On Windows use `python` instead of `python3`. Open **http://127.0.0.1:8877**.
 The heading says **SIMULATION — no robot motion**. No internet or extra packages
 are needed. Keep the terminal open; Ctrl+C closes the simulator.
 
+![The example completed twice in simulation](assets/blockly/simulation-complete.png)
+
 ## Predict, build, run, check
 
 1. **0–5 minutes:** Look at the example. Which instructions run twice?
