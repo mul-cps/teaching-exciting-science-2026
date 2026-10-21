@@ -97,11 +97,12 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
     if not candidate.any():
         return ()
     cut = np.zeros_like(candidate)
+    safe_depth = np.where(valid, depth, 0)
     for axis in (0, 1):
         left = (slice(None, -1), slice(None)) if axis == 0 else (slice(None), slice(None, -1))
         right = (slice(1, None), slice(None)) if axis == 0 else (slice(None), slice(1, None))
         bad = (candidate[left] & candidate[right] &
-               (np.abs(np.where(valid[left], depth[left], 0)-np.where(valid[right], depth[right], 0)) > max_neighbor_jump_m))
+               (np.abs(safe_depth[left]-safe_depth[right]) > max_neighbor_jump_m))
         cut[left] |= bad
         cut[right] |= bad
     candidate &= ~cut
