@@ -5,6 +5,8 @@ import ctypes
 import fcntl
 import hashlib
 import json
+import math
+import re
 import os
 from pathlib import Path
 import signal
@@ -240,6 +242,44 @@ def wrapper(args):
     return [str(ROOT/'ros2/conda/so101-conda.sh'), 'run']
 
 
+COMPONENT_OVERLAY_FILES = {
+    'ros2/src/so101_station_bringup/launch/station_live.launch.py':('so101_station_bringup','launch/station_live.launch.py'),
+    'ros2/src/so101_station_control/launch/moveit_resident.launch.py':('so101_station_control','launch/moveit_resident.launch.py'),
+    'ros2/src/so101_station_perception/launch/perception.launch.py':('so101_station_perception','launch/perception.launch.py'),
+    'ros2/src/so101_station_operator/launch/operator.launch.py':('so101_station_operator','launch/operator.launch.py'),
+    'ros2/src/so101_station_operator/scripts/operator_api':('so101_station_operator','operator_api'),
+    'ros2/src/so101_station_control/so101_station_control/operator_restart.py':('so101_station_control','operator_restart'),
+    'ros2/src/so101_station_control/so101_station_control/trajectory_server.py':('so101_station_control','trajectory_server'),
+}
+
+
+def verify_component_overlay(ros):
+    # Read installed origins only. Never import a node module or construct nodes.
+    program = """import importlib.util,json
+from pathlib import Path
+from ament_index_python.packages import get_package_prefix
+files=json.loads(__import__('sys').argv[1]);result={}
+for source,(package,relative) in files.items():
+    if relative.startswith('launch/'):
+        path=Path(get_package_prefix(package))/'share'/package/relative
+    elif relative=='operator_api':
+        path=Path(get_package_prefix(package))/'lib'/package/relative
+    else:
+        path=Path(importlib.util.find_spec(package+'.'+relative).origin)
+    result[source]=str(path)
+print(json.dumps(result))
+"""
+    reply=run(ros+['python','-c',program,json.dumps(COMPONENT_OVERLAY_FILES)],timeout=15,capture_output=True,text=True)
+    if len(reply.stdout)>16384:raise RuntimeError('Installed overlay origin report exceeds bound')
+    origins=json.loads(reply.stdout)
+    if not isinstance(origins,dict) or set(origins)!=set(COMPONENT_OVERLAY_FILES):
+        raise RuntimeError('Installed component overlay origin set is incomplete')
+    for source,origin in origins.items():
+        path=Path(origin)
+        if not path.is_absolute() or not path.is_file() or path.stat().st_size>2*1024*1024 or hashlib.sha256(path.read_bytes()).digest()!=hashlib.sha256((ROOT/source).read_bytes()).digest():
+            raise RuntimeError('Installed component overlay is stale: '+source+'; rebuild before startup')
+
+
 def prerequisites(args, ros):
     if not Path(ros[0]).is_file() or not os.access(ros[0], os.X_OK):
         raise RuntimeError('ROS wrapper unavailable: '+ros[0])
@@ -273,6 +313,8 @@ def prerequisites(args, ros):
         raise RuntimeError('Installed launch overlay is stale; run ros2/conda/so101-conda.sh build before hardware startup')
     run(ros+['ros2', 'pkg', 'prefix', 'so101_station_workflow'], capture_output=True, text=True)
     run(ros+['ros2', 'pkg', 'prefix', 'so101_station_operator'], capture_output=True, text=True)
+    if getattr(args,'deployment','integrated')=='user-units':
+        verify_component_overlay(ros)
     if not args.existing_tunnel:
         with socket.socket() as listener:
             try:
@@ -287,6 +329,8 @@ def prerequisites(args, ros):
 
 
 def stop_record(path, record):
+    if record.get('deployment')=='user-units':
+        return stop_units(path,record)
     if not same_process(record['process']) and not any(
             member.get('session') == record['process'].get('session') and
             process_identity(member['pid']) == member for member in record.get('members', [])):
@@ -330,6 +374,361 @@ def stop_record(path, record):
     path.unlink(missing_ok=True)
 
 
+UNIT_PROPERTIES = ('Id','LoadState','ActiveState','SubState','Job','InvocationID','StateChangeTimestampMonotonic',
+                   'MainPID','ControlGroup','FragmentPath','DropInPaths','UnitFileState','Restart')
+
+
+def unit_tools():
+    try:
+        from tools import install_station_user_units
+    except ModuleNotFoundError:
+        import install_station_user_units
+    return install_station_user_units
+
+
+def manager_identity():
+    result = run(['busctl','--user','call','org.freedesktop.DBus','/org/freedesktop/DBus',
+                  'org.freedesktop.DBus','GetNameOwner','s','org.freedesktop.systemd1'],
+                 timeout=3,capture_output=True,text=True)
+    match = re.fullmatch(r's "(:[0-9]+\.[0-9]+)"\s*', result.stdout)
+    if not match:
+        raise RuntimeError('Exact user systemd manager identity unavailable')
+    bus = run(['busctl','--user','call','org.freedesktop.DBus','/org/freedesktop/DBus',
+               'org.freedesktop.DBus','GetId'],timeout=3,capture_output=True,text=True)
+    bus_id = re.fullmatch(r's "([0-9a-f]{32})"\s*',bus.stdout)
+    if not bus_id:raise RuntimeError('Exact user bus identity unavailable')
+    return {'uid':os.getuid(),'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+            'dbus_owner':match[1],'dbus_id':bus_id[1]}
+
+
+def read_managed_unit(manifest,role):
+    tools = unit_tools()
+    unit = tools.UNITS[role]
+    path = tools.unit_directory()/unit
+    if path.is_symlink() or not path.is_file() or path.read_text()!=tools.unit_text(manifest,role):
+        raise RuntimeError('Managed unit fragment differs from reviewed manifest: '+unit)
+    result = run(['systemctl','--user','show','--no-pager','--property='+','.join(UNIT_PROPERTIES),'--',unit],
+                 timeout=3,capture_output=True,text=True)
+    row = dict(line.split('=',1) for line in result.stdout.splitlines() if '=' in line)
+    if (set(row)!=set(UNIT_PROPERTIES) or row['Id']!=unit or row['LoadState']!='loaded' or
+            row['FragmentPath']!=str(path) or row['DropInPaths'] or row['UnitFileState'] not in ('static','disabled') or
+            row['Restart']!='no' or not row['StateChangeTimestampMonotonic'].isdigit() or
+            not row['MainPID'].isdigit() or not re.fullmatch(r'(?:[0-9a-f]{32})?',row['InvocationID'])):
+        raise RuntimeError('Exact disabled unit manager/fragment state unavailable: '+unit)
+    row['Job'] = row['Job'] or '0'
+    return row
+
+
+def unit_binding(row):
+    pid = int(row['MainPID'])
+    identity = process_identity(pid) if pid>0 else None
+    group = row['ControlGroup']
+    if (row['ActiveState']!='active' or row['SubState']!='running' or row['Job']!='0' or identity is None or
+            not re.fullmatch('[0-9a-f]{32}',row['InvocationID']) or not group.endswith('/'+row['Id'])):
+        raise RuntimeError('Managed unit lacks a live exact invocation/PID/cgroup: '+row['Id'])
+    if not any(line.rsplit(':',1)[-1]==group for line in Path(f'/proc/{pid}/cgroup').read_text().splitlines()):
+        raise RuntimeError('Managed unit PID escaped its exact cgroup')
+    return {'invocation':row['InvocationID'],'process':identity,'control_group':group}
+
+
+def prepare_unit_start(args,ros):
+    tools = unit_tools()
+    manifest = tools.load_manifest(args.unit_manifest)
+    if (args.profile!='fwmini4' or ros!=[manifest['wrapper'],'ros-vulkan'] or
+            os.environ.get('ROS_DOMAIN_ID')!='177' or os.environ.get('ROS_LOCALHOST_ONLY')!='1' or
+            any(manifest['parameters'][key]!=value for key,value in station_launch_parameters(args).items())):
+        raise RuntimeError('Unit startup arguments/environment differ from the installed native manifest')
+    manager = manager_identity()
+    before = {role:read_managed_unit(manifest,role) for role in tools.ROLES}
+    if any(row['Job']!='0' or row['ActiveState'] not in ('inactive','failed') or row['MainPID']!='0' for row in before.values()):
+        raise RuntimeError('Existing component invocation/job; no unit or bootstrap dispatched')
+    return {'deployment':'user-units','manifest':manifest,'manifest_sha256':tools.digest(manifest),
+            'manager':manager,'before':before,'units':{},'pending':None,'owner_identity':None,
+            'ros':ros,'environment':{'ROS_DOMAIN_ID':'177','ROS_LOCALHOST_ONLY':'1'},'phase':'prepared'}
+
+
+NATIVE_RPC = r'''
+import json,sys,time
+import rclpy
+from std_srvs.srv import Trigger
+endpoint=sys.argv[1]
+if endpoint not in ('/follower/status','/follower/stop','/station/stop','/station/status','/station/ev3/connect'):raise ValueError('fixed RPC only')
+deadline=time.monotonic()+max(.05,float(sys.argv[2])-1.)
+rclpy.init();node=rclpy.create_node('station_lifecycle_check')
+try:
+    client=node.create_client(Trigger,endpoint)
+    if not client.wait_for_service(timeout_sec=max(0.,min(12. if endpoint.endswith('/connect') else 2.,deadline-time.monotonic()))):raise RuntimeError('service unavailable')
+    future=client.call_async(Trigger.Request());rclpy.spin_until_future_complete(node,future,timeout_sec=max(0.,min(8. if endpoint.endswith('/connect') else 2.,deadline-time.monotonic())))
+    if not future.done() or future.result() is None:raise RuntimeError('RPC acknowledgement unknown')
+    response=future.result()
+    result={'success':response.success}
+    if endpoint=='/follower/status':
+        if len(response.message)>65536:raise RuntimeError('oversize status')
+        data=json.loads(response.message)
+        keys=('kind','fresh','connected','owner_faulted','owner_started_monotonic','sampled_monotonic','position_monotonic','torque_monotonic','torque','arm_id','calibration_sha256','owner_source_sha256')
+        result['data']={key:data.get(key) for key in keys}
+        result['data']['external_job_pending']=data.get('operator_external_job') is not None
+    elif endpoint in ('/station/stop','/station/status'):
+        if len(response.message)>65536:raise RuntimeError('oversize workflow result')
+        data=json.loads(response.message)
+        data=data.get('stop',{}) if endpoint=='/station/status' else data
+        result['data']={key:data.get(key) for key in ('request_id','pending','ev3_stopped','arm_disarmed')}
+    print(json.dumps(result,allow_nan=False))
+finally:
+    node.destroy_node();rclpy.shutdown()
+'''
+
+
+def native_rpc(record,endpoint,timeout=None):
+    timeout = timeout if timeout is not None else (25 if endpoint.endswith('/connect') else 8)
+    result = run(record['ros']+['python','-c',NATIVE_RPC,endpoint,str(timeout)],timeout=timeout,
+                 capture_output=True,text=True,env={**os.environ,**record['environment']})
+    if len(result.stdout)>65536:
+        raise RuntimeError('Lifecycle RPC result exceeds bound')
+    data = json.loads(result.stdout)
+    if not isinstance(data,dict) or data.get('success') is not True:
+        raise RuntimeError('Lifecycle RPC has no successful acknowledgement: '+endpoint)
+    return data.get('data')
+
+
+def validate_unit_owner(record,state,now,*,all_off=False,stopping=False):
+    expected = record['expected_owner']
+    generation = state.get('owner_started_monotonic')
+    if (state.get('kind')!='follower_status' or state.get('fresh') is not True or state.get('connected') is not True or
+            (not stopping and (state.get('owner_faulted') is True or state.get('external_job_pending') is not False)) or
+            any(state.get(key)!=value for key,value in expected.items()) or
+            type(generation) not in (int,float) or not math.isfinite(generation) or
+            not record['owner_requested_monotonic']<=generation<=now or
+            any(type(state.get(key)) not in (int,float) or not math.isfinite(state[key]) or not 0<=now-state[key]<.5
+                for key in ('sampled_monotonic','position_monotonic','torque_monotonic'))):
+        raise RuntimeError('Fresh exact owned follower identity/status unavailable; record retained')
+    identity = dict(expected,owner_started_monotonic=generation)
+    if record.get('owner_identity') is not None and identity!=record['owner_identity']:
+        raise RuntimeError('Follower owner generation changed; record retained')
+    joints = {'shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll','gripper'}
+    torque = state.get('torque')
+    if all_off and (not isinstance(torque,dict) or set(torque)!=joints or any(type(v) is not int or v!=0 for v in torque.values())):
+        raise RuntimeError('Fresh six-joint torque OFF not confirmed; record retained')
+    return identity
+
+
+STATION_STOP_TIMEOUT = 8.
+
+
+def fresh_unit_stop(record):
+    # Fault/pending work must not prevent STOP for an exact matched generation.
+    validate_unit_owner(record,native_rpc(record,'/follower/status'),time.monotonic(),stopping=True)
+    errors = []
+    request_id = None
+    for endpoint in ('/station/stop','/follower/stop'):
+        try:
+            reply = native_rpc(record,endpoint)
+            if endpoint=='/station/stop':
+                request_id = reply.get('request_id') if isinstance(reply,dict) else None
+                if not isinstance(request_id,str) or not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}',request_id):
+                    raise RuntimeError('Station STOP admission lacks exact request correlation')
+        except (OSError,ValueError,RuntimeError,subprocess.SubprocessError) as error:
+            errors.append(endpoint+': '+str(error))
+    if request_id is not None:
+        deadline = time.monotonic()+STATION_STOP_TIMEOUT
+        try:
+            while True:
+                remaining = deadline-time.monotonic()
+                if remaining<=0:raise RuntimeError('Station STOP terminal acknowledgement unknown')
+                status = native_rpc(record,'/station/status',timeout=min(8.,remaining))
+                if (time.monotonic()<deadline and isinstance(status,dict) and status.get('request_id')==request_id and
+                        status.get('pending') is False and status.get('ev3_stopped') is True and status.get('arm_disarmed') is True):
+                    break
+                time.sleep(min(.05,max(0.,deadline-time.monotonic())))
+        except (OSError,ValueError,RuntimeError,subprocess.SubprocessError) as error:
+            errors.append(str(error))
+    try:
+        state = native_rpc(record,'/follower/status')
+        validate_unit_owner(record,state,time.monotonic(),all_off=True,stopping=True)
+        if state.get('external_job_pending') is not False:
+            raise RuntimeError('Unresolved manager job after STOP; record retained')
+    except (OSError,ValueError,RuntimeError,subprocess.SubprocessError) as error:
+        errors.append(str(error))
+    if errors:
+        record['stop_errors'] = errors
+        raise RuntimeError('STOP acknowledgement/cleanup incomplete; no unit stops dispatched; record retained: '+'; '.join(errors))
+    record['station_stop_request_id'] = request_id
+
+
+def terminal_unit_start(record,role,row,pending):
+    before = pending['before']
+    if (row['Job']!='0' or row['InvocationID']==before['InvocationID'] or
+            int(row['StateChangeTimestampMonotonic'])<pending['requested_us']):
+        raise RuntimeError('No correlated new manager invocation; startup record retained')
+    binding = unit_binding(row)
+    record['units'][role] = binding
+    record['pending'] = None
+
+
+def resolved_unit_restart(record,role,current):
+    """Adopt only a chain of existing bridge-manager resolved restart receipts."""
+    tools = unit_tools()
+    old = record['units'][role]['invocation']
+    if old==current['InvocationID']:
+        return
+    if role not in tools.RESTART_ROLES:
+        raise RuntimeError('Persistent owner/API invocation changed; record retained')
+    journal = Path(record['manifest']['parameters']['operator_maintenance_journal'])
+    if journal.exists():
+        raise RuntimeError('Unresolved owner-manager restart journal; record retained')
+    files = list(journal.parent.glob(journal.name+'.resolved-*'))
+    if len(files)>256:
+        raise RuntimeError('Restart receipt window exceeds256; explicit inspection required')
+    import runpy
+    from types import SimpleNamespace
+    module = runpy.run_path(str(ROOT/'ros2/src/so101_station_control/so101_station_control/operator_restart.py'))
+    params = record['manifest']['parameters']
+    validator = SimpleNamespace(_operator_restart_units={params['operator_'+key+'_unit'] for key in ('camera','depth','tags')},
+        _operator_station_reset_units={params['operator_'+key+'_unit'] for key in ('movegroup','objects','scene','leader_readonly')},
+        _expected_arm_id=record['expected_owner']['arm_id'],_expected_calibration_sha256=record['expected_owner']['calibration_sha256'],
+        _owner_source_expected=record['expected_owner']['owner_source_sha256'],
+        _operator_restart_source_sha256={name:record['manifest']['sources']['ros2/src/so101_station_control/so101_station_control/'+name+'.py'] for name in ('operator_restart','trajectory_server')})
+    transitions = {}
+    for path in files:
+        if path.stat().st_size>65536:raise RuntimeError('Oversize restart receipt')
+        receipt = json.loads(path.read_text());pending,proof=receipt.get('pending',{}),receipt.get('proof',{})
+        if pending.get('unit')!=tools.UNITS[role]:continue
+        module['OperatorRestartMixin']._operator_restart_validate_record(validator,pending)
+        after = proof.get('after',{})
+        if (pending['boot_id']!=record['manager']['boot_id'] or pending['owner_generation']!=record['owner_identity']['owner_started_monotonic'] or
+                path.name!=journal.name+'.resolved-'+pending['job_id'] or proof.get('job_id')!=pending['job_id'] or
+                proof.get('unit')!=pending['unit'] or proof.get('owner_generation')!=pending['owner_generation'] or
+                proof.get('kind')!='restart_unit_terminal' or proof.get('success') is not True or
+                after.get('Id')!=pending['unit'] or after.get('Job')!='0' or after.get('ActiveState')!='active' or
+                not str(after.get('StateChangeTimestampMonotonic','')).isdigit() or
+                int(after['StateChangeTimestampMonotonic'])<pending['requested_monotonic_us']):
+            continue
+        previous = pending['before']['InvocationID']
+        next_id = after.get('InvocationID')
+        if not isinstance(next_id,str) or not re.fullmatch('[0-9a-f]{32}',next_id) or next_id==previous:continue
+        if previous in transitions and transitions[previous]!=next_id:raise RuntimeError('Ambiguous manager restart receipts')
+        transitions[previous]=next_id
+    visited = set()
+    while old!=current['InvocationID']:
+        if old in visited or old not in transitions:
+            raise RuntimeError('Changed invocation lacks exact correlated owner-manager receipt; record retained')
+        visited.add(old);old=transitions[old]
+
+
+def check_unit_record(record):
+    tools = unit_tools()
+    tools.validate_manifest(record['manifest'])
+    if (record.get('deployment')!='user-units' or tools.digest(record['manifest'])!=record.get('manifest_sha256') or
+            record.get('ros')!=[record['manifest']['wrapper'],'ros-vulkan'] or
+            record.get('environment')!={'ROS_DOMAIN_ID':'177','ROS_LOCALHOST_ONLY':'1'} or
+            not set(record['units'])<=set(tools.ROLES) or manager_identity()!=record['manager']):
+        raise RuntimeError('Managed unit cohort/manager identity changed; record retained')
+
+
+def stop_units(path,record):
+    check_unit_record(record)
+    if record.get('owner_identity') is not None and 'owner' in record['units']:
+        owner = read_managed_unit(record['manifest'],'owner')
+        if unit_binding(owner)!=record['units']['owner']:
+            raise RuntimeError('Persistent owner unit identity changed; record retained')
+        try:
+            fresh_unit_stop(record)
+        except BaseException:
+            save(path,record);raise
+    if record.get('pending'):
+        pending = record['pending'];role=pending['role']
+        if role not in unit_tools().ROLES:raise RuntimeError('Unknown pending unit role')
+        row = read_managed_unit(record['manifest'],role)
+        if row['Job']=='0' and row['ActiveState'] in ('inactive','failed') and row['MainPID']=='0':
+            if role=='owner' and row!=pending['before']:
+                raise RuntimeError('New failed owner invocation has unproved hardware outcome; record retained')
+            record['pending']=None
+        else:
+            terminal_unit_start(record,role,row,pending)
+        save(path,record)
+    # Check every identity before any STOP or manager stop. Unknowns retain records.
+    for role,binding in record['units'].items():
+        row = read_managed_unit(record['manifest'],role)
+        resolved_unit_restart(record,role,row)
+        actual = unit_binding(row)
+        if row['InvocationID']==binding['invocation'] and actual!=binding:
+            raise RuntimeError('Managed unit PID/cgroup identity changed; record retained')
+        record['units'][role]=actual
+    save(path,record)
+    if not record['units']:
+        path.unlink(missing_ok=True);return
+    if 'owner' not in record['units'] or record.get('owner_identity') is None:
+        raise RuntimeError('Owned follower identity was never established; record retained')
+    for role in reversed(unit_tools().ROLES):
+        if role not in record['units']:continue
+        check_unit_record(record)
+        row = read_managed_unit(record['manifest'],role)
+        if unit_binding(row)!=record['units'][role]:
+            raise RuntimeError('Unit identity changed before manager stop; record retained')
+        record['stopping'] = role;save(path,record)
+        requested_us = time.monotonic_ns()//1000
+        run(['systemctl','--user','stop','--job-mode=fail','--',unit_tools().UNITS[role]],timeout=26,capture_output=True,text=True)
+        after = read_managed_unit(record['manifest'],role)
+        if (after['Job']!='0' or after['ActiveState'] not in ('inactive','failed') or after['MainPID']!='0' or
+                int(after['StateChangeTimestampMonotonic'])<requested_us):
+            raise RuntimeError('Unit stop outcome unknown; record retained')
+        del record['units'][role];record.pop('stopping',None);save(path,record)
+    path.unlink(missing_ok=True)
+
+
+def start_units(args,path,record):
+    contract = json.loads(args.contract.read_text())
+    record['expected_owner'] = {key:contract[key] for key in ('arm_id','calibration_sha256','owner_source_sha256')}
+    save(path,record)
+    try:
+        for role in unit_tools().ROLES:
+            check_unit_record(record)
+            before = read_managed_unit(record['manifest'],role)
+            if before!=record['before'][role]:raise RuntimeError('Unit changed after preflight; no start dispatched')
+            pending = {'role':role,'before':before,'requested_us':time.monotonic_ns()//1000}
+            record['pending']=pending
+            if role=='owner':record['owner_requested_monotonic']=pending['requested_us']/1e6
+            save(path,record)
+            run(['systemctl','--user','start','--job-mode=fail','--',unit_tools().UNITS[role]],timeout=32,capture_output=True,text=True)
+            terminal_unit_start(record,role,read_managed_unit(record['manifest'],role),pending)
+            save(path,record)
+            if role=='owner':
+                deadline=time.monotonic()+15.
+                while True:
+                    try:
+                        record['owner_identity']=validate_unit_owner(record,native_rpc(record,'/follower/status'),time.monotonic())
+                        break
+                    except (OSError,ValueError,RuntimeError,subprocess.SubprocessError):
+                        if time.monotonic()>=deadline:raise
+                        time.sleep(.1)
+                save(path,record)
+        native_rpc(record,'/station/ev3/connect')  # One explicit non-motion connect, never retried.
+        fresh_unit_stop(record)
+        record['phase']='running all OFF';save(path,record)
+        print('Managed native user units started; six torque OFF; no motion or physical qualification asserted.')
+    except BaseException as error:
+        record['startup_error']=str(error);save(path,record)
+        try:
+            stop_units(path,record)
+        except BaseException as cleanup_error:
+            record['cleanup_error']=str(cleanup_error);save(path,record)
+        raise
+
+
+def station_launch_parameters(args):
+    """One shared integrated/component recipe; role selection adds no new owner."""
+    return {
+        'station_root': str(ROOT), 'station_config': str(args.config), 'station_python': str(args.python),
+        'state_file': str(args.state_file), 'station_lock': str(args.station_lock), 'log_dir': str(args.log_dir),
+        'joint_limit_contract': str(args.contract), 'calibration_dir': str(args.calibration_dir),
+        'camera_repair_prefix': str(ROOT/'ros2/.cache/realsense-cpu-texture-bounds/install'),
+        'camera_sdk_prefix': str(args.camera_sdk), 'enable_hardware': 'true', 'external_state_only': 'false',
+        'rviz': 'true', 'use_station_api': 'true', 'use_operator_panel_api': 'true',
+        'use_ev3_tunnel': str(not args.existing_tunnel).lower(), 'web_twin_host': '127.0.0.1',
+        'color_mask_backend': args.color_mask_backend,
+    }
+
+
 def start(args, path, lifecycle_lock=None):
     if path.exists():
         raise RuntimeError('Managed station record already exists; inspect it and run stop_station.sh first')
@@ -337,6 +736,7 @@ def start(args, path, lifecycle_lock=None):
     if existing:
         raise RuntimeError('Existing station components must be reused or explicitly shut down:\n'+'\n'.join(existing))
     ros = wrapper(args)
+    prepared_units = prepare_unit_start(args,ros) if getattr(args,'deployment','integrated')=='user-units' else None
     prerequisites(args, ros)
     if args.bootstrap_owner:
         run([str(args.python), str(ROOT/'tools/freeze_ros_joint_limits.py'), '--config', str(args.config),
@@ -344,15 +744,10 @@ def start(args, path, lifecycle_lock=None):
              '--lock', str(args.station_lock), '--log-dir', str(args.log_dir)], timeout=40)
     if not args.contract.is_file():
         raise RuntimeError('Real joint-limit contract missing; explicitly use --bootstrap-owner with no running owner')
+    if prepared_units is not None:
+        return start_units(args,path,prepared_units)
     command = ros+['ros2', 'launch', 'so101_station_bringup', 'station_live.launch.py',
-        f'station_root:={ROOT}', f'station_config:={args.config}', f'station_python:={args.python}',
-        f'state_file:={args.state_file}', f'station_lock:={args.station_lock}', f'log_dir:={args.log_dir}',
-        f'joint_limit_contract:={args.contract}', f'calibration_dir:={args.calibration_dir}',
-        f'camera_repair_prefix:={ROOT}/ros2/.cache/realsense-cpu-texture-bounds/install',
-        f'camera_sdk_prefix:={args.camera_sdk}', 'enable_hardware:=true', 'external_state_only:=false',
-        'rviz:=true', 'use_station_api:=true', 'use_operator_panel_api:=true',
-        f'use_ev3_tunnel:={str(not args.existing_tunnel).lower()}', 'web_twin_host:=127.0.0.1',
-        f'color_mask_backend:={args.color_mask_backend}']
+        *(key+':='+value for key,value in station_launch_parameters(args).items())]
     args.log_dir.mkdir(parents=True, exist_ok=True)
     output = (args.log_dir/'station-launch.log').open('a') if args.background else None
     try:
@@ -407,13 +802,15 @@ def start(args, path, lifecycle_lock=None):
         raise RuntimeError(f'Station launch exited with code {code}; inspect terminal output')
 
 
-def main(argv=None):
+def parse_arguments(argv=None):
     home = Path.home()
     runtime = Path(os.environ.get('XDG_RUNTIME_DIR', '/dev/shm'))/'exciting-science'
     station = home/'.local/share/exciting-science/station'
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['start', 'stop'])
     parser.add_argument('--profile', choices=['local', 'fwmini4'], default='local')
+    parser.add_argument('--deployment',choices=['integrated','user-units'],default='integrated')
+    parser.add_argument('--unit-manifest',type=Path,default=station/'fwmini4-units.json')
     parser.add_argument('--config', type=Path)
     parser.add_argument('--python', type=Path, default=station/'venv/bin/python')
     parser.add_argument('--contract', type=Path, default=station/'joint-limits-current.json')
@@ -438,8 +835,14 @@ def main(argv=None):
     os.environ.setdefault('ROS_DOMAIN_ID', '177' if args.profile == 'fwmini4' else '76')
     os.environ.setdefault('ROS_LOCALHOST_ONLY', '1')
     args.config = (args.config or station/('station-fwmini4-20261022.json' if args.profile == 'fwmini4' else 'station.json')).resolve()
-    for name in ('python', 'contract', 'state_file', 'station_lock', 'log_dir', 'record', 'calibration_dir', 'camera_sdk'):
-        setattr(args, name, getattr(args, name).expanduser().resolve())
+    for name in ('python', 'contract', 'state_file', 'station_lock', 'log_dir', 'record', 'calibration_dir', 'camera_sdk', 'unit_manifest'):
+        value = getattr(args,name).expanduser()
+        setattr(args,name,value.absolute() if name=='python' and args.deployment=='user-units' else value.resolve())
+    return args
+
+
+def main(argv=None):
+    args = parse_arguments(argv)
     args.record.parent.mkdir(parents=True, exist_ok=True)
     with args.record.with_suffix('.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
