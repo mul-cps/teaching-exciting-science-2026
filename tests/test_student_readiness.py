@@ -50,3 +50,11 @@ def test_portable_bundle_all_entries(tmp_path):
     assert "left: 2" in html and "right: 2" in html and "reject: 1" in html
     assert "http://" not in html and "https://" not in html
     assert html.count('class="object"') == 5
+
+
+def test_first_exercise_greeting_and_decision(tmp_path):
+    source = (ROOT / "exercises/01_python.py").read_text()
+    for color, expected in (("red", "Move left"), ("blue", "Move right")):
+        result = subprocess.run([sys.executable, "-S", "-c", source.replace('color = "red"', f'color = "{color}"')],
+                                cwd=tmp_path, capture_output=True, text=True, check=True)
+        assert result.stdout.splitlines() == ["Hello robot 1", "Hello robot 2", "Hello robot 3", expected]
