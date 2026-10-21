@@ -220,6 +220,7 @@ def test_unknown_manager_stop_retains_exact_record_and_never_stops_owner(fake_ma
 def test_legitimate_existing_manager_receipt_allows_restarted_component_cleanup(fake_manager):
     import time
     f=fake_manager;station.start_units(f.args,f.path,f.record)
+    launch_id=f.record['launch_id']
     role='camera';before=dict(f.rows[role]);requested=time.monotonic_ns()//1000
     f.rows[role].update(InvocationID='f'*32,StateChangeTimestampMonotonic=str(requested))
     props=('Id','LoadState','ActiveState','SubState','Job','InvocationID','StateChangeTimestampMonotonic')
@@ -233,6 +234,7 @@ def test_legitimate_existing_manager_receipt_allows_restarted_component_cleanup(
     journal.with_name(journal.name+'.resolved-'+pending['job_id']).write_text(json.dumps(dict(pending=pending,proof=proof)))
     station.stop_record(f.path,f.record)
     assert not f.path.exists()
+    assert f.record['launch_id']==launch_id
 
 
 def test_user_unit_parser_preserves_venv_python_symlink(tmp_path):
@@ -366,3 +368,73 @@ def test_manifest_pins_api_delegate_and_implementation(tmp_path):
         m['sources'][source]='0'*64
         with pytest.raises(ValueError,match='source cohort'):u.validate_manifest(m)
         m=u.build_manifest(args(tmp_path))
+
+
+@pytest.mark.parametrize('identity', ['not-a-uuid', 'A'*32, '00000000000000000000000000000001'])
+@pytest.mark.parametrize('action,flag',[('start','--launch-id'),('stop','--expected-launch-id')])
+def test_native_launch_identity_requires_canonical_uuid(identity,action,flag):
+    with pytest.raises(SystemExit):
+        station.parse_arguments([action,'--profile','fwmini4','--deployment','user-units',flag,identity])
+
+
+@pytest.mark.parametrize('argv', [
+    ['start','--launch-id','00000000-0000-0000-0000-000000000001'],
+    ['start','--profile','fwmini4','--launch-id','00000000-0000-0000-0000-000000000001'],
+    ['stop','--profile','fwmini4','--deployment','user-units','--launch-id','00000000-0000-0000-0000-000000000001'],
+    ['start','--profile','fwmini4','--deployment','user-units','--expected-launch-id','00000000-0000-0000-0000-000000000001'],
+    ['stop','--expected-launch-id','00000000-0000-0000-0000-000000000001'],
+])
+def test_native_launch_identity_flags_require_matching_action_and_deployment(argv):
+    with pytest.raises(SystemExit):station.parse_arguments(argv)
+
+
+def test_desktop_stop_refuses_replaced_launch_before_rpc_and_retains_new_graph(fake_manager,monkeypatch):
+    f=fake_manager;station.start_units(f.args,f.path,f.record)
+    original=f.record['launch_id']
+    replacement='00000000-0000-0000-0000-000000000002'
+    f.record['launch_id']=replacement;station.save(f.path,f.record)
+    before=f.path.read_bytes();f.calls.clear()
+    with pytest.raises(RuntimeError,match='launch identity'):
+        station.main(['stop','--profile','fwmini4','--deployment','user-units',
+                      '--record',str(f.path),'--expected-launch-id',original])
+    assert f.path.read_bytes()==before
+    assert f.calls==[]
+
+
+@pytest.mark.parametrize('missing_record',[False,True])
+def test_expected_launch_identity_fails_closed_when_missing(fake_manager,missing_record):
+    f=fake_manager;f.record.pop('launch_id',None);station.save(f.path,f.record)
+    if missing_record:f.path.unlink()
+    before=f.path.read_bytes() if f.path.exists() else None
+    f.calls.clear()
+    with pytest.raises(RuntimeError,match='launch identity'):
+        station.main(['stop','--profile','fwmini4','--deployment','user-units',
+                      '--record',str(f.path),'--expected-launch-id','00000000-0000-0000-0000-000000000001'])
+    assert (f.path.read_bytes() if f.path.exists() else None)==before
+    assert f.calls==[]
+
+
+def test_matching_launch_identity_uses_existing_native_stop(fake_manager):
+    f=fake_manager;station.start_units(f.args,f.path,f.record)
+    identity=f.record['launch_id'];f.calls.clear()
+    station.main(['stop','--profile','fwmini4','--deployment','user-units',
+                  '--record',str(f.path),'--expected-launch-id',identity])
+    assert not f.path.exists()
+    assert ('rpc','/station/stop') in f.calls
+    assert len([c for c in f.calls if c[:3]==('systemctl','--user','stop')])==8
+
+
+def test_caller_supplied_native_launch_identity_is_persisted_at_creation(fake_manager):
+    f=fake_manager;identity='00000000-0000-0000-0000-000000000001'
+    f.args.launch_id=identity
+    record=station.prepare_unit_start(f.args,[f.manifest['wrapper'],'ros-vulkan'])
+    assert record['launch_id']==identity
+
+
+
+def test_legacy_native_record_without_launch_id_retains_explicit_cli_stop(fake_manager):
+    f=fake_manager;station.start_units(f.args,f.path,f.record)
+    f.record.pop('launch_id');station.save(f.path,f.record)
+    station.main(['stop','--profile','fwmini4','--deployment','user-units','--record',str(f.path)])
+    assert not f.path.exists()
+    assert ('rpc','/station/stop') in f.calls

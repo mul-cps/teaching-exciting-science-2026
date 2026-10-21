@@ -17,6 +17,7 @@ import subprocess
 import sys
 from urllib.parse import quote, urlencode
 import webbrowser
+import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE = Path.home() / '.local/share/exciting-science/workshop-20261022'
@@ -93,7 +94,7 @@ def launch(mode):
                            '--ServerApp.root_dir=' + str(ROOT), str(ROOT / notebook)], clean_env())
 
 
-def station_command():
+def station_command(launch_id=None):
     """Validate transferred identities before invoking the existing resident owner."""
     config = Path.home() / '.local/share/exciting-science/station/station-fwmini4-20261022.json'
     settings = json.loads(config.read_text())
@@ -116,28 +117,32 @@ def station_command():
     repair = ROOT / 'ros2/.cache/realsense-cpu-texture-bounds/install'
     if not repair.is_dir():
         raise SystemExit('Camera runtime repair is missing; run the documented preparation build.')
-    contract = CONTRACT
-    if not contract.is_file():
-        raise SystemExit('Fresh joint-limit contract missing. Follow the instructor passive bootstrap in docs/fwmini4-workshop.md before starting.')
-    return [str(Path.home() / '.local/bin/station-fwmini4'), 'ros-vulkan',
-            'ros2', 'launch', 'so101_station_bringup', 'station_live.launch.py',
-            'station_root:=' + str(ROOT), 'station_config:=' + str(config),
-            'station_python:=' + str(Path.home() / '.local/share/exciting-science/station/venv/bin/python'),
-            'calibration_dir:=' + str(leader.parent),
-            'joint_limit_contract:=' + str(contract),
-            'state_file:=' + str(RUNTIME / 'arm-state.json'),
-            'station_lock:=' + str(STATION_LOCK),
-            'log_dir:=' + str(RUNTIME / 'arm-owner-logs'),
-            'camera_repair_prefix:=' + str(repair),
-            'camera_sdk_prefix:=' + str(Path.home() / 'miniforge3/envs/so101-jazzy'),
-            'enable_hardware:=true', 'external_state_only:=false', 'rviz:=true',
-            'use_ev3_tunnel:=false', 'web_twin_host:=127.0.0.1',
-            'color_mask_backend:=vulkan']
+    station_manifest(config)
+    return [sys.executable, str(ROOT / 'tools/station_process.py'), 'start',
+            '--profile', 'fwmini4', '--deployment', 'user-units',
+            '--color-mask-backend', 'vulkan', '--bootstrap-owner',
+            *(['--launch-id', launch_id] if launch_id is not None else [])]
+
+
+def station_manifest(config=None):
+    """Use the installed, source-pinned native recipe; never guess component units."""
+    try:
+        from tools import install_station_user_units as units
+    except ModuleNotFoundError:
+        import install_station_user_units as units
+    manifest = units.load_manifest(Path.home() / '.local/share/exciting-science/station/fwmini4-units.json')
+    expected = config or Path.home() / '.local/share/exciting-science/station/station-fwmini4-20261022.json'
+    if manifest['root'] != str(ROOT) or manifest['parameters']['station_config'] != str(expected):
+        raise ValueError('Native unit manifest does not match this workshop checkout/configuration.')
+    return units, manifest
 
 
 def start_station():
     try:
-        command = station_command()
+        launch_id = str(uuid.uuid4())
+        command = station_command(launch_id)
+        units, manifest = station_manifest()
+        rviz_command = units.component_command(manifest, 'rviz')
     except (SystemExit, OSError, ValueError, KeyError) as error:
         print(str(error), file=sys.stderr, flush=True)
         if sys.stdin.isatty():
@@ -153,17 +158,36 @@ def start_station():
             if sys.stdin.isatty():
                 input('Press Enter to close. ')
             raise SystemExit(1)
-        print('Starting one existing resident follower owner, read-only leader, camera and RViz. Teleoperation requires separate enable.', flush=True)
-        # The existing wrapper owns clean Conda activation and GPU paths.
-        try:
-            result = subprocess.run(command, check=False)
-        except KeyboardInterrupt:
-            return
+        print('Starting reviewed native station services with passive limits bootstrap. Teleoperation requires separate enable.', flush=True)
+        # A failed start owns its own rollback. Never stop a pre-existing station.
+        result = subprocess.run(command, check=False)
         if result.returncode:
-            print(f'Station exited with status {result.returncode}. Inspect the terminal output.', file=sys.stderr)
-            if sys.stdin.isatty():
-                input('Press Enter to close. ')
+            print(f'Station startup failed with status {result.returncode}. Inspect the terminal output.', file=sys.stderr)
             raise SystemExit(result.returncode)
+        rviz_code = 0
+        stop_code = 0
+        try:
+            rviz_code = subprocess.run(rviz_command, check=False).returncode
+        except KeyboardInterrupt:
+            rviz_code = 130
+        except OSError as error:
+            print(f'RViz could not start: {error}', file=sys.stderr)
+            rviz_code = 1
+        finally:
+            # Closing RViz must use the same correlated STOP/owner checks as CLI shutdown.
+            stop_command = [sys.executable, str(ROOT / 'tools/station_process.py'), 'stop',
+                            '--profile', 'fwmini4', '--deployment', 'user-units',
+                            '--expected-launch-id', launch_id]
+            try:
+                stop_code = subprocess.run(stop_command, check=False).returncode
+            except (OSError, KeyboardInterrupt) as error:
+                print(f'Station shutdown could not complete: {error}', file=sys.stderr)
+                stop_code = 1
+            if stop_code:
+                print(f'Station shutdown failed with status {stop_code}; retain the managed record and inspect STOP/recovery diagnostics.', file=sys.stderr)
+        if rviz_code or stop_code:
+            print(f'RViz exited with status {rviz_code}; station shutdown status {stop_code}.', file=sys.stderr)
+            raise SystemExit(stop_code or rviz_code)
 
 
 

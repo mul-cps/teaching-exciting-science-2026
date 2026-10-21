@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -443,7 +444,8 @@ def prepare_unit_start(args,ros):
     before = {role:read_managed_unit(manifest,role) for role in tools.ROLES}
     if any(row['Job']!='0' or row['ActiveState'] not in ('inactive','failed') or row['MainPID']!='0' for row in before.values()):
         raise RuntimeError('Existing component invocation/job; no unit or bootstrap dispatched')
-    return {'deployment':'user-units','manifest':manifest,'manifest_sha256':tools.digest(manifest),
+    return {'deployment':'user-units','launch_id':getattr(args,'launch_id',None) or str(uuid.uuid4()),
+            'manifest':manifest,'manifest_sha256':tools.digest(manifest),
             'manager':manager,'before':before,'units':{},'pending':None,'owner_identity':None,
             'ros':ros,'environment':{'ROS_DOMAIN_ID':'177','ROS_LOCALHOST_ONLY':'1'},'phase':'prepared'}
 
@@ -812,6 +814,8 @@ def parse_arguments(argv=None):
     parser.add_argument('--profile', choices=['local', 'fwmini4'], default='local')
     parser.add_argument('--deployment',choices=['integrated','user-units'],default='integrated')
     parser.add_argument('--unit-manifest',type=Path,default=station/'fwmini4-units.json')
+    parser.add_argument('--launch-id',help='Canonical UUID for this explicitly owned native startup')
+    parser.add_argument('--expected-launch-id',help='Stop only this exact native launch UUID')
     parser.add_argument('--config', type=Path)
     parser.add_argument('--python', type=Path, default=station/'venv/bin/python')
     parser.add_argument('--contract', type=Path, default=station/'joint-limits-current.json')
@@ -829,6 +833,17 @@ def parse_arguments(argv=None):
     parser.add_argument('--existing-tunnel', action='store_true', help='Reuse an already established EV3 SSH tunnel')
     parser.add_argument('--background', action='store_true', help='Write launch logs and return after startup')
     args = parser.parse_args(argv)
+    for name,action in (('launch_id','start'),('expected_launch_id','stop')):
+        value=getattr(args,name)
+        if value is None:continue
+        if args.action!=action or args.profile!='fwmini4' or args.deployment!='user-units':
+            parser.error('--'+name.replace('_','-')+' requires native fwmini4 '+action)
+        try:
+            canonical=str(uuid.UUID(value))
+        except ValueError:
+            parser.error('--'+name.replace('_','-')+' must be a canonical UUID')
+        if canonical!=value:
+            parser.error('--'+name.replace('_','-')+' must be a canonical UUID')
     if args.domain is not None:
         if not 1 <= args.domain <= 232:
             parser.error('--domain must be 1..232')
@@ -849,9 +864,15 @@ def main(argv=None):
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.action == 'stop':
             if not args.record.exists():
+                if args.expected_launch_id is not None:
+                    raise RuntimeError('Expected native launch identity is absent; no commands or signals sent.')
                 print('No managed launch record; no commands or signals sent.')
                 return
-            stop_record(args.record, json.loads(args.record.read_text()))
+            record=json.loads(args.record.read_text())
+            if args.expected_launch_id is not None and (
+                    record.get('deployment')!='user-units' or record.get('launch_id')!=args.expected_launch_id):
+                raise RuntimeError('Managed native launch identity changed or is missing; record retained; no commands or signals sent.')
+            stop_record(args.record, record)
         else:
             start(args, args.record, lifecycle_lock=lock)
 

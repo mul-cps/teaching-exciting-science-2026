@@ -10,7 +10,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 spec = importlib.util.spec_from_file_location('prepare_workshop_pc', Path(__file__).resolve().parents[1] / 'tools/prepare_workshop_pc.py')
 module = importlib.util.module_from_spec(spec)
@@ -53,18 +53,137 @@ class LauncherTests(unittest.TestCase):
                 module.station_command()
             state = home / 'workshop-runtime'
             state.mkdir()
-            with patch.object(Path, 'home', return_value=home), patch.object(module, 'CONTRACT', state / 'joint-limit-contract.json'), patch.object(module, 'RUNTIME', state), patch.object(module, 'STATION_LOCK', state / 'arm-session.lock'), patch.object(Path, 'exists', return_value=True), patch.object(Path, 'is_dir', return_value=True):
-                with self.assertRaisesRegex(SystemExit, 'Fresh joint-limit contract missing'):
-                    module.station_command()
-                (state / 'joint-limit-contract.json').write_text('{}')
+            with patch.object(Path, 'home', return_value=home), patch.object(module, 'CONTRACT', state / 'joint-limit-contract.json'), patch.object(Path, 'exists', return_value=True), patch.object(Path, 'is_dir', return_value=True), patch.object(module, 'station_manifest') as validate:
                 command = module.station_command()
-                self.assertIn('joint_limit_contract:=' + str(state / 'joint-limit-contract.json'), command)
-                self.assertIn('state_file:=' + str(state / 'arm-state.json'), command)
-                self.assertIn('station_lock:=' + str(state / 'arm-session.lock'), command)
-                self.assertIn('log_dir:=' + str(state / 'arm-owner-logs'), command)
+                self.assertFalse((state / 'joint-limit-contract.json').is_file())
+                self.assertEqual(command, [sys.executable, str(module.ROOT / 'tools/station_process.py'),
+                                          'start', '--profile', 'fwmini4', '--deployment', 'user-units',
+                                          '--color-mask-backend', 'vulkan', '--bootstrap-owner'])
+                validate.assert_called_once_with(home / '.local/share/exciting-science/station/station-fwmini4-20261022.json')
+                self.assertEqual(module.station_command('00000000-0000-0000-0000-000000000001')[-2:],
+                                 ['--launch-id', '00000000-0000-0000-0000-000000000001'])
+
+    def test_station_identity_and_camera_repair_guards_remain_required(self):
+        for guard in ('calibration', 'home', 'leader', 'camera'):
+            with self.subTest(guard=guard), tempfile.TemporaryDirectory() as temporary:
+                home = Path(temporary)
+                state = home / '.local/share/exciting-science/station'
+                state.mkdir(parents=True)
+                calibration = state / 'follower.json'
+                calibration.write_text('{}')
+                digest = hashlib.sha256(calibration.read_bytes()).hexdigest()
+                identity = {'serial': 'TEST_FOLLOWER'}
+                measured_home = state / 'home.json'
+                measured_home.write_text(json.dumps({'calibration_sha256': digest, 'usb_identity': identity}))
+                config = {'arm': {'calibration': {'path': str(calibration), 'sha256': digest}, 'home_file': str(measured_home), 'usb': identity}}
+                (state / 'station-fwmini4-20261022.json').write_text(json.dumps(config))
+                leader = home / 'git/soarm101-highschool-demos/.calibration/hs_rig01_leader.json'
+                leader.parent.mkdir(parents=True)
+                leader.write_text('{}')
+                expected = {'calibration': 'calibration hash mismatch', 'home': 'home identity mismatch',
+                            'leader': 'leader calibration missing', 'camera': 'Camera runtime repair is missing'}[guard]
+                if guard == 'calibration': calibration.write_text('{"changed": true}')
+                if guard == 'home': measured_home.write_text(json.dumps({'calibration_sha256': digest, 'usb_identity': {'serial': 'OTHER'}}))
+                if guard == 'leader': leader.unlink()
+                with patch.object(Path, 'home', return_value=home), patch.object(Path, 'exists', return_value=True), patch.object(Path, 'is_dir', return_value=False), patch.object(module, 'station_manifest') as validate, self.assertRaisesRegex(SystemExit, expected):
+                    module.station_command()
+                validate.assert_not_called()
+
+    def test_station_preflight_only_prints_validated_command(self):
+        command = ['native-start', '--bootstrap-owner']
+        with patch.object(module.sys, 'argv', ['prepare_workshop_pc.py', 'station-preflight']), patch.object(module, 'station_command', return_value=command), patch.object(module.subprocess, 'run') as run, patch('builtins.print') as output:
+            module.main()
+        run.assert_not_called()
+        output.assert_called_once_with('native-start --bootstrap-owner')
+
+    def test_frontend_lock_is_held_through_start_rviz_and_stop(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = Path(temporary)
+            phases = []
+            def checked_run(command, **kwargs):
+                with (state / 'station-launch.lock').open('a') as other:
+                    with self.assertRaises(BlockingIOError):
+                        module.fcntl.flock(other, module.fcntl.LOCK_EX | module.fcntl.LOCK_NB)
+                phases.append(command)
+                return Mock(returncode=0)
+            units = Mock()
+            units.component_command.return_value = ['rviz-only']
+            with patch.object(module, 'STATE', state), patch.object(module, 'station_command', return_value=['native-start']), patch.object(module, 'station_manifest', return_value=(units, {})), patch.object(module.subprocess, 'run', side_effect=checked_run):
+                module.start_station()
+            self.assertEqual(len(phases), 3)
+
+    def test_manifest_is_loaded_with_existing_source_identity_validator(self):
+        manifest = {'root': str(module.ROOT), 'parameters': {'station_config': str(Path.home() / '.local/share/exciting-science/station/station-fwmini4-20261022.json')}}
+        with patch('tools.install_station_user_units.load_manifest', return_value=manifest) as load:
+            units, result = module.station_manifest()
+            self.assertIs(result, manifest)
+            self.assertTrue(callable(units.component_command))
+            load.assert_called_once_with(Path.home() / '.local/share/exciting-science/station/fwmini4-units.json')
+            manifest['root'] = '/another/checkout'
+            with self.assertRaisesRegex(ValueError, 'checkout/configuration'):
+                module.station_manifest()
+            manifest['root'] = str(module.ROOT)
+            manifest['parameters']['station_config'] = '/another/station.json'
+            with self.assertRaisesRegex(ValueError, 'checkout/configuration'):
+                module.station_manifest()
+
+    def test_missing_or_stale_manifest_prevents_start(self):
+        for error in (FileNotFoundError('missing recipe'), ValueError('source cohort changed')):
+            with self.subTest(error=error), patch.object(module, 'station_command', return_value=['native-start']), patch.object(module, 'station_manifest', side_effect=error), patch.object(module.subprocess, 'run') as run, patch.object(module.sys.stdin, 'isatty', return_value=False), self.assertRaises(SystemExit):
+                module.start_station()
+            run.assert_not_called()
+
+    def station_lifecycle(self, outcomes):
+        units = Mock()
+        units.component_command.return_value = ['reviewed-wrapper', 'component:=rviz']
+        manifest = {'reviewed': True}
+        with patch.object(module.uuid, 'uuid4', return_value='00000000-0000-0000-0000-000000000001'), tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module, 'station_command', return_value=['native-start']) as start_command, patch.object(module, 'station_manifest', return_value=(units, manifest)), patch.object(module.subprocess, 'run', side_effect=outcomes) as run, patch.object(module.sys.stdin, 'isatty', return_value=False):
+            error = None
+            try:
+                module.start_station()
+            except SystemExit as caught:
+                error = caught.code
+            start_command.assert_called_once_with('00000000-0000-0000-0000-000000000001')
+            units.component_command.assert_called_once_with(manifest, 'rviz')
+            return error, [call.args[0] for call in run.call_args_list]
+
+    def test_successful_native_start_runs_only_rviz_then_managed_stop(self):
+        code, commands = self.station_lifecycle([Mock(returncode=0), Mock(returncode=0), Mock(returncode=0)])
+        self.assertIsNone(code)
+        self.assertEqual(commands, [['native-start'], ['reviewed-wrapper', 'component:=rviz'],
+                                   [sys.executable, str(module.ROOT / 'tools/station_process.py'), 'stop',
+                                    '--profile', 'fwmini4', '--deployment', 'user-units',
+                                    '--expected-launch-id', '00000000-0000-0000-0000-000000000001']])
+
+    def test_failed_start_never_stops_preexisting_station_or_launches_rviz(self):
+        code, commands = self.station_lifecycle([Mock(returncode=2)])
+        self.assertEqual(code, 2)
+        self.assertEqual(commands, [['native-start']])
+
+    def test_start_exception_or_interrupt_never_cleans_up_another_station(self):
+        for error in (OSError('start unavailable'), KeyboardInterrupt()):
+            with self.subTest(error=error), tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module, 'station_command', return_value=['native-start']), patch.object(module, 'station_manifest', return_value=(Mock(), {})), patch.object(module.subprocess, 'run', side_effect=error) as run, self.assertRaises(type(error)):
+                module.start_station()
+            run.assert_called_once_with(['native-start'], check=False)
+
+    def test_rviz_failure_and_interrupt_still_use_managed_stop(self):
+        for outcome, expected in ((Mock(returncode=3), 3), (FileNotFoundError('rviz unavailable'), 1), (KeyboardInterrupt(), 130)):
+            with self.subTest(outcome=outcome):
+                code, commands = self.station_lifecycle([Mock(returncode=0), outcome, Mock(returncode=0)])
+                self.assertEqual(code, expected)
+                self.assertEqual(commands[-1][2], 'stop')
+                self.assertEqual(len(commands), 3)
+
+    def test_failed_stop_surfaces_and_does_not_delete_managed_record(self):
+        for outcome in (Mock(returncode=2), OSError('stop unavailable')):
+            with self.subTest(outcome=outcome), patch.object(Path, 'unlink') as unlink:
+                code, commands = self.station_lifecycle([Mock(returncode=0), Mock(returncode=0), outcome])
+                self.assertNotEqual(code, 0)
+                self.assertEqual(commands[-1][2], 'stop')
+                unlink.assert_not_called()
 
     def test_duplicate_station_button_cannot_start_another_graph(self):
-        with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module, 'station_command', return_value=['existing-wrapper']), patch.object(module.fcntl, 'flock', side_effect=BlockingIOError), patch.object(module.subprocess, 'run') as run, patch.object(module.sys.stdin, 'isatty', return_value=False), self.assertRaises(SystemExit):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module, 'station_command', return_value=['existing-wrapper']), patch.object(module, 'station_manifest', return_value=(Mock(), {})), patch.object(module.fcntl, 'flock', side_effect=BlockingIOError), patch.object(module.subprocess, 'run') as run, patch.object(module.sys.stdin, 'isatty', return_value=False), self.assertRaises(SystemExit):
             module.start_station()
         run.assert_not_called()
 
