@@ -98,7 +98,8 @@ class SceneUpdater(Node):
             "max_objects": 24,
             "min_object_extent_m": 0.002,
             "max_object_extent_m": 0.30,
-            "object_padding_m": 0.006,
+            "object_padding_m": 0.002,
+            "stabilize_static_objects": True,
             "frames_qualified": False,
             "board_collision_enabled": True,
             "board_size_m": [0.175, 0.125, 0.004],
@@ -123,7 +124,8 @@ class SceneUpdater(Node):
             min_extent_m=float(get("min_object_extent_m")),
             max_extent_m=float(get("max_object_extent_m")),
             padding_m=float(get("object_padding_m")),
-            max_objects=self.max_objects)
+            max_objects=self.max_objects,
+            stabilize_static_objects=bool(get("stabilize_static_objects")))
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.scene_client = self.create_client(ApplyPlanningScene, str(get("apply_service")))
@@ -224,7 +226,8 @@ class SceneUpdater(Node):
             self._apply(changed)
         self._status("updated" if changed else "empty", stamp=stamp_s,
                      accepted=len(changed), rejected=dropped,
-                     dimensions="provisional; padded boxes",
+                     dimensions="provisional; padded boxes; full object volume unqualified",
+                     estimate="bounded static pose" if self.registry.stabilize_static_objects else "raw pose",
                      frames_qualified=self.frames_qualified)
 
     def _static_geometry(self):

@@ -6,9 +6,26 @@ tracks into incremental MoveIt world-object updates. It subscribes to
 its stamped source frame into `base_link` using TF at the detection timestamp.
 Zero, stale, future, unframed, or untransformable observations are rejected.
 Boxes require stable detection IDs, finite dimensions between 2 mm and 300 mm,
-and receive 6 mm padding on each side because the current extents are
-provisional. Tracked IDs become `colorbrick_<escaped-id>` and expire after
+and receive a provisional 2 mm padding on each side. This margin does not
+qualify the measured box as the full physical object volume. Tracked IDs become `colorbrick_<escaped-id>` and expire after
 750 ms without an update.
+
+`stabilize_static_objects` defaults to true in the ROS node and its YAML.
+The scene estimate holds small position/orientation jitter, while raw detections,
+tracker velocities, IDs and observation timestamps remain available unchanged.
+The library constructor keeps stabilization disabled by default. Each ID retains
+at most three fresh observations. A residual over 5 mm releases the position
+hold immediately; two coherent residuals over 3 mm also release it. Three
+consistent fresh samples resume the hold. Exact cuboid axis symmetries are
+normalized together with their corresponding dimensions.
+
+Every estimated collision box contains all eight corners of the current raw
+measured box plus its 2 mm padding, including when the pose is held. Extents grow
+immediately and shrink only after three fresh samples. Near-square orientation
+noise can therefore enlarge the collision envelope. New IDs, stale gaps,
+expiry and attachment transitions reset the estimate history. Stabilization
+does not extend the 750 ms observation TTL or qualify grasp geometry. Status
+labels the estimate scope and the unqualified full object volume explicitly.
 
 The node calls `/follower/apply_planning_scene` with `PlanningScene.is_diff`
 set. It only adds, updates, or removes the IDs it owns; it never replaces the

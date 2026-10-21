@@ -1,6 +1,8 @@
 """ROS-independent geometry and ownership rules for live scene updates."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from collections import deque
+from itertools import permutations, product
 import math
 from urllib.parse import quote
 
@@ -144,11 +146,75 @@ def table_patches_around_keepout(center_xy_m, size_xy_m, keepout_center_xy_m,
             if patch[2] >= minimum and patch[3] >= minimum]
 
 
+# Cuboids have 24 equivalent proper axis representations. Construct once, not
+# for every observation. A column permutation also permutes the dimensions.
+_CUBOID_SYMMETRIES = np.stack([
+    np.eye(3)[:, axes] * signs
+    for axes in permutations(range(3))
+    for signs in product((-1, 1), repeat=3)
+    if np.linalg.det(np.eye(3)[:, axes] * signs) > 0.5
+])
+
+
+@dataclass
+class _StaticBoxEstimate:
+    center: np.ndarray
+    rotation: np.ndarray
+    centers: deque = field(default_factory=lambda: deque(maxlen=3))
+    extents: deque = field(default_factory=lambda: deque(maxlen=3))
+    moving: bool = False
+    previous_residual: np.ndarray | None = None
+
+    def observe(self, center, rotation, size, padding, *, fresh):
+        # Normalize only exact cuboid symmetry, with matching dimensions.
+        candidates = rotation @ _CUBOID_SYMMETRIES
+        scores = np.einsum("ij,kij->k", self.rotation, candidates)
+        choice = int(np.argmax(scores))
+        normalized = candidates[choice]
+        normalized_size = np.abs(_CUBOID_SYMMETRIES[choice]).T @ size
+        residual = center - self.center
+        distance = float(np.linalg.norm(residual))
+        previous = self.previous_residual
+        coherent = (previous is not None and distance > .003
+                    and np.linalg.norm(previous) > .003
+                    and np.dot(previous, residual) > .7 * np.linalg.norm(previous) * distance)
+        if distance > .005 or abs(residual[2]) > .005 or (fresh and coherent):
+            self.moving = True
+        if fresh:
+            self.centers.append(center)
+            self.previous_residual = residual
+        if self.moving:
+            # Real movement is never damped. Only resume a hold after three
+            # fresh, mutually consistent samples, including the current one.
+            self.center = center
+            self.rotation = normalized
+            if fresh and len(self.centers) == 3:
+                samples = np.asarray(self.centers)
+                spread = np.linalg.norm(samples[:, None] - samples[None, :], axis=2)
+                if float(np.max(spread)) <= .003:
+                    self.center = np.median(samples, axis=0)
+                    self.moving = False
+                    self.previous_residual = None
+        # Support-function envelope contains every corner of the CURRENT raw
+        # padded OBB even when the estimated pose is held. Grow immediately;
+        # retain the last three fresh requirements before allowing shrinkage.
+        half = normalized_size / 2 + padding
+        required = 2 * (np.abs(self.rotation.T @ (center - self.center))
+                        + np.abs(self.rotation.T @ normalized) @ half)
+        if fresh:
+            self.extents.append(required)
+        extent = np.maximum(required, np.max(self.extents, axis=0))
+        return (tuple(float(v) for v in self.center),
+                tuple(float(v) for v in extent),
+                matrix_quaternion_xyzw(self.rotation))
+
+
 class LiveObjectRegistry:
     """Bounded TTL registry; it can only expire its own colorbrick IDs."""
 
     def __init__(self, *, ttl_s: float, min_extent_m: float, max_extent_m: float,
-                 padding_m: float = 0.0, max_objects: int = 32):
+                 padding_m: float = 0.0, max_objects: int = 32,
+                 stabilize_static_objects: bool = False):
         if not math.isfinite(ttl_s) or ttl_s <= 0:
             raise ValueError("track TTL must be finite and positive")
         if not math.isfinite(padding_m) or padding_m < 0:
@@ -160,6 +226,8 @@ class LiveObjectRegistry:
         self.max_extent_m = float(max_extent_m)
         self.padding_m = float(padding_m)
         self.max_objects = int(max_objects)
+        self.stabilize_static_objects = bool(stabilize_static_objects)
+        self._estimates: dict[str, _StaticBoxEstimate] = {}
         self._objects: dict[str, TrackedBox] = {}
         self._attached: dict[str, dict] = {}
 
@@ -177,10 +245,21 @@ class LiveObjectRegistry:
         if not math.isfinite(now_mono_s):
             raise ValueError("monotonic receipt time must be finite")
         quat = tuple(float(v) for v in orientation_xyzw)
-        quaternion_matrix_xyzw(quat)
+        rotation = quaternion_matrix_xyzw(quat)
         if key not in self._objects and len(self._objects) >= self.max_objects:
             raise ValueError("tracked-object limit reached")
         padded_size = tuple(v + 2 * self.padding_m for v in size)
+        if self.stabilize_static_objects:
+            old = self._objects.get(key)
+            if old is None or now_mono_s - old.last_seen_mono_s >= self.ttl_s:
+                self._estimates.pop(key, None)
+            estimate = self._estimates.get(key)
+            if estimate is None:
+                estimate = _StaticBoxEstimate(np.asarray(center), rotation)
+                self._estimates[key] = estimate
+            center, padded_size, quat = estimate.observe(
+                np.asarray(center), rotation, np.asarray(size), self.padding_m,
+                fresh=not estimate.extents or old is None or now_mono_s > old.last_seen_mono_s)
         item = TrackedBox(key, center, padded_size, quat, float(now_mono_s))
         self._objects[key] = item
         return item
@@ -192,6 +271,7 @@ class LiveObjectRegistry:
                    if key not in self._attached and now_mono_s - item.last_seen_mono_s >= self.ttl_s]
         for key in expired:
             del self._objects[key]
+            self._estimates.pop(key, None)
         return sorted(expired)
 
     def lock(self, track_id):
@@ -200,6 +280,7 @@ class LiveObjectRegistry:
         if key not in self._objects or key in self._attached:
             raise ValueError("lock requires an available live tracked object")
         item = self._objects[key]
+        self._estimates.pop(key, None)
         self._attached[key] = {"track_id": track_id, "phase": "locked",
                                "world_position": item.center_m}
         return item
@@ -225,6 +306,7 @@ class LiveObjectRegistry:
                 math.isfinite(v) for v in (*center, *orientation)):
             raise ValueError("link_pose must contain finite XYZ and XYZW values")
         quaternion_matrix_xyzw(orientation)
+        self._estimates.pop(key, None)
         self._attached[key] = {"track_id": track_id, "phase": "attached", "link_name": link_name,
                                "touch_links": tuple(touch_links), "link_pose": pose}
         return self._objects[key]
@@ -245,6 +327,7 @@ class LiveObjectRegistry:
             replacement = TrackedBox(key, center, old.size_m, orientation,
                                      float(now_mono_s if now_mono_s is not None else old.last_seen_mono_s))
         del self._attached[key]
+        self._estimates.pop(key, None)
         if replacement is not None:
             self._objects[key] = replacement
         return key
