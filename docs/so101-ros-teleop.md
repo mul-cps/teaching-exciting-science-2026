@@ -13,9 +13,8 @@ The launch starts the follower bus owner only once, through `trajectory_server`,
 and the leader publisher only reads the calibrated leader. The combined launch
 defaults `enable_hardware` to `false`; pass `true` explicitly to start the
 follower hardware owner. It does not enable teleoperation on startup. Wait for
-the follower owner and leader reader readiness messages, make sure the
-measured follower pose is within the saved `measured-home.json` pose and its
-station-configured tolerance (currently 2 degrees/percent), then explicitly
+the follower owner and leader reader readiness messages. Complete one successful
+measured `/follower/home` operation for each new follower owner, then explicitly
 arm teleoperation:
 
 ```bash
@@ -46,11 +45,14 @@ disable first and then stop the ROS launch with Ctrl-C:
 ros2 service call /follower/teleop_enable std_srvs/srv/SetBool "{data: false}"
 ```
 
-Teleoperation enable checks the fresh owner identity, calibration hash, and all
-six measured pose values against the saved home. If the follower is outside
-tolerance, the service refuses to start and instructs the operator to call
-`/follower/home` or align the arm manually before trying again. Home remains a
-separate explicit request; enabling teleoperation never initiates a home move.
+Teleoperation enable requires successful measured-home completion once per owner,
+a fresh validated current six-joint pose, matching owner/calibration/source
+identity, a fresh calibrated leader and a matched starting reference. After that
+home completion, subsequent MoveIt ↔ Leader switches capture the current measured
+pose and leader reference without returning to home. Restarting the follower
+owner requires a new successful measured-home operation; manual alignment alone
+does not establish that provenance. Home remains a separate explicit request;
+enabling teleoperation never initiates a home move.
 
 For a publisher-only start, use `leader_teleop.launch.py`; it never opens or
 starts the follower owner. The same four leader arguments and station Python
@@ -162,7 +164,7 @@ Teleop sends each fresh mapped position directly, clamped to the admitted joint
 position bounds. It has no software velocity slew cap. The teleop-only native
 profile sets `Goal_Velocity=0` (position-mode hardware maximum), keeps
 `Acceleration=8`, and retains the existing torque limits. The initial goal still
-holds the measured home position before torque is enabled. Home, MoveIt, and
+holds the fresh measured current position before torque is enabled. Home, MoveIt, and
 other planned moves reinstall their original bounded native profile; teleop
 does not change their velocity, acceleration, or jerk checks. Shutdown restores
 the saved RAM registers.
@@ -183,5 +185,6 @@ calibration handshake and read-only disconnect. A missing device or reader error
 keeps the publisher alive and retries with 0.5, 1, 2, 4, then at most 8 seconds
 between attempts. A fresh validated stream resets that delay. Each replacement
 discards the previous reader's cached pose; stale data never becomes fresh just
-because a process restarted. Inspect follower status `teleop_leader_ready` and
-its reason before enabling teleoperation.
+because a process restarted. Inspect follower status `teleop_start_ready` and
+`teleop_start_reason` before enabling teleoperation; `teleop_leader_ready` and
+its reason report the leader-stream prerequisite separately.
