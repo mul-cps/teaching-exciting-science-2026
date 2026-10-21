@@ -119,13 +119,17 @@ def _launch_nodes(context):
     parameters = moveit_config.to_dict()
     parameters["moveit_controller_manager"] = "moveit_simple_controller_manager/MoveItSimpleControllerManager"
     parameters["moveit_simple_controller_manager"] = {
-        "controller_names": ["arm_trajectory_controller"],
+        "controller_names": ["arm_trajectory_controller", "moveit_gripper_controller"],
         "arm_trajectory_controller": {
             "type": "FollowJointTrajectory",
             "action_ns": "follow_joint_trajectory",
             "default": True,
             "joints": ARM_JOINTS,
         },
+    }
+    parameters["moveit_simple_controller_manager"]["moveit_gripper_controller"] = {
+        "type": "GripperCommand", "action_ns": "gripper_cmd", "default": True,
+        "joints": ["gripper"], "command_joint": "gripper", "allow_failure": False,
     }
     parameters["moveit_manage_controllers"] = False
     # Include bounded bridge preflight and at most 4x controller retiming.
@@ -154,6 +158,10 @@ def _launch_nodes(context):
         "recovery_camera_info_topic": LaunchConfiguration("recovery_camera_info_topic"),
         "gripper_action_name": LaunchConfiguration("gripper_action_name"),
         "gripper_jaw_calibration": LaunchConfiguration("gripper_jaw_calibration"),
+        "gripper_joint_calibration": LaunchConfiguration("gripper_joint_calibration"),
+        "gripper_joint_limits_rad": [float(ET.fromstring(
+            moveit_config.robot_description["robot_description"]).find("joint[@name='gripper']/limit").get(k))
+            for k in ("lower", "upper")],
         "state_validity_service": LaunchConfiguration("state_validity_service"),
         "planning_group": LaunchConfiguration("planning_group"),
         "collision_check_timeout_s": LaunchConfiguration("collision_check_timeout_s"),
@@ -235,6 +243,8 @@ def generate_launch_description():
                               description="GripperCommand action exposed by the resident bridge"),
         DeclareLaunchArgument("gripper_jaw_calibration", default_value="",
                               description="Path to qualified so101-jaw-gap-calibration-v1 JSON"),
+        DeclareLaunchArgument("gripper_joint_calibration", default_value="",
+                              description="Qualified identity-matched so101-gripper-joint-calibration-v1 JSON; radians, never gap metres"),
         DeclareLaunchArgument("state_validity_service", default_value="/follower/check_state_validity",
                               description="MoveIt state-validity service used to check the exact effective path"),
         DeclareLaunchArgument("planning_group", default_value="manipulator",

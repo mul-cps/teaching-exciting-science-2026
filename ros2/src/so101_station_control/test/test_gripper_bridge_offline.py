@@ -66,7 +66,7 @@ def _start_action_bridge(monkeypatch, tmp_path, send_to_owner, *, session=None):
     state_file = tmp_path / "owner-state.json"
     state_file.write_text(json.dumps(_sample_state()))
 
-    def start_fake_owner(bridge):
+    def start_fake_owner(bridge, *, observe_only=False):
         bridge._state_file = state_file
         bridge._process = _FakeProcess()
         bridge._owner_started = time.monotonic()

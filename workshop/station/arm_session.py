@@ -1094,8 +1094,12 @@ class ArmSession(NativeDampingMixin):
             if joint not in active and abs(actual[joint] - start[joint]) > 40:
                 raise RuntimeError("inactive joint drift exceeds 40 counts: " + joint)
 
+    def _guard_gripper_body(self, actual, body_anchor):
+        if body_anchor is not None and any(abs(actual[j]-body_anchor[j]) > 2 for j in JOINTS[:-1]):
+            raise RuntimeError("collision-checked gripper held body drift exceeds 2 counts")
+
     def _run_leg(self, label, target, start, *, allow_sag=False, phase="move_plan",
-                 grasp=False, hold_on_contact=False):
+                 grasp=False, hold_on_contact=False, body_anchor=None):
         self._poll_busy_input()
         recovery = self._validate_transition(start, target, label, allow_sag=allow_sag)
         active = {joint for joint in JOINTS if target[joint] != start[joint]}
@@ -1149,6 +1153,7 @@ class ArmSession(NativeDampingMixin):
                           missed_ticks_total=missed_total,
                           position_read_duration_s=max(0.0, position_monotonic - read_started))
             poll_control(timing)
+            self._guard_gripper_body(actual, body_anchor)
             self._guard_actual(actual, previous, start, active, recovery, started)
             goal_read_started = self.clock()
             goals = self._read("Goal_Position")
@@ -1187,10 +1192,10 @@ class ArmSession(NativeDampingMixin):
                     # A jaw-only command must stop pressing toward the next
                     # chunk as soon as contact is inferred. Generic plans
                     # retain their existing grasp/hold semantics.
-                    held = self.cancel_hold()
-                    commanded = dict(held["raw"])
+                    held = self.cancel_hold(body_anchor=body_anchor)
+                    commanded = dict(held["raw"], **(body_anchor or {}))
                 settled = True
-            elif now >= next_trim:
+            elif body_anchor is None and now >= next_trim:
                 revised = dict(commanded)
                 if body_quiet:
                     for joint in JOINTS[:-1]:
@@ -1251,6 +1256,7 @@ class ArmSession(NativeDampingMixin):
                           missed_ticks_total=missed_total,
                           position_read_duration_s=max(0.0, position_monotonic - read_started))
             poll_control(timing)
+            self._guard_gripper_body(actual, body_anchor)
             self._guard_actual(actual, previous, start, active, recovery, started)
             for joint in JOINTS:
                 reference = settled_raw[joint] if joint == "gripper" and contact_inferred else target[joint]
@@ -1370,11 +1376,16 @@ class ArmSession(NativeDampingMixin):
                 error.add_note("arm session cleanup failed: " + str(cleanup_error))
             raise
 
-    def move_gripper(self, target_raw):
+    def move_gripper(self, target_raw, *, expected_start_raw=None, owner_session_id=None):
         """Move the full jaw range in bounded legs under one cancellable command."""
         self._require_initialized()
         start = self._read("Present_Position")
         try:
+            if expected_start_raw is not None or owner_session_id is not None:
+                if (not isinstance(expected_start_raw, dict) or set(expected_start_raw) != set(JOINTS) or
+                        any(type(v) is not int for v in expected_start_raw.values()) or
+                        expected_start_raw != start or owner_session_id != self._owner_session_id):
+                    raise ValueError("collision-checked gripper start or owner session changed before dispatch")
             if type(target_raw) is not int:
                 raise ValueError("move_gripper target_raw must be an integer")
             final = self._validate_target({**start, "gripper": target_raw}, "gripper_command")
@@ -1387,6 +1398,7 @@ class ArmSession(NativeDampingMixin):
                                   (GRIPPER_STEP - ARRIVAL_COUNTS - QUIET_COUNTS)))
         deadline = self.clock() + chunks * (LEG_DEADLINE_S + DWELL_S) + 1.0
         actual = start
+        body_anchor = {j: start[j] for j in JOINTS[:-1]} if expected_start_raw is not None else None
         records = []
         self._completed_leg_records = records
         self._event("plan_start", phase="move_gripper", max_legs=chunks)
@@ -1402,7 +1414,7 @@ class ArmSession(NativeDampingMixin):
                 label = "gripper_command"
                 self._active_leg = label
                 record = self._run_leg(label, target, actual, phase="move_gripper",
-                                       grasp=remaining < 0, hold_on_contact=True)
+                                       grasp=remaining < 0, hold_on_contact=True, body_anchor=body_anchor)
                 records.append(record)
                 self._active_leg = None
                 actual = record["settled_raw"]
@@ -1420,7 +1432,11 @@ class ArmSession(NativeDampingMixin):
             return state
         except BaseException as error:
             if isinstance(error, ArmSessionCancelled) and self._cancel_reason == "trajectory_cancel_hold":
-                state = self.cancel_hold()
+                try:
+                    state = self.cancel_hold(body_anchor=body_anchor)
+                except BaseException:
+                    self.shutdown(reason="gripper_cancel_hold_failed")
+                    raise
                 self._cancel_requested = False
                 self._active_leg = None
                 return {**state, "cancelled": True}
@@ -1618,7 +1634,7 @@ class ArmSession(NativeDampingMixin):
         return dict(ok=True, status="held_jaw_acknowledged", qualified=False,
                     target_reached=False, acknowledgment=proof, state=final)
 
-    def cancel_hold(self, *, failure_context=None):
+    def cancel_hold(self, *, failure_context=None, body_anchor=None):
         """Replace goals with measured pose while preserving torque state."""
         self._require_initialized()
         if self._observe_only:
@@ -1647,10 +1663,12 @@ class ArmSession(NativeDampingMixin):
             if (self.clock()-hold_started > .1 or
                     self.clock()-failure_context["endpoint_stamp"] > .1):
                 raise RuntimeError("failed endpoint hold acquisition became stale before Goal")
-        self.bus.sync_write("Goal_Position", measured, normalize=False, num_retry=0)
+        self._guard_gripper_body(measured, body_anchor)
+        held_goals = dict(measured, **(body_anchor or {}))
+        self.bus.sync_write("Goal_Position", held_goals, normalize=False, num_retry=0)
         goals = self._read("Goal_Position")
-        if ((failure_context is not None and goals != measured) or
-                any(abs(goals[joint] - measured[joint]) > 1 for joint in JOINTS)):
+        if ((failure_context is not None and goals != held_goals) or
+                any(abs(goals[joint] - held_goals[joint]) > 1 for joint in JOINTS)):
             raise RuntimeError("cancel hold goal readback mismatch")
         torque = self._read("Torque_Enable")
         torque_stamp, torque_utc = self.clock(), self.wall_clock()
@@ -3637,9 +3655,12 @@ class ArmSession(NativeDampingMixin):
                 raise ArmPlanPreflightError("commission_gripper_step requires exactly command and delta_counts")
             return {"ok": True, "state": self.commission_gripper_step(command["delta_counts"])}
         if name == "move_gripper":
-            if set(command) != {"command", "target_raw"}:
-                raise ArmPlanPreflightError("move_gripper requires exactly command and target_raw")
-            return {"ok": True, "state": self.move_gripper(command["target_raw"])}
+            basic = {"command", "target_raw"}
+            bound = basic | {"expected_start_raw", "owner_session_id"}
+            if set(command) not in (basic, bound):
+                raise ArmPlanPreflightError("move_gripper requires target_raw and an optional complete start/session binding")
+            return {"ok": True, "state": self.move_gripper(command["target_raw"],
+                **{k: command[k] for k in ("expected_start_raw", "owner_session_id") if k in command})}
         if name == "recover_camera":
             if set(command) != {"command"}:
                 raise ArmPlanPreflightError("recover_camera accepts no caller target, path, clearance or policy")

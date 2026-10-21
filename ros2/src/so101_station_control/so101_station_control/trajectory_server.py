@@ -37,7 +37,8 @@ from so101_station_control.operator_restart import OperatorRestartMixin
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 from .leader_reader import JOINTS as TELEOP_JOINTS, matched_pose, validate_pose_packet
-from .gripper_action import gap_to_percent, percent_to_gap, validate_jaw_calibration
+from .gripper_action import (gap_to_percent, percent_to_gap, validate_jaw_calibration,
+                             joint_to_percent, percent_to_joint, validate_joint_calibration, joint_target_raw)
 
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 
@@ -295,7 +296,7 @@ def _control_callback(callback):
             resolving_maintenance = (callback.__name__ == "_operator_maintenance" and
                                      args and getattr(args[0], "operation", "") == "verify")
             if self._stop_latched and not resolving_maintenance:
-                if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
+                if callback.__name__ in {"_goal_request", "_gripper_goal_request", "_moveit_gripper_goal_request"}:
                     return GoalResponse.REJECT
                 if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_acknowledge_held_jaw", "_gripper_diagnostics", "_joint_diagnostics", "_calibration_ready", "_set_teleop_enabled", "_enable_native_damping", "_native_damping_inventory", "_operator_maintenance", "_rearm_motion_profile"}:
                     response = args[1]
@@ -312,7 +313,7 @@ def _control_callback(callback):
                 with self._active_lock:
                     self._active_goal = None
                 args[0].abort()
-                if callback.__name__ == "_execute_gripper":
+                if callback.__name__ in {"_execute_gripper", "_execute_moveit_gripper"}:
                     return GripperCommand.Result()
                 return self._result(FollowJointTrajectory.Result.GOAL_TOLERANCE_VIOLATED,
                                     "owner stopped before trajectory submission; torque disabled")
@@ -349,6 +350,9 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self.declare_parameter("action_name", "/follower/arm_trajectory_controller/follow_joint_trajectory")
         self.declare_parameter("gripper_action_name", "/follower/gripper_controller/gripper_cmd")
         self.declare_parameter("gripper_jaw_calibration", "")
+        self.declare_parameter("gripper_joint_calibration", "")
+        self.declare_parameter("gripper_joint_limits_rad", [math.radians(-10.), math.radians(100.)])
+        self.declare_parameter("moveit_gripper_action_name", "/follower/moveit_gripper_controller/gripper_cmd")
         self.declare_parameter("state_validity_service", "/follower/check_state_validity")
         self.declare_parameter("planning_group", "manipulator")
         self.declare_parameter("state_freshness_s", 0.25)
@@ -445,6 +449,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self._recovery_cache_error = None
         self._state_file = self._resolve_state_file()
         self._gripper_jaw = None
+        self._gripper_joint = None
         self._gripper_raw_limits = None
         self._gripper_goal_cancelled = False
         self._gripper_command_submitted = False
@@ -477,6 +482,15 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             goal_callback=self._gripper_goal_request,
             cancel_callback=self._gripper_cancel_request,
             callback_group=self._action_group)
+        self._moveit_gripper_action = ActionServer(
+            self, GripperCommand,
+            str(self.get_parameter("moveit_gripper_action_name").value),
+            execute_callback=self._execute_moveit_gripper,
+            goal_callback=self._moveit_gripper_goal_request,
+            cancel_callback=self._gripper_cancel_request,
+            callback_group=self._action_group)
+        self.create_service(Trigger, "/follower/gripper_calibration_status",
+                            self._gripper_calibration_status, callback_group=self._action_group)
         self._joint_state_pub = self.create_publisher(JointState, "/follower/joint_states", 10)
         self.create_timer(0.05, self._publish_joint_state)
         status_qos = QoSProfile(depth=1, history=QoSHistoryPolicy.KEEP_LAST,
@@ -568,9 +582,11 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             self.get_logger().warning(
                 f"READ ONLY: mirroring external state from {self._state_file}; trajectory goals are disabled; "
                 "gripper joint is a visual-only normalized-percent-to-URDF-range estimate")
-        else:
+        elif self._gripper_joint is None:
             self.get_logger().warning(
-                "Gripper radians are unqualified; the published gripper joint is a visual-only normalized-percent-to-URDF-range estimate and is never commanded")
+                "Gripper radians are unqualified; joint feedback is visual-only and MoveIt gripper commands are rejected")
+        else:
+            self.get_logger().info("MoveIt gripper joint uses qualified radians; separate SI action uses metres")
 
         self._configure_recovery_depth_cache()
 
@@ -582,12 +598,23 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         message.header.stamp = self.get_clock().now().to_msg()
         message.name = list(ARM_JOINTS)
         message.position = [math.radians(float(state["pose"][name])) for name in ARM_JOINTS]
-        if bool(self.get_parameter("publish_gripper_visual_proxy").value):
+        if self._gripper_joint is not None or bool(self.get_parameter("publish_gripper_visual_proxy").value):
             # Digital-twin convention: normalized opening percent maps linearly to the
             # canonical URDF joint range [-10, 100] degrees. This is visual only.
             opening = min(100.0, max(0.0, float(state["pose"]["gripper"])))
             message.name.append("gripper")
-            message.position.append(math.radians(-10.0 + 1.1 * opening))
+            calibration = getattr(self, "_gripper_joint", None)
+            if calibration is not None:
+                try:
+                    angle = percent_to_joint(opening, calibration)
+                except ValueError:
+                    # Keep body feedback flowing without a made-up jaw angle.
+                    message.name.pop()
+                    self._joint_state_pub.publish(message)
+                    return
+            else:
+                angle = math.radians(-10.0 + 1.1 * opening)
+            message.position.append(angle)
         self._joint_state_pub.publish(message)
 
     def _resolve_state_file(self):
@@ -694,6 +721,18 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 self._gripper_jaw = validate_jaw_calibration(json.loads(Path(jaw_path_value).read_text()))
             except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
                 raise RuntimeError("configured jaw-gap calibration is invalid") from error
+        joint_path = str(self.get_parameter("gripper_joint_calibration").value).strip()
+        if joint_path:
+            try:
+                limits = list(self.get_parameter("gripper_joint_limits_rad").value)
+                if len(limits) != 2 or not all(math.isfinite(v) for v in limits) or limits[0] >= limits[1]:
+                    raise ValueError("invalid admitted gripper model bounds")
+                joint = validate_joint_calibration(json.loads(Path(joint_path).read_text()), limits)
+                if (joint["arm_id"] != expected_arm_id or joint["calibration_sha256"] != expected_calibration_sha256):
+                    raise ValueError("joint-angle calibration identity does not match resident owner")
+                self._gripper_joint = joint
+            except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
+                raise RuntimeError("configured gripper joint-angle calibration is invalid") from error
         self._expected_arm_id = expected_arm_id
         self._expected_calibration_sha256 = expected_calibration_sha256
         logs = str(self.get_parameter("log_dir").value)
@@ -3570,6 +3609,96 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             self._active_goal = "pending"
         return GoalResponse.ACCEPT
 
+    def _gripper_calibration_status(self, _request, response):
+        """Read-only distinction between qualified metric and angular interfaces."""
+        metric = self._gripper_jaw is not None
+        angular = getattr(self, "_gripper_joint", None) is not None
+        response.success = metric and angular
+        response.message = json.dumps(dict(
+            schema="so101-gripper-calibration-status-v1", si_gap_calibrated=metric,
+            moveit_joint_calibrated=angular, si_position_units="metres",
+            moveit_position_units="radians", visual_proxy_only=not angular,
+            reason=("qualified gap and joint-angle calibration loaded" if response.success else
+                    "MoveIt gripper requires qualified gap and identity-matched joint-angle calibration; no motion commanded")))
+        return response
+
+    def _moveit_gripper_gap(self, radians):
+        if self._gripper_joint is None or self._gripper_jaw is None:
+            raise ValueError("MoveIt gripper requires qualified joint-angle and SI jaw-gap calibrations")
+        return percent_to_gap(joint_to_percent(radians, self._gripper_joint), self._gripper_jaw)
+
+    @_control_callback
+    def _moveit_gripper_goal_request(self, goal):
+        try:
+            adapted = GripperCommand.Goal()
+            adapted.command.position = self._moveit_gripper_gap(goal.command.position)
+            adapted.command.max_effort = goal.command.max_effort
+        except (TypeError, ValueError) as error:
+            self.get_logger().warning(f"Rejecting MoveIt gripper goal: {error}")
+            return GoalResponse.REJECT
+        return self._gripper_goal_request(adapted)
+
+    @_control_callback
+    def _execute_moveit_gripper(self, goal_handle):
+        return self._execute_gripper(goal_handle, angular=True)
+
+    def _gripper_collision_binding(self, target_raw):
+        """Check every reachable raw jaw sample against the full collision scene."""
+        process, generation = self._process, self._owner_started
+        self._assert_owner_reservation("gripper", process, generation)
+        if self._teleop_state != "disabled":
+            raise RuntimeError("MoveIt gripper requires disabled teleoperation")
+        state = self._read_state()
+        if self._prepare_owner_state(state, process, generation, torque=1) != "normal":
+            raise RuntimeError("MoveIt gripper requires normal admitted six-joint state")
+        bounds = _arm_bounds_observation(state)
+        if bounds is None or not bounds["admitted_min"]["gripper"] <= target_raw <= bounds["admitted_max"]["gripper"]:
+            raise ValueError("MoveIt gripper target exceeds admitted raw bounds")
+        timeout = float(self.get_parameter("collision_check_timeout_s").value)
+        if not math.isfinite(timeout) or not 0 < timeout <= 30:
+            raise ValueError("gripper collision timeout must be finite in (0,30]")
+        deadline = time.monotonic()+timeout
+        if not self._state_validity.wait_for_service(timeout_sec=min(2., timeout)):
+            raise RuntimeError("MoveIt state validity is unavailable")
+        low, high = self._gripper_raw_limits
+        body = [math.radians(state["pose"][j]) for j in ARM_JOINTS]
+        start = state["raw"]["gripper"]
+        step = 1 if target_raw >= start else -1
+        for raw in range(start, target_raw+step, step):
+            self._assert_owner_reservation("gripper", process, generation)
+            with self._active_lock:
+                if self._gripper_goal_cancelled:
+                    raise InterruptedError("MoveIt gripper cancelled before dispatch")
+            request = GetStateValidity.Request()
+            # Empty group checks the complete robot, including both fingers.
+            request.group_name = ""
+            request.robot_state.joint_state.name = [*ARM_JOINTS, "gripper"]
+            request.robot_state.joint_state.position = [*body,
+                percent_to_joint(100.*(raw-low)/(high-low), self._gripper_joint)]
+            future = self._state_validity.call_async(request)
+            completed = threading.Event()
+            future.add_done_callback(lambda _future: completed.set())
+            while not completed.wait(.01):
+                with self._active_lock:
+                    cancelled = self._gripper_goal_cancelled
+                if cancelled or time.monotonic() >= deadline:
+                    future.cancel()
+                    if cancelled:
+                        raise InterruptedError("MoveIt gripper cancelled during collision preflight")
+                    raise TimeoutError("MoveIt gripper collision preflight timed out")
+            checked = future.result()
+            if time.monotonic() >= deadline:
+                raise TimeoutError("MoveIt gripper collision preflight expired")
+            if checked is None or checked.valid is not True:
+                raise RuntimeError("MoveIt gripper collision sample rejected before dispatch")
+        fresh = self._read_state()
+        if (self._prepare_owner_state(fresh, process, generation, torque=1) != "normal" or
+                fresh["raw"] != state["raw"] or
+                not isinstance(state.get("owner_session_id"), str) or not state["owner_session_id"] or
+                fresh.get("owner_session_id") != state["owner_session_id"]):
+            raise RuntimeError("MoveIt gripper start changed during collision preflight")
+        return dict(expected_start_raw=dict(state["raw"]), owner_session_id=state["owner_session_id"])
+
     @_control_callback
     def _gripper_goal_request(self, goal):
         if (self._external_state_only or self._gripper_jaw is None or
@@ -3623,8 +3752,30 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             self._gripper_command_submitted = True
             return True
 
+    def _gripper_feedback_state(self):
+        """Read the already-admitted cache; feedback never reads a snapshot file."""
+        now = time.monotonic()
+        with self._state_cache_lock:
+            state, generation = self._cached_owner_state, self._cached_owner_generation
+        if (not isinstance(state, dict) or type(generation) not in (int, float) or
+                not math.isfinite(generation) or generation <= 0 or generation != self._owner_started or
+                self._closed or self._stop_latched or self._owner_faulted or
+                self._process is None or self._process.poll() is not None or
+                state.get("arm_id") != self._expected_arm_id or
+                state.get("calibration_sha256") != self._expected_calibration_sha256 or
+                not isinstance(self._owner_source_expected, dict) or not self._owner_source_expected or
+                state.get("owner_source_sha256") != self._owner_source_expected or
+                state.get("observe_only") is not False or not isinstance(state.get("pose"), dict)):
+            return None
+        age_limit = min(.1, float(self.get_parameter("state_freshness_s").value))
+        if any(type(state.get(k)) not in (int, float) or not math.isfinite(state[k]) or
+               not generation <= state[k] <= now or now-state[k] > age_limit
+               for k in ("monotonic", "torque_monotonic")):
+            return None
+        return state
+
     @_control_callback
-    def _execute_gripper(self, goal_handle):
+    def _execute_gripper(self, goal_handle, *, angular=False):
         command = goal_handle.request.command
         result = GripperCommand.Result()
         command_sent = False
@@ -3643,9 +3794,17 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             pose, raw = state.get("pose"), state.get("raw")
             if not isinstance(pose, dict) or not isinstance(raw, dict) or set(raw) != set(TELEOP_JOINTS):
                 raise RuntimeError("resident state lacks a complete six-joint measured pose")
-            target_percent = gap_to_percent(command.position, self._gripper_jaw)
+            target_percent = (joint_to_percent(command.position, self._gripper_joint) if angular else
+                              gap_to_percent(command.position, self._gripper_jaw))
             low, high = self._gripper_raw_limits
-            target_raw = int(round(low + target_percent * (high - low) / 100.0))
+            if angular:
+                bounds = _arm_bounds_observation(state)
+                if bounds is None:
+                    raise ValueError("MoveIt gripper requires admitted raw bounds")
+                target_raw = joint_target_raw(command.position, self._gripper_joint, (low, high),
+                    (bounds["admitted_min"]["gripper"], bounds["admitted_max"]["gripper"]))
+            else:
+                target_raw = int(round(low + target_percent * (high - low) / 100.0))
             # Match the resident's 650-count leg cap, 10-count arrival
             # tolerance plus four-count dwell allowance, six-second leg
             # deadline and 0.4-second dwell budget.
@@ -3654,7 +3813,9 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             max_chunks = max(1, math.ceil((high - low) / (650 - 10 - 4)))
             command_timeout_s = max_chunks * (6.0 + 0.4) + 2.0
             deadline = time.monotonic() + command_timeout_s
-            submitted = self._submit_gripper_plan({"command": "move_gripper", "target_raw": target_raw})
+            binding = self._gripper_collision_binding(target_raw) if angular else {}
+            deadline = time.monotonic() + command_timeout_s
+            submitted = self._submit_gripper_plan({"command": "move_gripper", "target_raw": target_raw, **binding})
             if not submitted:
                 goal_handle.canceled()
                 command_complete = True
@@ -3671,8 +3832,14 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                         raise TimeoutError("cancel_hold acknowledgement missing; owner remains reserved")
                 if self._process.poll() is not None:
                     raise RuntimeError("resident owner stopped during gripper command")
+                measured = self._gripper_feedback_state()
+                if measured is not None:
+                    feedback = GripperCommand.Feedback()
+                    feedback.position = (percent_to_joint(measured["pose"]["gripper"], self._gripper_joint) if angular else
+                                         percent_to_gap(measured["pose"]["gripper"], self._gripper_jaw))
+                    goal_handle.publish_feedback(feedback)
                 try:
-                    candidate = self._response_queue.get(timeout=min(0.05, deadline-time.monotonic()))
+                    candidate = self._response_queue.get(timeout=max(0., min(0.05, deadline-time.monotonic())))
                     with self._active_lock:
                         cancelled = self._gripper_goal_cancelled
                     if candidate.get("stopped"):
@@ -3709,7 +3876,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                     raise InterruptedError("gripper cancellation confirmed by resident hold")
                 raise RuntimeError("resident acknowledgement did not confirm plan_complete")
             final_percent = float(final_state["pose"]["gripper"])
-            result.position = percent_to_gap(final_percent, self._gripper_jaw)
+            result.position = (percent_to_joint(final_percent, self._gripper_joint) if angular else
+                               percent_to_gap(final_percent, self._gripper_jaw))
             result.effort = 0.0  # Not measured in force units.
             tolerance_percent = 2.0
             result.reached_goal = abs(final_percent - target_percent) <= tolerance_percent

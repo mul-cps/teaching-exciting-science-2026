@@ -26,11 +26,12 @@ Only the five arm joints are accepted, in any order. The first point must be
 at time zero and agree with fresh measured state within one degree. Non-default
 client path tolerance, goal tolerance, or goal-time tolerance is rejected
 instead of being silently ignored. The action uses the station's fixed 2°
-measured terminal tolerance. The gripper goal is never commanded; its measured
-raw position is held in every synchronized position write. For visualization,
-the measured normalized opening percent maps linearly to the URDF gripper range
-of -10° to 100°. That proxy is explicitly unqualified and never enters the
-five-axis command interface.
+measured terminal tolerance. Arm trajectories hold the measured gripper raw
+position in every synchronized write. Gripper execution uses a separate
+controller described below; it is not a sixth arm-trajectory joint. Without a
+qualified joint-angle calibration, its visual feedback retains the explicitly
+unqualified -10° to 100° opening-percent proxy and MoveIt gripper execution is
+rejected.
 
 The action server must run on the host ROS 2 Jazzy environment. It launches the
 configured station virtual-environment Python as a subprocess, with ROS,
@@ -74,3 +75,69 @@ primary path starts the ROS-owned resident instead. The pure trajectory and
 fake-bus tests do not qualify the ROS action endpoint, collision-scene setup,
 physical tracking, smoothness, cancellation, or replay. Those require separate
 host and hardware acceptance.
+
+
+### Continuous MoveIt gripper execution
+
+The resident launch exposes `moveit_gripper_controller` to MoveIt's simple
+controller manager as a `GripperCommand` handle for the revolute `gripper` joint.
+Select the gripper planning group in RViz and use the Joints tab for intermediate
+positions; `open` and `closed` are presets, not binary joint limits.
+
+There are two deliberately separate action interfaces:
+
+| Endpoint | Position, feedback and result units |
+| --- | --- |
+| `/follower/gripper_controller/gripper_cmd` | Calibrated jaw gap in metres |
+| `/follower/moveit_gripper_controller/gripper_cmd` | Calibrated URDF joint angle in radians |
+
+The second endpoint follows MoveIt's single revolute-joint controller-handle
+convention. It converts radians to calibrated station percent and then into the
+existing metric action execution path. Both reject nonzero `max_effort` because
+physical force is not calibrated. A GripperCommand executes an endpoint with the
+owner's bounded native legs; it does not promise FollowJointTrajectory timing.
+Arm and gripper commands share one owner reservation and cannot run concurrently.
+
+Supply both `gripper_jaw_calibration:=/absolute/gap.json` (existing qualified
+`so101-jaw-gap-calibration-v1`) and
+`gripper_joint_calibration:=/absolute/joint.json`. The latter must contain
+physically measured and reviewed values, using this shape:
+
+```json
+{
+  "schema": "so101-gripper-joint-calibration-v1",
+  "qualified": false,
+  "arm_id": "replace-with-measured-arm-identity",
+  "calibration_sha256": "replace-with-64-character-calibration-sha256",
+  "closed_joint_rad": -0.1,
+  "open_joint_rad": 1.5,
+  "closed_percent": 0.0,
+  "open_percent": 100.0
+}
+```
+
+The example is intentionally unqualified and cannot enable execution. Angles
+outside the actual loaded URDF limits are rejected; calibration never stretches
+or clamps the model. Joint feedback uses this same measured mapping once loaded.
+`/follower/gripper_calibration_status` (`std_srvs/srv/Trigger`) reports which
+calibrations are loaded without commanding hardware. Loading calibration is
+necessary but does not assert physical station commissioning or pickup success.
+
+Before an angular command is dispatched, the bridge requires fresh, torque-on,
+normal owner state with teleoperation disabled. It checks every integer encoder
+sample between the measured jaw start and endpoint against the complete MoveIt
+collision scene, using qualified joint angles and the measured held body. The
+sweep has a bounded deadline and supports cancellation before submission. The
+owner checks the exact six-joint raw start and session identity again before any
+profile or goal write, closing the preflight-to-dispatch race. For this bound
+command only, gravity trim is disabled, all five body goals remain exactly the
+certified values through movement, contact and cancellation holds, and body
+drift over two encoder counts stops execution. Legacy metric commands retain
+their existing native-leg behavior. Endpoint quantization selects the nearest
+integer inside both calibrated and admitted raw intervals; it never clamps an
+out-of-range angle into admission. Feedback uses the fresh source- and
+generation-bound resident cache without additional snapshot-file reads.
+Cancellation after
+submission retains the existing measured-hold acknowledgement handshake. The
+metric API remains compatible; this new collision sweep applies to the angular
+MoveIt endpoint.
