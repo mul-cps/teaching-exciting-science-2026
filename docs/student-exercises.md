@@ -28,7 +28,11 @@ from exercises.student_visuals import draw_bins, show_photos, compare_observatio
 print("Ready. All activities are simulation only.")
 ```
 
-## A · Your first instructions · 25 minutes
+## Before Python · Blockly logic · 10 minutes
+
+Open [Blockly Maze](https://blockly.games/maze?lang=en). Drag instructions into a sequence, predict the route and run. Complete levels 1–3; levels 4–5 are optional. Explain one failed route and one correction. If internet fails, draw a maze and give your partner step instructions. Then return here. These web tasks do not control the physical station.
+
+## A · Your first instructions · 30 minutes
 
 A **program** is a sequence of instructions. `print` puts text in the **output**, the result below a code cell. A **string** is text inside quotes. Predict what will appear, then run this worked example with Shift+Enter.
 
@@ -78,11 +82,13 @@ draw_bins([destination], [COLOR], "Your first decision")
 
 Try a new color of your choice. Predict before running; explain which condition matched. **Optional challenge:** add an `elif` for green before `else`, with an indented destination assignment. **Hint 1:** copy the shape of the blue branch. **Hint 2:** change its color and choose left or right. Keep the unknown fallback. Swap typing and predicting roles.
 
-## B · What does the camera know · 35 minutes
+## B · Train a camera report · 20 minutes
 
 A **sensor** measures something in the world. A camera is a sensor: it records an image, a grid of colored dots called pixels. A program may turn those pixels into a report such as `"red"`. A report can be wrong or missing.
 
 First inspect these **real photograph crops** from our teaching station. The labels below are human descriptions of the visible examples. We are not claiming a live camera classifier measured these labels. The fourth crop does not isolate a colored object clearly. Which pixels would you trust?
+
+Open [Teachable Machine](https://teachablemachine.withgoogle.com/train/image). Your instructor supplies prepared red, blue and background examples. Compare predictions on a held-out example; change the background or lighting and retry. A class name is a learned report, not truth. No export or live robot connection is needed. Use the controlled photograph/report experiment below if the website or camera is unavailable. Spend 5 minutes identifying classes, 7 testing examples, 5 changing one condition and 3 explaining a failure. Complete the website task OR the controlled photo/report fallback, not both. The five-report list and single-report cells below are optional extensions for challenges; finish this block after 20 minutes.
 
 ```python
 show_photos()
@@ -163,19 +169,15 @@ REPORTS = ["red", "blue", "red", "blue"]
 compare_observations(ACTUAL, REPORTS, {"red": "left", "blue": "right"})
 ```
 
-## Break · 10 minutes
-
-Save your work. Leave the original notebook available so you can recover a clean copy.
-
 ## C · Visit three stations · 45 minutes
 
-Your instructor divides the class into three groups. Spend **15 minutes each** at robot, conveyor and camera, then rotate. The notebook robot activity below belongs to the robot rotation; it is not an extra lesson. All three stations have an offline route.
+After the 85–95 minute break, save your work. Your instructor divides the class into three groups. Spend **15 minutes each** at robot and twin, camera and conveyor, and virtual robot, then rotate. The command-sequence activity below belongs to the virtual robot rotation; the separate live notebook belongs to robot and twin. Neither is an extra lesson. All three stations have an offline route.
 
-**Robot:** an **actuator** makes a physical change. Motors turn joints and a gripper opens or closes. A destination like left is only a label. A real robot also needs **coordinates**, numbers describing a position relative to a chosen starting reference, and a safe movement sequence. Here we show destination commands only; these are not motor coordinates.
+**Robot and twin:** open Robot_Candy_Factory_Live_SO101.ipynb for the 15-minute read-only joint activity, in DEMO unless the instructor prepared LIVE. Return here afterward. An **actuator** makes a physical change. Motors turn joints and a gripper opens or closes. A destination like left is only a label. A real robot also needs **coordinates**, numbers describing a position relative to a chosen starting reference, and a safe movement sequence. Here we show destination commands only; these are not motor coordinates.
 
 **Conveyor:** trace move → stop → observe → decide → pick. Use five paper objects and a finger as the belt if no live demonstration is available. One partner calls each step; the other acts. Deliberately call pick before stop once and explain why that order is unsafe.
 
-**Camera:** compare the four photograph crops again. Describe one source of uncertainty. Cover part of a paper object or photograph and decide when a report should become unknown. Do not confuse seeing an object with knowing its exact position.
+**Virtual robot:** use the command-sequence activity below. Optional kinematics web app is in the instructor resources; offline sequences remain the core task. **Camera comparison:** compare the four photograph crops again. Describe one source of uncertainty. Cover part of a paper object or photograph and decide when a report should become unknown. Do not confuse seeing an object with knowing its exact position.
 
 ### Robot worked example
 
@@ -207,7 +209,7 @@ print("Did the output match your prediction?")
 draw_bins(robot.actions, title="Your robot command sequence")
 ```
 
-## D · Connect the whole factory · 45 minutes
+## D · Connect the whole factory · 50 minutes
 
 Now the program connects simulated belt, camera and robot. A factory cycle is one complete trip through move → stop → read → decide → sort. The provided `Factory` carries out this sequence. Every run below creates a new factory and resets its counts.
 
@@ -249,7 +251,7 @@ assert sum(factory.counts.values()) == len(OBJECTS), "Some objects are missing!"
 draw_bins(factory.robot.actions, OBJECTS, "Your completed sorting factory")
 ```
 
-## E · Choose and test challenges · 40 minutes
+## E · Choose and test challenges · 35 minutes
 
 Use the factory cell above. Choose two challenges with your partner. For each, write a prediction, change one thing, rerun, then record evidence. Return to the original five objects and rules before a new experiment so you know what caused the difference.
 

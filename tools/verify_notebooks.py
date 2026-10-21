@@ -27,6 +27,23 @@ def main():
         body,_=HTMLExporter().from_notebook_node(n)
         (args.output/(source.stem+'.html')).write_text(body)
         report.append(f'{source.name} sha256={hashlib.sha256(source.read_bytes()).hexdigest()} code_cells={sum(c.cell_type=="code" for c in n.cells)} figures={pictures} fresh_kernel=PASS')
+    live_source = ROOT/'notebooks/Robot_Candy_Factory_Live_SO101.ipynb'
+    live = nbformat.read(live_source, as_version=4)
+    import os
+    old_live = os.environ.pop('WORKSHOP_LIVE', None)
+    try:
+        NotebookClient(live, timeout=90, kernel_name='python3', resources={'metadata': {'path': str(ROOT/'notebooks')}}).execute()
+    finally:
+        if old_live is not None: os.environ['WORKSHOP_LIVE'] = old_live
+    live_text = '\n'.join(o.get('text', '') for c in live.cells if c.cell_type == 'code' for o in c.outputs)
+    assert 'Relative prediction: 35 degrees' in live_text
+    assert 'Absolute prediction: 15 degrees' in live_text
+    assert 'DEMO' in live_text and 'invented' in live_text
+    assert sum('image/png' in o.get('data', {}) for c in live.cells if c.cell_type == 'code' for o in c.outputs) == 2
+    nbformat.write(live, args.output/live_source.name)
+    body, _ = HTMLExporter().from_notebook_node(live)
+    (args.output/(live_source.stem+'.html')).write_text(body)
+    report.append('Live station notebook: fresh kernel, invented DEMO, relative35/absolute15, two plots: PASS')
     base = nbformat.read(ROOT/'notebooks/Robot_Candy_Factory_Student.ipynb', as_version=4)
     setup = next(c.source for c in base.cells if c.cell_type=='code')
     factory = next(c.source for c in base.cells if c.cell_type=='code' and 'factory = Factory(' in c.source)

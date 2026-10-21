@@ -1,94 +1,24 @@
-# CPS Candy Factory | Exciting Science 2026
+# CPS Candy Factory workshop
+22 October 2026 · Four hours · First semester · No programming or robotics prerequisites
 
-**T17(1) — Autonome Robotersteuerungen in Python programmieren**
-Montanuniversität Leoben · Cyber Physical Systems · 4 hours · 6 first-semester students · DE/EN
+Start with [the student notebook](notebooks/Robot_Candy_Factory_Student.ipynb), [the instructor edition](notebooks/Robot_Candy_Factory_Instructor.ipynb), or [the robot and twin observation lab](notebooks/Robot_Candy_Factory_Live_SO101.ipynb). Download and extract the complete [student workshop ZIP](docs/student-workshop.zip), which includes local images, helper code and printable handouts. The prepared local Jupyter environment is the main classroom route; use [the launch instructions](notebooks/README.md). No installation is part of class.
 
-> **Start here:** `python -m workshop` works offline on a low-cost CPU laptop with Python 3.11+. No GPU, arm, camera or EV3 required.
+The student factory is a simulation. The robot lab defaults to explicitly invented DEMO data and can read existing ROS topics when the instructor launches LIVE mode on the prepared station host. Learner notebooks never command physical actuators. The instructor uses the existing RViz operations panel to enable, select teleoperation mode and stop. Software checks and pictures do not qualify a physical sorting cycle.
 
-![Consistent schematic of the planned CPS sorting station](docs/assets/factory-overview.png)
+![The sorting station](notebooks/assets/photo-examples.jpg)
 
-*Editable SVG-based schematic, not a photograph or a validated laboratory installation.*
+Students predict, change one value, run and check. Red goes left, blue right, everything else to reject. The exact 240-minute route is introduction 25 min, Blockly 10, Python 30, perception 20, break 10, three stations 45, factory 50, challenges 35 and demos 15. The stations are robot and twin, camera and conveyor, and virtual robot.
 
-[**Browse the visual gallery**](docs/visual-gallery.md) · [Image credits and regeneration](docs/assets/README.md)
+- [Four-hour lesson plan](docs/lesson-plan.md)
+- [Instructor preparation and answers](docs/instructor.md)
+- [Student worksheet](docs/student-worksheet.pdf) and [complete handbook](docs/student-handbook.pdf)
+- [External activities and offline alternatives](docs/workshop-resources.md)
+- [Class slides](docs/workshop-slides.pptx) and [PDF](docs/workshop-slides.pdf)
+- [Prepared fwmini4 launchers and checks](docs/fwmini4-workshop.md)
+- [Automated developer code reference](docs/code-reference/index.md)
+- [Live ROS teleoperation contract](docs/so101-ros-teleop.md) and [resident station API](docs/ros-station-api.md)
+- [Station acceptance criteria](docs/acceptance.md)
 
-## Student quick start
+For the standard-library fallback run `python3 exercises/check_setup.py`, then scripts `01_python.py`, `03_vision.py`, `02_robot.py`, `04_sort.py`. Run `python3 exercises/05_visual_sort.py` and open `sorting-result.html` for the visual fallback. The supplied scripts need Python 3.11 or newer and no ROS, GPU or internet. Hardware instructions remain instructor material in the station documentation.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-python -m workshop
-python exercises/01_python.py
-python exercises/02_robot.py
-python exercises/03_vision.py
-python exercises/04_sort.py
-```
-
-For a USB webcam only (no physical actuators):
-
-```bash
-pip install -e '.[camera]'
-python tools/camera_probe.py 0
-python -m workshop --camera 0 --cycles 3
-```
-
-This intentionally keeps **robot and conveyor simulated** even with a real camera. Use the physical equipment only through instructor-supervised, validated procedures.
-
-## Learning path
-
-1. Understand *sensor → decision → action → feedback*.
-2. Teach the SO-ARM101 using the official LeRobot leader–follower demo (instructor supervised).
-3. Discover object colors through an overhead camera, or use simulation.
-4. Change `if` / classification rules to route objects left or right.
-5. Demonstrate an automated cycle and discuss safety and errors.
-
-## What exists and what does not
-
-| Subsystem | Implemented | Validated | Status |
-|---|---|---|---|
-| Offline simulator and CPS decision logic | Yes | Automated tests | READY |
-| CPU HSV red/blue detection | Yes | Synthetic tests | READY for laptop trial |
-| Generic USB/UVC camera capture | Yes | No physical camera test | BENCH TEST NEEDED |
-| GoPro HERO10 via official Open GoPro | Official SDK walkthrough | Not connected here | BENCH TEST NEEDED |
-| EV3 motor via ev3dev2/ RPyC | Instructor-only *probe* | No physical motor test | BENCH TEST NEEDED |
-| LeRobot leader-follower | Official commands documented | No arm attached | BENCH TEST NEEDED |
-| EV3 + SO-ARM101 station (both workflows) | CLI, backends, commissioning and rootless installer | Automated simulation/protocol tests; physical cycle pending | **BENCH ACCEPTANCE REQUIRED** |
-| Neural detector (YOLO-World, Jetson) | Not installed | None | OPTIONAL / DEFERRED |
-
-Never advertise the physical sorting station as working before completing `docs/acceptance.md`.
-
-## Documentation
-
-- [Four-hour teaching plan](docs/lesson-plan.md)
-- [Student worksheet](docs/student-worksheet.md)
-- [Instructor setup and safety](docs/instructor.md)
-- [Smooth instructor choreography and trajectory replay](docs/choreography.md)
-- [EV3 + arm station installation, commissioning and activation](docs/ev3-arm-station.md)
-- [HERO10 / UVC camera decision guide](docs/cameras.md)
-- [Hardware acceptance criteria and unfinished tasks](docs/acceptance.md)
-- [References and licenses](docs/references.md)
-- [Printable DOCX and presentation generators](tools/build_materials.py)
-- [Visual gallery — diagrams and illustrative scene images](docs/visual-gallery.md)
-
-## Prepare workshop handouts
-
-```bash
-pip install -e '.[materials]'
-python tools/build_materials.py
-```
-
-Produces `docs/instructor-guide.docx`, `docs/student-worksheet.docx`, and `docs/workshop-slides.pptx`. Use slide deck on a projector and one worksheet per team. A GitHub Actions workflow checks tests and builds printable material.
-
-## Dependencies / platform
-
-Python 3.11–3.13 recommended. Main simulator: standard library only; optional OpenCV and numpy for CPU vision. **No CUDA, PyTorch, ROS 2, Docker, or GPU required for the student simulator.** The optional physical station installer uses pinned CPU PyTorch and LeRobot. An NVIDIA Jetson Thor is an optional instructor demonstration machine, never a student dependency.
-
-## Design rules
-
-- One stopped object at a time; fixed pickup guide; big flat objects, not loose M&M's.
-- Students change short, visible Python programs; no installation or troubleshooting during their rotation.
-- Errors or unknown colors route to `reject`; missing frames stop the belt.
-- Real robot movement only after supervised calibration, reach/trajectory checks and explicit opt-in.
-
-## Visual design and QA
-
-The slide deck and handouts intentionally use **one consistent vector schematic style** from `tools/make_assets.py`. Text and code are editable PowerPoint/Word content. Earlier AI concept photo crops are retained only for reference in `docs/assets/archive/` and `docs/assets/sources/` and are **not used in classroom material** because they inconsistently represent the hardware. See [`docs/revision-report.md`](docs/revision-report.md).
+Rebuild notebooks and shared handbook with `python tools/build_notebooks.py`. Rebuild handouts with `SOFFICE=/path/to/prepared/soffice python tools/build_materials.py --handouts-only`, and bundle with `python exercises/make_student_bundle.py --output docs/student-workshop.zip`. Prepared dependencies are listed in notebooks/requirements.txt. See the instructor guide for isolated environment setup and verification.

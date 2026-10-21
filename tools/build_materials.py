@@ -97,7 +97,7 @@ def make_docx(filename, source, *, worksheet=False):
         elif line.startswith("### "):
             d.add_paragraph(clean(line[4:]), "Heading 2")
         elif line.startswith("## "):
-            if filename == "student-handbook.docx" and line.startswith(("## A ", "## B ", "## C ", "## D ", "## E ")):
+            if filename == "student-handbook.docx" and line.startswith(("## A ", "## B ", "## C ", "## D ", "## E ", "## A ·", "## B ·", "## C ·", "## D ·", "## E ·")):
                 d.add_page_break()
             d.add_paragraph(clean(line[3:]), "Heading 1")
         elif line.startswith("- [ ] "):

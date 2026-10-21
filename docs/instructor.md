@@ -1,84 +1,70 @@
 # Teaching the sorting factory workshop
-22 October 2026 · Four hours · First semester · No programming or robotics prerequisites
+22 October 2026 · Four hours · First semester · No prerequisites
 
-The class learns by predicting a small change, running it, and explaining visible results. Use the student notebook as the main route. The separate instructor notebook adds answers beside the same activities. Pair one student who types with one who predicts and have them swap roles each activity. Success means an explained, tested result, not finishing every optional challenge.
+Students learn by predicting a small change, running it and explaining a visible result. Use the student notebook as the main route. The instructor notebook adds guidance beside identical executable activities. Swap typing and predicting roles every activity. Red routes left, blue right, all other reports reject.
 
-## Prepare before the class
-Give every pair an extracted student ZIP and an already prepared Python environment. Jupyter and Matplotlib need dependencies; the lesson works without internet after preparation. The plain Python scripts and HTML animation need only Python 3.11 or newer. Do not spend classroom time installing packages.
-
-On the classroom computer prepare a dedicated environment, separate from any robot or ROS environment:
+## Prepare before class
+Prepare Python 3.11 or newer in an environment separate from ROS. Install notebooks/requirements.txt in that environment before class. Extract the complete student ZIP; retain exercises, notebooks and workshop together. Do not distribute the instructor notebook as learner material. Open a clean notebook, run setup and the first activity, save a team copy and demonstrate recovery after a kernel restart.
 
 ```bash
 python3 -m venv .venv-workshop
 .venv-workshop/bin/python -m pip install -r notebooks/requirements.txt
-.venv-workshop/bin/python tools/verify_notebooks.py
-.venv-workshop/bin/python exercises/make_student_bundle.py --output docs/student-workshop.zip
-```
-
-Copy the ZIP to student machines and extract it. Prepare the same dependencies on those machines before class; a virtual environment copied from another machine is not portable. On Windows the environment Python is `.venv-workshop\Scripts\python.exe`. Install using that Python and the same requirements file.
-
-Launch from the extracted folder:
-
-```bash
 .venv-workshop/bin/python notebooks/launch.py
 ```
 
-If Jupyter is already prepared under another interpreter, run that interpreter followed by `notebooks/launch.py`. The launcher opens the student notebook in JupyterLab with the bundle folder as its root. On Windows use the prepared Python executable with the same argument. Make a team copy with File → Save Notebook As; retain the original. Restarting the kernel clears memory, not saved file edits. Keep the instructor notebook away from the learner ZIP.
+Windows uses .venv-workshop\Scripts\python.exe with the same launcher. The launcher opens a local JupyterLab with the bundle as its root. No JupyterLite service is provided. Internet is needed for the optional Blockly and Teachable Machine activities; check the links and prepare offline alternatives in workshop-resources.md. Use nonpersonal objects, not student faces, for camera examples. Print one worksheet per pair.
 
-Before students arrive, open the notebook, run setup and the first mission, and check that the bins appear. Confirm that a fresh copy runs top to bottom. Print one worksheet per pair. Project the eight introduction slides. If hardware is unavailable, use the station photograph, paper objects and notebook simulation for all rotations. Only the instructor controls physical equipment; autonomous physical sorting is not established by these notebook checks.
+## Timetable and transitions
+| Elapsed minutes | Task | Teaching move |
+| --- | --- | --- |
+| 00–25 | Introduction | Ask how humans sort; show sensing, deciding, acting and feedback; demonstrate notebook controls |
+| 25–35 | Blockly Maze | Levels 1–3 core; 4–5 stretch; reserve last minute to return to notebook |
+| 35–65 | A Python | Greeting 6 min, repeat 8, condition 10, explanation and transition 6 |
+| 65–85 | B Teachable Machine | Classes 5 min, tests 7, changed condition 5, explanation 3 |
+| 85–95 | Break | Save; name three groups and starting stations |
+| 95–140 | C Stations | Three 15-minute rotations including 1-minute transitions |
+| 140–190 | D Factory | Trace 10 min, baseline 12, change rule 15, compare routes 10, save 3 |
+| 190–225 | E Challenges | Choose 5 min, run and record 22, exchange tests 8 |
+| 225–240 | Demos | Prepare 4 min, show results 8, reflect and save 3 |
 
-## Introduction 25 minutes
-Use the eight slide deck and its speaker notes. Ask students how they would sort one object by hand. Build observe → decide → act → check from their answers. Point out the camera, conveyor and robot in the real station photograph. Define sensor as something that measures and actuator as something that changes the world. Ask what should happen when a camera report is missing. Finish by showing exactly how to open a team copy, click a code cell, press Shift+Enter, find output and save.
+Exactly 240 minutes. Do not add the live lab as an extra lesson. The camera notebook contains optional extensions: select one controlled observation experiment within the 20-minute perception block; leave further list experiments for challenges. Definitions follow visible examples, not a vocabulary lecture.
 
-## A First instructions 25 minutes
-Allow 5 minutes for the one-line worked example and notebook controls, 8 minutes for reading and running the original mission, 8 minutes for individual changes and 4 minutes for pair explanation. Ask “What will the last object number be?” before running. Point to a single `=` storing a value, a double `==` asking a question, quotes marking text and four spaces grouping a loop body. Avoid introducing concepts that have not appeared yet.
+## Beginner prompts and solutions
+A: show Shift+Enter, output, quotes and indentation. A variable stores a value with =; == compares values. Original loop prints 1, 2, 3. Five repeats print 1–5. Red chooses left; blue right; yellow reject. If a quote is missing, read the last error line, repair one quote and rerun. A kernel restart clears values but preserves saved edits; run setup again.
 
-Expected original output: object numbers 1, 2, 3 and decision left. Five repetitions produce 1–5; blue chooses right; yellow chooses reject. Green extension uses another `elif COLOR == "green":` before else and an indented `destination = "left"`. First hint: change only the value on the right of `=`. Second hint: point to the quoted color. Ask a student to explain why changing a name label does not change the repeat count.
+B: prepared red, blue and background classes reduce setup time. Keep a few examples out of training. Ask what changes when background or illumination changes. The notebook photograph crops are real photographs with human descriptions; its report lists are controlled teaching data, not output of an implemented camera classifier. Actual red reported blue goes right; None rejects. A plausible incorrect report cannot be detected by the routing rule alone. Offline use the photograph and actual/report comparison; avoid presenting demo counts as recognition accuracy.
 
-If a quote is missing, read the last error line aloud, repair one quote and rerun. If indentation changes, compare the line with the clean original. Demonstrate this once; do not treat an error as failure.
+D: baseline is left 2, right 2, reject 1, with five belt advances and actions left/right/left/reject/right. Swapping rules has identical totals for this balanced input but different actions. Use three reds and one blue to reveal the difference in counts. Stop precedes observation and placement. Adding green without a rule rejects it; with a green-to-left rule it reaches left. None, unknown and invalid destinations reject. Counting every object does not prove every route is correct.
 
-## B Camera information 35 minutes
-Spend 8 minutes comparing the real photograph crops and their human labels, 12 minutes on the five simulated reports, 10 minutes on actual versus reported color, and 5 minutes sharing explanations. The photograph contains real colored objects; the lists are controlled simulated sensor reports, not an implemented image classifier.
+E: select two experiments, reset the original inputs between them and record predictions before running. Adding None, unknown, 42 and empty text to the baseline yields left 2, right 2, reject 5. Red-to-middle produces left 0, right 2, reject 3. Ten reports must produce ten outcomes. Ask early finishers for a test that detects swapped rules.
 
-Default counts: left 2, right 2, reject 1. Changing the second blue report to red produces 3, 1, 1. Adding green without a rule adds a reject. Reverse the two destination variables to flip individual actions. For green insert an elif before else; preserve fallback rejection. In the actual/report experiment, changing only the first report from red to blue sends an actual red object right. Changing it to None rejects it. A believable incorrect report is not detectable by this routing rule alone.
+## Three stations
+Use three groups: robot → camera → virtual; camera → virtual → robot; virtual → robot → camera. Each slot uses explain 2 min, try 9, explain evidence 3, save and rotate 1.
 
-First hint: trace one list item through its condition. Second hint: underline the report and destination separately. Ask “Did the program do the wrong thing, or did it receive wrong information?” Invite lighting, shadows and occlusion examples. Do not claim the human crop labels are measured recognition accuracy.
+Robot and twin: open Robot_Candy_Factory_Live_SO101.ipynb. It defaults to invented DEMO data. Students choose one body joint, read a graph and calculate one relative versus absolute prediction. Relative mapping is follower start + leader now − leader start; 30 + 15 − 10 = 35 degrees. Absolute prediction is 15 degrees. Angle differences can be expected in relative mode. The gripper JointState is a visual proxy and is excluded. A twin follows measurements; it is not an independent confirmation of reality.
 
-## Break 10 minutes
-Save work. Display the three rotation groups and their starting stations. Keep a clean original ready for students who need recovery.
+Camera and conveyor: trace move → stop → observe → decide → pick using paper objects or a qualified instructor demonstration. Ask why stopping before picking matters. Change one visual condition and explain uncertainty. No student connects motor hardware or changes station controls.
 
-## C Three rotations 45 minutes
-Run three slots of exactly 15 minutes. Group 1: robot → conveyor → camera. Group 2: conveyor → camera → robot. Group 3: camera → robot → conveyor. In each slot allow 2 minutes to describe the task, 9 minutes to try it, 3 minutes to explain an observation and 1 minute to rotate.
+Virtual robot: run the notebook's short destination sequence; compare order and totals. Original left/right/left has the same totals as left/left/right. Add reject, then middle; invalid destinations reject. Optional kinematics activity is linked in workshop-resources.md; use the sequence fallback if unavailable. A destination label is not a physical motor coordinate.
 
-At robot use notebook 02 to plan left/left/right, then add reject and an invalid command. Default left/right/left gives left 2/right 1; changed left/left/right has the same totals and a different order. Middle becomes reject. Ask what a real arm needs beyond a label: coordinates relative to a reference, reachable positions, a safe path and gripper timing. A recorded action is not proof of a completed placement.
-
-At conveyor ask one partner to call move → stop → observe → decide → pick while the other moves paper objects. Ask what changes if pick happens before stop. At camera compare crops, hide part of one object and discuss uncertain reports. These are complete fallback activities; live demonstrations supplement them only when the instructor has qualified the station. Keep students outside any moving workspace.
-
-## D Integrated factory 45 minutes
-Use 8 minutes to trace the worked two-object example, 12 minutes for five-object predictions and baseline run, 15 minutes for rule changes, and 10 minutes to compare order and counts. Explain a mapping only now, using red → left and blue → right. Point out braces, colons and commas in the code.
-
-Baseline: left 2/right 2/reject 1, five advances and actions left/right/left/reject/right. A reversed rule has identical totals on this balanced input but different actions. This is a useful discovery: totals alone can hide a mistake. Ask teams to invent an asymmetric input. Every cycle stops the belt before reading or picking, and stops again on completion. The helper recreates state each time the cell runs.
-
-Green extension adds `"green": "left"` and at least one green report. None and unknown remain rejected with the normal red/blue/green rules. An invalid destination such as middle is rejected. The count assertion checks that objects are not lost; it does not prove each destination is correct.
-
-## E Independent experiments 40 minutes
-Give 5 minutes to choose two challenges and write predictions, 25 minutes to run and record them, and 10 minutes to swap tests with another pair. Offer one hint at a time. Early finishers design a test that catches swapped rules; they do not need physical hardware.
-
-Suggested answers: adding None, unknown, 42 and empty text to baseline produces left 2/right 2/reject 5. A middle destination for red makes baseline left 0/right 2/reject 3. A ten-report run must total ten. Green without a rule rejects; with a valid rule it reaches that bin. Swapping an unbalanced input changes totals. An assertion like `assert factory.counts["reject"] == 1` is useful on baseline but insufficient alone.
-
-## Closing 15 minutes
-Give pairs 5 minutes to prepare a result, 7 minutes for several short presentations and 3 minutes for a final explanation and save. Each presentation includes a prediction, a changed rule, observed evidence and one real-world limitation. Invite quieter students to explain a single route. Collect worksheets as formative evidence, not a speed contest.
-
-## If the notebook environment fails
-Use the prepared plain Python route. Open a terminal, then run one command at a time. The scripts locate their own imports, so they also work when invoked with an absolute path from another directory.
+## Live observer preparation
+Use the full checkout on the same station host as ROS. Keep the existing commissioned resident controller; the observer starts no controller, opens no USB, calls no ROS services and reads only /leader/joint_states, /follower/joint_states and /follower/teleop_status. Real enable, mode selection and stop belong in the instructor's RViz operations panel. Review current physical acceptance evidence before demonstrating motion.
 
 ```bash
-python3 exercises/check_setup.py
-python3 exercises/01_python.py
-python3 exercises/03_vision.py
-python3 exercises/02_robot.py
-python3 exercises/04_sort.py
-python3 exercises/05_visual_sort.py
+# Offline invented examples, no ROS needed
+.venv-workshop/bin/python tools/launch_live_workshop.py
+# Instructor only, existing station topics through existing ROS wrapper
+ROS_DOMAIN_ID=76 .venv-workshop/bin/python tools/launch_live_workshop.py --live
 ```
 
-Students edit the marked STUDENT AREA, save, and rerun the same command. Open sorting-result.html in a browser for the fallback animation; it needs no network. Use student-exercises.md for explanations and print the station photo if necessary. If no computers work, enact the same decision rules with paper reports and three labeled bins and record predictions on the worksheet.
+The helper defaults to this checkout's existing ros2/conda/so101-conda.sh run wrapper. It uses the prepared Conda ROS environment, while Jupyter stays isolated. For the remote station pass --ros-wrapper ~/.local/bin/station-fwmini4 --ros-wrapper-command ros-vulkan to the live launcher. This preserves the station's accepted environment. No container image is needed. The live Jupyter server uses loopback port 8890, separate from the student server on 8888; a second launch reports that the port is in use. Jupyter remains a normal Python kernel. Each capture starts a bounded subscriber through the existing prepared ROS wrapper; it collects for 3 seconds (maximum 5), samples at most 5 times/second and exits, destroying the node. The outer process timeout includes up to 20 seconds for ROS wrapper startup. This avoids installing incompatible ROS libraries into Jupyter. Localhost binding and normal Jupyter token authentication are preserved. For a remote browser use the prepared SSH forwarding arrangement; do not expose an unauthenticated notebook server.
+
+Freshness requires receipt age and source age at most one second. Joint source age is ROS header age; the follower header is publication time, not an independent motor acquisition timestamp. The controller retains its own acquisition freshness gates. Teleop status uses same-host monotonic time; latched disabled status may be old. The notebook hides expired values, reports missing streams and never silently substitutes demo data. A fresh topic does not establish motion permission, independent geometry accuracy or physical sorting success.
+
+If a LIVE stream disappears, rerun the observation after the instructor restores the existing station. Every call starts a new node; reconnection needs no notebook service. On failure use the explicit DEMO launcher and restart the kernel. Never infer zero from missing data. The observer is additional visualization, not an emergency stop or safety monitor.
+
+## Offline and environment fallback
+Run python3 exercises/check_setup.py, then exercises/01_python.py, 03_vision.py, 02_robot.py and 04_sort.py in lesson order. Edit the marked STUDENT AREA, save and rerun. Python standard library is sufficient. Run exercises/05_visual_sort.py and open sorting-result.html for an offline browser animation. If computers fail, use paper objects, report cards and three bins with the same predictions and worksheet.
+
+## Build and verification
+Build notebooks and shared handbook text with python tools/build_notebooks.py. Build printable handouts using SOFFICE=/path/to/prepared/soffice python tools/build_materials.py --handouts-only. Build the learner ZIP with python exercises/make_student_bundle.py --output docs/student-workshop.zip. Execute tools/verify_notebooks.py in the prepared environment; it opens fresh kernels and checks meaningful variants. These software checks do not establish physical commissioning or complete sorting acceptance.
