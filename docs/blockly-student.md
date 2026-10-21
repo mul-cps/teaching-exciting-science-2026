@@ -48,3 +48,18 @@ checks the path and returns the arm there before replay.
 
 **Explain your system:** What observes the object? Which block decides?
 What moves? What tells you the movement finished?
+
+### Keep or skip pauses in a taught stroke
+
+Replay uses **original timing** unless you change its dropdown. **Skip stationary
+pauses** shortens only long sections with exactly unchanged arm positions; it does
+not change the taught moving positions. Use **Wait** blocks for delays your
+factory actually needs. The duration shown on the block is the requested time;
+the robot controller may stretch it or reject the motion. If the optional timing
+check rejects a stroke, keep original timing or teach a shorter stroke.
+
+
+Detected-brick picking is not connected to Blockly object ownership yet. Jaw-gap
+blocks position the fingers; they do not declare an object grasped or attached.
+Use the physical station for supervised free-space taught motion and EV3
+sequences until the instructor has qualified the complete grasp/ownership flow.

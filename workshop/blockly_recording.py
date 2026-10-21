@@ -42,7 +42,8 @@ class Recorder:
                 'points':[{'time':r['source_stamp']-origin,'positions':r['positions']} for r in self.rows]}
 
 
-def replay_points(recording, identity, speed=.5):
+def replay_points(recording, identity, speed=.5, *, timing='original', start_radians=None):
+    if timing not in ('original','skip_stationary_pauses'): raise ValueError('unknown replay timing mode')
     number(speed,.1,1)
     if recording.get('schema')!='so101-blockly-stroke-v1' or recording.get('identity')!=identity:
         raise ValueError('recording identity/calibration differs from current follower')
@@ -52,4 +53,79 @@ def replay_points(recording, identity, speed=.5):
         if set(row)!={'time','positions'}: raise ValueError('unsupported recording fields')
         check.add(row['positions'],recording['jaw_radians'],row['time'])
     validated=check.finish()
-    return [{'time':row['time']/speed,'positions':list(row['positions'])} for row in validated['points']]
+    rows=validated['points']
+    if timing=='skip_stationary_pauses':
+        candidate=stationary_pause_points(rows)
+        if len(candidate)!=len(rows):
+            baseline_bound,candidate_bound=nominal_curve_bounds(JOINTS,rows,candidate,start_radians)
+            if candidate_bound>baseline_bound:
+                raise ValueError('skipping pauses expands the nominal curve deviation bound; keep original timing or re-record a shorter stroke')
+        rows=candidate
+    return [{'time':row['time']/speed,'positions':list(row['positions'])} for row in rows]
+
+
+def stationary_pause_points(points):
+    """Shorten only exact constant runs; retain their first two and last two knots.
+
+    Every nonzero position edge, in order, remains unchanged. No input or saved
+    recording is mutated. Timing between moving edges is deliberately changed.
+    """
+    result=[]; offset=0.; begin=0
+    for end in range(1,len(points)+1):
+        if end<len(points) and points[end]['positions']==points[begin]['positions']: continue
+        indices=list(range(begin,end))
+        if len(indices)>4: indices=indices[:2]+indices[-2:]
+        previous=None
+        for index in indices:
+            if previous is not None and index>previous+1:
+                offset+=points[index]['time']-points[previous+1]['time']
+            result.append({'time':points[index]['time']-offset,'positions':list(points[index]['positions'])})
+            previous=index
+        begin=end
+    return result
+
+
+def recording_timing(recording):
+    rows=recording['points']
+    reduced=stationary_pause_points(rows)
+    return {'original_duration_s':rows[-1]['time']-rows[0]['time'],
+            'skip_stationary_pauses_duration_s':reduced[-1]['time']-reduced[0]['time'],
+            'original_points':len(rows),'skip_stationary_pauses_points':len(reduced)}
+
+
+def nominal_curve_bounds(joint_names, original, candidate, start_radians):
+    """Compare threshold-free bounds of requested curves with the SAME start.
+
+    Lazy import keeps simulation/portable bundles independent of the physical
+    trajectory helpers. The bridge still owns validation of the actual final
+    measured-start curve, its collision checks, timing limits and exact hash.
+    """
+    from .station.ros_trajectory import _spline
+    if not isinstance(start_radians,dict) or set(start_radians)!=set(JOINTS):
+        raise ValueError('fresh five-joint start is required for optional timing transformation')
+    start=[number(start_radians[j],-math.pi*2,math.pi*2) for j in joint_names]
+    def distance(point,a,b):
+        direction=[y-x for x,y in zip(a,b)]; norm=sum(v*v for v in direction)
+        progress=min(1.,max(0.,sum((x-y)*v for x,y,v in zip(point,a,direction))/norm)) if norm else 0.
+        return math.sqrt(sum((x-(y+progress*v))**2 for x,y,v in zip(point,a,direction)))
+    def bound(rows):
+        times=[row['time'] for row in rows]
+        values=[row['positions'] for row in rows]; values[0]=start
+        coefficients=[_spline(times,[row[j] for row in values]) for j in range(5)]
+        maximum=0.
+        for index in range(len(rows)-1):
+            duration=times[index+1]-times[index]
+            for control in range(6):
+                # Convert normalized power coefficients to degree-5 Bernstein controls.
+                point=[sum(coefficients[j][index][power]*duration**power*
+                           math.comb(control,power)/math.comb(5,power)
+                           for power in range(control+1)) for j in range(5)]
+                if not all(math.isfinite(value) for value in point):
+                    raise ValueError('nominal spline bound is nonfinite; keep original timing')
+                maximum=max(maximum,distance(point,rows[index]['positions'],rows[index+1]['positions']))
+        return maximum
+    # A Bezier curve lies in its control hull. Distance to the corresponding
+    # taught line segment is convex, so these bound the entire nominal curve.
+    try: return bound(original),bound(candidate)
+    except (ZeroDivisionError,OverflowError) as error:
+        raise ValueError('nominal spline bound failed; keep original timing') from error

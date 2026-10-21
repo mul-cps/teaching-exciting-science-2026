@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import time
+from unittest.mock import patch
 
 if os.environ.get('ROS_DOMAIN_ID')!='75': raise SystemExit('fake ROS checks require isolated ROS_DOMAIN_ID=75')
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -73,7 +74,10 @@ thread=threading.Thread(target=spin,daemon=True); thread.start()
 app=None
 try:
     with tempfile.TemporaryDirectory() as directory:
-        app=Application(directory,physical=True,instructor=True)
+        # Fixture owns no physical station: isolate its local program lock as well as ROS domain.
+        with patch('tools.run_blockly_station.Path', wraps=Path) as fixture_path:
+            fixture_path.home.return_value=Path(directory)
+            app=Application(directory,physical=True,instructor=True)
         deadline=time.monotonic()+5
         while True:
             try: app.backend.sample(); break
@@ -88,6 +92,15 @@ try:
         assert app.status()['job']['state']=='complete',app.status()
         assert counts['arm']==1 and counts['jaw']==1,counts
         assert points[0][-1].time_from_start.sec+points[0][-1].time_from_start.nanosec*1e-9>.8
+        original_duration=points[0][-1].time_from_start.sec+points[0][-1].time_from_start.nanosec*1e-9
+        app.thread.join(timeout=2)
+        app.run([{'op':'replay','name':'transfer','speed':.5,'timing':'skip_stationary_pauses'}])
+        deadline=time.monotonic()+6
+        while app.status()['job']['state']=='running' and time.monotonic()<deadline: time.sleep(.03)
+        assert app.status()['job']['state']=='complete',app.status()
+        assert len(points[1])==4
+        compressed_duration=points[1][-1].time_from_start.sec+points[1][-1].time_from_start.nanosec*1e-9
+        assert compressed_duration<original_duration
         assert app.backend.color()=='red'
         assert app.operator('moveit')['acknowledged'] is True
         publishing[0]=False; time.sleep(.4)
@@ -98,7 +111,7 @@ try:
         deadline=time.monotonic()+3
         while app.status()['job']['state']=='running' and time.monotonic()<deadline: time.sleep(.03)
         assert app.status()['job']['state']=='failed'; assert counts['stop']>=1
-        print(json.dumps({'fake_ros':'passed','recorded_samples':recorded['samples'],'counts':counts,'stale_rejected':True,'cancel_stopped':True}))
+        print(json.dumps({'fake_ros':'passed','recorded_samples':recorded['samples'],'counts':counts,'stale_rejected':True,'cancel_stopped':True,'optional_timing_shortened':True}))
 finally:
     if app: app.close()
     for timer in tuple(node.timers): timer.cancel()

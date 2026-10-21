@@ -33,13 +33,15 @@ def validate_program(program):
             fields = {'wait':{'seconds'}, 'ev3':{'command'}, 'replay':{'name','speed'},
                       'jaw':{'gap_mm'}, 'repeat':{'count','body'},
                       'if_color':{'color','then','else'}, 'stop':set(), 'log':{'message'}}
-            if not isinstance(op,str) or op not in fields or set(row) != fields[op] | {'op'}:
+            if not isinstance(op,str) or op not in fields or (set(row) != fields[op] | {'op'} and not (op=='replay' and set(row)==fields[op] | {'op','timing'})):
                 raise ValueError('unknown command or unsupported fields')
             count += 1
             if op == 'wait': number(row['seconds'],0,10)
             elif op == 'ev3':
                 if not isinstance(row['command'],str) or row['command'] not in EV3: raise ValueError('unknown EV3 command')
-            elif op == 'replay': name(row['name']); number(row['speed'],.1,1)
+            elif op == 'replay':
+                name(row['name']); number(row['speed'],.1,1)
+                if row.get('timing','original') not in ('original','skip_stationary_pauses'): raise ValueError('unknown replay timing mode')
             elif op == 'jaw': number(row['gap_mm'],0,200)
             elif op == 'log':
                 if not isinstance(row['message'],str) or len(row['message']) > 200: raise ValueError('message too long')

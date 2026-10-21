@@ -292,8 +292,10 @@ class ROSBackend:
             from builtin_interfaces.msg import Duration
             recording=self.recordings.get(row['name'])
             if recording is None: raise RuntimeError('recording not found')
-            points=replay_points(recording,self.identity(),row['speed'])
+            identity=self.identity()
             sample=self.sample()
+            points=replay_points(recording,identity,row['speed'],timing=row.get('timing','original'),
+                                 start_radians=dict(zip(JOINTS,sample['positions'])))
             if sample['identity']!=recording['identity']: raise RuntimeError('owner cohort changed during replay admission')
             if max(abs(a-b) for a,b in zip(sample['positions'],points[0]['positions']))>math.radians(2):
                 raise RuntimeError('move to recorded start under instructor supervision before replay')
