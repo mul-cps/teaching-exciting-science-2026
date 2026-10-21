@@ -33,6 +33,48 @@ with sync_playwright() as p:
     stop_count=page.evaluate("(window.stationStatus.events || []).filter(e=>e==='STOP').length")
     page.click('#stop');page.wait_for_function("count => (window.stationStatus.events || []).filter(e=>e==='STOP').length > count",arg=stop_count)
     assert not errors,errors
+    # Screenshots capture only the real simulation, before injected readiness fixtures.
     page.screenshot(path=args.screenshot)
-    print(json.dumps({'browser':'passed','offline':True,'workspace_roundtrip':True,'upstream_logging':True,'drag':True,'stop_listener':True,'js_errors':errors}))
+    fixture={'physical':True,'instructor':True,'operator_busy':False,'recovery_required':False,
+             'job':{'state':'idle'},'recordings':['demo'],'streams':{
+                 '/station/operator/status':{'age_s':.1,'data':{'schema':1,'fresh':True,'capabilities':{
+                     'moveit':{'enabled':True,'reason':'fresh admitted owner'},
+                     'restart_camera':{'enabled':False,'reason':'camera restart unit is not configured'}}}}}}
+    page.route('**/api/status',lambda route:route.fulfill(json=fixture))
+    def poll(marker):
+        fixture['probe_marker']=marker
+        page.wait_for_function('marker => window.stationStatus.probe_marker === marker',arg=marker)
+    poll('fresh')
+    moveit=page.locator('#instructor [data-command="moveit"]')
+    restart=page.locator('#instructor [data-command="restart_camera"]')
+    recovery=page.locator('#instructor [data-recovery]')
+    assert moveit.is_enabled()
+    assert restart.is_disabled() and restart.get_attribute('title')=='camera restart unit is not configured'
+    assert page.locator('#instructor [data-command="teleop"]').is_disabled() # missing capability
+    assert recovery.is_disabled()
+    fixture['streams']['/station/operator/status']['data']['fresh']=False;poll('stale-owner')
+    assert moveit.is_disabled()
+    fixture['streams']['/station/operator/status']['data']['fresh']=True
+    fixture['streams']['/station/operator/status']['age_s']=2.;poll('stale')
+    assert moveit.is_disabled()
+    fixture['streams']['/station/operator/status']['age_s']=-.1;poll('negative-age')
+    assert moveit.is_disabled()
+    fixture['streams']['/station/operator/status']['age_s']=None;poll('invalid-age')
+    assert moveit.is_disabled()
+    fixture['streams']['/station/operator/status']['age_s']=.1
+    fixture['recovery_required']=True;poll('recover')
+    assert recovery.is_enabled()
+    fixture['operator_busy']=True;poll('busy')
+    assert moveit.is_disabled() and recovery.is_disabled()
+    fixture['operator_busy']=False;fixture['job']['state']='running';poll('running')
+    assert moveit.is_disabled() and recovery.is_disabled()
+    fixture['job']['state']='idle';fixture['streams']={};poll('missing-status')
+    assert moveit.is_disabled()
+    fixture['instructor']=False;poll('student')
+    assert moveit.is_disabled() and recovery.is_disabled()
+    assert page.locator('#stop').is_enabled()
+    page.unroute('**/api/status')
+    page.wait_for_function('window.stationStatus.physical === false')
+    assert not errors,errors
+    print(json.dumps({'browser':'passed','offline':True,'workspace_roundtrip':True,'upstream_logging':True,'drag':True,'stop_listener':True,'operator_capabilities':True,'js_errors':errors}))
     browser.close()
