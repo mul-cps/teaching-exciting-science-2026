@@ -1,0 +1,27 @@
+site_name: CPS Candy Factory — developer reference
+docs_dir: build/code-docs/docs
+site_dir: build/code-docs/site
+use_directory_urls: false
+theme:
+  name: readthedocs
+nav:
+  - Start: index.md
+  - Architecture: architecture.md
+  - ROS contracts and configuration: ros-contracts.md
+  - Full source inventory: inventory.md
+  - Coverage: coverage.md
+plugins:
+  - search
+markdown_extensions:
+  - tables
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      linenums: true
+  - pymdownx.superfences
+validation:
+  nav:
+    omitted_files: ignore
+  links:
+    not_found: warn

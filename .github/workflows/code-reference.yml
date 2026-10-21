@@ -1,0 +1,23 @@
+name: Static developer reference
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  code-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r requirements-docs.txt
+      - run: python docs/code-reference/test_build_code_docs.py
+      - run: python tools/build_code_docs.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: developer-code-reference
+          path: |
+            build/code-docs/site
+            build/code-docs/coverage.json
