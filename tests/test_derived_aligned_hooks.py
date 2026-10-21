@@ -33,7 +33,18 @@ def test_adapter_intake_has_no_pixel_decode_copy_or_extra_images():
     for name in ('_intake','drain'):
         fn=function(path,name);source=ast.get_source_segment(text,fn)
         assert not any(token in source for token in ('imgmsg_to_cv2','.copy(', 'np.asarray','bytes(message.data)','list(message.data)'))
-    assert 'maxlen=4' in (PERCEPTION/'aligned_cohort.py').read_text()
+    from collections import deque
+    tree = ast.parse((PERCEPTION/'aligned_cohort.py').read_text())
+    initializer = next(node.value for node in ast.walk(tree)
+                       if isinstance(node, ast.Assign) and any(
+                           isinstance(target, ast.Attribute)
+                           and isinstance(target.value, ast.Name)
+                           and target.value.id == 'self' and target.attr == 'streams'
+                           for target in node.targets))
+    streams = eval(compile(ast.Expression(initializer), '<streams initializer>', 'eval'),
+                   {'deque': deque, 'STREAMS': ('color', 'aligned', 'color_info', 'depth_info')})
+    assert {key: stream.maxlen for key, stream in streams.items()} == {
+        'color': 4, 'aligned': 4, 'color_info': 16, 'depth_info': 16}
     assert 'maxlen=8' in (PERCEPTION/'derived_lineage.py').read_text()
     assert "('color',TOPICS['color'],Image),('aligned',ALIGNED_TOPIC,Image)" in text
 
