@@ -3041,6 +3041,16 @@ class TrajectoryBridge(Node):
         retiming_factor, command_points, prepared = prepare_with_controller_timing(
             helper, trajectory.joint_names, parsed_points, start_radians=start,
             max_jerk=max_jerk, motion_profile=self._ros_motion_profile)
+        timing_method, collinear_residual = "uniform_controller_timing", None
+        candidate = helper.prepare_collinear_quintic(
+            trajectory.joint_names, parsed_points, start_radians=start,
+            max_velocity=self._ros_motion_profile.max_velocity,
+            max_acceleration=self._ros_motion_profile.max_acceleration,
+            max_jerk=max_jerk, period=0.05)
+        if candidate is not None and candidate[1].duration < prepared.duration:
+            command_points, prepared, collinear_residual = candidate
+            retiming_factor = prepared.duration / parsed_points[-1]["time"]
+            timing_method = "monotone_collinear_rest_to_rest_quintic"
         dense = helper.dense_path_samples(prepared, max_joint_step_rad=0.01)
         jaw_opening = min(100.0, max(0.0, float(state["pose"]["gripper"])))
         jaw_position = math.radians(-10.0 + 1.1 * jaw_opening)
@@ -3057,6 +3067,8 @@ class TrajectoryBridge(Node):
             "original_points": parsed_points,
             "joint_names": list(trajectory.joint_names),
             "retiming_factor": retiming_factor, "command_points": command_points,
+            "timing_method": timing_method, "collinear_residual_rad": collinear_residual,
+            "original_point_count": len(parsed_points), "command_point_count": len(command_points),
             "ros_motion_profile": self._ros_motion_profile.name,
             "max_velocity_rad_s": self._ros_motion_profile.max_velocity,
             "max_acceleration_rad_s2": self._ros_motion_profile.max_acceleration,
@@ -3461,20 +3473,24 @@ class TrajectoryBridge(Node):
         try:
             artifact = self._collision_check_path(trajectory, trajectory.points, goal_id)
             command_points = artifact["command_points"]
-            if artifact["retiming_factor"] > 1.0:
+            if artifact["retiming_factor"] != 1.0 or len(command_points) != len(trajectory.points):
                 trajectory = copy.deepcopy(trajectory)
+                trajectory.points = []
                 previous_ns = -1
-                for point, effective in zip(trajectory.points, command_points):
+                for effective in command_points:
                     timestamp_ns = round(effective["time"] * 1e9)
-                    if timestamp_ns <= previous_ns:
-                        raise ValueError("retimed feedback timestamps must remain strictly increasing")
+                    if timestamp_ns < 0 or timestamp_ns <= previous_ns:
+                        raise ValueError("retimed feedback timestamps must remain nonnegative and strictly increasing")
                     previous_ns = timestamp_ns
                     sec, nanosec = divmod(timestamp_ns, 1_000_000_000)
-                    point.time_from_start = Duration(sec=sec, nanosec=nanosec)
+                    point = JointTrajectoryPoint(
+                        positions=list(effective["positions"]),
+                        time_from_start=Duration(sec=sec, nanosec=nanosec))
                     if "velocities" in effective:
                         point.velocities = list(effective["velocities"])
                     if "accelerations" in effective:
                         point.accelerations = list(effective["accelerations"])
+                    trajectory.points.append(point)
             with self._active_lock:
                 cancelled_before_send = self._cancel_before_start
                 if cancelled_before_send:

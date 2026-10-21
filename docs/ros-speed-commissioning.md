@@ -104,3 +104,17 @@ to the source map changes the pinned cohort; do not edit or deploy over an
 active pending trial. Preserve its restoration receipt, then start the new
 owner with an explicitly selected and authorized tier. This profile is a
 commissioning envelope, not a qualification of maximum physical speed.
+
+## Straight joint-space paths
+
+After ordinary controller retiming succeeds, the bridge may use a shorter
+rest-to-rest two-knot quintic for an original path with more than two knots
+only when every knot is globally monotone and collinear within 1e-10 rad
+roundoff. Timing uses the selected profile's velocity, acceleration and jerk
+limits with a 3% margin and is checked by the same trajectory validator.
+Noncollinear, turning, malformed or zero-length paths retain ordinary timing.
+The candidate must be shorter; it still receives the complete dense collision
+preflight and the same owner reconstruction and effective-path digest checks.
+Artifacts retain every original knot and distinguish the selected timing
+method, residual and original/command point counts. This does not increase
+any dynamics limit or qualify an unchecked path for execution.

@@ -342,6 +342,91 @@ def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
                               any("velocities" in p or "accelerations" in p for p in audit))
 
 
+
+def prepare_collinear_quintic(joint_names, points, *, start_radians, max_velocity,
+                              max_acceleration, max_jerk, period=0.05):
+    """Return an admitted two-knot candidate only for roundoff-collinear monotone paths.
+
+    The caller keeps its already validated original timing when this returns None.
+    The 1e-10 rad geometry tolerance permits floating point roundoff, not corners.
+    """
+    tolerance = 1e-10
+    try:
+        names = tuple(joint_names)
+        if (len(names) != len(ARM_JOINTS) or set(names) != set(ARM_JOINTS) or
+                not isinstance(points, (list, tuple)) or not 2 < len(points) <= MAX_POINTS or
+                not isinstance(start_radians, dict) or set(start_radians) != set(ARM_JOINTS)):
+            return None
+        start = {j: _number(start_radians[j], "start state") for j in ARM_JOINTS}
+        rows, times = [], []
+        for index, point in enumerate(points):
+            if (not isinstance(point, dict) or
+                    set(point) - {"time", "positions", "velocities", "accelerations"}):
+                return None
+            t = _number(point.get("time"), "point time")
+            if (index == 0 and abs(t) > 1e-9) or (times and t <= times[-1]):
+                return None
+            positions = point.get("positions")
+            if not isinstance(positions, (list, tuple)) or len(positions) != len(names):
+                return None
+            row = [_number(value, "position") for value in positions]
+            for joint, value in zip(names, row):
+                low, high = POSITION_LIMITS_RAD[joint]
+                if not low <= value <= high or (index == 0 and
+                        abs(value - start[joint]) > START_TOLERANCE_RAD):
+                    return None
+            for field in ("velocities", "accelerations"):
+                values = point.get(field)
+                if values is not None:
+                    if not isinstance(values, (list, tuple)) or len(values) != len(names):
+                        return None
+                    for value in values:
+                        _number(value, field)
+            rows.append(row)
+            times.append(t)
+        if times[-1] > 300:
+            return None
+        # The ordinary validator anchors its first knot to the measured start.
+        # Compression must preserve that actual path, not shortcut an off-line anchor.
+        if any(abs(rows[0][i] - start[j]) > tolerance for i, j in enumerate(names)):
+            return None
+        delta = [end - first for first, end in zip(rows[0], rows[-1])]
+        pivot = max(range(len(names)), key=lambda i: abs(delta[i]))
+        if abs(delta[pivot]) <= tolerance:
+            return None
+        progress_tolerance = tolerance / abs(delta[pivot])
+        previous, residual = 0.0, 0.0
+        for row in rows:
+            progress = (row[pivot] - rows[0][pivot]) / delta[pivot]
+            if not -progress_tolerance <= progress <= 1.0 + progress_tolerance:
+                return None
+            if progress < previous - progress_tolerance:
+                return None
+            previous = max(previous, progress)
+            residual = max(residual, *(abs(value - (first + progress * direction))
+                for value, first, direction in zip(row, rows[0], delta)))
+            if residual > tolerance:
+                return None
+        velocity = _number(max_velocity, "max_velocity")
+        acceleration = _number(max_acceleration, "max_acceleration")
+        jerk = _number(max_jerk, "max_jerk")
+        if min(velocity, acceleration, jerk) <= 0:
+            return None
+        displacement = max(abs(rows[-1][i] - start[j]) for i, j in enumerate(names))
+        duration = 1.03 * max(1.875 * displacement / velocity,
+            math.sqrt((10 / math.sqrt(3)) * displacement / acceleration),
+            (60 * displacement / jerk) ** (1 / 3), 0.1)
+        duration_ns = math.ceil(duration * 1e9)
+        seconds, nanoseconds = divmod(duration_ns, 1_000_000_000)
+        command_points = [{"time": 0.0, "positions": list(rows[0])},
+            {"time": seconds + nanoseconds * 1e-9, "positions": list(rows[-1])}]
+        prepared = prepare_trajectory(names, command_points, start_radians=start,
+            max_velocity=velocity, max_acceleration=acceleration, max_jerk=jerk, period=period)
+        return command_points, prepared, residual
+    except (ValueError, TypeError, KeyError, OverflowError):
+        return None
+
+
 def path_digest(prepared, *, held_gripper_raw=None):
     # Suppress harmless last-bit differences between pose-degrees->radians in
     # the ROS process and raw-count->radians in the station process.

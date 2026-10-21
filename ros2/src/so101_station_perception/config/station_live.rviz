@@ -10,6 +10,9 @@ Visualization Manager:
   Displays:
     - Class: moveit_rviz_plugin/MotionPlanning
       MoveIt_Allow_Approximate_IK: true
+      MoveIt_Use_Constraint_Aware_IK: true
+      Velocity_Scaling_Factor: 1.0
+      Acceleration_Scaling_Factor: 1.0
       Enabled: true
       Move Group Namespace: /follower
       Name: MotionPlanning
