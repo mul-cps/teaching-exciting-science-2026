@@ -1094,7 +1094,7 @@ def test_ros_trajectory_streams_without_waypoint_dwells_and_keeps_gripper(tmp_pa
     ]
     result = session.execute_trajectory("goal-test", names, points,
         expected_path_sha256=_collision_path_digest(session, arm, names, points))
-    assert result["trajectory"]["sample_count"] == 21
+    assert result["trajectory"]["sample_count"] == 51  # 1 second at 50 Hz, including both endpoints
     assert result["trajectory"]["input_derivatives_ignored"] is True
     assert arm.bus.eeprom_writes == []
     assert arm.bus.goal_history
@@ -1114,7 +1114,8 @@ def _stalled_elbow_trajectory(session, arm, *, goal_id, calibration_endpoint):
               {"time": 2.0, "positions": final}]
     digest = _collision_path_digest(session, arm, names, points)
     command = {"command": "execute_trajectory", "goal_id": goal_id,
-               "joint_names": names, "points": points, "path_sha256": digest}
+               "joint_names": names, "points": points, "path_sha256": digest,
+               "ros_motion_profile": session._ros_motion_profile.name}
     if calibration_endpoint is not None:
         command["calibration_endpoint"] = calibration_endpoint
     terminal = session._trajectory_raw(final, arm.bus.data["Present_Position"]["gripper"])
@@ -1484,7 +1485,7 @@ def test_teleop_watchdog_and_stale_stdio_error_echo_session_id(tmp_path):
     assert stale["ok"] is False
 
 
-def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):
+def test_ros_trajectory_slow_feedback_read_times_out_before_gap_guard(tmp_path):
     session, arm, _ = make_session(tmp_path)
     session.initialize()
     start = session._arm_radians(arm.bus.sync_read("Present_Position"))
@@ -1493,7 +1494,8 @@ def test_ros_trajectory_feedback_gap_faults_and_restores_torque(tmp_path):
         {"time": 1.0, "positions": [start[j] + 0.01 for j in (
         "shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")]}]
     arm.bus.delay_after_goal = 0.30
-    with pytest.raises(RuntimeError, match="feedback freshness"):
+    # The 20 ms bounded read fails before the higher-level feedback-gap guard.
+    with pytest.raises(TimeoutError, match="sync read Present_Position.*20 ms deadline"):
         names = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
         session.execute_trajectory("goal-stale", names, points,
             expected_path_sha256=_collision_path_digest(session, arm, names, points))
