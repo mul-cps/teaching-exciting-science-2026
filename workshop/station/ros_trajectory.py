@@ -348,6 +348,7 @@ def prepare_collinear_quintic(joint_names, points, *, start_radians, max_velocit
                               max_acceleration, max_jerk, period=ROS_TRAJECTORY_PERIOD_S):
     """Return an admitted two-knot candidate only for roundoff-collinear monotone paths.
 
+    The candidate never shortens the original requested total duration.
     The caller keeps its already validated original timing when this returns None.
     The 1e-10 rad geometry tolerance permits floating point roundoff, not corners.
     """
@@ -414,9 +415,9 @@ def prepare_collinear_quintic(joint_names, points, *, start_radians, max_velocit
         if min(velocity, acceleration, jerk) <= 0:
             return None
         displacement = max(abs(rows[-1][i] - start[j]) for i, j in enumerate(names))
-        duration = 1.03 * max(1.875 * displacement / velocity,
+        duration = max(times[-1], 1.03 * max(1.875 * displacement / velocity,
             math.sqrt((10 / math.sqrt(3)) * displacement / acceleration),
-            (60 * displacement / jerk) ** (1 / 3), 0.1)
+            (60 * displacement / jerk) ** (1 / 3), 0.1))
         duration_ns = math.ceil(duration * 1e9)
         seconds, nanoseconds = divmod(duration_ns, 1_000_000_000)
         command_points = [{"time": 0.0, "positions": list(rows[0])},
