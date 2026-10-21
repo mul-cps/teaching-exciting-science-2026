@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11+, JSON configuration, pytest, LeRobot's existing calibrated follower API, EV3 USB direct commands for original firmware, and a bundled Pybricks EV3 MicroPython 2 agent launched through SSH/brickrun.
 
-**Spec:** `docs/superpowers/specs/2026-10-13-ev3-arm-station-design.md`
+**Spec:** `stale/docs/superpowers/specs/2026-10-13-ev3-arm-station-design.md`
 
 ## Global Constraints
 

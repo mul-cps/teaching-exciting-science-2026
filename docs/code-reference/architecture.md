@@ -21,7 +21,9 @@ The standard simulator runs with the Python standard library. Optional camera
 capture adds OpenCV/NumPy, while arm and conveyor remain simulated in this path.
 The exercise and material builders are developer utilities, not station control
 entry points. `tools/build_materials.py` builds handouts and slides;
-`tools/make_assets.py` creates teaching illustrations.
+`tools/build_lecture_slides.mjs` assembles the current lecture from committed assets.
+Archived illustration generators under `stale/tools/` reproduce historical assets
+and are labeled as archived in the static source inventory.
 
 ## Station and bus ownership
 
