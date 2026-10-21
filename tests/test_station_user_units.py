@@ -158,7 +158,7 @@ def fake_manager(tmp_path,monkeypatch):
         if endpoint==model.stop_error:raise RuntimeError('simulated STOP unknown')
         if endpoint.startswith('/station/') and rows['apis']['ActiveState']!='active':raise RuntimeError('workflow API absent')
         if endpoint=='/station/stop':return {'request_id':'00000000-0000-0000-0000-000000000002'}
-        if endpoint=='/station/status':return dict(request_id='00000000-0000-0000-0000-000000000002',pending=False,ev3_stopped=True,arm_disarmed=True,**{}) | getattr(model,'station_status_update',{})
+        if endpoint=='/station/stop_status':return dict(request_id='00000000-0000-0000-0000-000000000002',pending=False,ev3_stopped=True,arm_disarmed=True,**{}) | getattr(model,'station_status_update',{})
         if endpoint=='/follower/status':
             now=time.monotonic()
             return dict(expected,kind='follower_status',fresh=True,connected=True,owner_faulted=False,
@@ -242,7 +242,7 @@ def test_user_unit_parser_preserves_venv_python_symlink(tmp_path):
     assert a.python==link.absolute()
 
 
-@pytest.mark.parametrize('update',[{'pending':True},{'request_id':'wrong'},{'ev3_stopped':False},{'arm_disarmed':False}])
+@pytest.mark.parametrize('update',[{'pending':True},{'request_id':'wrong'},{'request_id':None},{'ev3_stopped':False},{'arm_disarmed':False}])
 def test_station_stop_requires_exact_terminal_correlated_status(fake_manager,monkeypatch,update):
     f=fake_manager;station.start_units(f.args,f.path,f.record);f.calls.clear()
     f.station_status_update=update
@@ -306,6 +306,7 @@ def test_installed_component_overlay_must_match_source_before_devices_start(tmp_
         'ros2/src/so101_station_control/launch/moveit_resident.launch.py':'',
         'ros2/src/so101_station_perception/launch/perception.launch.py':'',
         'ros2/src/so101_station_operator/launch/operator.launch.py':'',
+        'ros2/src/so101_station_workflow/scripts/station_api':'',
         'ros2/src/so101_station_operator/scripts/operator_api':'',
         'ros2/src/so101_station_control/so101_station_control/operator_restart.py':'',
         'ros2/src/so101_station_control/so101_station_control/trajectory_server.py':''}
@@ -315,3 +316,53 @@ def test_installed_component_overlay_must_match_source_before_devices_start(tmp_
     stale=tmp_path/'stale.launch.py';stale.write_text('stale')
     mapping[next(iter(expected))]=str(stale)
     with pytest.raises(RuntimeError,match='stale'):station.verify_component_overlay(['/fixture/wrapper','ros-vulkan'])
+
+
+def test_native_stop_rpc_uses_compact_status_and_preserves_diagnostic_bound(monkeypatch,capsys):
+    from types import ModuleType
+    from tools.ros_station_api import station_stop_snapshot
+    state = dict(request_id='00000000-0000-0000-0000-000000000002',pending=False,
+                 ev3_stopped=True,arm_disarmed=True)
+    diagnostics = dict(stop=state,workflow=dict(events=[dict(message='x'*1000)]*100),
+                       ev3=dict(status='x'*70000))
+    messages = {'/station/status':json.dumps(diagnostics),
+                '/station/stop_status':json.dumps(station_stop_snapshot(state))}
+    endpoints=[]
+    class Node:
+        def create_client(self,kind,endpoint):
+            endpoints.append(endpoint)
+            return S(wait_for_service=lambda **kw:True,call_async=lambda request:S(
+                done=lambda:True,result=lambda:S(success=True,message=messages[endpoint])))
+        def destroy_node(self):pass
+    ros=ModuleType('rclpy')
+    ros.init=lambda:None;ros.shutdown=lambda:None;ros.create_node=lambda name:Node()
+    ros.spin_until_future_complete=lambda *a,**kw:None
+    services=ModuleType('std_srvs.srv');services.Trigger=S(Request=lambda:None)
+    monkeypatch.setitem(sys.modules,'rclpy',ros)
+    monkeypatch.setitem(sys.modules,'std_srvs',ModuleType('std_srvs'))
+    monkeypatch.setitem(sys.modules,'std_srvs.srv',services)
+    monkeypatch.setattr(sys,'argv',['rpc','/station/status','8'])
+    with pytest.raises(RuntimeError,match='oversize workflow result'):exec(station.NATIVE_RPC,{})
+    monkeypatch.setattr(sys,'argv',['rpc','/station/stop_status','8'])
+    exec(station.NATIVE_RPC,{})
+    assert json.loads(capsys.readouterr().out)==dict(success=True,data=state)
+    assert endpoints==['/station/status','/station/stop_status']
+
+
+def test_missing_compact_stop_endpoint_retains_record_and_dispatches_no_unit_stops(fake_manager):
+    f=fake_manager;station.start_units(f.args,f.path,f.record);f.calls.clear()
+    f.stop_error='/station/stop_status'
+    with pytest.raises(RuntimeError,match='STOP acknowledgement'):station.stop_record(f.path,f.record)
+    assert ('rpc','/station/status') not in f.calls
+    assert ('rpc','/follower/stop') in f.calls
+    assert not any(c[:3]==('systemctl','--user','stop') for c in f.calls)
+    assert f.path.exists() and json.loads(f.path.read_text())['stop_errors']
+
+
+def test_manifest_pins_api_delegate_and_implementation(tmp_path):
+    u=units();m=u.build_manifest(args(tmp_path))
+    for source in ('tools/ros_station_api.py','ros2/src/so101_station_workflow/scripts/station_api'):
+        assert source in m['sources']
+        m['sources'][source]='0'*64
+        with pytest.raises(ValueError,match='source cohort'):u.validate_manifest(m)
+        m=u.build_manifest(args(tmp_path))

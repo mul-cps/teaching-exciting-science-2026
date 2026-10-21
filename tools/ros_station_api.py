@@ -31,6 +31,12 @@ def retain_cleanup_barrier(error, stop_state):
         stop_state['pending'] = True
 
 
+def station_stop_snapshot(stop_state):
+    """Copy only the current STOP correlation and terminal acknowledgements."""
+    return dict(stop={key: stop_state.get(key) for key in
+                      ('request_id', 'pending', 'ev3_stopped', 'arm_disarmed')})
+
+
 def request_station_stop(workflow, stop_state, ev3, follower_stop, record, trigger_type):
     """Announce one correlation before cancellation; dispatch arm before EV3 wait."""
     import uuid
@@ -447,6 +453,7 @@ def main():
         return worker_task('check_ready', check)
 
     for name, function in {'diagnostics': diagnostics, 'check_ready': check_ready, 'status': lambda: dict(workflow=workflow.snapshot(), ev3=cache, stop=stop_state),
+                           'stop_status': lambda: station_stop_snapshot(stop_state),
                            'cancel': stop, 'stop': stop, 'reset_fault': reset_fault,
                            'ev3/connect': connect, 'ev3/home': lambda: simple_ev3('home_touch'),
                            'ev3/eject': lambda: simple_ev3('eject'),

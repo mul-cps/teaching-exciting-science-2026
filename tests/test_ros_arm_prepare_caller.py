@@ -276,3 +276,46 @@ def test_quick_action_aliases_send_zero_argument_trigger(monkeypatch,command,end
         assert action.main([command])==0
         assert json.loads(capsys.readouterr().out)['success'] is True
     assert calls==[endpoint]
+
+
+def test_station_stop_snapshot_is_frozen_current_correlation_without_diagnostic_history():
+    from tools.ros_station_api import station_stop_snapshot
+    state = dict(request_id='00000000-0000-0000-0000-000000000002', pending=False,
+                 ev3_stopped=True, arm_disarmed=True, logging_error='x'*70000)
+    diagnostics = dict(stop=state, workflow=dict(events=[dict(message='x'*1000)]*100),
+                       ev3=dict(status='x'*70000))
+    assert len(json.dumps(diagnostics)) > 65536
+    snapshot = station_stop_snapshot(diagnostics['stop'])
+    expected = {key: state[key] for key in ('request_id', 'pending', 'ev3_stopped', 'arm_disarmed')}
+    assert snapshot == dict(stop=expected)
+    assert len(json.dumps(snapshot)) < 256
+    state.update(request_id='new-request', pending=True, ev3_stopped=False, arm_disarmed=False)
+    assert snapshot == dict(stop=expected)
+    assert station_stop_snapshot(state)['stop']['request_id'] == 'new-request'
+    assert station_stop_snapshot({}) == dict(stop=dict(request_id=None, pending=None,
+        ev3_stopped=None, arm_disarmed=None))
+
+
+def test_station_stop_snapshot_has_fixed_read_only_work_without_external_calls():
+    import ast
+    from tools.ros_station_api import station_stop_snapshot
+    tree = ast.parse(inspect.getsource(station_stop_snapshot))
+    fields = ('request_id', 'pending', 'ev3_stopped', 'arm_disarmed')
+    # Keep the shutdown status path independent of history, clocks and devices.
+    assert {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)} <= {
+        'dict', 'stop_state', 'key'}
+    iterations = [node for node in ast.walk(tree) if isinstance(node, ast.comprehension)]
+    assert len(iterations) == 1 and not iterations[0].ifs
+    assert isinstance(iterations[0].iter, ast.Tuple)
+    assert ast.literal_eval(iterations[0].iter) == fields
+    assert not any(isinstance(node, (ast.For, ast.While, ast.Await)) for node in ast.walk(tree))
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    assert len(calls) == 2
+    for call in calls:
+        if isinstance(call.func, ast.Name):
+            assert call.func.id == 'dict'
+        else:
+            assert isinstance(call.func, ast.Attribute) and call.func.attr == 'get'
+            assert isinstance(call.func.value, ast.Name) and call.func.value.id == 'stop_state'
+            assert len(call.args) == 1 and isinstance(call.args[0], ast.Name) and call.args[0].id == 'key'
+            assert not call.keywords

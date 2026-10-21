@@ -13,7 +13,8 @@ ROLES = ('owner','camera','tags','movegroup','objects','scene','leader','apis')
 UNITS = {role: 'so101-fwmini4-'+role+'.service' for role in ROLES}
 RESTART_ROLES = ('camera','tags','movegroup','objects','scene','leader')
 SOURCES = ('tools/install_station_user_units.py','tools/station_process.py',
-           'tools/freeze_ros_joint_limits.py',
+           'tools/freeze_ros_joint_limits.py','tools/ros_station_api.py',
+           'ros2/src/so101_station_workflow/scripts/station_api',
            'ros2/src/so101_station_bringup/launch/station_live.launch.py',
            'ros2/src/so101_station_control/launch/moveit_resident.launch.py',
            'ros2/src/so101_station_perception/launch/perception.launch.py',

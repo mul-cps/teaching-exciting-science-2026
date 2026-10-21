@@ -247,6 +247,7 @@ COMPONENT_OVERLAY_FILES = {
     'ros2/src/so101_station_control/launch/moveit_resident.launch.py':('so101_station_control','launch/moveit_resident.launch.py'),
     'ros2/src/so101_station_perception/launch/perception.launch.py':('so101_station_perception','launch/perception.launch.py'),
     'ros2/src/so101_station_operator/launch/operator.launch.py':('so101_station_operator','launch/operator.launch.py'),
+    'ros2/src/so101_station_workflow/scripts/station_api':('so101_station_workflow','station_api'),
     'ros2/src/so101_station_operator/scripts/operator_api':('so101_station_operator','operator_api'),
     'ros2/src/so101_station_control/so101_station_control/operator_restart.py':('so101_station_control','operator_restart'),
     'ros2/src/so101_station_control/so101_station_control/trajectory_server.py':('so101_station_control','trajectory_server'),
@@ -262,7 +263,7 @@ files=json.loads(__import__('sys').argv[1]);result={}
 for source,(package,relative) in files.items():
     if relative.startswith('launch/'):
         path=Path(get_package_prefix(package))/'share'/package/relative
-    elif relative=='operator_api':
+    elif relative in ('operator_api','station_api'):
         path=Path(get_package_prefix(package))/'lib'/package/relative
     else:
         path=Path(importlib.util.find_spec(package+'.'+relative).origin)
@@ -452,7 +453,7 @@ import json,sys,time
 import rclpy
 from std_srvs.srv import Trigger
 endpoint=sys.argv[1]
-if endpoint not in ('/follower/status','/follower/stop','/station/stop','/station/status','/station/ev3/connect'):raise ValueError('fixed RPC only')
+if endpoint not in ('/follower/status','/follower/stop','/station/stop','/station/status','/station/stop_status','/station/ev3/connect'):raise ValueError('fixed RPC only')
 deadline=time.monotonic()+max(.05,float(sys.argv[2])-1.)
 rclpy.init();node=rclpy.create_node('station_lifecycle_check')
 try:
@@ -468,10 +469,10 @@ try:
         keys=('kind','fresh','connected','owner_faulted','owner_started_monotonic','sampled_monotonic','position_monotonic','torque_monotonic','torque','arm_id','calibration_sha256','owner_source_sha256')
         result['data']={key:data.get(key) for key in keys}
         result['data']['external_job_pending']=data.get('operator_external_job') is not None
-    elif endpoint in ('/station/stop','/station/status'):
+    elif endpoint in ('/station/stop','/station/status','/station/stop_status'):
         if len(response.message)>65536:raise RuntimeError('oversize workflow result')
         data=json.loads(response.message)
-        data=data.get('stop',{}) if endpoint=='/station/status' else data
+        data=data.get('stop',{}) if endpoint in ('/station/status','/station/stop_status') else data
         result['data']={key:data.get(key) for key in ('request_id','pending','ev3_stopped','arm_disarmed')}
     print(json.dumps(result,allow_nan=False))
 finally:
@@ -535,7 +536,7 @@ def fresh_unit_stop(record):
             while True:
                 remaining = deadline-time.monotonic()
                 if remaining<=0:raise RuntimeError('Station STOP terminal acknowledgement unknown')
-                status = native_rpc(record,'/station/status',timeout=min(8.,remaining))
+                status = native_rpc(record,'/station/stop_status',timeout=min(8.,remaining))
                 if (time.monotonic()<deadline and isinstance(status,dict) and status.get('request_id')==request_id and
                         status.get('pending') is False and status.get('ev3_stopped') is True and status.get('arm_disarmed') is True):
                     break
