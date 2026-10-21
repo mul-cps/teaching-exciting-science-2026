@@ -53,3 +53,9 @@ Documentation library references:
 [Griffe static visitor](https://mkdocstrings.github.io/griffe/reference/api/agents/visitor/),
 [MkDocs](https://www.mkdocs.org/),
 [Doxygen](https://www.doxygen.nl/manual/starting.html).
+
+The project-owned Blockly editor, HTML/CSS, Python interpreter, recorder and ROS
+adapter are included. The pinned, unmodified Blockly 10.4.3 `vendor/` distribution
+is explicitly listed as third-party in coverage, with upstream, license and
+provenance references. Adapted `ros-blocky-port.js` remains included. Archived
+`stale/` code also remains included and is labeled historical.

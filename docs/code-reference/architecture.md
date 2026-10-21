@@ -101,3 +101,64 @@ Diagnostic, benchmark, capture, commissioning and material generation scripts
 are all discoverable in the [tools inventory](inventory.md#tools). Read their
 `main` implementation and argument parser before choosing a command: many
 instructor tools can request physical access when explicitly enabled.
+
+## Managed station process lifecycle
+
+`tools/start_station.sh` and `tools/stop_station.sh` delegate to
+[`tools/station_process.py`](source/tools/station_process.py.md).
+That helper validates prerequisites and existing owners, launches one integrated
+station session, and records Linux process identities. Its stop path checks
+saved process identity before ROS STOP calls or signals, attempts station and
+follower STOP independently, and bounds cleanup of its managed session.
+Uncertain cleanup retains its ownership record. Starting the helper does not
+home or enable motion. Prepared-host profiles and explicit passive bootstrap
+options are described in `docs/station-startup.md`; those are deployment
+procedures, not actions performed by this documentation build.
+
+The trajectory bridge's `_retry_trajectory_start` is a separate, narrow recovery
+path: only a correlated `trajectory-start-rejection-v1` receipt explicitly
+asserting no actuation can enter its revalidation. It checks goal/request,
+owner/calibration/source identity, checked path, freshness and two-count encoder
+jitter before rebuilding and checking a candidate path. This is not a general
+retry policy for uncertain ROS commands. Read the bridge and owner APIs in the
+inventory, including `tests/test_arm_trajectory_start_receipt.py`.
+
+## Blockly editor, program execution and recorded strokes
+
+[`web/blockly-station/app.js`](source/web/blockly-station/app.js.md),
+[`ros-blocky-port.js`](source/web/blockly-station/ros-blocky-port.js.md), HTML and
+CSS implement the project-owned editor. The port adapts ROS Blocky logging
+blocks; its pinned upstream attribution remains in
+`web/blockly-station/THIRD_PARTY.md`. These application files are included in
+full. The unmodified Blockly 10.4.3 distribution under `vendor/` receives an
+explicit third-party exclusion and upstream reference in the coverage report.
+Its minified APIs are not presented as project-authored code.
+
+[`tools/run_blockly_station.py`](source/tools/run_blockly_station.py.md) hosts
+the loopback editor and bounded API; simulation is the default. The browser
+produces a bounded JSON program rather than executable Python.
+[`workshop/blockly_program.py`](source/workshop/blockly_program.py.md) validates
+its schema/limits and implements the interpreter and simulation backend.
+[`blockly_recording.py`](source/workshop/blockly_recording.py.md) validates
+recorded measured strokes and replay points.
+[`blockly_ros.py`](source/workshop/blockly_ros.py.md) adapts the program to the
+existing ROS action/service contracts when physical mode is explicitly selected.
+The Python preview is a teaching artifact; the server does not execute it.
+
+Recording/replay pins owner, calibration and source identity. Replay requires
+the recorded starting pose and a fixed jaw; jaw-gap commands have a separate
+qualified-calibration requirement. STOP verifies the returned request ID against
+terminal station status. Unknown command delivery remains unresolved until
+explicit recovery; the Blockly adapter never treats it as success or retries it.
+`docs/blockly-workshop.md` describes the interface and teaching boundaries.
+The static reference build does not start this server or contact ROS.
+
+## EV3 operator interfaces
+
+The native `EV3Panel` and `OperatorPanel` are documented by Doxygen, with complete
+source pages for their C++ headers and implementations.
+`workshop/station/ev3_operator.py` provides the guarded EV3 operation state;
+`workshop/station/sorter_endpoint.py` shares the conservative target/endpoint
+motion phase. The operator/workflow wrappers expose these through existing ROS
+interfaces. Measured job IDs, completion, cancellation and telemetry checks
+remain part of the implementation, not evidence of a qualified physical cycle.

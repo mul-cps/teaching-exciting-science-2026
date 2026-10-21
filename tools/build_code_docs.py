@@ -28,7 +28,7 @@ LANGUAGES = {
     ".slang": "cpp", ".yaml": "yaml", ".yml": "yaml", ".json": "json",
     ".toml": "toml", ".cfg": "ini", ".xml": "xml", ".urdf": "xml",
     ".srdf": "xml", ".rviz": "yaml", ".repos": "yaml", ".ipynb": "notebook", ".srv": "text",
-    ".msg": "text", ".action": "text", ".patch": "diff",
+    ".msg": "text", ".action": "text", ".patch": "diff", ".html": "html", ".css": "css",
 }
 
 
@@ -48,6 +48,18 @@ def language(path: Path, text: str) -> str | None:
         return "cmake" if path.name == "CMakeLists.txt" else "dockerfile"
     if text.startswith("#!"):
         return "python" if "python" in text.splitlines()[0] else "bash"
+    return None
+
+
+def third_party(path: Path) -> dict | None:
+    """Exclude only the explicitly pinned Blockly distribution, never app code."""
+    if path.is_relative_to(Path("web/blockly-station/vendor")):
+        return {
+            "reason": "third-party Blockly 10.4.3 distribution; upstream API and bundled license apply",
+            "upstream": "https://github.com/google/blockly/tree/blockly-v10.4.3",
+            "license": "web/blockly-station/vendor/LICENSE.blockly",
+            "provenance": "web/blockly-station/THIRD_PARTY.md",
+        }
     return None
 
 
@@ -123,6 +135,10 @@ def generate() -> dict:
     shutil.rmtree(OUTPUT / "docs", ignore_errors=True)
     records, skipped, endpoints = [], [], []
     for path in tracked_files():
+        dependency = third_party(path)
+        if dependency:
+            skipped.append({"path": str(path), **dependency})
+            continue
         raw = (ROOT / path).read_bytes()
         try:
             code = raw.decode("utf-8")
@@ -167,7 +183,7 @@ def generate() -> dict:
         inventory += [f"\n## {group}\n" + ("\nHistorical source retained for provenance; not a current classroom entry point.\n" if group == "stale" else ""), "| File | Language | Python classes/functions |", "| --- | --- | ---: |"]
         inventory += [f'| [{r["path"]}]({r["page"]}) | {r["language"]} | {r["symbols"]} |' for r in records if Path(r["path"]).parts[0] == group]
     write("inventory.md", "\n".join(inventory))
-    coverage = ["# Coverage report\n", f"Source commit: `{report['source_commit']}`. Inventory reads current tracked working-tree contents; file hashes record local edits.\n", f"**{len(records)} source/configuration files; {sum(r['symbols'] for r in records)} Python classes/functions; 0 uncovered classified code files.**\n", "| Language | Files |\n| --- | ---: |", *[f"| {key} | {value} |" for key, value in sorted(counts.items())], "\n## Explicit exclusions\n", "Generated/build/dependency trees are excluded by path. Every other Git file omitted from the API inventory is listed below so classification can be audited. The JSON manifest is `build/code-docs/coverage.json`. No docstring is fabricated where a source lacks one. Static endpoint extraction does not prove runtime reachability, hardware readiness, or physical acceptance.\n", "| File | Reason |\n| --- | --- |", *[f"| `{r['path']}` | {r['reason']} |" for r in skipped]]
+    coverage = ["# Coverage report\n", f"Source commit: `{report['source_commit']}`. Inventory reads current tracked working-tree contents; file hashes record local edits.\n", f"**{len(records)} source/configuration files; {sum(r['symbols'] for r in records)} Python classes/functions; 0 uncovered classified code files.**\n", "| Language | Files |\n| --- | ---: |", *[f"| {key} | {value} |" for key, value in sorted(counts.items())], "\n## Explicit exclusions\n", "Generated/build/dependency trees are excluded by path. Every other Git file omitted from the API inventory is listed below so classification can be audited. The JSON manifest is `build/code-docs/coverage.json`. No docstring is fabricated where a source lacks one. Static endpoint extraction does not prove runtime reachability, hardware readiness, or physical acceptance.\n", "| File | Reason |\n| --- | --- |", *[f"| `{r['path']}` | {r['reason']}" + (f" ([upstream]({r['upstream']})); license: `{r['license']}`; provenance: `{r['provenance']}`" if "upstream" in r else "") + " |" for r in skipped]]
     write("coverage.md", "\n".join(coverage))
     contracts = [(ROOT / "docs/code-reference/ros-contracts-intro.txt").read_text(), "\n## Declared endpoints and parameters\n", "Exact source expressions below include defaults and dynamic names. They are a static declaration index, not a live ROS graph.\n"]
     for row in endpoints:
@@ -185,7 +201,7 @@ def doxygen() -> bool:
     binary = shutil.which("doxygen")
     if not binary:
         return False
-    sources = [str(ROOT / p) for p in tracked_files() if p.suffix in {".cpp", ".hpp", ".h"}]
+    sources = [str(ROOT / p) for p in tracked_files() if p.suffix in {".cpp", ".hpp", ".h"} and not third_party(p)]
     config = '\n'.join([
         'PROJECT_NAME = "CPS Candy Factory native API"',
         f'OUTPUT_DIRECTORY = "{OUTPUT / "doxygen"}"',

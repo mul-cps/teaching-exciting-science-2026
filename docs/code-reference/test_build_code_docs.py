@@ -61,6 +61,24 @@ class Motor:
             self.assertIn("Archived historical source", (root / "build/docs" / docs.page_name(source)).read_text())
             self.assertIn("Historical source retained", (root / "build/docs/inventory.md").read_text())
 
+    def test_only_pinned_vendor_tree_is_excluded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            files = [Path("web/blockly-station") / name for name in (
+                "vendor/blockly_compressed.js", "app.js", "ros-blocky-port.js", "index.html", "style.css")]
+            for source in files:
+                (root / source).parent.mkdir(parents=True, exist_ok=True)
+                (root / source).write_text("/* source */")
+            (root / "docs/code-reference").mkdir(parents=True)
+            (root / "docs/code-reference/ros-contracts-intro.txt").write_text("# ROS contracts\n")
+            with patch.object(docs, "ROOT", root), patch.object(docs, "OUTPUT", root / "build"), patch.object(docs, "tracked_files", return_value=files), patch.object(docs.subprocess, "check_output", return_value="test-commit\n"):
+                report = docs.generate()
+            self.assertEqual({row["path"] for row in report["files"]}, {str(path) for path in files[1:]})
+            self.assertEqual(len(report["excluded"]), 1)
+            self.assertIn("Blockly 10.4.3", report["excluded"][0]["reason"])
+            self.assertIn("blockly-v10.4.3", report["excluded"][0]["upstream"])
+            self.assertIsNone(docs.third_party(Path("stale/tools/app.js")))
+
     def test_broken_local_anchor_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

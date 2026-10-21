@@ -31,3 +31,26 @@ A declaration inside a conditional branch does not prove the endpoint is active.
 These are review paths, not instructions to start hardware. The inventory links
 to complete configuration and launch sources. Runtime parameter overrides,
 remapping and external ROS dependencies can change the resulting graph.
+
+## Blockly adapter and lifecycle contracts
+
+These names are literal interfaces used by `workshop/blockly_ros.py` and
+`tools/station_process.py`; helper-generated names remain visible in the source.
+
+| Consumer | Existing interface | Completion contract |
+| --- | --- | --- |
+| Blockly measured recording | `/follower/joint_states`, `/follower/status` | Fresh samples and matching owner identity |
+| Blockly stroke replay | `/follower/arm_trajectory_controller/follow_joint_trajectory` | Accepted `FollowJointTrajectory` goal and terminal success, error code zero |
+| Blockly jaw command | `/follower/gripper_controller/gripper_cmd` | `GripperCommand` in metres, qualified calibration and reached/not-stalled result |
+| Blockly jaw readiness | `/follower/gripper_calibration_status` | Structured calibrated status |
+| Blockly EV3 endpoints | `/station/ev3/{connect,home,left_end,right_end,eject}` | Exact workflow job identity and terminal result |
+| Blockly EV3 wake/sleep | `/station/wake`, `/station/sleep` | Guarded response and workflow terminal status where supplied |
+| Blockly color/status | `/station/ev3/operator_status`, `/station/operator/status`, `/follower/teleop_status` | Freshness and capability checks; unknown color is explicit |
+| Blockly STOP | `/station/stop`, `/station/status` and active action cancellation | Matching returned STOP request ID, EV3 stopped and arm disarmed |
+| Managed process shutdown | `/station/stop`, `/follower/stop` | Independent bounded RPC attempts followed by verified managed-session cleanup; uncertain cleanup remains explicit |
+
+The bridge's narrow trajectory-start revalidation requires a correlated,
+explicitly nonactuating owner rejection receipt; it does not permit the Blockly
+adapter to retry unknown command delivery. Dynamic launch remapping can change
+runtime names. The tables and generated declarations describe source contracts,
+not a verified live graph or physical acceptance.
