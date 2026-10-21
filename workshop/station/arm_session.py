@@ -58,9 +58,10 @@ BODY_STEP = 180
 GRIPPER_STEP = 650
 ARRIVAL_COUNTS = 10
 QUIET_COUNTS = 4
-SAG_MAX_OVERRUN_COUNTS = 16
-SAG_INSET_COUNTS = ARRIVAL_COUNTS + QUIET_COUNTS + 2
-SAG_STEP_COUNTS = SAG_MAX_OVERRUN_COUNTS + SAG_INSET_COUNTS
+MAX_STARTUP_SAG_COUNTS = 16
+MAX_ADMITTED_SAG_COUNTS = 32
+SAG_INSET_COUNTS = 32
+SAG_STEP_COUNTS = MAX_ADMITTED_SAG_COUNTS + SAG_INSET_COUNTS
 SAG_DRIFT_COUNTS = 2
 # Distinguish a blocked grasp from the measured near-empty close offset. The
 # follower's empty closure can sit about 9 raw counts above its requested
@@ -785,7 +786,7 @@ class ArmSession(NativeDampingMixin):
             for joint in JOINTS:
                 if not self._observe_only and not self.firmware_min[joint] <= actual[joint] <= self.firmware_max[joint]:
                     overrun = actual[joint] - self.firmware_max[joint] if actual[joint] > self.firmware_max[joint] else self.firmware_min[joint] - actual[joint]
-                    if (not self._sag_recovery_available or joint == "gripper" or overrun > SAG_MAX_OVERRUN_COUNTS):
+                    if (not self._sag_recovery_available or joint == "gripper" or overrun > MAX_STARTUP_SAG_COUNTS):
                         raise ValueError("actual raw position outside firmware limits: " + joint)
             self._native_damping_startup()
             self._elbow_trial_startup()
@@ -994,7 +995,10 @@ class ArmSession(NativeDampingMixin):
             if not low <= value <= high:
                 overrun = value - high if value > high else low - value
                 inset_target = high - SAG_INSET_COUNTS if value > high else low + SAG_INSET_COUNTS
-                if (not allow_sag or joint == "gripper" or overrun > SAG_MAX_OVERRUN_COUNTS or
+                firmware_overrun = max(self.firmware_min[joint] - value, value - self.firmware_max[joint], 0)
+                if firmware_overrun > MAX_STARTUP_SAG_COUNTS:
+                    raise ValueError("actual raw position outside firmware sag allowance: " + joint)
+                if (not allow_sag or joint == "gripper" or overrun > MAX_ADMITTED_SAG_COUNTS or
                         target[joint] != inset_target or not low <= inset_target <= high or
                         abs(target[joint] - value) > SAG_STEP_COUNTS):
                     raise ValueError("actual raw position outside admitted configured limits: " + joint)
@@ -1114,7 +1118,7 @@ class ArmSession(NativeDampingMixin):
             state = recovery.get(joint)
             if state:
                 if abs(actual[joint] - start[joint]) > SAG_STEP_COUNTS + SAG_DRIFT_COUNTS:
-                    raise RuntimeError("sag recovery actual excursion exceeds 34 counts: " + joint)
+                    raise RuntimeError("sag recovery actual excursion exceeds 66 counts: " + joint)
                 frame_outward = (actual[joint] - previous[joint] if state["side"] == "high"
                                  else previous[joint] - actual[joint])
                 if frame_outward > SAG_DRIFT_COUNTS:
@@ -2372,7 +2376,7 @@ class ArmSession(NativeDampingMixin):
         points = []
         max_delta = 100
         # Optional startup sag recovery is a separate first inward step to the
-        # admitted boundary plus a 16-count inset. The remaining home route
+        # admitted boundary plus a 32-count inset. The remaining home route
         # starts only after fresh, stable admitted-range proof and dwell.
         recovery_target = dict(start)
         outside = {}
@@ -2381,14 +2385,14 @@ class ArmSession(NativeDampingMixin):
             low, high = self.admitted_min[joint], self.admitted_max[joint]
             if not low <= value <= high:
                 overrun = value - high if value > high else low - value
-                if (not self._sag_recovery_available or joint == "gripper" or overrun > SAG_MAX_OVERRUN_COUNTS):
+                if (not self._sag_recovery_available or joint == "gripper" or overrun > MAX_ADMITTED_SAG_COUNTS):
                     raise ValueError("actual raw position outside admitted configured limits: " + joint)
                 recovery_target[joint] = high - SAG_INSET_COUNTS if value > high else low + SAG_INSET_COUNTS
                 outside[joint] = True
         previous = dict(start)
         if outside:
             if any(abs(recovery_target[j] - start[j]) > SAG_STEP_COUNTS for j in JOINTS):
-                raise ValueError("sag recovery home leg exceeds 32 raw counts")
+                raise ValueError("sag recovery home leg exceeds 64 raw counts")
             self.arm._validate_raw(recovery_target)
             self._validate_transition(start, recovery_target, "home_sag_recovery", allow_sag=True)
             points.append(("home_sag_recovery", recovery_target, True))
@@ -4050,7 +4054,7 @@ def main(argv=None):
     parser.add_argument("--observe-only", action="store_true",
                         help="open/passively sample without writes until explicit stop")
     parser.add_argument("--recover-sag", action="store_true",
-                        help="admit only <=16-count initial body sag moving inward")
+                        help="allow <=16-count body firmware startup overrun and home-only <=32-count admitted reentry")
     parser.add_argument("--lock", type=Path, default=station_lock_path())
     args = parser.parse_args(argv)
     if not math.isfinite(args.idle_timeout) or args.idle_timeout <= 0:
