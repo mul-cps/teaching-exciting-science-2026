@@ -4,26 +4,75 @@ Use this guide for the real SO-ARM101, MoveIt, RViz, RGB-D scene and LEGO EV3. T
 
 ## Start and stop scripts
 
-For the prepared fwmini4 bjoern login, run these in the checkout (native EV3 `cps-ev3-api.service` must already be active):
+### Primary fwmini4 route: managed native services
+
+For the prepared **bjoern** login, use the native user-unit deployment. Its eight
+reviewed service units and manifest must already be installed and disabled, as
+recorded in [fwmini4 preparation](fwmini4-workshop.md). Attach the identified
+devices first; the native EV3 `cps-ev3-api.service` must already be active.
 
 ```bash
 cd ~/git/teaching-exciting-science-2026-current-20261021
-tools/start_station.sh --profile fwmini4 --bootstrap-owner --color-mask-backend vulkan
+./tools/start_station.sh --profile fwmini4 --deployment user-units \
+  --color-mask-backend vulkan --bootstrap-owner
 ```
 
-The script checks existing station processes, exact arm serial paths/calibration, current launch arguments, packages and the native brick service. `--bootstrap-owner` explicitly exports new passive real-device limits before launching. It starts one complete scene, its SSH tunnel, and performs one non-motion EV3 Connect. It never requests home or enables teleop. Logs stay in the foreground; Ctrl-C requests bounded coordinated STOP before closing its own process group. To stop from another terminal:
+This route checks exact arm identities, calibration, packages, deployment pins
+and the native brick service. The passive bootstrap exports fresh real-device
+limits before starting the eight services. Startup also owns the EV3 SSH tunnel,
+performs non-motion Connect and verifies correlated STOP completion with fresh,
+matched **all-six torque OFF** feedback. It never requests home or enables teleop.
+Connected-device startup, RViz and full reset on fwmini4 still require rehearsal;
+installing disabled units does not qualify them.
+
+Open **RViz only** in a second terminal using the manifest's exact command:
 
 ```bash
-tools/stop_station.sh
+python3 - <<'PY_RVIZ'
+from pathlib import Path
+import subprocess
+from tools.install_station_user_units import load_manifest, component_command
+manifest = load_manifest(Path.home() / '.local/share/exciting-science/station/fwmini4-units.json')
+subprocess.run(component_command(manifest, 'rviz'), check=True)
+PY_RVIZ
 ```
 
-Use `tools/start_station.sh --profile local --bootstrap-owner` on the local workstation **only after the restored stack is safely shut down**. Existing components cause refusal; use the additive recovery section below to preserve them. `--existing-tunnel` reuses a verified forward. `--background` writes `station-launch.log` under the runtime owner log directory; stop with the same `--record` path if customized. `--config`, `--contract`, `--state-file`, `--station-lock`, `--log-dir`, `--wrapper`, `--wrapper-command`, `--domain` and other options are listed by `--help`. The default record is `${XDG_RUNTIME_DIR:-/dev/shm}/exciting-science/managed-station.json`.
+This role cannot start a second arm owner. The instructor desktop entry uses
+this managed route. Stop it with the matching deployment command:
 
-Shutdown checks the saved PID, Linux process start time, session and process group before any RPC or signal. A missing record makes stop a no-op; a stale identity is rejected for manual inspection. STOP RPCs are bounded and both station and follower paths are attempted independently. Missing acknowledgements remain explicit even while owned-process cleanup proceeds. This script only stops its managed launch group, including its SSH tunnel; it does not stop the pre-existing brick service. Inspect physical state if cleanup reports an unknown acknowledgement. Sources: [start](../tools/start_station.sh), [stop](../tools/stop_station.sh), [process ownership](../tools/station_process.py).
+```bash
+./tools/stop_station.sh --profile fwmini4 --deployment user-units
+```
 
-## Manual quick start on fwmini4 (bjoern login)
+Shutdown verifies the recorded deployment and process identities, correlated
+station STOP and fresh matched six-joint torque OFF before stopping its managed
+units and tunnel. Missing acknowledgements remain unknown outcomes: preserve the
+record and inspect the reported failure. The pre-existing brick service remains
+managed separately. Sources: [start](../tools/start_station.sh),
+[stop](../tools/stop_station.sh), [process ownership](../tools/station_process.py).
 
-These five steps assume a cold station, the prepared current ROS overlay, identified connected devices and an already running native EV3 brick API. Keep each long-running command in its own terminal. Read the single-owner check below before starting.
+### Integrated launch: limited alternative
+
+The foreground integrated route below is an alternative for a cold station,
+**never alongside the managed units or the local restored stack**. It does not
+configure component user-unit bindings by default, so its restart/reset buttons
+cannot recover components until exact units are configured in both allowlists.
+For that route, `tools/start_station.sh --profile fwmini4 --bootstrap-owner
+--color-mask-backend vulkan` starts the launch group; `tools/stop_station.sh`
+stops its matching default record. Ctrl-C requests bounded coordinated STOP.
+`--background` writes `station-launch.log`; retain the same `--record` path when
+customized. A missing record makes stop a no-op, and stale process identity is
+rejected. Options and path overrides are listed by `--help`.
+
+Use `tools/start_station.sh --profile local --bootstrap-owner` on the local
+workstation **only after the restored stack is safely shut down**. Existing
+components cause refusal; use the additive recovery section below to preserve
+them. `--existing-tunnel` reuses a verified forward. The default record is
+`${XDG_RUNTIME_DIR:-/dev/shm}/exciting-science/managed-station.json`.
+
+## Manual integrated alternative on fwmini4 (bjoern login)
+
+These five steps are the limited integrated alternative above, not the primary native route. They assume a cold station, the prepared current ROS overlay, identified connected devices and an already running native EV3 brick API. Keep each long-running command in its own terminal. Read the single-owner check below before starting.
 
 1. Set the machine paths (repeat this block in each terminal):
 
@@ -116,7 +165,7 @@ ros2/conda/so101-conda.sh camera-preflight
 station_ros ros2 launch so101_station_bringup station_live.launch.py --show-args
 ```
 
-The launch argument list must match this checkout, including the workflow and operator API options. A build/preflight validates software, not connected devices. The desktop **Instructor robot and RViz** runs `python3 tools/prepare_workshop_pc.py station`; it checks saved calibration/home/USB identities and requires the fresh contract, with the same explicit state/lock/log paths used here. For combined launch, EV3 connection and bounded shutdown, use the scripts above. [Prepared machine notes](fwmini4-workshop.md) cover notebooks and desktop launchers.
+The launch argument list must match this checkout, including the workflow and operator API options. A build/preflight validates software, not connected devices. The desktop **Instructor robot and RViz** uses the primary managed native route above. Do not launch the integrated alternative alongside it. For the manual alternative, retain the explicit state/lock/log paths shown here. [Prepared machine notes](fwmini4-workshop.md) cover notebooks and desktop launchers.
 
 ## Terminal order and what starts
 
@@ -176,10 +225,10 @@ station_ros ros2 run so101_station_workflow station_api --ros-args \
   -p ev3_host:=127.0.0.1 -p ev3_port:=18766 \
   -p sorting_config:="$HOME/.local/share/exciting-science/station/sorting.json" \
   -p evidence_dir:="$HOME/.local/share/exciting-science/station/evidence/sorting" \
-  -p ev3_left_end_deg:=-1.0 -p ev3_right_end_deg:=-1.0
+  -p ev3_left_end_deg:=10.0 -p ev3_right_end_deg:=530.0
 ```
 
-This starts no arm, camera, leader or MoveIt. If only the arm operations adapter is missing, start `station_ros ros2 launch so101_station_operator operator.launch.py station_root:="$STATION_ROOT" station_config:="$STATION_CONFIG"` once. Load the installed `so101_station_perception/config/station_live.rviz`, or add **Panels → Add New Panel → so101_station_operator/Operations** and **so101_station_operator/EV3Operations** to the existing RViz. An absent MoveIt/camera/leader must be recovered through that deployment's existing launch terminal or configured user unit; do not guess unit names or start the entire integrated stack over surviving owners. [EV3 panel details](ev3-rviz-panel.md).
+For the unchanged identified mechanism, these commissioned endpoints are left 10° and right 530°: increasing motor D moves the carriage toward the follower arm. Recheck direction after rebuilding or reversing the mechanism. This starts no arm, camera, leader or MoveIt. If only the arm operations adapter is missing, start `station_ros ros2 launch so101_station_operator operator.launch.py station_root:="$STATION_ROOT" station_config:="$STATION_CONFIG"` once. Load the installed `so101_station_perception/config/station_live.rviz`, or add **Panels → Add New Panel → so101_station_operator/Operations** and **so101_station_operator/EV3Operations** to the existing RViz. An absent MoveIt/camera/leader must be recovered through that deployment's existing launch terminal or configured user unit; do not guess unit names or start the entire integrated stack over surviving owners. [EV3 panel details](ev3-rviz-panel.md).
 
 ## Verify services before enabling motion
 
@@ -216,11 +265,11 @@ EV3 actions in its RViz panel:
 | Connect | `/station/ev3/connect` | Connection and status only |
 | Wake / Sleep | `/station/wake`, `/station/sleep` | Explicit power management; Sleep brakes motors |
 | Conveyor home | `/station/ev3/home` | Bounded sorter D/S1 switch motion |
-| Left / right end | `/station/ev3/left_end`, `/station/ev3/right_end` | Guarded configured endpoints; defaults `-1.0` mean unsupported until physical mapping |
+| Left / right end | `/station/ev3/left_end`, `/station/ev3/right_end` | Commissioned 10° / 530° endpoints for the unchanged identified mechanism; standalone defaults remain unsupported unless passed explicitly |
 | Eject one | `/station/ev3/eject` | One bounded LOAD/READY 209° → EJECT 0° cycle, only with established references |
 | STOP | `/station/stop` | Coordinated EV3 brake and arm STOP |
 
-Do not infer left/right from recorded interior targets 10°, 132°, 360°, 530°. Zero uses switch homing; 550° is an unqualified boundary and is rejected. The existing conservative six-second SorterPosition phase budget also rejects excessive distances. Feeder reference is a physical assertion, not an automatic homing operation; the panel never manufactures it. For exact custom request types and qualification see [EV3 panel](ev3-rviz-panel.md) and [station API](ros-station-api.md). Do not run automatic cycles merely because these services are available.
+The commissioned direction was checked with camera and encoder feedback; recheck it if the mechanism changes. Zero uses switch homing; 550° is an unqualified boundary and is rejected. Left/right endpoint wrappers now use at most three phases of at most 200° under one job and a 29-second overall deadline. Each phase retains the six-second budget, same-session stationary feedback, home-reference and exact native-job/terminal-position checks; any failed phase stops the route. The typed `SorterPosition` service remains a single phase and rejects distances outside its existing six-second budget. Feeder reference is a physical assertion, not an automatic homing operation; the panel never manufactures it. For exact custom request types and qualification see [EV3 panel](ev3-rviz-panel.md) and [station API](ros-station-api.md). Do not run automatic cycles merely because these services are available.
 
 ## Recovery and shutdown
 

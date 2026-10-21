@@ -65,7 +65,7 @@ Preparation requires internet for Python packages. Installed versions are record
 
 For the complete manual sequence, fresh joint-limit contract, EV3 native API/tunnel and single-owner recovery, use [the full station startup guide](station-startup.md).
 
-The Student and Instructor live lab launchers only open notebooks. **Instructor robot and RViz** explicitly starts the existing resident owner, read-only leader, camera, and RViz after checking the saved follower calibration hash, saved home identity, and both exact USB serial paths. It preserves the existing owner lock and does not enable teleoperation, calibrate hardware, or run sorting. With no arms connected it fails closed and leaves a terminal explanation. Inspect the existing launcher with `~/.local/bin/station-fwmini4 --help`. Its ROS environment remains the separate pinned Conda installation, with default domain 177 and localhost discovery. Domain 76 belongs to the existing station and must not be started by these classroom launchers.
+The Student and Instructor live lab launchers only open notebooks. **Instructor robot and RViz** uses the managed native startup helper with `--profile fwmini4 --deployment user-units --color-mask-backend vulkan --bootstrap-owner`, then opens the manifest's RViz-only role. The helper checks exact device and calibration identities, generates fresh passive limits and starts the prepared native services without enabling teleoperation, calibrating hardware or running sorting. Closing RViz or pressing Ctrl-C requests the matching managed native STOP/shutdown. With no arms connected, startup fails closed and leaves a terminal explanation. The manual native recipe below controls the same units: do not launch a second station alongside the desktop route. Inspect the existing launcher with `~/.local/bin/station-fwmini4 --help`. Its ROS environment remains the separate pinned Conda installation, with default domain 177 and localhost discovery. Domain 76 belongs to the existing station and must not be started by these classroom launchers.
 
 The reviewed station configuration is `~/.local/share/exciting-science/station/station-fwmini4-20261022.json`; the previous template remains unchanged. Saved calibration JSON files retain their exact original contents in `~/git/soarm101-highschool-demos/.calibration`. The transferred measured home is a historical saved pose, not proof of the currently connected arm state. No owner contract, lease, or previous live feedback was transferred.
 
@@ -92,7 +92,7 @@ The final report is copied into the instructor evidence directory `workshop-begi
 
 The classroom notebook checks are complete without devices. The robot launcher additionally requires a **new contract generated on this PC**, after the identified arms are connected and all previous owners are stopped. A transferred historical home or another machine's runtime contract cannot satisfy this step.
 
-Run this once from a bjoern terminal after connecting and supporting the arms. It starts the existing **observe-only** owner briefly, reads the saved calibration and actual firmware/admitted bounds, exports the contract, then closes that owner. It does not calibrate, home, enable teleoperation, or command motion. Do not run it while a resident owner is already running.
+The desktop route delegates this fresh bootstrap to the managed native helper after the identified arms are connected and all previous owners are stopped. No copied historical contract or separate manual export is required. The helper briefly starts the existing **observe-only** owner, reads the saved calibration and actual firmware/admitted bounds, exports the contract, then closes that owner before starting the managed services. It does not calibrate, home, enable teleoperation or command motion. For a separate diagnostic export only, the equivalent command is below; never run it while a resident owner is already running.
 
 ```bash
 cd ~/git/teaching-exciting-science-2026-current-20261021
@@ -105,7 +105,7 @@ cd ~/git/teaching-exciting-science-2026-current-20261021
   --bootstrap-owner
 ```
 
-Only after successful bootstrap, open **Instructor robot and RViz**. Its launch forwards that exact contract, state file, lock and log directory to the existing resident owner. The planner and owner independently validate calibration, source and bounds; source changes can require a fresh bootstrap. The retained historical measured home remains separate from current live pose and homing admission. This physical bootstrap has **not** been tested on fwmini4 because no devices were connected during preparation.
+For normal startup, open **Instructor robot and RViz** and let its managed helper perform the bootstrap. The managed launch forwards the newly exported contract, state file, lock and log directory to the resident owner. The planner and owner independently validate calibration, source and bounds; source changes can require a fresh bootstrap. The retained historical measured home remains separate from current live pose and homing admission. This physical bootstrap has **not** been tested on fwmini4 because no devices were connected during preparation.
 
 R5 software rehearsal on 21 October passed three fresh notebook kernels, authenticated loopback Student/Instructor apps, all six extracted ZIP entrypoints with system Python without installed packages, both ZIP notebooks with the prepared kernel, nine bundled training PNGs, 18 slide PDF pages, domain75 fake ROS freshness recovery, and offscreen native Qt plugin checks. Actual display/login, webcam permissions, Teachable Machine training, EV3 hardware and physical robot execution remain unverified.
 
@@ -293,8 +293,13 @@ subprocess.run(component_command(manifest, 'rviz'), check=True)
 PY_RVIZ
 ```
 
-The existing integrated robot desktop route must not run alongside unit mode.
-The tested account remains `bjoern`; physical display login remains unverified.
+The **Instructor robot and RViz** desktop route performs this same managed native
+startup, then opens only the manifest RViz role. Closing RViz or pressing Ctrl-C
+requests the matching managed native STOP/shutdown. The separate terminal recipe
+controls the same units; do not run both concurrently. The manual integrated
+launch remains an alternative cold-start route and must never run alongside
+these units. The tested account remains `bjoern`; physical display login and
+connected-device reset remain unverified.
 
 #### Failure handling and software evidence
 
