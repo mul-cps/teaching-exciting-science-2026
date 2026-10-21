@@ -1,6 +1,7 @@
 """FollowJointTrajectory adapter that delegates all bus access to ArmSession."""
 from __future__ import annotations
 
+import copy
 import json
 import hashlib
 import functools
@@ -228,6 +229,34 @@ def _duration(seconds):
     seconds = max(0.0, seconds)
     sec = int(seconds)
     return Duration(sec=sec, nanosec=int((seconds - sec) * 1e9))
+
+
+def prepare_with_controller_timing(helper, joint_names, points, *, start_radians, max_jerk):
+    """Bound timing retries to controller limit failures, preserving every knot."""
+    retry_prefixes = ("velocity limit exceeded:", "acceleration limit exceeded:",
+                      "jerk limit exceeded:")
+    last_error = None
+    for factor in (1.0, 1.2, 1.44, 1.728, 2.0):
+        effective_points = copy.deepcopy(points)
+        if factor > 1.0:
+            for point in effective_points:
+                point["time"] *= factor
+                for field, scale in (("velocities", factor), ("accelerations", factor ** 2)):
+                    if point.get(field) is not None:
+                        point[field] = [value / scale for value in point[field]]
+        try:
+            prepared = helper.prepare_trajectory(
+                joint_names, effective_points, start_radians=start_radians,
+                max_velocity=helper.ROS_MAX_VELOCITY_RAD_S,
+                max_acceleration=helper.ROS_MAX_ACCELERATION_RAD_S2,
+                max_jerk=max_jerk, period=0.05)
+        except ValueError as error:
+            if not str(error).startswith(retry_prefixes):
+                raise
+            last_error = error
+        else:
+            return factor, effective_points, prepared
+    raise ValueError(f"controller retiming failed within maximum factor 2.0: {last_error}") from last_error
 
 
 def _control_callback(callback):
@@ -2869,11 +2898,9 @@ class TrajectoryBridge(Node):
         max_jerk = float(self.get_parameter("max_jerk_rad_s3").value)
         if max_jerk <= 0 or max_jerk > helper.ROS_MAX_JERK_RAD_S3:
             raise ValueError(f"max_jerk_rad_s3 must be in (0, {helper.ROS_MAX_JERK_RAD_S3}]")
-        prepared = helper.prepare_trajectory(
-            trajectory.joint_names, parsed_points, start_radians=start,
-            max_velocity=helper.ROS_MAX_VELOCITY_RAD_S,
-            max_acceleration=helper.ROS_MAX_ACCELERATION_RAD_S2,
-            max_jerk=max_jerk, period=0.05)
+        retiming_factor, command_points, prepared = prepare_with_controller_timing(
+            helper, trajectory.joint_names, parsed_points, start_radians=start,
+            max_jerk=max_jerk)
         dense = helper.dense_path_samples(prepared, max_joint_step_rad=0.01)
         jaw_opening = min(100.0, max(0.0, float(state["pose"]["gripper"])))
         jaw_position = math.radians(-10.0 + 1.1 * jaw_opening)
@@ -2888,6 +2915,7 @@ class TrajectoryBridge(Node):
             "start_state": {"raw": state.get("raw"), "pose": state.get("pose"),
                             "monotonic": state.get("monotonic")},
             "original_points": parsed_points,
+            "retiming_factor": retiming_factor, "command_points": command_points,
             "effective_path_sha256": helper.path_digest(
                 prepared, held_gripper_raw=state["raw"]["gripper"]),
             "effective_samples": [{"time": sample.time, "positions": list(sample.positions)}
@@ -3288,6 +3316,21 @@ class TrajectoryBridge(Node):
                     "original_points": command_points, "joint_names": names}
         try:
             artifact = self._collision_check_path(trajectory, trajectory.points, goal_id)
+            command_points = artifact["command_points"]
+            if artifact["retiming_factor"] > 1.0:
+                trajectory = copy.deepcopy(trajectory)
+                previous_ns = -1
+                for point, effective in zip(trajectory.points, command_points):
+                    timestamp_ns = round(effective["time"] * 1e9)
+                    if timestamp_ns <= previous_ns:
+                        raise ValueError("retimed feedback timestamps must remain strictly increasing")
+                    previous_ns = timestamp_ns
+                    sec, nanosec = divmod(timestamp_ns, 1_000_000_000)
+                    point.time_from_start = Duration(sec=sec, nanosec=nanosec)
+                    if "velocities" in effective:
+                        point.velocities = list(effective["velocities"])
+                    if "accelerations" in effective:
+                        point.accelerations = list(effective["accelerations"])
             with self._active_lock:
                 cancelled_before_send = self._cancel_before_start
                 if cancelled_before_send:
