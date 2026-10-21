@@ -42,6 +42,26 @@ from .gripper_action import gap_to_percent, percent_to_gap, validate_jaw_calibra
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 
 
+def _teleop_leader_readiness(latest, now, max_age):
+    """Age only the cache admitted by validate_pose_packet; never read a device."""
+    if latest is None:
+        return False, "leader_pose_missing", None
+    stamp = latest.get("stamp_s")
+    if type(stamp) not in (int, float) or not math.isfinite(stamp):
+        return False, "leader_pose_timestamp_invalid", None
+    age = now - stamp
+    if not math.isfinite(age):
+        return False, "leader_pose_timestamp_invalid", None
+    if not math.isfinite(max_age) or max_age <= 0:
+        return False, "leader_freshness_config_invalid", age
+    # Retain the packet validator's 20 ms allowance for local scheduling skew.
+    if age < -0.02:
+        return False, "leader_pose_future", age
+    if age > max_age:
+        return False, "leader_pose_stale", age
+    return True, "fresh_calibrated_leader_pose", age
+
+
 def _arm_bounds_observation(state):
     """Validate the owner's classification; never reproduce its raw-bound math."""
     value = state.get("arm_bounds") if isinstance(state, dict) else None
@@ -2359,6 +2379,10 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             completed = self._home_completed_owner_started
             observing = self._reconnect_observe
             expected_sources = self._owner_source_expected
+        with self._teleop_latest_lock:
+            leader_latest = dict(self._teleop_latest) if self._teleop_latest is not None else None
+        leader_ready, leader_reason, leader_age = _teleop_leader_readiness(
+            leader_latest, now, float(self.get_parameter("teleop_pose_stale_s").value))
         reasons = [cache_reason] if cache_reason else []
         connected = bool(not self._closed and process is not None and process.poll() is None)
         if not connected:
@@ -2428,6 +2452,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             "stop_latched": bool(barrier), "home_completed_this_session": home,
             "active_operation": active if isinstance(active, str) else "trajectory" if active else None,
             "teleop_state": teleop_state, "owner_started_monotonic": generation if generation_valid else None,
+            "teleop_leader_ready": leader_ready, "teleop_leader_reason": leader_reason,
+            "teleop_leader_age_s": leader_age,
             "native_damping": state.get("native_damping") if trusted else None,
             "native_damping_supported": state.get("native_damping_supported") is True and trusted,
             "native_damping_restore_pending": state.get("native_damping_restore_pending") is True,
