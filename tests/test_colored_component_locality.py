@@ -133,3 +133,28 @@ def test_analyzer_component_loop_uses_only_local_mask_and_depth_views():
     validate = next(n for n in ast.walk(tree) if isinstance(n, ast.Call) and
                     isinstance(n.func, ast.Name) and n.func.id == 'validate_colored_component')
     assert [ast.unparse(v) for v in validate.args[:2]] == ['rgb[piece_crop]', 'depth_m[piece_crop]']
+
+
+def test_benchmark_comparator_accepts_only_added_default_cpu_metadata():
+    from tools.benchmark_component_locality import assert_same
+    before = {'objects': [{'center': [0.1, 0.2, 0.3]}]}
+    metadata = {'requested': 'cpu', 'selected': 'cpu', 'gpu_available': None,
+                'device': None, 'fallback_reason': None}
+    assert_same(before, dict(before, color_mask_backend=metadata))
+    assert_same(before, before)
+    with pytest.raises(AssertionError):
+        assert_same(before, dict(before, unknown=True, color_mask_backend=metadata))
+    with pytest.raises(AssertionError):
+        assert_same(before, {'objects': [{'center': [0.1, 0.2, 0.4]}],
+                             'color_mask_backend': metadata})
+    with pytest.raises(AssertionError):
+        assert_same({'nested': before},
+                    {'nested': dict(before, color_mask_backend=metadata)})
+    for changed in (dict(metadata, selected='vulkan'),
+                    dict(metadata, fallback_reason='failed')):
+        with pytest.raises(AssertionError):
+            assert_same(before, dict(before, color_mask_backend=changed))
+        # Same-key reports retain strict recursive comparison.
+        with pytest.raises(AssertionError):
+            assert_same(dict(before, color_mask_backend=metadata),
+                        dict(before, color_mask_backend=changed))

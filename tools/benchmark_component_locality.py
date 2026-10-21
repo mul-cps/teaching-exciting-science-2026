@@ -44,6 +44,14 @@ def baseline_analyzer(revision=BASELINE_REVISION):
 
 def assert_same(before, after, path='result'):
     if isinstance(before, dict):
+        if (path == 'result' and isinstance(after, dict)
+                and after.keys() == before.keys() | {'color_mask_backend'}
+                and 'color_mask_backend' not in before):
+            assert after['color_mask_backend'] == {
+                'requested': 'cpu', 'selected': 'cpu', 'gpu_available': None,
+                'device': None, 'fallback_reason': None}, path+'.color_mask_backend'
+            after = {key: value for key, value in after.items()
+                     if key != 'color_mask_backend'}
         assert isinstance(after, dict) and before.keys() == after.keys(), path
         for key in before:
             assert_same(before[key], after[key], path+'.'+str(key))
