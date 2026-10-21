@@ -109,6 +109,8 @@ class DerivedAligned:
             except (ValueError,KeyError,TypeError,AttributeError) as error:
                 self.core.clear_observations();self.fault=str(error);invalidated=True
         if invalidated:self._invalidate_offers()
+        if not invalidated and self.metadata_offer is not None:
+            self.drain()
         # Marker callback only offers metadata to its existing latest scheduler.
         if token is not None:self.callback(token['color'],token['aligned'],token['color_info'],token)
 

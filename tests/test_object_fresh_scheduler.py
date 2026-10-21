@@ -247,7 +247,7 @@ def test_derived_token_epoch_pin_and_shutdown_fences_do_not_admit_sources():
     assert not adapter.token_is_current(value)
 
 
-def test_derived_metadata_intake_defers_take_and_offers_drain_reference_only():
+def test_derived_metadata_intake_and_timer_offer_metadata_reference_only():
     cls = production_class(DERIVED, {'_intake', 'drain', '_invalidate_offers'},
                            {'time': NS(monotonic=lambda: 10.)})
     adapter = cls(); calls = []; value = token()
@@ -257,12 +257,12 @@ def test_derived_metadata_intake_defers_take_and_offers_drain_reference_only():
     adapter._clock = lambda: {'now_ns': 10_000_000_000, 'now_mono': 10.}
     adapter.node = NS(get_clock=lambda: NS(now=lambda: NS(nanoseconds=10_000_000_000)))
     adapter._validate_received_info = Mock()
-    adapter.core = NS(receive=Mock(), lineage=Mock(), take=Mock(return_value=value),
+    adapter.core = NS(receive=Mock(), lineage=Mock(), take=Mock(side_effect=[value, None]),
                       clear_observations=Mock())
     message = object()
     adapter._intake('color', message, b'gid')
     adapter.core.receive.assert_called_once_with('color', message, b'gid', now_ns=10_000_000_000, now_mono=10.)
-    adapter.core.take.assert_not_called()
+    adapter.core.take.assert_called_once()
     adapter.callback.assert_not_called()
     adapter.drain()
     assert calls == [value] and calls[0] is value
@@ -297,3 +297,143 @@ def test_worker_availability_is_bounded_scalar_metadata_only():
     assert len(calls) == 1 and isinstance(calls[0].func, ast.Name) and calls[0].func.id == 'max'
     result = next(n for n in ast.walk(method) if isinstance(n, ast.Dict))
     assert {key.value for key in result.keys} == {'available', 'ready_after'}
+
+
+@pytest.mark.parametrize('lineage_first', [False, True])
+def test_metadata_intake_offers_complete_cohort_immediately_once_outside_lock(lineage_first):
+    import json
+    from test_aligned_cohort import gate, messages
+    core, statement = gate(); offered = []; drain_lock_states = []
+    cls = production_class(DERIVED, {'_intake', 'drain', '_invalidate_offers', 'token_is_current'},
+                           {'time': NS(monotonic=lambda: 100.12)})
+    adapter = cls(); adapter.lock = RLock(); adapter.closed = False; adapter.fault = None
+    adapter.period = .2; adapter.last_take = 100.12; adapter.core = core
+    adapter.node = NS(get_clock=lambda: NS(now=lambda: NS(nanoseconds=10_120_000_000)))
+    adapter._validate_received_info = Mock(); adapter.callback = Mock()
+    def offer(value):
+        assert not adapter.lock._is_owned()
+        offered.append(value)
+    adapter.metadata_offer = offer
+    def drain():
+        drain_lock_states.append(adapter.lock._is_owned())
+        cls.drain(adapter)
+    adapter.drain = drain
+    lineage = ('lineage', NS(data=json.dumps(statement)), bytes.fromhex('6'*32))
+    inputs = [(kind, msg, bytes.fromhex(statement['outputs']['aligned_publisher_gid']
+               if kind == 'aligned' else statement['source'][kind+'_publisher_gid']))
+              for kind, msg in messages(statement).items()]
+    inputs = [lineage, *inputs] if lineage_first else [*inputs, lineage]
+    for kind, message, gid in inputs:
+        adapter._intake(kind, message, gid)
+    assert drain_lock_states == [False]*5
+    assert len(offered) == 1 and offered[0]['statement']['sequence'] == statement['sequence']
+    assert offered[0]['lineage_receipt'] == 100.12
+    assert adapter.token_is_current(offered[0])
+    adapter.callback.assert_not_called()
+    kind, message, gid = inputs[-1]
+    adapter._intake(kind, message, gid); adapter.drain()  # Timer fallback cannot reoffer a sequence.
+    assert len(offered) == 1
+    adapter.core.close(); adapter.closed = True
+    before = len(drain_lock_states); adapter._intake(kind, message, gid)
+    assert len(drain_lock_states) == before and len(offered) == 1
+
+
+def test_immediate_metadata_drain_is_outside_lock_and_has_no_heavy_transitive_calls():
+    tree = ast.parse(DERIVED.read_text())
+    methods = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+    intake = methods['_intake']
+    drain_call = next(n for n in ast.walk(intake) if isinstance(n, ast.Call)
+                      and isinstance(n.func, ast.Attribute) and n.func.attr == 'drain')
+    locked = next(n for n in intake.body if isinstance(n, ast.With))
+    assert drain_call.lineno > locked.end_lineno
+    choice = next(n for n in intake.body if isinstance(n, ast.If) and drain_call in list(ast.walk(n)))
+    assert ast.unparse(choice.test) == 'not invalidated and self.metadata_offer is not None'
+    for name in ('_intake', 'drain', '_invalidate_offers'):
+        calls = {n.func.attr if isinstance(n.func, ast.Attribute) else n.func.id
+                 for n in ast.walk(methods[name]) if isinstance(n, ast.Call)
+                 and isinstance(n.func, (ast.Attribute, ast.Name))}
+        assert not calls & {'copy', 'asarray', 'imgmsg_to_cv2', 'lookup_transform', 'publish',
+                            'submit', 'analyze_rgbd', 'cuda', 'synchronize', 'read', 'write'}
+
+
+@pytest.mark.parametrize('period', [0., .2])
+def test_legacy_non_metadata_intake_keeps_its_original_delivery_mode(period):
+    cls = production_class(DERIVED, {'_intake', '_invalidate_offers'},
+                           {'time': NS(monotonic=lambda: 10.)})
+    adapter = cls(); adapter.lock = RLock(); adapter.closed = False; adapter.fault = None
+    adapter.period = period; adapter.metadata_offer = None
+    adapter.node = NS(get_clock=lambda: NS(now=lambda: NS(nanoseconds=10_000_000_000)))
+    adapter.callback = Mock(); adapter.drain = Mock()
+    value = token()
+    adapter.core = NS(receive=Mock(), take=Mock(return_value=value))
+    adapter._intake('color', object(), b'gid')
+    adapter.drain.assert_not_called()
+    if period:
+        adapter.core.take.assert_not_called(); adapter.callback.assert_not_called()
+    else:
+        adapter.core.take.assert_called_once()
+        adapter.callback.assert_called_once_with(value['color'], value['aligned'], value['color_info'], value)
+
+
+def test_immediate_core_take_transitive_closure_is_bounded_metadata_only():
+    """Follow local helpers rather than stopping at the adapter's core.take call."""
+    package = DERIVED.parent
+    aligned = ast.parse((package / 'aligned_cohort.py').read_text())
+    lineage = ast.parse((package / 'derived_lineage.py').read_text())
+    cohort = next(n for n in aligned.body if isinstance(n, ast.ClassDef) and n.name == 'AlignedCohorts')
+    functions = {n.name: n for tree in (aligned, lineage) for n in tree.body
+                 if isinstance(n, ast.FunctionDef)}
+    functions.update({'AlignedCohorts.'+n.name: n for n in cohort.body if isinstance(n, ast.FunctionDef)})
+    allowed_names = {'abs', 'all', 'any', 'bool', 'bytes', 'dict', 'isinstance', 'len',
+                     'max', 'min', 'next', 'reversed', 'set', 'str', 'type', 'ValueError', 'zip'}
+    allowed_metadata_methods = {'get', 'startswith', 'values', 'encode', 'hexdigest', 'hex'}
+    allowed_module_calls = {'math.isfinite', 'hashlib.sha256', 'json.dumps'}
+    forbidden_attributes = {'data', 'shape', 'copy', 'copy_', 'asarray', 'astype', 'reshape',
+                            'imgmsg_to_cv2', 'lookup_transform', 'publish', 'submit', 'analyze_rgbd',
+                            'cuda', 'numpy', 'synchronize', 'wait', 'sleep', 'read', 'write',
+                            'to_host', 'to_device', 'download', 'upload'}
+    pending = ['AlignedCohorts.take']; visited = set()
+    while pending:
+        name = pending.pop()
+        if name in visited: continue
+        visited.add(name); method = functions[name]
+        assert not any(isinstance(n, (ast.Import, ast.ImportFrom)) for n in ast.walk(method)), name
+        for node in ast.walk(method):
+            if isinstance(node, ast.Attribute):
+                assert node.attr not in forbidden_attributes, (name, ast.unparse(node))
+            if not isinstance(node, ast.Call): continue
+            target = ast.unparse(node.func)
+            if isinstance(node.func, ast.Name) and target in functions:
+                pending.append(target)
+            elif target.startswith('self.') and 'AlignedCohorts.'+target[5:] in functions:
+                pending.append('AlignedCohorts.'+target[5:])
+            elif target == 'deepcopy':
+                # This copies a fixed-key immutable metadata pin, never a message/pixel buffer.
+                assert name == 'statement_pin' and len(node.args) == 1
+                assert isinstance(node.args[0], ast.BinOp) and isinstance(node.args[0].op, ast.BitOr)
+                comprehensions = [n for n in ast.walk(node.args[0]) if isinstance(n, ast.comprehension)]
+                assert len(comprehensions) == 2
+                assert all(isinstance(n.iter, ast.Tuple) and all(isinstance(k, ast.Constant)
+                           and isinstance(k.value, str) for k in n.iter.elts) for n in comprehensions)
+            elif isinstance(node.func, ast.Name):
+                assert target in allowed_names, (name, target)
+            elif target in allowed_module_calls:
+                pass  # Bounded metadata JSON/hash and finite scalar checks are intentional.
+            else:
+                assert isinstance(node.func, ast.Attribute) and node.func.attr in allowed_metadata_methods, (name, target)
+                # In particular, do not confuse a GPU buffer.get() download with dict.get().
+                receiver = ast.unparse(node.func.value)
+                allowed_receivers = {'get': {'value'}, 'values': {'receipts', 'hashes'}, 'hex': {'value[:16]'}}
+                if node.func.attr in allowed_receivers:
+                    assert receiver in allowed_receivers[node.func.attr], (name, target)
+                elif node.func.attr == 'startswith':
+                    assert isinstance(node.func.value, ast.Subscript) and isinstance(node.func.value.value, ast.Name)
+                    assert node.func.value.value.id in {'source', 'implementation'}, (name, target)
+                elif node.func.attr in {'encode', 'hexdigest'}:
+                    assert isinstance(node.func.value, ast.Call)
+                    assert ast.unparse(node.func.value.func) == ('json.dumps' if node.func.attr == 'encode' else 'hashlib.sha256')
+    assert {'AlignedCohorts.take', 'AlignedCohorts._open', 'validate_statement', 'native_snapshot',
+            'statement_pin', 'canonical_gid', 'require', 'integer', 'finite', 'hex_value'} <= visited
+    streams = next(n.value for n in aligned.body if isinstance(n, ast.Assign)
+                   and any(isinstance(t, ast.Name) and t.id == 'STREAMS' for t in n.targets))
+    assert ast.literal_eval(streams) == ('color', 'aligned', 'color_info', 'depth_info')
