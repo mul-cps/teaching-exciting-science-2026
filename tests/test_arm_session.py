@@ -467,10 +467,12 @@ def test_sag_recovery_requires_explicit_flag_and_small_body_overrun(tmp_path):
     assert state["raw"]["elbow_flex"] == 3062
     assert {v["kind"] for v in state["violations"] if v["joint"] == "elbow_flex"} == {
         "calibration_range", "configured_pose_range", "firmware_range"}
-    # A target inside firmware bounds and toward safety admits the first leg.
-    destination = dict(initial, elbow_flex=3055)
-    session.move_plan([{"label": "recover-inward", "target_raw": destination}])
-    assert arm.bus.sync_read("Present_Position")["elbow_flex"] == 3055
+    # Startup recovery authority is confined to home, not ordinary planning.
+    destination = dict(initial, elbow_flex=session.admitted_max["elbow_flex"] - 16)
+    with pytest.raises(ValueError, match="outside admitted"):
+        session.move_plan([{"label": "recover-inward", "target_raw": destination}])
+    session.home()
+    assert arm.bus.sync_read("Present_Position") == session.home_raw
     session.shutdown()
     session.close_log()
 
@@ -496,7 +498,7 @@ def test_home_sag_recovery_is_opt_in_and_stays_inside_admitted_limits(tmp_path):
     outside["elbow_flex"] = recovered.admitted_max["elbow_flex"] + 8
     recovered_arm.bus.data["Present_Position"] = dict(outside)
     recovered.home()
-    assert recovered_arm.bus.goal_history[0]["elbow_flex"] == recovered.admitted_max["elbow_flex"]
+    assert recovered_arm.bus.goal_history[0]["elbow_flex"] == recovered.admitted_max["elbow_flex"] - 16
     assert recovered_arm.bus.goal_history[0]["elbow_flex"] < outside["elbow_flex"]
     assert recovered_arm.bus.data["Present_Position"] == recovered.home_raw
     recovered.shutdown()
@@ -1560,4 +1562,146 @@ def test_stop_busy_correlates_after_cleanup_and_discards_queued_motion(tmp_path)
     assert ack['ok'] and ack['stopped']
     assert set(ack['final_state']['torque'].values()) == {0}
     assert len(arm.bus.goal_history) == 1
+    session.close_log()
+
+
+@pytest.mark.parametrize("side,overrun", [(s, n) for s in ("low", "high") for n in (1, 16, 17)])
+def test_sag_reentry_certifies_inset_and_small_total_step(tmp_path, side, overrun):
+    session, arm, _ = make_session(tmp_path, recover_sag=True)
+    session.initialize()
+    start = dict(arm.bus.data["Present_Position"])
+    joint = "elbow_flex"
+    boundary = session.admitted_min[joint] if side == "low" else session.admitted_max[joint]
+    direction = 1 if side == "low" else -1
+    start[joint] = boundary - direction * overrun
+    goal = dict(start, **{joint: boundary + direction * 16})
+    if overrun == 17:
+        with pytest.raises(ValueError, match="outside admitted"):
+            session._validate_transition(start, goal, "recovery", allow_sag=True)
+    else:
+        recovery = session._validate_transition(start, goal, "recovery", allow_sag=True)
+        assert abs(goal[joint] - start[joint]) <= 32
+        assert recovery[joint]["command_max"] - recovery[joint]["command_min"] <= 32
+        with pytest.raises(ValueError, match="inactive joint goals"):
+            session._validate_transition(start, dict(goal, wrist_roll=2001), "bad", allow_sag=True)
+    session.shutdown()
+    session.close_log()
+
+
+def test_sag_reentry_never_admits_gripper(tmp_path):
+    session, arm, _ = make_session(tmp_path, recover_sag=True)
+    session.initialize()
+    start = dict(arm.bus.data["Present_Position"], gripper=session.admitted_max["gripper"] + 1)
+    with pytest.raises(ValueError, match="outside admitted"):
+        session._validate_transition(start, dict(start, gripper=session.admitted_max["gripper"] - 16), "bad", allow_sag=True)
+    session.shutdown()
+    session.close_log()
+
+
+@pytest.mark.parametrize("mode", ["ramp", "partial", "stall"])
+def test_sag_reentry_slow_native_ramp_and_bounded_deadline(tmp_path, mode):
+    session, arm, clock = make_session(tmp_path, recover_sag=True)
+    session.initialize()
+    joint = "elbow_flex"
+    boundary = session.admitted_max[joint]
+    start = dict(arm.bus.data["Present_Position"], **{joint: boundary + 14})
+    arm.bus.data["Present_Position"] = dict(start)
+    goal = dict(start, **{joint: boundary - 16})
+    arm.bus.stalled_joints.add(joint)
+    began = clock.monotonic()
+
+    def ramp():
+        if mode == "stall" or clock.monotonic() - began < 1.2:
+            return
+        floor = boundary - 2 if mode == "partial" else goal[joint]
+        arm.bus.data["Present_Position"][joint] = max(floor, arm.bus.data["Present_Position"][joint] - 2)
+
+    arm.bus.on_present_read = ramp
+    session._ensure_profile()
+    if mode == "stall":
+        # Use home so the command's existing failure cleanup is exercised.
+        with pytest.raises(TimeoutError, match="6 second deadline"):
+            session.home()
+        assert 6 <= clock.monotonic() - began < 6.1
+        assert set(arm.bus.data["Torque_Enable"].values()) == {0}
+    else:
+        record = session._run_leg("home_sag_recovery", goal, start, allow_sag=True, phase="home")
+        assert 1.2 < record["elapsed"] < 6
+        assert record["settlement_purpose"] == "admitted_reentry"
+        assert boundary - 34 <= record["settled_raw"][joint] <= boundary
+        if mode == "partial":
+            assert record["target_reached"] is False
+        assert all(start[joint] >= command[joint] >= goal[joint] for command in arm.bus.goal_history)
+        assert all(command[j] == start[j] for command in arm.bus.goal_history for j in JOINTS if j != joint)
+        assert record["gravity_trim_raw"] == dict.fromkeys(JOINTS, 0)
+        session.shutdown()
+    session.close_log()
+
+
+@pytest.mark.parametrize("fault", ["outward", "reversal", "reversal_inside", "inactive", "exit", "excursion"])
+def test_sag_reentry_guards_observed_envelope(tmp_path, fault):
+    session, arm, clock = make_session(tmp_path, recover_sag=True)
+    session.initialize()
+    joint = "elbow_flex"
+    high = session.admitted_max[joint]
+    start = dict(arm.bus.data["Present_Position"], **{joint: high + 14})
+    goal = dict(start, **{joint: high - 16})
+    recovery = session._validate_transition(start, goal, "recovery", allow_sag=True)
+    actual = dict(start)
+    if fault == "outward":
+        actual[joint] += 3
+        message = "farther out"
+    elif fault in ("reversal", "reversal_inside"):
+        if fault == "reversal_inside":
+            previous = dict(start, **{joint: high - 5})
+            session._guard_actual(previous, start, start, {joint}, recovery, clock.monotonic())
+        else:
+            previous = dict(start, **{joint: high + 4})
+        actual[joint] = previous[joint] + 3
+        with pytest.raises(RuntimeError, match="farther out"):
+            session._guard_actual(actual, previous, start, {joint}, recovery, clock.monotonic())
+        session.shutdown()
+        session.close_log()
+        return
+    elif fault == "inactive":
+        actual["wrist_roll"] += 3
+        message = "inactive joint drift exceeds 2"
+    elif fault == "exit":
+        inside = dict(start, **{joint: high})
+        session._guard_actual(inside, start, start, {joint}, recovery, clock.monotonic())
+        actual[joint] = high + 1
+        message = "left admitted"
+    else:
+        actual[joint] -= 35
+        message = "excursion exceeds 34"
+    with pytest.raises(RuntimeError, match=message):
+        session._guard_actual(actual, start, start, {joint}, recovery, clock.monotonic())
+    session.shutdown()
+    session.close_log()
+
+
+def test_home_continues_after_measured_reentry_without_inset_arrival(tmp_path):
+    session, arm, clock = make_session(tmp_path, recover_sag=True)
+    session.initialize()
+    joint = "elbow_flex"
+    high = session.admitted_max[joint]
+    arm.bus.data["Present_Position"][joint] = high + 14
+    arm.bus.stalled_joints.add(joint)
+    began = clock.monotonic()
+
+    def recover_then_release():
+        if len(arm.bus.goal_history) == 1 and clock.monotonic() - began >= 1.2:
+            arm.bus.data["Present_Position"][joint] = high - 2
+        elif len(arm.bus.goal_history) > 1:
+            arm.bus.stalled_joints.discard(joint)
+
+    arm.bus.on_present_read = recover_then_release
+    state = session.home()
+    first = session._completed_leg_records[0]
+    assert first["settlement_purpose"] == "admitted_reentry"
+    assert first["target_reached"] is False
+    assert state["raw"] == session.home_raw
+    assert state["arm_bounds"]["classification"] == "normal"
+    assert session._home_completed_this_session
+    session.shutdown()
     session.close_log()

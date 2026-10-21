@@ -58,6 +58,10 @@ BODY_STEP = 180
 GRIPPER_STEP = 650
 ARRIVAL_COUNTS = 10
 QUIET_COUNTS = 4
+SAG_MAX_OVERRUN_COUNTS = 16
+SAG_INSET_COUNTS = ARRIVAL_COUNTS + QUIET_COUNTS + 2
+SAG_STEP_COUNTS = SAG_MAX_OVERRUN_COUNTS + SAG_INSET_COUNTS
+SAG_DRIFT_COUNTS = 2
 # Distinguish a blocked grasp from the measured near-empty close offset. The
 # follower's empty closure can sit about 9 raw counts above its requested
 # position; require a clear 30-count excess before inferring contact.
@@ -755,7 +759,7 @@ class ArmSession(NativeDampingMixin):
             for joint in JOINTS:
                 if not self._observe_only and not self.firmware_min[joint] <= actual[joint] <= self.firmware_max[joint]:
                     overrun = actual[joint] - self.firmware_max[joint] if actual[joint] > self.firmware_max[joint] else self.firmware_min[joint] - actual[joint]
-                    if (not self._sag_recovery_available or joint == "gripper" or overrun > 16):
+                    if (not self._sag_recovery_available or joint == "gripper" or overrun > SAG_MAX_OVERRUN_COUNTS):
                         raise ValueError("actual raw position outside firmware limits: " + joint)
             self._native_damping_startup()
             self._elbow_trial_startup()
@@ -956,19 +960,23 @@ class ArmSession(NativeDampingMixin):
     def _validate_transition(self, start, target, label, *, allow_sag=False):
         recovery = {}
         for joint in JOINTS:
-            low, high = self.firmware_min[joint], self.firmware_max[joint]
+            low, high = self.admitted_min[joint], self.admitted_max[joint]
             value = start[joint]
             if not low <= value <= high:
-                is_body = joint != "gripper"
                 overrun = value - high if value > high else low - value
-                inward = target[joint] < value if value > high else target[joint] > value
-                if (not allow_sag or not is_body or overrun > 16 or not inward or
-                        not self.admitted_min[joint] <= target[joint] <= self.admitted_max[joint]):
-                    raise ValueError("actual raw position outside firmware limits: " + joint)
+                inset_target = high - SAG_INSET_COUNTS if value > high else low + SAG_INSET_COUNTS
+                if (not allow_sag or joint == "gripper" or overrun > SAG_MAX_OVERRUN_COUNTS or
+                        target[joint] != inset_target or not low <= inset_target <= high or
+                        abs(target[joint] - value) > SAG_STEP_COUNTS):
+                    raise ValueError("actual raw position outside admitted configured limits: " + joint)
                 recovery[joint] = dict(side="high" if value > high else "low",
-                                       start_raw=value, reentered=False)
+                                       start_raw=value, reentered=False,
+                                       command_min=min(value, target[joint]),
+                                       command_max=max(value, target[joint]))
             if abs(target[joint] - value) > self._step_budget(joint):
                 raise ValueError("leg exceeds raw step budget: " + label + "/" + joint)
+        if recovery and any(target[j] != start[j] for j in JOINTS if j not in recovery):
+            raise ValueError("sag recovery must hold inactive joint goals")
         return recovery
 
     def _release_component_scope(self):
@@ -1073,17 +1081,27 @@ class ArmSession(NativeDampingMixin):
             admitted_low = self.admitted_min[joint]
             admitted_high = self.admitted_max[joint]
             state = recovery.get(joint)
-            if state and not state["reentered"]:
-                if now - started > 1.0 and not admitted_low <= actual[joint] <= admitted_high:
-                    raise TimeoutError("sag recovery re-entry deadline expired: " + joint)
-                if actual[joint] > high and (state["side"] != "high" or
-                                             actual[joint] > state["start_raw"] + 2):
+            if state:
+                if abs(actual[joint] - start[joint]) > SAG_STEP_COUNTS + SAG_DRIFT_COUNTS:
+                    raise RuntimeError("sag recovery actual excursion exceeds 34 counts: " + joint)
+                frame_outward = (actual[joint] - previous[joint] if state["side"] == "high"
+                                 else previous[joint] - actual[joint])
+                if frame_outward > SAG_DRIFT_COUNTS:
                     raise RuntimeError("sag recovery moved farther out of bounds: " + joint)
-                if actual[joint] < low and (state["side"] != "low" or
-                                            actual[joint] < state["start_raw"] - 2):
-                    raise RuntimeError("sag recovery moved farther out of bounds: " + joint)
-                if admitted_low <= actual[joint] <= admitted_high:
-                    state["reentered"] = True
+                if state["reentered"]:
+                    if not admitted_low <= actual[joint] <= admitted_high:
+                        raise RuntimeError("sag recovery left admitted limits: " + joint)
+                else:
+                    if now - started >= LEG_DEADLINE_S:
+                        raise TimeoutError("sag recovery re-entry deadline expired: " + joint)
+                    outward = (actual[joint] - state["start_raw"] if state["side"] == "high"
+                               else state["start_raw"] - actual[joint])
+                    if outward > SAG_DRIFT_COUNTS:
+                        raise RuntimeError("sag recovery moved farther out of bounds: " + joint)
+                    if admitted_low <= actual[joint] <= admitted_high:
+                        state["reentered"] = True
+            elif recovery and not admitted_low <= actual[joint] <= admitted_high:
+                raise RuntimeError("sag recovery inactive joint outside admitted limits: " + joint)
             elif not low <= actual[joint] <= high:
                 raise RuntimeError("actual raw position outside firmware limits: " + joint)
             frame_limit = FRAME_GRIPPER_COUNTS if joint == "gripper" else FRAME_BODY_COUNTS
@@ -1091,8 +1109,9 @@ class ArmSession(NativeDampingMixin):
                 raise RuntimeError("per-frame movement exceeds budget: " + joint)
             if abs(actual[joint] - start[joint]) > self._step_budget(joint) + ARRIVAL_COUNTS:
                 raise RuntimeError("actual excursion exceeds per-leg budget: " + joint)
-            if joint not in active and abs(actual[joint] - start[joint]) > 40:
-                raise RuntimeError("inactive joint drift exceeds 40 counts: " + joint)
+            drift_limit = SAG_DRIFT_COUNTS if recovery else 40
+            if joint not in active and abs(actual[joint] - start[joint]) > drift_limit:
+                raise RuntimeError(f"inactive joint drift exceeds {drift_limit} counts: " + joint)
 
     def _guard_gripper_body(self, actual, body_anchor):
         if body_anchor is not None and any(abs(actual[j]-body_anchor[j]) > 2 for j in JOINTS[:-1]):
@@ -1186,7 +1205,11 @@ class ArmSession(NativeDampingMixin):
             contact_ready = (grasp and now - started >= 0.6 and
                              actual["gripper"] - target["gripper"] >= CONTACT_MIN_EXCESS_COUNTS and
                              gripper_quiet and body_ready)
-            if normal_ready or contact_ready:
+            reentry_ready = (bool(recovery) and len(frames) >= 4 and
+                             all(state["reentered"] for state in recovery.values()) and
+                             all(max(frame[j] for frame in frames) - min(frame[j] for frame in frames) <= SAG_DRIFT_COUNTS
+                                 for j in JOINTS))
+            if (reentry_ready if recovery else normal_ready or contact_ready):
                 contact_inferred = bool(contact_ready)
                 if contact_inferred and hold_on_contact:
                     # A jaw-only command must stop pressing toward the next
@@ -1195,7 +1218,7 @@ class ArmSession(NativeDampingMixin):
                     held = self.cancel_hold(body_anchor=body_anchor)
                     commanded = dict(held["raw"], **(body_anchor or {}))
                 settled = True
-            elif body_anchor is None and now >= next_trim:
+            elif not recovery and body_anchor is None and now >= next_trim:
                 revised = dict(commanded)
                 if body_quiet:
                     for joint in JOINTS[:-1]:
@@ -1259,8 +1282,9 @@ class ArmSession(NativeDampingMixin):
             self._guard_gripper_body(actual, body_anchor)
             self._guard_actual(actual, previous, start, active, recovery, started)
             for joint in JOINTS:
-                reference = settled_raw[joint] if joint == "gripper" and contact_inferred else target[joint]
-                tolerance = QUIET_COUNTS if joint == "gripper" and contact_inferred else ARRIVAL_COUNTS + QUIET_COUNTS
+                measured_settlement = bool(recovery) or (joint == "gripper" and contact_inferred)
+                reference = settled_raw[joint] if measured_settlement else target[joint]
+                tolerance = QUIET_COUNTS if measured_settlement else ARRIVAL_COUNTS + QUIET_COUNTS
                 if abs(actual[joint] - reference) > tolerance:
                     raise RuntimeError("dwell outside arrival tolerance: " + label + "/" + joint)
             goal_read_started = self.clock()
@@ -1297,10 +1321,14 @@ class ArmSession(NativeDampingMixin):
         self._event("leg_settled", label=label, target_raw=target, settled_raw=actual,
                     elapsed=self.clock() - started, command_raw=commanded,
                     gravity_trim_raw=trim, contact_inferred=contact_inferred,
+                    settlement_purpose="admitted_reentry" if recovery else "target_arrival",
+                    target_reached=all(abs(actual[j] - target[j]) <= ARRIVAL_COUNTS for j in JOINTS),
                     grasp_confirmed=False)
         return dict(label=label, target_raw=target, settled_raw=actual,
                     elapsed=self.clock() - started, command_raw=commanded,
                     gravity_trim_raw=trim, contact_inferred=contact_inferred,
+                    settlement_purpose="admitted_reentry" if recovery else "target_arrival",
+                    target_reached=all(abs(actual[j] - target[j]) <= ARRIVAL_COUNTS for j in JOINTS),
                     grasp_confirmed=False)
 
     def move_plan(self, legs):
@@ -1328,8 +1356,7 @@ class ArmSession(NativeDampingMixin):
                 if type(grasp) is not bool:
                     raise ValueError("grasp must be a boolean")
                 target = self._validate_target(leg.get("target_raw"), label)
-                self._validate_transition(previous, target, label,
-                                          allow_sag=self._sag_recovery_available and index == 0)
+                self._validate_transition(previous, target, label)
                 prepared.append((label, target, grasp))
                 previous = target
         except ValueError as error:
@@ -1348,9 +1375,7 @@ class ArmSession(NativeDampingMixin):
                     raise TimeoutError("move_plan deadline exceeded")
                 self._poll_busy_input()
                 self._active_leg = label
-                record = self._run_leg(label, target, actual,
-                                       allow_sag=self._sag_recovery_available and index == 0,
-                                       grasp=grasp)
+                record = self._run_leg(label, target, actual, grasp=grasp)
                 records.append(record)
                 self._active_leg = None
                 actual = record["settled_raw"]
@@ -2293,8 +2318,8 @@ class ArmSession(NativeDampingMixin):
         points = []
         max_delta = 100
         # Optional startup sag recovery is a separate first inward step to the
-        # nearest firmware boundary. The remaining measured-home route starts
-        # only after every joint is back inside its firmware range.
+        # admitted boundary plus a 16-count inset. The remaining home route
+        # starts only after fresh, stable admitted-range proof and dwell.
         recovery_target = dict(start)
         outside = {}
         for joint in JOINTS:
@@ -2302,14 +2327,14 @@ class ArmSession(NativeDampingMixin):
             low, high = self.admitted_min[joint], self.admitted_max[joint]
             if not low <= value <= high:
                 overrun = value - high if value > high else low - value
-                if (not self._sag_recovery_available or joint == "gripper" or overrun > 16):
+                if (not self._sag_recovery_available or joint == "gripper" or overrun > SAG_MAX_OVERRUN_COUNTS):
                     raise ValueError("actual raw position outside admitted configured limits: " + joint)
-                recovery_target[joint] = high if value > high else low
+                recovery_target[joint] = high - SAG_INSET_COUNTS if value > high else low + SAG_INSET_COUNTS
                 outside[joint] = True
         previous = dict(start)
         if outside:
-            if any(abs(recovery_target[j] - start[j]) > max_delta for j in JOINTS):
-                raise ValueError("sag recovery home leg exceeds 100 raw counts")
+            if any(abs(recovery_target[j] - start[j]) > SAG_STEP_COUNTS for j in JOINTS):
+                raise ValueError("sag recovery home leg exceeds 32 raw counts")
             self.arm._validate_raw(recovery_target)
             self._validate_transition(start, recovery_target, "home_sag_recovery", allow_sag=True)
             points.append(("home_sag_recovery", recovery_target, True))

@@ -42,10 +42,19 @@ gripper that remains at least ten counts above its closing target after 0.6 s.
 That is logged as inferred contact, never as a confirmed grasp. While motion is
 running, `read_state`, `stop`, and `exit` remain responsive between bounded bus
 transactions; additional move/home requests are rejected until the current
-command finishes. `--recover-sag` admits only a first inward recovery of at
-most 16 counts on a body joint; the default rejects any initial position beyond
-firmware limits. State snapshots report actual counts and list any range
-violations without clamping the telemetry.
+command finishes. `--recover-sag` (default off) permits `home` to recover a body
+joint initially at most 16 counts outside its admitted limits. Its first goal
+is 16 counts inside that boundary, so commanded travel is at most 32 counts.
+The existing six-second leg deadline includes setup, fresh feedback, settlement,
+and dwell. Recovery disables gravity trim, holds other goals fixed, rejects
+outward or inactive drift above two counts, and caps observed excursion at
+34 counts. After reentry, leaving the admitted range aborts. Four quiet samples
+and dwell establish admitted reentry; `settlement_purpose=admitted_reentry` and
+`target_reached` distinguish this proof from reaching the inset goal. Ordinary
+measured-home sublegs then continue. Ordinary plans and gripper commands remain
+blocked until normal admission. Firmware limits, calibration and profiles are
+unchanged. State snapshots always report actual counts and range violations
+without clamping telemetry.
 
 After a successful move the requested goal and torque remain active across
 subsequent commands. `stop`, `exit`, stdin EOF, a control fault, or 60 seconds
