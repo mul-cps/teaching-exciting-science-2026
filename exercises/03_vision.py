@@ -1,11 +1,16 @@
-"""Station 3 — Change the simulated colors; no GPU or internet needed."""
+"""Predict, run, change: which readings should a robot accept?"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from workshop import SimCamera
 
-camera = SimCamera(["red", "blue", "unknown"])
-for _ in range(3):
+# Change one reading to "green" or None. Predict the result first.
+readings = ["red", "blue", "unknown"]
+camera = SimCamera(readings)
+for _ in range(len(readings)):
     color = camera.detect()
-    print("Decision:", "pick" if color != "unknown" else "ask instructor")
+    if color in ("red", "blue"):
+        print("Decision: pick")
+    else:
+        print("Decision: reject; ask instructor")
