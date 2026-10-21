@@ -1,5 +1,7 @@
 # Validation register: never confuse testable with tested
 
+> **Historical early-project baseline.** This register preserves the status and results as originally authored; its 9-test count, hardware descriptions and TODO entries are not the current station qualification record. See [ROS sorting acceptance and remaining gates](ros-sorting-acceptance.md) for the full acceptance requirements, and the dated evidence for the [Blockly station physical subset](blockly-station-commissioning-2026-10-21.json), [EV3 panel commissioning](ev3-panel-commissioning-2026-10-21.json) and [gripper measurement](gripper-measurement-2026-10-21.json). These commissioning records cover specific checks and do not establish full physical sorting acceptance.
+
 **Status as authored:** CPU simulator and vision synthetic images tested in software. All physical integration is **NOT DONE**.
 
 | Test | Evidence required | Status |
