@@ -96,6 +96,46 @@ class LauncherTests(unittest.TestCase):
                 module.blockly('blockly-simulation')
             launch.assert_not_called()
 
+    def test_blockly_can_reopen_after_tcp_timewait(self):
+        original_socket = module.socket.socket
+        listener = original_socket(); listener.setsockopt(module.socket.SOL_SOCKET, module.socket.SO_REUSEADDR, 1)
+        listener.bind(('127.0.0.1', 0)); listener.listen(1); port = listener.getsockname()[1]
+        client = original_socket(); client.connect(('127.0.0.1', port))
+        connection, _ = listener.accept(); connection.close()
+        self.assertEqual(client.recv(1), b'')
+        client.close(); listener.close()
+        with original_socket() as probe:
+            with self.assertRaises(OSError): probe.bind(('127.0.0.1', port))
+        class Probe:
+            def __init__(self): self.socket = original_socket()
+            def __enter__(self): return self
+            def __exit__(self, *args): self.socket.close()
+            def setsockopt(self, *args): self.socket.setsockopt(*args)
+            def bind(self, address): self.socket.bind((address[0], port if address[1] == 8877 else 0))
+        identity = {'pid': 123, 'starttime': '10', 'pgrp': 123, 'session': 123}
+        with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module.socket, 'socket', Probe), patch('tools.station_process.process_identity', return_value=identity), patch.object(module, 'blockly_status', return_value={'physical': False}), patch.object(module.subprocess, 'Popen') as launch, patch.object(module.webbrowser, 'open'):
+            launch.return_value.poll.return_value = None
+            module.blockly('blockly-simulation')
+            launch.assert_called_once()
+
+    def test_blockly_reuse_address_still_refuses_active_listener(self):
+        original_socket = module.socket.socket
+        listener = original_socket(); listener.setsockopt(module.socket.SOL_SOCKET, module.socket.SO_REUSEADDR, 1)
+        listener.bind(('127.0.0.1', 0)); listener.listen(1); port = listener.getsockname()[1]
+        class Probe:
+            def __init__(self): self.socket = original_socket()
+            def __enter__(self): return self
+            def __exit__(self, *args): self.socket.close()
+            def setsockopt(self, *args): self.socket.setsockopt(*args)
+            def bind(self, address): self.socket.bind((address[0], port))
+        try:
+            with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module.socket, 'socket', Probe), patch.object(module.subprocess, 'Popen') as launch:
+                with self.assertRaisesRegex(RuntimeError, 'unmanaged server'):
+                    module.blockly('blockly-simulation')
+                launch.assert_not_called()
+        finally:
+            listener.close()
+
     def test_blockly_physical_launch_is_explicit_and_uses_station_domain(self):
         identity = {'pid': 123, 'starttime': '10', 'pgrp': 123, 'session': 123}
         with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module.socket, 'socket'), patch('tools.station_process.process_identity', return_value=identity), patch.object(module, 'blockly_status', return_value={'physical': True}), patch.object(module.subprocess, 'Popen') as launch, patch.object(module.webbrowser, 'open'):

@@ -246,6 +246,8 @@ def blockly(action):
         else:
             for port in (8877, 8878):
                 with socket.socket() as probe:
+                    # Match HTTPServer's reuse rule so a closed server's TIME_WAIT is not mistaken for a listener.
+                    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                     try:
                         probe.bind(('127.0.0.1', port))
                     except OSError as error:
