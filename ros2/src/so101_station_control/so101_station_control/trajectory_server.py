@@ -3588,8 +3588,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             raise ValueError("resident state requires bounded recovery before planning")
         return actual
 
-    def _collision_check_path(self, trajectory, points, goal_id):
-        state = self._read_state()
+    def _collision_check_path(self, trajectory, points, goal_id, *, deadline=None, state=None):
+        state = self._read_state() if state is None else state
         if state is None:
             raise RuntimeError("fresh measured state is required before collision checking")
         position_limits = self._planning_limits_for_state(state)
@@ -3625,7 +3625,10 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         dense = helper.dense_path_samples(prepared, max_joint_step_rad=0.01)
         jaw_opening = min(100.0, max(0.0, float(state["pose"]["gripper"])))
         jaw_position = math.radians(-10.0 + 1.1 * jaw_opening)
-        deadline = time.monotonic() + float(self.get_parameter("collision_check_timeout_s").value)
+        if deadline is None:
+            deadline = time.monotonic() + float(self.get_parameter("collision_check_timeout_s").value)
+        if time.monotonic() >= deadline:
+            raise TimeoutError("trajectory collision preflight deadline expired")
         if not self._state_validity.wait_for_service(timeout_sec=min(2.0, max(0.0, deadline - time.monotonic()))):
             raise RuntimeError("MoveIt state-validity service is unavailable; no trajectory was sent")
         artifact = {
@@ -4153,9 +4156,102 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 return [a + (b - a) * ratio for a, b in zip(left.positions, right.positions)]
         return list(points[-1].positions)
 
+    def _retry_trajectory_start(self, reply, command, *, goal_handle, trajectory,
+                                artifact, process, generation, owner_session_id,
+                                dispatched_at, deadline):
+        """Recheck only a correlated, explicitly nonactuating encoder-jitter rejection."""
+        if (not isinstance(reply, dict) or reply.get("ok") is not False or
+                reply.get("command") != "execute_trajectory" or
+                reply.get("error_type") != "ArmPlanPreflightError" or
+                reply.get("error") != "measured start or effective spline differs from collision-checked path"):
+            return None
+        proof = reply.get("trajectory_start_rejection")
+        if (not isinstance(proof, dict) or proof.get("schema") != "trajectory-start-rejection-v1" or
+                proof.get("no_actuation") is not True or
+                proof.get("request_id") != command.get("request_id") or
+                not isinstance(command.get("request_id"), str) or
+                proof.get("goal_id") != command["goal_id"] or
+                proof.get("owner_session_id") != owner_session_id or not owner_session_id or
+                proof.get("arm_id") != self._expected_arm_id or
+                proof.get("calibration_sha256") != self._expected_calibration_sha256 or
+                proof.get("owner_source_sha256") != self._owner_source_expected or
+                proof.get("checked_path_sha256") != command["path_sha256"] or
+                proof.get("checked_start_raw") != command.get("checked_start_raw")):
+            return None
+        digest = proof.get("actual_path_sha256")
+        stamp = proof.get("monotonic")
+        checked, actual = proof.get("checked_start_raw"), proof.get("actual_start_raw")
+        if (not isinstance(digest, str) or len(digest) != 64 or
+                any(c not in "0123456789abcdef" for c in digest) or digest == command["path_sha256"] or
+                type(stamp) not in (int, float) or not math.isfinite(stamp) or
+                not dispatched_at <= stamp <= time.monotonic() or
+                not isinstance(checked, dict) or set(checked) != set(TELEOP_JOINTS) or
+                not isinstance(actual, dict) or set(actual) != set(TELEOP_JOINTS) or checked == actual or
+                any(type(actual[j]) is not int or type(checked[j]) is not int or
+                    not 0 <= actual[j] <= 4095 or abs(actual[j]-checked[j]) > 2 for j in TELEOP_JOINTS)):
+            return None
+        def admitted():
+            with self._active_lock:
+                if (self._active_goal is not goal_handle or self._closed or self._stop_latched or
+                        self._cancel_before_start or goal_handle.is_cancel_requested or
+                        self._process is not process or self._owner_started != generation or
+                        process.poll() is not None or time.monotonic() >= deadline):
+                    raise RuntimeError("trajectory retry reservation, owner or deadline changed")
+            state = self._read_state()
+            if (self._prepare_owner_state(state, process, generation) != "normal" or
+                    state.get("owner_session_id") != owner_session_id):
+                raise RuntimeError("trajectory retry requires the same fresh normal owner")
+            if any(abs(state["raw"][j]-checked[j]) > 2 for j in TELEOP_JOINTS):
+                raise RuntimeError("trajectory retry measured drift exceeds two-count encoder jitter")
+            return state
+        # Wait only for passive telemetry to advance past the rejected read.
+        # The original overall preflight deadline is never extended.
+        wait_until = min(deadline, time.monotonic()+.15)
+        while True:
+            state = admitted()
+            if state["monotonic"] > stamp:
+                break
+            if time.monotonic() >= wait_until:
+                raise TimeoutError("trajectory retry requires advancing measured state")
+            time.sleep(.005)
+        bounds = _arm_bounds_observation(state)
+        if any(not bounds["admitted_min"][j] <= actual[j] <= bounds["admitted_max"][j]
+               for j in TELEOP_JOINTS):
+            return None
+        replacement = self._collision_check_path(trajectory, trajectory.points, command["goal_id"],
+                                                  deadline=deadline, state=state)
+        admitted()
+        replacement["controller_action_goal_uuid"] = artifact["controller_action_goal_uuid"]
+        replacement["preflight_rejections"] = [*artifact.get("preflight_rejections", []), proof]
+        new_command = dict(command, points=replacement["command_points"],
+            path_sha256=replacement["effective_path_sha256"], request_id=uuid.uuid4().hex,
+            checked_start_raw=dict(replacement["start_state"]["raw"]))
+        feedback = copy.deepcopy(trajectory)
+        feedback.points = []
+        for item in replacement["command_points"]:
+            sec, nanosec = divmod(round(item["time"]*1e9), 1_000_000_000)
+            feedback.points.append(JointTrajectoryPoint(positions=list(item["positions"]),
+                time_from_start=Duration(sec=sec, nanosec=nanosec)))
+        admitted()
+        self._write_artifact(replacement)
+        admitted()
+        with self._active_lock:
+            if (self._active_goal is not goal_handle or self._closed or self._owner_faulted or
+                    self._reconnect_observe or self._stop_latched or self._cancel_before_start or
+                    goal_handle.is_cancel_requested or self._process is not process or
+                    self._owner_started != generation or process.poll() is not None or
+                    time.monotonic() >= deadline):
+                raise RuntimeError("trajectory retry cancelled before dispatch")
+            sent_at = time.monotonic()
+            self._send(new_command)
+        return replacement, new_command, feedback, sent_at
+
     @_control_callback
     def _execute(self, goal_handle):
         trajectory = goal_handle.request.trajectory
+        original_trajectory = trajectory
+        retry_deadline = time.monotonic() + float(self.get_parameter("collision_check_timeout_s").value)
+        retry_count = 0
         with self._active_lock:
             if self._cancel_before_start:
                 self._cancel_before_start = False
@@ -4259,7 +4355,9 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                     command = {"command": "execute_trajectory", "goal_id": goal_id,
                                "joint_names": names, "points": command_points,
                                "path_sha256": artifact["effective_path_sha256"],
-                               "ros_motion_profile": artifact["ros_motion_profile"]}
+                               "ros_motion_profile": artifact["ros_motion_profile"],
+                               "request_id": uuid.uuid4().hex,
+                               "checked_start_raw": dict(artifact["start_state"]["raw"])}
                     if self._planning_contract is not None:
                         command["joint_limit_contract"] = self._planning_contract
                     if bool(self.get_parameter("calibration_endpoint_mode").value):
@@ -4313,6 +4411,22 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 last_feedback = now
             try:
                 result_payload = self._response_queue.get(timeout=0.01)
+                if retry_count < 2 and not stale_stop_sent:
+                    try:
+                        retried = self._retry_trajectory_start(result_payload, command,
+                            goal_handle=goal_handle, trajectory=original_trajectory, artifact=artifact,
+                            process=owner_process, generation=owner_generation,
+                            owner_session_id=owner_session_id, dispatched_at=dispatched_at,
+                            deadline=retry_deadline)
+                    except (RuntimeError, ValueError, TypeError, KeyError, OSError, TimeoutError) as error:
+                        artifact["retry_rejected"] = str(error)
+                        retried = None
+                    if retried is not None:
+                        artifact, command, trajectory, dispatched_at = retried
+                        retry_count += 1
+                        result_payload = None
+                        started = time.monotonic()
+                        continue
             except queue.Empty:
                 continue
         with self._active_lock:
