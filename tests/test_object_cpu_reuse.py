@@ -14,9 +14,10 @@ from test_ros2_objects import tabletop_scene
 
 
 def test_support_and_detection_share_exact_color_masks_once(monkeypatch):
-    rgb,depth,k,d,transform=tabletop_scene();original=objects.color_masks;calls=[]
+    from so101_station_objects import color_mask_backend
+    rgb,depth,k,d,transform=tabletop_scene();original=color_mask_backend.color_masks;calls=[]
     def masks(value):calls.append(value);return original(value)
-    monkeypatch.setattr(objects,'color_masks',masks)
+    monkeypatch.setattr(color_mask_backend,'color_masks',masks)
     report=objects.analyze_rgbd(rgb,depth,k,d,.001,transform)
     assert len(report['objects'])==1 and len(calls)==1
     assert calls[0] is rgb
@@ -42,9 +43,11 @@ def test_same_array_extents_quantiles_batched_without_altered_method():
     for function in (objects._visible_component_geometry,validation.validate_colored_component):
         source=inspect.getsource(function)
         tree=ast.parse(source)
-        calls=[n for n in ast.walk(tree) if isinstance(n,ast.Call) and ast.unparse(n.func)=='np.percentile'
+        calls=[n for n in ast.walk(tree) if isinstance(n,ast.Call) and ast.unparse(n.func)=='linear_percentile'
                and ast.unparse(n.args[0])=='principal']
         assert len(calls)==1 and ast.literal_eval(calls[0].args[1])==[5,95]
+        assert [(keyword.arg, ast.literal_eval(keyword.value))
+                for keyword in calls[0].keywords] == [('axis', 0)]
 
 
 @pytest.mark.parametrize('change',['normal','outside_pickup','boundary','hole','depth_jump'])
