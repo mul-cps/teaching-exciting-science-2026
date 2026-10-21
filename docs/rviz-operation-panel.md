@@ -22,7 +22,7 @@ Use the station wrapper so ROS domain 76 and the station environment are retaine
 | MoveIt mode (`moveit`) | `/follower/teleop_enable` false, rearm if required | Fresh idle owner; passed including after STOP | Plan/execute under calibrated-limit admission |
 | ZERO TORQUE / STOP (`zero_torque`) | `/follower/stop`; independent priority path | Fresh all-six OFF; passed during delayed home and unknown ACK | Physical prompt disarm |
 | Gentle damping (`damping`) | Exact native torque value 2 firmware capability and physical qualification; `/follower/damping_enable` | Disabled with reason when unsupported; passed, no damping RPC dispatched | Exact firmware and physical backdrive qualification remain open |
-| Restart camera/depth/tags/all (`restart_camera`, etc.) | Exact units configured on API and bridge; all OFF; `/follower/operator_maintenance_enable` | Correlated manager job terminal success plus fresh advancing requested streams; passed; duplicate unit aliases once | Real user-unit restart and stream recovery |
+| Restart camera/depth/tags/all (`restart_camera`, etc.) | Exact units configured on API and bridge; all OFF; `/follower/operator_maintenance_enable` | Correlated manager jobs, one correlated source-recovery job with current readiness, then fresh advancing requested streams; fake passed; duplicate unit aliases once | Real user-unit restart and stream recovery |
 | Verify restart (`verify_restart`) | Fresh all OFF; exact pending token via `/follower/operator_maintenance_enable`, then `/follower/stop` | Unknown/failed-job barrier resolves only after explicit verification; passed | Actual durable job completion proof |
 
 ## Manual setup reference and fixed home
@@ -41,7 +41,9 @@ Every device/service reset requires fresh idle owner state and verified all-six 
 
 **Unknown external jobs override the ordinary lease.** Before submitting any OS restart, the bridge durably writes a token/unit/source/calibration/owner-generation/request-time journal. The OS work runs outside the hardware callback so STOP can disarm promptly. Success requires actual systemd `Job=0`, a terminal `ActiveState`/`SubState`, and a new invocation plus state-transition timestamp after the request for an active unit. An inactive/failed terminal state is recorded as failure, not success. A CLI timeout does not prove that the manager job stopped: unresolved outcomes retain the journal and admission barrier across lease expiry, adapter crashes and bridge restarts. STOP still disables and verifies all six joints, but does not clear an unresolved external-job barrier.
 
-Choose **Verify restart / recover** after an unknown result. It performs read-only systemd queries and resolves only the exact pending token/unit/cohort after actual completion proof. It does not cancel jobs or resubmit a restart as proof. Its final explicit STOP clears the now-resolved motion barrier and leaves torque OFF. A manager job still running, an unchanged old active invocation, invalid pending evidence or a changed allowlist/source cohort remains blocked. The durable default journal is `~/.local/share/exciting-science/station/operator-maintenance-pending.json`; `operator_maintenance_journal` changes it. Do not delete pending evidence. Unit activity remains distinct from camera/depth metadata freshness and registration qualification. A successful restart button additionally requires new advancing source metadata for every requested slot within the bounded sequence. Missing streams report failure even if the unit is active. The status `streams` object includes publisher counts, source age and parse/stamp failure reasons; receipt of malformed or repeated tag JSON does not refresh health.
+Choose **Verify restart / recover** after an unknown result. It performs read-only systemd queries and resolves only the exact pending token/unit/cohort after actual completion proof. It does not cancel jobs or resubmit a restart as proof. Its final explicit STOP clears the now-resolved motion barrier and leaves torque OFF. A manager job still running, an unchanged old active invocation, invalid pending evidence or a changed allowlist/source cohort remains blocked. The durable default journal is `~/.local/share/exciting-science/station/operator-maintenance-pending.json`; `operator_maintenance_journal` changes it. Do not delete pending evidence. Unit activity remains distinct from camera/depth metadata freshness and registration qualification. After all requested unit jobs complete, the adapter calls `/so101_perception_recovery/start_recovery` (`std_srvs/srv/Trigger`) exactly once. The existing coordinator explicitly resets the producer, captures fresh source pins, adopts and reads back `derived_source_cohort`, resets both marker and colored-object consumers, and checks independent source-admission witnesses. The adapter polls `/so101_perception_recovery/recovery_status`, requires the exact accepted `job_id`, `state=completed`, `operation_success=true` and `ready_now=true`. A completed job with temporarily expired current receipt leases is polled again within the same deadline; no new reset or recovery job is dispatched. Failed, busy, mismatched and unavailable outcomes are rejected. Both coordinator services must exist before any unit restart is dispatched; otherwise the buttons are disabled with the missing-service reason.
+
+The coordinator's absolute job budget is 40 seconds. The adapter requires at least that much of its 50-second maintenance budget before dispatching recovery, and continues checking its exact reservation plus fresh all-six OFF throughout. Unknown coordinator acknowledgements or mismatched job identity retain the reservation and block further commands pending inspection; unknown systemd jobs retain their independent durable barrier. A successful restart button additionally requires new advancing source metadata **after recovery** for every requested slot within the bounded sequence. Missing streams report failure even if the unit is active. The status `streams` object includes publisher counts, source age and parse/stamp failure reasons; receipt of malformed or repeated tag JSON does not refresh health.
 
 When there is no external job, an abandoned healthy all-OFF maintenance lease can expire normally. After a known terminal job, the adapter releases only its own token. No failed or partially completed restart is automatically retried.
 
@@ -76,6 +78,8 @@ A pending `.native-damping-pending.json` beside the calibration file blocks ordi
 
 ## Qualification boundary
 
+When owner status is not fresh, the panel labels torque, stop latch and fault **STALE / last known**, explicitly marks current values unknown, and displays mode `unknown`. Old cached torque values are not current measurements.
+
 Offline compilation does not qualify physical mode switching, restart health or damping. The existing owner remains the final authority for motion and stop admission. Manual panel commands do not qualify picking, placement or registration accuracy.
 
 ## Focused fake verification (no hardware)
@@ -84,9 +88,9 @@ Build this package into a private prefix and source it. These checks require dom
 
 ```sh
 ROS_DOMAIN_ID=87 ROS_LOCALHOST_ONLY=1 ros2/conda/so101-conda.sh run bash -c '
-  source /tmp/so101-operator-e2e-install/local_setup.bash
+  source /tmp/so101-operator-recovery-install/local_setup.bash
   python ros2/src/so101_station_operator/test/test_operator_fake_ros.py
-  QT_QPA_PLATFORM=offscreen /tmp/so101-operator-e2e-build/so101_station_operator/operator_panel_load_check
+  QT_QPA_PLATFORM=offscreen /tmp/so101-operator-recovery-build/so101_station_operator/operator_panel_load_check
 '
 ```
 
