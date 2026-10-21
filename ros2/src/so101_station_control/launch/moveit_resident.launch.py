@@ -13,7 +13,8 @@ from so101_station_gpu.gpu_renderer import rviz_preload_value
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -185,6 +186,10 @@ def _launch_nodes(context):
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument("leader", default_value="true",
+                              description="Start the read-only calibrated leader publisher; does not enable follower teleop"),
+        DeclareLaunchArgument("leader_port", default_value="/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AB9068765-if00"),
+        DeclareLaunchArgument("leader_calibration_dir", default_value="/home/bjoern/git/soarm101-highschool-demos/.calibration"),
         DeclareLaunchArgument("enable_hardware", default_value="false",
                               description="Explicitly enable the station Python bus owner"),
         DeclareLaunchArgument("external_state_only", default_value="false",
@@ -232,4 +237,14 @@ def generate_launch_description():
         DeclareLaunchArgument("max_jerk_rad_s3", default_value="2.0",
                               description="Software jerk admission limit; values above the 2 rad/s^3 station cap are rejected"),
         OpaqueFunction(function=_launch_nodes),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(get_package_share_directory("so101_station_control"),
+                                                       "launch", "leader_teleop.launch.py")),
+            condition=IfCondition(LaunchConfiguration("leader")),
+            launch_arguments={
+                "station_python": LaunchConfiguration("station_python"),
+                "station_root": LaunchConfiguration("station_root"),
+                "leader_port": LaunchConfiguration("leader_port"),
+                "calibration_dir": LaunchConfiguration("leader_calibration_dir"),
+            }.items()),
     ])
