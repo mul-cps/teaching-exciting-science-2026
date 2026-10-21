@@ -396,7 +396,9 @@ def start(args, path, lifecycle_lock=None):
         stop_record(path, record)
         code = child.wait()
     finally:
-        if child.poll() is not None:
+        # stop_record may have finished the managed session while retaining an
+        # unknown RPC survivor. Foreground unwinding must preserve that evidence.
+        if child.poll() is not None and not (record.get('rpc_cleanup_errors') or record.get('unverified_members')):
             if session_members(record['process']['session']):
                 stop_record(path, record)
             else:

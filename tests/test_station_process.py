@@ -295,3 +295,63 @@ def test_rpc_cleanup_runtimeerror_still_stops_follower_and_managed_tree(tmp_path
         assert saved['members']==[]
     finally:
         _clean_tree(process,members)
+
+
+@pytest.mark.parametrize('retained_marker', ('rpc_cleanup_errors', 'unverified_members'))
+def test_foreground_interrupt_preserves_uncertainty_record_after_managed_exit(tmp_path,monkeypatch,retained_marker):
+    contract=tmp_path/'limits.json';contract.write_text('{}')
+    args=SimpleNamespace(profile='local',wrapper=None,wrapper_command=None,
+        python=Path(sys.executable),config=tmp_path/'config.json',contract=contract,
+        state_file=tmp_path/'state.json',station_lock=tmp_path/'station.lock',
+        log_dir=tmp_path/'logs',bootstrap_owner=False,calibration_dir=tmp_path,
+        camera_sdk=tmp_path,color_mask_backend='cpu',existing_tunnel=True,background=False)
+    monkeypatch.setattr(station,'duplicate_owners',lambda:[])
+    monkeypatch.setattr(station,'prerequisites',lambda *a:None)
+    real_popen=subprocess.Popen
+    children=[]
+    class InterruptedForeground:
+        def __init__(self,child):self.child=child;self.pid=child.pid
+        def wait(self):raise KeyboardInterrupt
+        def poll(self):return self.child.poll()
+    def fake_popen(command,**kwargs):
+        child=real_popen([sys.executable,'-c','import time; time.sleep(90)'],**kwargs)
+        children.append(child)
+        return InterruptedForeground(child)
+    monkeypatch.setattr(station.subprocess,'Popen',fake_popen)
+    calls=[]
+    unknown='RPC cleanup incomplete; ownership retained in /tmp/foreground-rpc-survivors.json'
+    def fake_run(command,**kwargs):
+        calls.append(command[-3])
+        if command[-3]=='/station/stop' and retained_marker=='rpc_cleanup_errors':raise RuntimeError(unknown)
+        return SimpleNamespace(stdout='success=True\n')
+    monkeypatch.setattr(station,'run',fake_run)
+    if retained_marker=='unverified_members':
+        real_stop=station.stop_record
+        def retain_unverified(path,record):
+            real_stop(path,record)
+            # Simulate a retained escaped/unanchored descendant observation
+            # after the original managed session is empty. No PID is signaled.
+            record['unverified_members']=[{**record['process'],'session':record['process']['session']+1}]
+            record['managed_cleanup_complete']=True
+            station.save(path,record)
+            raise RuntimeError('Managed session contains unverifiable survivors; retained ownership record')
+        monkeypatch.setattr(station,'stop_record',retain_unverified)
+    monkeypatch.setattr(station,'STOP_STEPS',((signal.SIGINT,.2),(signal.SIGTERM,.2),(signal.SIGKILL,.5)))
+    path=tmp_path/'record.json'
+    try:
+        expected='RPC cleanup incomplete; managed session stopped' if retained_marker=='rpc_cleanup_errors' else 'unverifiable survivors'
+        with pytest.raises(RuntimeError,match=expected):
+            station.start(args,path)
+        assert calls==['/station/ev3/connect','/station/stop','/follower/stop']
+        saved=json.loads(path.read_text())
+        assert saved['managed_cleanup_complete'] is True
+        if retained_marker=='rpc_cleanup_errors':
+            assert saved['rpc_cleanup_errors']==[{'service':'/station/stop','error':unknown}]
+        else:
+            assert saved['unverified_members']
+        assert station.process_identity(children[0].pid) is None
+    finally:
+        for child in children:
+            identity=station.process_identity(child.pid)
+            if identity:station.signal_member(identity,signal.SIGKILL)
+            child.wait(timeout=3)
