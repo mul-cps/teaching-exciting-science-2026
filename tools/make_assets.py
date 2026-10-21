@@ -76,7 +76,7 @@ def overview():
     p.append(line(608,195,608,325,TEAL,5,'11 11'))
     p.append(camera(553,181,1.0));p.append(line(608,180,608,130,GREY,8))
     p.append(line(550,151,675,151,GREY,8));p.append(line(608,243,608,329,TEAL,3,'8 7'))
-    p.append(text(686,209,'GoPro HERO10',22,NAVY,True));p.append(text(686,240,'stationary overhead view',17,GREY))
+    p.append(text(686,209,'Camera',22,NAVY,True));p.append(text(686,240,'stationary overhead view',17,GREY))
     p.append(roundrect(50,578,475,98,'#E4EFF0','none',18));p.append(text(77,616,'LEGO EV3',24,TEAL,True));p.append(text(77,652,'Motor drives the conveyor belt',18,NAVY))
     p.append(roundrect(702,575,236,102,'#EBEAE3','#CFC7AB',18,3));p.append(text(820,611,'PYTHON',24,NAVY,True,'middle'));p.append(text(820,644,'red → left',18,NAVY,False,'middle'))
     p.append(arrow(750,407,878,407,TEAL,6))
@@ -112,7 +112,7 @@ def stations():
         if i==0:p.append(arm(x+315,350,.67))
         if i==1:
             p.append(camera(x+177,260,.8));p.append(roundrect(x+319,297,62,61,RED,'#FFF',10,3));p.append(roundrect(x+387,297,62,61,BLUE,'#FFF',10,3));p.append(line(x+266,298,x+312,324,color,3,'6 5'))
-        if i==2:p.append(conveyor(x+87,300,328));p.append(roundrect(x+219,321,46,46,RED,'#FFF',8,2))
+        if i==2:p.append(conveyor(x+87,270,328));p.append(roundrect(x+219,291,46,46,RED,'#FFF',8,2))
     return wrap(1620,520,p)
 
 
@@ -152,8 +152,8 @@ def safety():
     p.append(roundrect(1091,139,459,505,'#E4EFF0','none',25))
     for i,(k,v) in enumerate([('1','Stop conveyor before reaching'),('2','Do not enter the marked area'),('3','Keep a reachable power cutoff'),('4','Stop on missing camera frames')]):
         p.append(roundrect(1119,195+i*100,46,44,TEAL,'none',11))
-        p.append(text(1142,226,k,22,'#FFFFFF',True,'middle'))
-        p.append(text(1183,222,v,18,NAVY))
+        p.append(text(1142,226+i*100,k,22,'#FFFFFF',True,'middle'))
+        p.append(text(1183,222+i*100,v,18,NAVY))
     p.append(text(62,724,'SCHEMATIC ONLY · Instructor must verify the actual arm sweep and emergency-stop arrangement.',18,GREY))
     return wrap(1620,760,p)
 
