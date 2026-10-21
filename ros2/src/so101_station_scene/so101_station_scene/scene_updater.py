@@ -5,6 +5,7 @@ import math
 import time
 import copy
 import re
+import uuid
 
 import numpy as np
 import rclpy
@@ -133,6 +134,8 @@ class SceneUpdater(Node):
         self.status_pub = self.create_publisher(String, str(get("status_topic")), 10)
         self.attachment_status_pub = self.create_publisher(
             String, str(get("attachment_status_topic")), 10)
+        self._instance_id = uuid.uuid4().hex
+        self._applied_world_ids = set()
         self._scene_busy = False
         self._static_sent = False
         self._static_pending = []
@@ -171,7 +174,11 @@ class SceneUpdater(Node):
 
     def _status(self, state, **fields):
         msg = String()
-        msg.data = json.dumps({"state": state, **fields}, sort_keys=True)
+        msg.data = json.dumps({"state": state, "instance_id": self._instance_id,
+                               "scene_busy": self._scene_busy, "pending_count": len(self._pending_by_id),
+                               "scene_fault": bool(self._scene_fault),
+                               "live_ids": sorted(self.registry._objects),
+                               "applied_world_ids": sorted(self._applied_world_ids), **fields}, sort_keys=True)
         self.status_pub.publish(msg)
 
     def _lookup(self, target, source, stamp):
@@ -707,8 +714,15 @@ class SceneUpdater(Node):
                 # replace it, while unrelated scene objects remain untouched.
                 for item in queued:
                     self._pending_by_id.setdefault(item.id, item)
+            if applied:
+                for item in queued:
+                    if item.operation == CollisionObject.REMOVE:
+                        self._applied_world_ids.discard(item.id)
+                    else:
+                        self._applied_world_ids.add(item.id)
             self._status("applied" if applied else "apply_failed",
-                         count=len(queued), static=static)
+                         count=len(queued), static=static,
+                         source_stamp=max(stamp_seconds(item.header.stamp) for item in queued))
             if applied and self._pending_by_id:
                 self._apply([])
 
