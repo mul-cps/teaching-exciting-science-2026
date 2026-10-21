@@ -196,6 +196,18 @@ class OperatorFakeROS(unittest.TestCase):
         self.assertIn("fresh calibrated leader", self.call("teleop", False).message)
         self.owner.state["teleop_leader_ready"] = True
         self.assertTrue(self.api.capabilities(self.owner.state)["teleop"]["enabled"])
+        # Authoritative start admission includes once-per-owner home provenance;
+        # the UI must not compare the current pose against home independently.
+        self.owner.state.update(teleop_start_ready=False, teleop_start_reason="complete saved home once for this owner")
+        self.assertFalse(self.api.capabilities(self.owner.state)["teleop"]["enabled"])
+        self.assertIn("saved home once", self.call("teleop", False).message)
+        deadline = time.monotonic()+3.
+        while "saved home once" not in self.received_status.get("summary", "") and time.monotonic() < deadline:
+            time.sleep(.05)
+        self.assertIn("saved home once", self.received_status["summary"])
+        self.owner.state.update(teleop_start_ready=True, teleop_start_reason=None,
+                                home_completed_this_session=True, pose={j: 84. for j in JOINTS})
+        self.assertTrue(self.api.capabilities(self.owner.state)["teleop"]["enabled"])
         self.call("teleop")
         self.assertEqual(self.owner.state["teleop_state"], "active")
         self.call("moveit")
