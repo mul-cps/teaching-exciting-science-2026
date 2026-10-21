@@ -18,12 +18,14 @@ Use the station wrapper so ROS domain 76 and the station environment are retaine
 | Saved home position (`start`) | Fresh idle owner, rearm if required, `/follower/home` | Fresh `home_completed_this_session=true`; passed after Reset | Checked saved-home motion after Reset |
 | Release for manual setup (`base_release`) | Priority `/follower/stop` + fresh owner | All six OFF; passed | Supported arm release |
 | Record manual reference (`base_confirm`) | Released same owner/calibration/source; `/follower/status` | In-memory six-joint raw/pose observation, all OFF; passed away from old home | Observe manual pose and source identity |
-| Leader teleop (`teleop`) | `teleop_leader_ready=true`; `/follower/teleop_enable` true | Fresh active teleop; stale/absent calibrated leader disables button; both passed | Real calibrated leader stream and motion |
+| Leader teleop (`teleop`) | `teleop_start_ready=true` (once-per-owner home, fresh current cohort and calibrated leader); `/follower/teleop_enable` true | Fresh active teleop; stale/absent calibrated leader disables button; both passed | Real calibrated leader stream and motion |
 | MoveIt mode (`moveit`) | `/follower/teleop_enable` false, rearm if required | Fresh idle owner; passed including after STOP | Plan/execute under calibrated-limit admission |
 | ZERO TORQUE / STOP (`zero_torque`) | `/follower/stop`; independent priority path | Fresh all-six OFF; passed during delayed home and unknown ACK | Physical prompt disarm |
 | Gentle damping (`damping`) | Exact native torque value 2 firmware capability and physical qualification; `/follower/damping_enable` | Disabled with reason when unsupported; passed, no damping RPC dispatched | Exact firmware and physical backdrive qualification remain open |
 | Restart camera/depth/tags/all (`restart_camera`, etc.) | Exact units configured on API and bridge; all OFF; `/follower/operator_maintenance_enable` | Correlated manager jobs, one correlated source-recovery job with current readiness, then fresh advancing requested streams; fake passed; duplicate unit aliases once | Real user-unit restart and stream recovery |
 | Verify restart (`verify_restart`) | Fresh all OFF; exact pending token via `/follower/operator_maintenance_enable`, then `/follower/stop` | Unknown/failed-job barrier resolves only after explicit verification; passed | Actual durable job completion proof |
+
+A successful measured **Saved home position** operation is required once per follower owner. Subsequent MoveIt ↔ Leader switches use a fresh validated current pose and matched leader/follower starting references, without returning to home. A restarted follower owner requires a new successful measured-home operation. The panel uses the resident `teleop_start_ready` and `teleop_start_reason`; it does not independently compare the current pose to home. When a persistent external leader publisher owns the leader serial device, launch with `leader:=false` to retain one reader.
 
 ## Manual setup reference and fixed home
 
