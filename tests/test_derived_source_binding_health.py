@@ -134,12 +134,12 @@ def test_existing_selected_image_status_method_is_exactly_unchanged():
 
 def intake_method(obj,scope):
     tree=ast.parse(SOURCE.read_text());cls=next(n for n in tree.body if isinstance(n,ast.ClassDef))
-    names={'_validate_received_info','_intake'}
+    names={'_validate_received_info','_intake','_invalidate_offers'}
     for method in [n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name in names]:
         exec(compile(ast.Module(body=[method],type_ignores=[]),str(SOURCE),'exec'),scope)
         setattr(obj,method.name,scope[method.name].__get__(obj))
     scope['struct']=__import__('struct')
-    obj.period=.2;obj.fault=None
+    obj.period=.2;obj.fault=None;obj.metadata_offer=None
     return obj
 
 

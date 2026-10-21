@@ -211,3 +211,21 @@ def test_static_import_guard_and_640x480_offline_timing():
     estimate_tag_pose(corners, rgb, depth, INTRINSICS, .001, BITS)
     elapsed = time.perf_counter() - start
     assert elapsed < .1
+
+
+def test_compact_ros_tag_bridge_uses_available_metric_estimator_without_ros():
+    """Replay the real compact bridge with the existing metric fixture, no node init."""
+    from types import SimpleNamespace
+    source = Path(__file__).resolve().parents[1] / 'ros2/src/so101_station_perception/so101_station_perception/tag_observations.py'
+    method = next(n for n in ast.walk(ast.parse(source.read_text()))
+                  if isinstance(n, ast.FunctionDef) and n.name == 'compact_tag_detections')
+    namespace = {'np': np, 'cv2': SimpleNamespace(error=RuntimeError)}
+    exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), 'exec'), namespace)
+    bridge = namespace['compact_tag_detections']
+    assert bridge([], None, INTRINSICS, .001, {}) == []
+    corners, _, depth, _, expected_t = _case(.0194)
+    result = bridge([{'code_id': 7, 'corners_px': corners}], depth, INTRINSICS, .001, {7: BITS})
+    assert len(result) == 1 and result[0]['measurement_valid'] is True
+    assert result[0]['measurement_source'] == 'white_module_depth_plane'
+    assert result[0]['center_camera_m'] == pytest.approx(expected_t, abs=.0015)
+    assert result[0]['size_m'] == .0194 and result[0]['qualified'] is False
