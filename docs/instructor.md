@@ -12,7 +12,7 @@ python3 -m venv .venv-workshop
 .venv-workshop/bin/python notebooks/launch.py
 ```
 
-Windows uses .venv-workshop\Scripts\python.exe with the same launcher. The launcher opens a local JupyterLab with the bundle as its root. No JupyterLite service is provided. Internet is needed for the optional Blockly and Teachable Machine activities; check the links and prepare offline alternatives in workshop-resources.md. Use nonpersonal objects, not student faces, for camera examples. Print one worksheet per pair.
+Windows uses .venv-workshop\Scripts\python.exe with the same launcher. The launcher opens a local JupyterLab with the bundle as its root. No JupyterLite service is provided. Internet is needed for the external Blockly Maze and Teachable Machine websites; check the links and prepare offline alternatives in workshop-resources.md. The bundled Blockly factory runs offline after setup; follow docs/blockly-student.md for the learner challenge and docs/blockly-workshop.md for instructor setup. Use nonpersonal objects, not student faces, for camera examples. Print one worksheet per pair.
 
 ## Timetable and transitions
 | Elapsed minutes | Task | Teaching move |
@@ -24,7 +24,7 @@ Windows uses .venv-workshop\Scripts\python.exe with the same launcher. The launc
 | 85–95 | Break | Save; name three groups and starting stations |
 | 95–140 | C Stations | Three 15-minute rotations including 1-minute transitions |
 | 140–190 | D Factory | Trace 10 min, baseline 12, change rule 15, compare routes 10, save 3 |
-| 190–225 | E Challenges | Choose 5 min, run and record 22, exchange tests 8 |
+| 190–225 | E Blockly factory or notebook challenges | Choose 5 min, run and record 22, exchange tests 8 |
 | 225–240 | Demos | Prepare 4 min, show results 8, reflect and save 3 |
 
 Exactly 240 minutes. Do not add the live lab as an extra lesson. The camera notebook contains optional extensions: select one controlled observation experiment within the 20-minute perception block; leave further list experiments for challenges. Definitions follow visible examples, not a vocabulary lecture.
@@ -36,12 +36,14 @@ B: prepared red, blue and background classes reduce setup time. Keep a few examp
 
 D: baseline is left 2, right 2, reject 1, with five belt advances and actions left/right/left/reject/right. Swapping rules has identical totals for this balanced input but different actions. Use three reds and one blue to reveal the difference in counts. Stop precedes observation and placement. Adding green without a rule rejects it; with a green-to-left rule it reaches left. None, unknown and invalid destinations reject. Counting every object does not prove every route is correct.
 
-E: select two experiments, reset the original inputs between them and record predictions before running. Adding None, unknown, 42 and empty text to the baseline yields left 2, right 2, reject 5. Red-to-middle produces left 0, right 2, reject 3. Ten reports must produce ten outcomes. Ask early finishers for a test that detects swapped rules.
+E: pairs choose the [offline Blockly factory challenge](blockly-student.md) or notebook challenges for the same 35-minute slot. For Blockly, start in simulation: predict and run, change the sequence, add color branches, test unknown, then save and explain the result. Use the [instructor Blockly guide](blockly-workshop.md) for setup and recovery. For notebooks, select two experiments, reset the original inputs between them and record predictions before running. Adding None, unknown, 42 and empty text to the baseline yields left 2, right 2, reject 5. Red-to-middle produces left 0, right 2, reject 3. Ten reports must produce ten outcomes. Ask early finishers for a test that detects swapped rules.
 
 ## Three stations
 Use three groups: robot → camera → virtual; camera → virtual → robot; virtual → robot → camera. Each slot uses explain 2 min, try 9, explain evidence 3, save and rotate 1.
 
 Robot and twin: open Robot_Candy_Factory_Live_SO101.ipynb. It defaults to invented DEMO data. Students choose one body joint, read a graph and calculate one relative versus absolute prediction. Relative mapping is follower start + leader now − leader start; 30 + 15 − 10 = 35 degrees. Absolute prediction is 15 degrees. Angle differences can be expected in relative mode. The gripper JointState is a visual proxy and is excluded. A twin follows measurements; it is not an independent confirmation of reality.
+
+A supervised physical Blockly extension replaces time within the robot rotation or challenge slot; it adds no lesson time. After simulation, teach a short fixed-jaw stroke with the leader, record the follower, return to the checked starting pose and replay once at speed 0.5. Add one approved EV3 action only when commissioned; require unknown to stop before manipulation. Dispensing and jaw control need their own commissioning. For payload sorting, the separate Run one commissioned sorting cycle block lets the native station own the complete grasp and object ownership transaction; a taught replay plus jaw movement does not establish a grasp. Review setup and recovery in docs/blockly-workshop.md.
 
 Camera and conveyor: trace move → stop → observe → decide → pick using paper objects or a qualified instructor demonstration. Ask why stopping before picking matters. Change one visual condition and explain uncertainty. No student connects motor hardware or changes station controls.
 
