@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+project(trajectory_timing_benchmark LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+find_package(ament_cmake REQUIRED)
+find_package(moveit_core REQUIRED)
+add_executable(moveit_timing moveit_timing.cpp)
+ament_target_dependencies(moveit_timing moveit_core)
