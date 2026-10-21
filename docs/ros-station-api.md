@@ -83,6 +83,7 @@ Bindings stay fixed throughout a running job. The executor resolves the selected
 | Endpoint | Type | Meaning |
 |---|---|---|
 | `/station/status`, `/station/diagnostics` | `std_srvs/srv/Trigger` | Read cached job/device state or config/transport gaps; never moves hardware |
+| `/station/stop_status` | `std_srvs/srv/Trigger` | Read-only compact coordinated stop snapshot; no diagnostic history or device cache |
 | `/station/check_ready` | `std_srvs/srv/Trigger` | Start read-only admission job; result appears in status |
 | `/station/run_cycles` | `so101_station_workflow/srv/RunCycles` | `cycles` in 1..100; returns admitted UUID |
 | `/station/stop`, `/station/cancel` | `std_srvs/srv/Trigger` | Request stop/disarm; terminal acknowledgement appears in status |
@@ -99,6 +100,32 @@ Bindings stay fixed throughout a running job. The executor resolves the selected
 | `/station/ev3/command` | `so101_station_workflow/srv/EV3Command` | Internal serialized bridge; exact private single-use capability and active-job UUID required for changes; public UUID never grants eject |
 
 The bridge service is an implementation API; ordinary users use the typed services/quick commands. It permits only status/critical-status/stop/eject/home/wake/power-save operations and internally constructed sorter targets, requires the active job UUID plus a private, single-use operation capability bound to the exact operation and arguments for all changes, and rejects reference confirmation outside the explicit acknowledgement service. The capability is minted only by the internal proxy and never published in status; knowing a public job UUID cannot authorize dispensing or other mutation during readiness, arm homing or sorting. Cancellation or a pending stop revokes all queued mutations, while internal cleanup stop remains available. External stop requests use `/station/stop` to coordinate the arm and EV3. It never opens another arm serial port or camera SDK. Automatic operation still requires the resident teleop-disabled readiness gate.
+
+### Compact shutdown status
+
+`/station/stop_status` is a read-only `std_srvs/srv/Trigger` service. Its
+`response.success` retains the usual API semantics; it is not a stop-completion
+acknowledgement. The `message` is JSON containing a fresh copy of exactly four
+stop fields:
+
+```json
+{"stop":{"request_id":"<STOP UUID>","pending":false,"ev3_stopped":true,"arm_disarmed":true}}
+```
+
+`request_id` identifies the stop request; `pending`, `ev3_stopped` and
+`arm_disarmed` are Booleans. The snapshot excludes diagnostic history and device
+cache data. `/station/status` continues to provide full diagnostics, and current
+Blockly status consumers continue to use it unchanged.
+
+The lifecycle shutdown path polls this compact service. Before stopping units,
+it requires the exact UUID returned by its STOP request, `pending: false`,
+`ev3_stopped: true` and `arm_disarmed: true`, plus independent fresh owner
+observations showing all six torque states OFF. Missing acknowledgement retains
+the lifecycle record and prevents forced cleanup.
+
+Older source-pinned lifecycle manifests are rejected because they lack the new
+API pins. Regenerate the manifest explicitly and verify the installed API
+delegate against the selected source before starting the station.
 
 ## Physical gates
 
