@@ -498,7 +498,7 @@ def test_home_sag_recovery_is_opt_in_and_stays_inside_admitted_limits(tmp_path):
     outside["elbow_flex"] = recovered.admitted_max["elbow_flex"] + 8
     recovered_arm.bus.data["Present_Position"] = dict(outside)
     recovered.home()
-    assert recovered_arm.bus.goal_history[0]["elbow_flex"] == recovered.admitted_max["elbow_flex"] - 16
+    assert recovered_arm.bus.goal_history[0]["elbow_flex"] == recovered.admitted_max["elbow_flex"] - 32
     assert recovered_arm.bus.goal_history[0]["elbow_flex"] < outside["elbow_flex"]
     assert recovered_arm.bus.data["Present_Position"] == recovered.home_raw
     recovered.shutdown()
@@ -1565,23 +1565,24 @@ def test_stop_busy_correlates_after_cleanup_and_discards_queued_motion(tmp_path)
     session.close_log()
 
 
-@pytest.mark.parametrize("side,overrun", [(s, n) for s in ("low", "high") for n in (1, 16, 17)])
+@pytest.mark.parametrize("side,overrun", [(s, n) for s in ("low", "high") for n in (1, 32, 33)])
 def test_sag_reentry_certifies_inset_and_small_total_step(tmp_path, side, overrun):
     session, arm, _ = make_session(tmp_path, recover_sag=True)
+    arm.settings["limits"]["elbow_flex"].update(min=-70., max=80.)
     session.initialize()
     start = dict(arm.bus.data["Present_Position"])
     joint = "elbow_flex"
     boundary = session.admitted_min[joint] if side == "low" else session.admitted_max[joint]
     direction = 1 if side == "low" else -1
     start[joint] = boundary - direction * overrun
-    goal = dict(start, **{joint: boundary + direction * 16})
-    if overrun == 17:
+    goal = dict(start, **{joint: boundary + direction * 32})
+    if overrun == 33:
         with pytest.raises(ValueError, match="outside admitted"):
             session._validate_transition(start, goal, "recovery", allow_sag=True)
     else:
         recovery = session._validate_transition(start, goal, "recovery", allow_sag=True)
-        assert abs(goal[joint] - start[joint]) <= 32
-        assert recovery[joint]["command_max"] - recovery[joint]["command_min"] <= 32
+        assert abs(goal[joint] - start[joint]) <= 64
+        assert recovery[joint]["command_max"] - recovery[joint]["command_min"] <= 64
         with pytest.raises(ValueError, match="inactive joint goals"):
             session._validate_transition(start, dict(goal, wrist_roll=2001), "bad", allow_sag=True)
     session.shutdown()
@@ -1606,7 +1607,7 @@ def test_sag_reentry_slow_native_ramp_and_bounded_deadline(tmp_path, mode):
     boundary = session.admitted_max[joint]
     start = dict(arm.bus.data["Present_Position"], **{joint: boundary + 14})
     arm.bus.data["Present_Position"] = dict(start)
-    goal = dict(start, **{joint: boundary - 16})
+    goal = dict(start, **{joint: boundary - 32})
     arm.bus.stalled_joints.add(joint)
     began = clock.monotonic()
 
@@ -1628,7 +1629,7 @@ def test_sag_reentry_slow_native_ramp_and_bounded_deadline(tmp_path, mode):
         record = session._run_leg("home_sag_recovery", goal, start, allow_sag=True, phase="home")
         assert 1.2 < record["elapsed"] < 6
         assert record["settlement_purpose"] == "admitted_reentry"
-        assert boundary - 34 <= record["settled_raw"][joint] <= boundary
+        assert boundary - 66 <= record["settled_raw"][joint] <= boundary
         if mode == "partial":
             assert record["target_reached"] is False
         assert all(start[joint] >= command[joint] >= goal[joint] for command in arm.bus.goal_history)
@@ -1645,7 +1646,7 @@ def test_sag_reentry_guards_observed_envelope(tmp_path, fault):
     joint = "elbow_flex"
     high = session.admitted_max[joint]
     start = dict(arm.bus.data["Present_Position"], **{joint: high + 14})
-    goal = dict(start, **{joint: high - 16})
+    goal = dict(start, **{joint: high - 32})
     recovery = session._validate_transition(start, goal, "recovery", allow_sag=True)
     actual = dict(start)
     if fault == "outward":
@@ -1672,8 +1673,8 @@ def test_sag_reentry_guards_observed_envelope(tmp_path, fault):
         actual[joint] = high + 1
         message = "left admitted"
     else:
-        actual[joint] -= 35
-        message = "excursion exceeds 34"
+        actual[joint] -= 67
+        message = "excursion exceeds 66"
     with pytest.raises(RuntimeError, match=message):
         session._guard_actual(actual, start, start, {joint}, recovery, clock.monotonic())
     session.shutdown()

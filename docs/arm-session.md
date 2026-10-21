@@ -43,12 +43,13 @@ That is logged as inferred contact, never as a confirmed grasp. While motion is
 running, `read_state`, `stop`, and `exit` remain responsive between bounded bus
 transactions; additional move/home requests are rejected until the current
 command finishes. `--recover-sag` (default off) permits `home` to recover a body
-joint initially at most 16 counts outside its admitted limits. Its first goal
-is 16 counts inside that boundary, so commanded travel is at most 32 counts.
+joint initially at most 32 counts outside its admitted limits, with a separate
+unchanged maximum 16-count firmware overrun. Its first goal is 32 counts inside
+the admitted boundary, so commanded travel is at most 64 counts.
 The existing six-second leg deadline includes setup, fresh feedback, settlement,
 and dwell. Recovery disables gravity trim, holds other goals fixed, rejects
 outward or inactive drift above two counts, and caps observed excursion at
-34 counts. After reentry, leaving the admitted range aborts. Four quiet samples
+66 counts. After reentry, leaving the admitted range aborts. Four quiet samples
 and dwell establish admitted reentry; `settlement_purpose=admitted_reentry` and
 `target_reached` distinguish this proof from reaching the inset goal. Ordinary
 measured-home sublegs then continue. Ordinary plans and gripper commands remain
