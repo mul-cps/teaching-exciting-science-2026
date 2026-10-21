@@ -1,12 +1,10 @@
 """No hardware: current-pose activation and bounded absolute leader tracking."""
-import math
 from types import SimpleNamespace
 
 import pytest
 
 from test_arm_session import make_session, target
 from test_ros_teleop_mode_switch import bridge, enable, JOINTS
-from workshop.station.arm_session import _teleop_slew_step
 
 
 @pytest.mark.parametrize('mode', ['relative', 'absolute'])
@@ -24,45 +22,73 @@ def test_nonhome_activation_first_goal_is_exact_current_and_never_grants_home(tm
     session.shutdown(); session.close_log()
 
 
-def test_absolute_six_joint_transition_respects_existing_limits_and_starts_at_rest(tmp_path):
+@pytest.mark.parametrize('mode', ['relative', 'absolute'])
+@pytest.mark.parametrize('gripper', [0., 100.])
+def test_both_owner_modes_dispatch_mapped_targets_directly_with_identical_bounds(tmp_path, mode, gripper):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
-    state = session.handle({'command': 'teleop_start', 'session_id': 'absolute', 'mode': 'absolute'})['state']
+    state = session.handle({'command': 'teleop_start', 'session_id': 'direct', 'mode': mode})['state']
     initial = dict(state['raw'])
-    pose = {j: state['pose'][j] + (20 if i % 2 else -20) for i, j in enumerate(JOINTS)}
-    for sequence in range(300):
-        active = session._teleop
-        previous, velocity = dict(active['slew_position']), dict(active['slew_velocity'])
-        clock.sleep(.02)
-        session.handle({'command': 'teleop_step', 'session_id': 'absolute', 'sequence': sequence, 'pose': pose})
-        for joint in JOINTS:
-            low, high, vmax, amax = active['slew_limits'][joint]
-            assert low <= active['slew_position'][joint] <= high
-            assert abs(active['slew_velocity'][joint]) <= vmax + 1e-8
-            assert abs(active['slew_velocity'][joint] - velocity[joint]) <= amax * .02 + 1e-8
-            assert abs(active['slew_position'][joint] - previous[joint]) <= vmax * .02 + 1e-8
-        if sequence == 0:
-            assert arm.bus.goal_history[-1] == initial  # no initial absolute jump
-    assert all(arm.bus.goal_history[-1][j] != initial[j] for j in JOINTS)
-    expected = session.arm._raw_goal(pose)
-    assert all(abs(arm.bus.goal_history[-1][j] - expected[j]) <= 1 for j in JOINTS)
+    assert arm.bus.goal_history == [initial]
+    # Already mapped by the bridge: alternate body endpoints beyond the bounds.
+    pose = {j: (1000. if i % 2 else -1000.) for i, j in enumerate(JOINTS)}
+    pose['gripper'] = gripper
+    expected = {j: session.admitted_max[j] if pose[j] > 0 else session.admitted_min[j] for j in JOINTS}
+    clock.sleep(.01)
+    session.handle({'command': 'teleop_step', 'session_id': 'direct', 'sequence': 0, 'pose': pose})
+    assert arm.bus.goal_history == [initial, expected]
     assert not session._home_completed_this_session
     assert set(arm.bus.data['Acceleration'].values()) == {8}
     assert set(arm.bus.data['Goal_Velocity'].values()) == {0}
+    assert arm.bus.data['Torque_Limit'] == {j: 250 if j == 'gripper' else 700 for j in JOINTS}
+    assert not any(key.startswith('slew_') for key in session._teleop)
+    # STOP holds the measured follower position, then rejects any further target.
+    session.handle({'command': 'teleop_stop', 'session_id': 'direct'})
+    assert arm.bus.goal_history[-1] == arm.bus.data['Present_Position']
+    count = len(arm.bus.goal_history)
+    with pytest.raises(ValueError, match='not active'):
+        session.handle({'command': 'teleop_step', 'session_id': 'direct', 'sequence': 1, 'pose': pose})
+    assert len(arm.bus.goal_history) == count
     session.shutdown(); session.close_log()
 
 
-def test_slew_brakes_at_both_bounds_and_handles_leader_reversals():
-    position, velocity = dict.fromkeys(JOINTS, 50.), dict.fromkeys(JOINTS, 0.)
-    limits = {j: (0., 100., 30., 20.) for j in JOINTS}
-    for tick in range(2000):
-        target = {j: float(100 if (tick // 137 + i) % 2 else 0) for i, j in enumerate(JOINTS)}
-        following, speeds = _teleop_slew_step(position, velocity, target, limits, .02)
-        for joint in JOINTS:
-            assert 0 <= following[joint] <= 100
-            assert abs(speeds[joint]) <= 30 + 1e-8
-            assert abs(speeds[joint] - velocity[joint]) <= .4 + 1e-8
-        position, velocity = following, speeds
+def test_owner_modes_send_identical_raw_positions_for_the_same_mapped_pose(tmp_path):
+    histories = []
+    for mode in ('relative', 'absolute'):
+        directory = tmp_path / mode
+        directory.mkdir()
+        session, arm, clock = make_session(directory)
+        session.initialize()
+        session.handle({'command': 'teleop_start', 'session_id': mode, 'mode': mode})
+        pose = {joint: (73.25 if joint == 'gripper' else (-1) ** index * 12.345)
+                for index, joint in enumerate(JOINTS)}
+        expected = {joint: int(round(1000 + pose[joint] * 20)) if joint == 'gripper' else
+                    int(round((arm.calibration[joint]['range_min'] + arm.calibration[joint]['range_max']) / 2
+                              + pose[joint] * 4095 / 360)) for joint in JOINTS}
+        clock.sleep(.01)
+        session.handle({'command': 'teleop_step', 'session_id': mode, 'sequence': 0, 'pose': pose})
+        assert arm.bus.goal_history[-1] == expected
+        histories.append(list(arm.bus.goal_history))
+        session.shutdown(); session.close_log()
+    assert histories[0] == histories[1]
+
+
+@pytest.mark.parametrize('mode', ['relative', 'absolute'])
+def test_direct_owner_step_preserves_feedback_packet_budget(tmp_path, mode):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    session.handle({'command': 'teleop_start', 'session_id': 'budget', 'mode': mode})
+    before = dict(arm.bus.sync_read_calls)
+    for sequence in range(10):
+        clock.sleep(.025)
+        session.handle({'command': 'teleop_step', 'session_id': 'budget', 'sequence': sequence,
+                        'pose': {j: 75. if j == 'gripper' else 10. for j in JOINTS}})
+    reads = {j: value - before.get(j, 0) for j, value in arm.bus.sync_read_calls.items()}
+    assert reads['Present_Position'] == 10
+    assert 2 <= reads['Goal_Position'] <= 3
+    assert reads['Torque_Enable'] == reads['Goal_Position']
+    assert sum(reads.values()) == 10 + 2 * reads['Goal_Position']
+    session.shutdown(); session.close_log()
 
 
 @pytest.mark.parametrize('mode', ['relative', 'absolute'])
@@ -139,10 +165,11 @@ def test_active_modes_freeze_on_owner_fault_stop_and_stale_leader(bridge, mode, 
         assert len(bridge.commands) == sent
 
 
-def test_absolute_stale_owner_stream_holds_measured_pose_without_jumping_to_leader(tmp_path):
+@pytest.mark.parametrize('mode', ['relative', 'absolute'])
+def test_stale_owner_stream_holds_measured_pose_without_jumping_to_leader(tmp_path, mode):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
-    session.handle({'command': 'teleop_start', 'session_id': 'stale', 'mode': 'absolute'})
+    session.handle({'command': 'teleop_start', 'session_id': 'stale', 'mode': mode})
     measured = dict(arm.bus.data['Present_Position'])
     clock.sleep(.31)
     with pytest.raises(ValueError, match='watchdog expired'):

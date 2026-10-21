@@ -30,10 +30,10 @@ ros2 service call /follower/teleop_absolute_mode std_srvs/srv/SetBool "{data: tr
 ```
 
 `absolute` tracks the calibrated leader joint angles and gripper opening. Enable
-still holds the current follower pose first; subsequent targets approach the
-leader with speed and acceleration limits from the station configuration (body
-limits also respect the selected ROS motion profile). Target slew includes
-braking at admitted bounds, and preserves the native RAM profile and cadence.
+still holds the fresh measured current follower pose first. The first leader
+update can then seek the absolute leader pose directly: align the arms and clear
+the work area before enabling. Targets remain clamped to admitted position
+bounds, with native acceleration smoothing.
 To return to relative mode, disable teleoperation, select `{data: false}`, then
 enable again. Each enable captures a fresh current reference. Mode selection
 never commands a joint and rejects changes while a session is active. Both
@@ -176,11 +176,11 @@ failure. The mode does not change trajectory tolerances or motion profiles.
 
 ## Direct teleop response
 
-Relative teleop sends each fresh mapped position directly, clamped to the
-admitted joint position bounds, without a software velocity slew cap. Absolute
-teleop additionally limits target speed and acceleration and brakes at those
-bounds. Both modes use the teleop-only native
-profile sets `Goal_Velocity=0` (position-mode hardware maximum), keeps
+Both relative and absolute teleop send each fresh mapped position directly,
+clamped to the admitted joint position bounds, without a software velocity slew
+cap. Direct position commands do not promise zero hardware tracking lag. Both
+modes use the teleop-only native profile, which sets `Goal_Velocity=0`
+(position-mode hardware maximum), keeps
 `Acceleration=8`, and retains the existing torque limits. The initial goal still
 holds the fresh measured current position before torque is enabled. Home, MoveIt, and
 other planned moves reinstall their original bounded native profile; teleop
