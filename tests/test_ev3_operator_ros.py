@@ -29,6 +29,7 @@ def test_explicit_connection_endpoints_eject_and_terminal_status(tmp_path):
     refs = {'sorter':'home','feeder':None}
     job = [None]
     last = [None]
+    power = ['power_save']
     def serve():
         while not halt.is_set():
             try: connection, _ = listener.accept(); break
@@ -42,7 +43,7 @@ def test_explicit_connection_endpoints_eject_and_terminal_status(tmp_path):
                 if job[0] and time.monotonic() >= job[0]['until']:
                     angle[0] = job[0].get('target', angle[0]); last[0] = dict(job[0], state='complete'); job[0] = None
                 status = dict(session='panel-fake', connected=True, busy=job[0] is not None,
-                    references=refs.copy(), power_mode='awake', last_error=None,
+                    references=refs.copy(), power_mode=power[0], last_error=None,
                     angles={'sorter':angle[0],'feeder':0.}, sampled_ms=sampled, job=job[0], last_job=last[0],
                     touch=False, color='RED', motor_control={name:dict(angle_sample_ms=sampled,angle_read_ms=1,
                         speed_sample=dict(speed_dps=0.,sampled_ms=sampled,duration_ms=1)) for name in ('sorter','feeder')})
@@ -53,8 +54,12 @@ def test_explicit_connection_endpoints_eject_and_terminal_status(tmp_path):
                     if op == 'motor_target': job[0]['target'] = request['args']['target']
                     result = dict(accepted=True,job=job[0])
                 elif op == 'confirm_reference':
+                    power[0] = 'awake'
                     refs[request['args']['name']] = request['args']['reference']
                     result = dict(confirmed=True)
+                elif op == 'wake':
+                    power[0] = 'awake'
+                    result = dict(power_mode='awake')
                 elif op == 'stop': result = dict(stopped=True)
                 else: result = dict(alive=True)
                 stream.write((json.dumps(dict(id=request['id'],ok=True,result=result))+'\n').encode()); stream.flush()
@@ -95,6 +100,7 @@ def test_explicit_connection_endpoints_eject_and_terminal_status(tmp_path):
         assert reference.done() and reference.result().success
         endpoint_ids=[]
         for name in ('ev3/right_end','ev3/left_end','ev3/eject'):
+            power[0] = 'power_save'
             response = call(name); assert response.success, response.message
             done = terminal(json.loads(response.message)['job_id'])
             assert done['state']=='idle',done
@@ -106,6 +112,7 @@ def test_explicit_connection_endpoints_eject_and_terminal_status(tmp_path):
         assert len(set(endpoint_ids))==2
         assert calls.count('motor_target')==6 and calls.count('eject')==1
         assert calls.count('confirm_reference')==1
+        assert calls.count('wake')==3
         assert snapshots and snapshots[-1]['session']=='panel-fake'
         assert len(json.dumps(snapshots[-1]))<8192
         assert call('stop').success

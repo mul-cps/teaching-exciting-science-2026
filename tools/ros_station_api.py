@@ -315,6 +315,8 @@ def main():
 
     def simple_ev3(operation):
         def work(worker, proxy, cancel):
+            if operation in ('eject', 'home_touch'):
+                proxy.call('wake')
             if operation == 'eject':
                 from workshop.station.ev3_readiness import require_fresh_stationary
                 require_fresh_stationary(proxy, session=proxy.session,

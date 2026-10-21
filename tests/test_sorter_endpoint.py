@@ -16,8 +16,12 @@ class Proxy:
         self.stops = 0
         self.reference = 'home'
         self.corrupt_phase = None
+        self.wakes = 0
     def call(self, operation, arguments=None):
         self.stamp += 20
+        if operation == 'wake':
+            self.wakes += 1
+            return {'power_mode':'awake'}
         if operation == 'stop':
             self.stops += 1
             return {'stopped':True}
@@ -47,6 +51,7 @@ def test_long_endpoint_three_phases_unique_terminal_ids_one_session():
     assert [phase['native_job_id'] for phase in result['phases']]==[11,12,13]
     assert all(phase['session']=='one-session' for phase in result['phases'])
     assert proxy.stops==0
+    assert proxy.wakes==1
 
 
 def test_reverse_endpoint_three_phases():

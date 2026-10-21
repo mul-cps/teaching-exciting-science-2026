@@ -101,6 +101,9 @@ def move_endpoint(proxy, cancel, target, record, stop_state):
     try:
         if cancel.is_set():
             raise InterruptedError('conveyor endpoint cancelled')
+        # An explicit panel motion request counts as foreground activity.
+        # Read-only status polling and panel load never wake the brick.
+        proxy.call('wake')
         for index in range(3):
             if cancel.is_set():
                 raise InterruptedError('conveyor endpoint cancelled between phases')

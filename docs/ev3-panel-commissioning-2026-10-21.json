@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-21",
+  "device": "LEGO EV3 USB0016538184D5",
+  "scope": "Conveyor direction and interior positions; feeder reference and full sorting not qualified",
+  "initial_sorter_deg": 0,
+  "initial_switch_pressed": true,
+  "direction": "Increasing D moves carriage right toward follower arm, as viewed from station operator/camera",
+  "launch_endpoints_deg": {
+    "left": 10,
+    "right": 530
+  },
+  "results": [
+    {
+      "target_deg": 132,
+      "measured_deg": 133,
+      "workflow_job_id": "74bff6a6-9ac3-4265-864e-b118c3b0817b",
+      "terminal": "idle",
+      "native_session": "ev3-1669895892.805315-23943858",
+      "touch": false
+    },
+    {
+      "target_deg": 330,
+      "measured_deg": 330,
+      "workflow_job_id": "3258b47b-fab8-4e4c-9e08-9f44a12cf770",
+      "terminal": "idle",
+      "native_session": "ev3-1669895892.805315-23943858",
+      "touch": false
+    },
+    {
+      "target_deg": 530,
+      "measured_deg": 531,
+      "workflow_job_id": "a2dbec1a-a52f-4c8b-93e1-f89f991ee6ca",
+      "terminal": "idle",
+      "native_session": "ev3-1669895892.805315-23943858",
+      "touch": false
+    }
+  ],
+  "camera_evidence": [
+    "before-probe-132.png",
+    "after-probe-530.png"
+  ],
+  "private_evidence_directory": "/home/bjoern/.local/share/exciting-science/station/evidence/2026-10-21-sorting/pick-place-resume/restored-station/deploy-v5-reconnect/ev3-live-api",
+  "feeder_reference": null,
+  "physical_pick_place_complete": false
+}

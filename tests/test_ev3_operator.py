@@ -34,6 +34,12 @@ class EV3OperatorStatusTests(unittest.TestCase):
         for changes in ({'busy':True}, {'last_error':{'code':'fault'}}):
             self.assertFalse(self.state(**changes)['capabilities']['home']['enabled'])
 
+    def test_power_save_can_wake_on_explicit_motion_and_reference_request(self):
+        caps = self.state(power_mode='power_save')['capabilities']
+        for action in ('home', 'eject', 'confirm_feeder'):
+            self.assertTrue(caps[action]['enabled'])
+        self.assertFalse(self.state(power_mode='unknown')['capabilities']['home']['enabled'])
+
     def test_stale_and_disconnect_block_motion(self):
         for cache, fresh in (({'connected':False}, True), ({'connected':True}, False)):
             result = operator_status(cache, {'state':'idle'}, {}, fresh=fresh)

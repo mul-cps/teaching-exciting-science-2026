@@ -38,7 +38,9 @@ def test_student_program_runs_without_installation():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     out = subprocess.run([sys.executable, "exercises/04_sort.py"], cwd=root, capture_output=True, text=True, check=True)
-    assert "'left': 2" in out.stdout
+    for destination, count in (("left", 2), ("right", 2), ("reject", 1)):
+        assert f"{destination} : {count}" in out.stdout
+    assert "Total objects: 5" in out.stdout
 
 
 def test_belt_stops_before_robot_action():

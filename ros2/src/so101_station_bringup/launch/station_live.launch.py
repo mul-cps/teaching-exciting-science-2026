@@ -62,8 +62,10 @@ def generate_launch_description():
         'sorting_config': str(station / 'sorting.json'),
         'sorting_evidence_dir': str(station / 'evidence/sorting'),
         'ev3_api_port': '18766',
-        'ev3_left_end_deg': '-1.0',
-        'ev3_right_end_deg': '-1.0',
+        # Current physical station: increasing D moves toward the follower.
+        # Camera/encoder checked 2026-10-21; keep clear of the 0/550 guards.
+        'ev3_left_end_deg': '10.0',
+        'ev3_right_end_deg': '530.0',
         'use_ev3_tunnel': 'false',
         'ev3_remote': 'robot@192.168.0.1',
         'ev3_ssh_key': str(station / 'ssh/id_ev3'),

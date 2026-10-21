@@ -44,11 +44,13 @@ native telemetry guards; panel capability display does not replace admission.
 ## Endpoint configuration and feeder reference
 
 `station_live.launch.py` exposes `ev3_left_end_deg` and `ev3_right_end_deg`
-(double ROS parameters on `station_workflow`), each defaulting to `-1.0`, meaning
-configuration required. The current repository records sorter interior positions
-10°, 132°, 360° and 530°, but does not identify which physical endpoint is left
-or right. Do not infer direction from those values. Set these parameters only
-after mapping physical directions on this exact station. The panel has no raw
+(double ROS parameters on `station_workflow`). The integrated launch uses **left
+10° and right 530°** for this station: camera and encoder checks on 2026-10-21
+confirmed that increasing motor D moves the carriage toward the follower arm.
+The standalone API retains unconfigured `-1.0` defaults, so pass the two values
+explicitly when launching it alone. Recheck direction if the mechanism is rebuilt
+or reversed. The [commissioning record](ev3-panel-commissioning-2026-10-21.json)
+lists actual targets, measured results and workflow IDs. The panel has no raw
 motor target entry. Both endpoint wrappers share the existing conservative single-phase sorter
 implementation. Each endpoint runs at most three phases of at most 200° under
 one workflow job and a 29-second overall deadline. Every phase independently
@@ -59,6 +61,11 @@ The original typed `SorterPosition` service remains a single phase. Zero must us
 switch homing; 550° is an unqualified guard boundary and is rejected. Typed single-phase distances outside the existing six-second budget continue
 to be rejected with the existing reason. Endpoint routes stop after any failed
 phase and never continue to the next target.
+
+Power-save is a connected idle state. Explicit Home, left/right or Eject clicks
+wake the brick before checking fresh motion telemetry. Panel load, connection
+and status polling do not wake it or move motors. Feeder-reference confirmation
+uses the native foreground command's existing wake behavior.
 
 There is no existing native feeder homing operation. Eject requires the current
 session's physically established `feeder/eject` reference and `sorter/home`.
@@ -99,7 +106,7 @@ export SO101_STATION_ROOT=/absolute/path/to/teaching-exciting-science-2026
 ros2 run so101_station_workflow station_api --ros-args \
   -p ev3_host:=127.0.0.1 -p ev3_port:=18766 \
   -p evidence_dir:=/absolute/path/to/ev3-panel/evidence \
-  -p ev3_left_end_deg:=-1.0 -p ev3_right_end_deg:=-1.0
+  -p ev3_left_end_deg:=10.0 -p ev3_right_end_deg:=530.0
 ```
 
 Use the running stack's ROS domain and RMW configuration. This executable owns
