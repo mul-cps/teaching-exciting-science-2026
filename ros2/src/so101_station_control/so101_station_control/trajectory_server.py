@@ -1449,6 +1449,29 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             self._teleop_latest = {"stamp_s": float(packet["stamp_s"]),
                                    "sequence": int(packet["sequence"]), "pose": pose}
 
+    def _teleop_start_error(self, state, process, generation, *, after=None, torque=None):
+        """First home is session provenance; later starts anchor the current pose."""
+        if self._home_completed_owner_started is None or self._home_completed_owner_started != generation:
+            return "measured home must complete once in this owner session before teleoperation"
+        try:
+            classification = self._prepare_owner_state(state, process, generation, after=after, torque=torque)
+            if classification != "normal":
+                raise RuntimeError("teleoperation requires NORMAL current follower bounds")
+            bounds = state["arm_bounds"]
+            if any(not bounds["admitted_min"][joint] <= state["raw"][joint] <=
+                       bounds["admitted_max"][joint] for joint in TELEOP_JOINTS):
+                raise RuntimeError("teleoperation requires current raw pose inside admitted bounds")
+            if len(set(state["torque"].values())) != 1:
+                raise RuntimeError("follower torque state must be uniformly verified on or off")
+            pose = state.get("pose")
+            if (not isinstance(pose, dict) or set(pose) != set(TELEOP_JOINTS) or
+                    any(type(pose[joint]) not in (int, float) or not math.isfinite(pose[joint])
+                        for joint in TELEOP_JOINTS) or not 0 <= pose["gripper"] <= 100):
+                raise RuntimeError("teleoperation requires a finite measured six-joint follower pose")
+        except (RuntimeError, ValueError, KeyError, TypeError) as error:
+            return str(error)
+        return None
+
     @_control_callback
     def _set_teleop_enabled(self, request, response):
         if self._external_state_only or self._process is None:
@@ -1469,42 +1492,21 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 self._active_goal = "teleop_starting"
             with self._teleop_latest_lock:
                 latest = dict(self._teleop_latest) if self._teleop_latest else None
-            if (latest is None or time.monotonic() - latest["stamp_s"] >
-                    float(self.get_parameter("teleop_pose_stale_s").value)):
+            if not _teleop_leader_readiness(latest, time.monotonic(),
+                    float(self.get_parameter("teleop_pose_stale_s").value))[0]:
                 self._clear_teleop()
                 response.success = False
                 response.message = "no fresh calibrated leader pose is available"
                 return response
+            process, generation = self._process, self._owner_started
+            cohort = (self._expected_arm_id, self._expected_calibration_sha256,
+                      dict(self._owner_source_expected) if isinstance(self._owner_source_expected, dict) else None)
             follower_state = self._read_state()
-            if follower_state is None or not isinstance(follower_state.get("pose"), dict):
+            start_error = self._teleop_start_error(follower_state, process, generation)
+            if start_error:
                 self._clear_teleop()
                 response.success = False
-                response.message = "follower state is not fresh"
-                return response
-            if self._saved_home_pose is None or self._expected_arm_id is None:
-                self._clear_teleop()
-                response.success = False
-                response.message = "saved-home readiness check is unavailable; teleoperation remains disabled"
-                return response
-            home_error = _measured_home_error(
-                follower_state, arm_id=self._expected_arm_id,
-                calibration_sha256=self._expected_calibration_sha256,
-                home_pose=self._saved_home_pose, tolerance=self._saved_home_tolerance)
-            if home_error:
-                self._clear_teleop()
-                response.success = False
-                response.message = home_error
-                return response
-            torque = follower_state.get("torque")
-            if not isinstance(torque, dict) or set(torque) != set(TELEOP_JOINTS):
-                torque_values = []
-            else:
-                torque_values = list(torque.values())
-            if not torque_values or any(value not in (0, 1) for value in torque_values) or \
-                    len(set(torque_values)) != 1:
-                self._clear_teleop()
-                response.success = False
-                response.message = "follower torque state must be fresh and consistently verified on or off"
+                response.message = start_error
                 return response
             session_id = uuid.uuid4().hex
             with self._active_lock:
@@ -1514,6 +1516,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             command_sent = False
             acknowledged = False
             try:
+                requested = time.monotonic()
                 self._send({"command": "teleop_start", "session_id": session_id})
                 command_sent = True
                 acknowledgement = self._wait_teleop_ack("teleop_start")
@@ -1527,16 +1530,16 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 if any(type(baseline[joint]) not in (int, float) or not math.isfinite(baseline[joint])
                        for joint in TELEOP_JOINTS):
                     raise RuntimeError("owner start acknowledgement contained an invalid follower pose")
-                home_error = _measured_home_error(
-                    state, arm_id=self._expected_arm_id,
-                    calibration_sha256=self._expected_calibration_sha256,
-                    home_pose=self._saved_home_pose, tolerance=self._saved_home_tolerance)
-                if home_error:
-                    raise RuntimeError(home_error)
+                start_error = self._teleop_start_error(state, process, generation,
+                                                       after=requested, torque=1)
+                if start_error:
+                    raise RuntimeError(start_error)
+                if cohort != (self._expected_arm_id, self._expected_calibration_sha256, self._owner_source_expected):
+                    raise RuntimeError("owner identity/calibration/source cohort changed during teleop start")
                 with self._teleop_latest_lock:
                     start_reference = dict(self._teleop_latest) if self._teleop_latest else None
-                if (start_reference is None or time.monotonic() - start_reference["stamp_s"] >
-                        float(self.get_parameter("teleop_pose_stale_s").value)):
+                if not _teleop_leader_readiness(start_reference, time.monotonic(),
+                        float(self.get_parameter("teleop_pose_stale_s").value))[0]:
                     raise RuntimeError("leader pose became stale while waiting for owner start acknowledgement")
                 with self._active_lock:
                     self._teleop_session = session_id
@@ -2458,6 +2461,10 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         home = bool(connected and generation_valid and identity and not faulted and not barrier and
                     source_matches and observe_only is False and completed is not None and completed == generation)
         trusted = generation_valid and identity and source_matches
+        teleop_start_error = ("another owner operation is active" if active is not None else
+                              self._teleop_start_error(state, process, generation))
+        if teleop_start_error is None and not leader_ready:
+            teleop_start_error = leader_reason
         payload = {"schema": 1, "kind": "follower_status", "sampled_monotonic": now,
             "connected": connected, "fresh": bool(connected and generation_valid and identity and
                                                     measurements_valid and timely and source_matches),
@@ -2465,6 +2472,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             "stop_latched": bool(barrier), "home_completed_this_session": home,
             "active_operation": active if isinstance(active, str) else "trajectory" if active else None,
             "teleop_state": teleop_state, "owner_started_monotonic": generation if generation_valid else None,
+            "teleop_start_ready": teleop_start_error is None,
+            "teleop_start_reason": teleop_start_error or "fresh_current_pose_after_session_home",
             "teleop_leader_ready": leader_ready, "teleop_leader_reason": leader_reason,
             "teleop_leader_age_s": leader_age,
             "native_damping": state.get("native_damping") if trusted else None,
