@@ -1,0 +1,33 @@
+# ROS contracts and configuration cookbook
+
+This page is generated from actual source calls and interface files. It records
+publisher/subscriber/service/client/action declarations, launch arguments and
+parameter defaults without importing ROS or contacting a ROS graph. Names
+computed from variables remain source expressions. C++ endpoints are visible
+in the native source and Doxygen API; this declaration extractor covers Python.
+
+## Read the contracts
+
+`create_publisher(Type, name, qos)` declares an output;
+`create_subscription(Type, name, callback, qos)` declares an input.
+`create_service` and `create_client` show request/response interfaces.
+`ActionServer` and `ActionClient` identify long-running action interfaces.
+`declare_parameter` shows source defaults; launch files may override them.
+A declaration inside a conditional branch does not prove the endpoint is active.
+
+## Configuration cookbook
+
+| Goal | Files and declared behavior to review |
+| --- | --- |
+| Run the offline workshop | `python -m workshop`; CLI in `workshop/__main__.py`; no ROS required |
+| Review the mock ROS environment | `ros2/scripts/so101.sh`, `ros2/src/so101_station_bringup/launch/`; mock launch is documented in `docs/so101-ros2.md` |
+| Configure trajectory ownership | `so101_station_control/launch/moveit_resident.launch.py` and `trajectory_server.py`; review `enable_hardware`, station paths and observation startup defaults |
+| Inspect logical joint mapping | `ros2/config/rig01_joint_map.yaml`, `rig01_moveit_limits.yaml`, control `config/model_offsets.yaml`; software mappings and planning limits do not qualify physical URDF calibration |
+| Configure camera/registration | `ros2/config/realsense.yaml`, perception launch arguments and node parameters; retain image timestamps and freshness checks |
+| Inspect collision/perception configuration | `ros2/config/sensors_3d.yaml`, scene `config/scene_updater.yaml`, objects/scene node parameters; proposals require independent planning and execution gates |
+| Configure Servo | `ros2/config/servo.yaml`; follow the mock-only setup and commissioning limitations in `docs/so101-ros2.md` |
+| Inspect station operator commands | operator `scripts/operator_api`, workflow `scripts/station_api`, custom `.srv` schemas below and RViz `operator_panel.cpp` |
+
+These are review paths, not instructions to start hardware. The inventory links
+to complete configuration and launch sources. Runtime parameter overrides,
+remapping and external ROS dependencies can change the resulting graph.
