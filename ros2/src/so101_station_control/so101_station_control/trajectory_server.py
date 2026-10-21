@@ -232,11 +232,11 @@ def _duration(seconds):
 
 
 def prepare_with_controller_timing(helper, joint_names, points, *, start_radians, max_jerk):
-    """Bound timing retries to controller limit failures, preserving every knot."""
+    """Retry controller limit failures up to 4x timing, retaining the 300s duration guard."""
     retry_prefixes = ("velocity limit exceeded:", "acceleration limit exceeded:",
                       "jerk limit exceeded:")
     last_error = None
-    for factor in (1.0, 1.2, 1.44, 1.728, 2.0):
+    for factor in (1.0, 1.2, 1.44, 1.728, 2.0, 2.4, 2.88, 3.0, 3.456, 4.0):
         effective_points = copy.deepcopy(points)
         if factor > 1.0:
             for point in effective_points:
@@ -256,7 +256,7 @@ def prepare_with_controller_timing(helper, joint_names, points, *, start_radians
             last_error = error
         else:
             return factor, effective_points, prepared
-    raise ValueError(f"controller retiming failed within maximum factor 2.0: {last_error}") from last_error
+    raise ValueError(f"controller retiming failed within maximum factor 4.0: {last_error}") from last_error
 
 
 def _control_callback(callback):

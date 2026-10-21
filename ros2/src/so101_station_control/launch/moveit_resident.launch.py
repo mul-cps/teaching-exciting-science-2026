@@ -59,10 +59,10 @@ def generate_launch_description():
         },
     }
     parameters["moveit_manage_controllers"] = False
-    # Include bounded bridge preflight and at most 2x controller retiming.
+    # Include bounded bridge preflight and at most 4x controller retiming.
     # The owner's independent 100 ms feedback watchdog remains unchanged.
     parameters.setdefault("trajectory_execution", {}).update({
-        "allowed_execution_duration_scaling": 2.5,
+        "allowed_execution_duration_scaling": 5.0,
         "allowed_goal_duration_margin": 35.0,
     })
 
