@@ -1871,7 +1871,8 @@ class ArmSession(NativeDampingMixin):
                            max_jerk=ROS_MAX_JERK_RAD_S3,
                            expected_path_sha256=None, period=ROS_TRAJECTORY_PERIOD_S,
                            calibration_endpoint=False, supervised_commissioning=False,
-                           expected_start_raw=None, ros_motion_profile="default", joint_limit_contract=None):
+                           expected_start_raw=None, ros_motion_profile="default", joint_limit_contract=None,
+                           request_id=None, checked_start_raw=None):
         """Execute one prevalidated C2 ROS trajectory without waypoint dwells."""
         self._require_initialized()
         if joint_limit_contract is not None:
@@ -1883,6 +1884,12 @@ class ArmSession(NativeDampingMixin):
                         raise ValueError("planning contract differs from owner admission: " + key)
             except (ValueError, KeyError, TypeError) as error:
                 raise ArmPlanPreflightError(str(error)) from error
+        if request_id is not None or checked_start_raw is not None:
+            if (not isinstance(request_id, str) or len(request_id) != 32 or
+                    any(c not in "0123456789abcdef" for c in request_id) or
+                    not isinstance(checked_start_raw, dict) or set(checked_start_raw) != set(JOINTS) or
+                    any(type(v) is not int or not 0 <= v <= 4095 for v in checked_start_raw.values())):
+                raise ArmPlanPreflightError("trajectory rejection context requires request UUID and six checked raw counts")
         profile = self._ros_motion_profile
         if ros_motion_profile != profile.name or not isinstance(ros_motion_profile, str):
             raise ArmPlanPreflightError("trajectory ROS motion profile differs from owner startup selection")
@@ -1931,8 +1938,23 @@ class ArmSession(NativeDampingMixin):
                 period=period,
                 position_limits={joint: (admitted_low[joint], admitted_high[joint])
                                  for joint in ARM_JOINTS})
-            if path_digest(prepared, held_gripper_raw=start_raw["gripper"]) != expected_path_sha256:
-                raise ArmPlanPreflightError("measured start or effective spline differs from collision-checked path")
+            actual_path_sha256 = path_digest(prepared, held_gripper_raw=start_raw["gripper"])
+            if actual_path_sha256 != expected_path_sha256:
+                error = ArmPlanPreflightError("measured start or effective spline differs from collision-checked path")
+                if request_id is not None:
+                    # Only this exact branch precedes every profile/goal/torque
+                    # write. A generic preflight error grants no retry authority.
+                    error.trajectory_start_rejection = dict(
+                        schema="trajectory-start-rejection-v1", no_actuation=True,
+                        request_id=request_id, goal_id=goal_id,
+                        owner_session_id=self._owner_session_id,
+                        arm_id=self.arm.settings["id"], calibration_sha256=self.calibration_digest,
+                        owner_source_sha256=dict(self._owner_source_sha256),
+                        checked_path_sha256=expected_path_sha256,
+                        actual_path_sha256=actual_path_sha256,
+                        checked_start_raw=dict(checked_start_raw), actual_start_raw=dict(start_raw),
+                        monotonic=start_time)
+                raise error
             gripper_raw = start_raw["gripper"]
             raw_samples = [self._validate_target(self._trajectory_raw(sample.positions, gripper_raw),
                                                   f"trajectory/{index}")
@@ -1941,6 +1963,8 @@ class ArmSession(NativeDampingMixin):
             for index, target_raw in enumerate(raw_samples):
                 self._validate_transition(previous, target_raw, f"trajectory/{index}")
                 previous = target_raw
+        except ArmPlanPreflightError:
+            raise
         except (ValueError, KeyError, TypeError) as error:
             raise ArmPlanPreflightError(str(error)) from error
 
@@ -3708,7 +3732,7 @@ class ArmSession(NativeDampingMixin):
             return self.recover_camera()
         if name == "execute_trajectory":
             required = {"command", "goal_id", "joint_names", "points", "path_sha256", "ros_motion_profile"}
-            allowed = required | {"calibration_endpoint", "supervised_commissioning", "expected_start_raw", "joint_limit_contract"}
+            allowed = required | {"calibration_endpoint", "supervised_commissioning", "expected_start_raw", "joint_limit_contract", "request_id", "checked_start_raw"}
             if not required <= set(command) <= allowed:
                 raise ArmPlanPreflightError("execute_trajectory requires goal_id, joint_names, points, "
                                             "ROS motion profile, and collision-checked path_sha256")
@@ -3722,7 +3746,8 @@ class ArmSession(NativeDampingMixin):
                     calibration_endpoint=calibration_endpoint,
                     supervised_commissioning=command.get("supervised_commissioning", False),
                     expected_start_raw=command.get("expected_start_raw"),
-                    joint_limit_contract=command.get("joint_limit_contract"))
+                    joint_limit_contract=command.get("joint_limit_contract"),
+                    request_id=command.get("request_id"), checked_start_raw=command.get("checked_start_raw"))
             response = {"ok": True, **result}
             if result.get("trajectory", {}).get("status") == "calibration_measured_endpoint_held":
                 response.update(status=result["trajectory"]["status"],
@@ -3873,6 +3898,8 @@ class ArmSession(NativeDampingMixin):
                         self._idle_handled = previous_idle_handled
                         rejection = {"ok": False, "error": str(error),
                                      "error_type": type(error).__name__, "command": name}
+                        if name == "execute_trajectory" and hasattr(error, "trajectory_start_rejection"):
+                            rejection["trajectory_start_rejection"] = error.trajectory_start_rejection
                         if (name in ("teleop_start", "teleop_step", "teleop_stop") and
                                 isinstance(command, dict) and
                                 isinstance(command.get("session_id"), str)):
