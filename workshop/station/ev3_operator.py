@@ -23,7 +23,10 @@ def operator_status(cache, workflow, stop, *, fresh, endpoints=None):
         'left_end': capability(False, 'Physical left endpoint has no commissioned direction mapping'),
         'right_end': capability(False, 'Physical right endpoint has no commissioned direction mapping; 550 is a guard boundary'),
         'eject': capability(ready and awake and references == {'sorter': 'home', 'feeder': 'eject'},
-                            'One LOAD/READY 209 to EJECT 0 cycle; physical feeder reference required'),
+                            ('One LOAD/READY 209 to EJECT 0 cycle' if references.get('feeder') == 'eject' else
+                             'Feeder EJECT reference missing: manually position pusher, then Record feeder eject reference')),
+        'confirm_feeder': capability(ready and awake,
+            'Manually place pusher fully EJECTED; explicit physical confirmation records current feeder zero'),
         'wake': capability(ready, 'Explicit native wake'),
         'sleep': capability(ready, 'Idle native power save'),
         'reset_fault': capability(connected and not busy, 'Inspect mechanism and STOP acknowledgements before resetting'),

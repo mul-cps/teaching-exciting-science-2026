@@ -10,7 +10,7 @@ Panel load and ROS subscription send no commands. Connect explicitly connects
 and reads status without homing, waking, ejecting or resetting references.
 
 The panel uses these existing owner services plus the narrow eject and endpoint
-wrappers, all `std_srvs/srv/Trigger`:
+wrappers, `std_srvs/srv/Trigger` except the typed reference service:
 
 | Button | Service | Behavior |
 | --- | --- | --- |
@@ -18,6 +18,7 @@ wrappers, all `std_srvs/srv/Trigger`:
 | Conveyor home (switch) | `/station/ev3/home` | Existing bounded D/S1 switch home |
 | Conveyor left end | `/station/ev3/left_end` | Fixed deployment endpoint through guarded SorterPosition |
 | Conveyor right end | `/station/ev3/right_end` | Fixed deployment endpoint through guarded SorterPosition |
+| Record feeder eject reference | `/station/ev3/confirm_reference` (`ConfirmReference`) | Explicit physical EJECT assertion after default-No confirmation |
 | Eject one brick | `/station/ev3/eject` | One native LOAD/READY 209° → EJECT 0° cycle |
 | STOP station / EV3 | `/station/stop` | Existing station cancellation, EV3 brake and arm stop |
 | Wake / Sleep | `/station/wake`, `/station/sleep` | Existing native power management |
@@ -48,16 +49,27 @@ configuration required. The current repository records sorter interior positions
 10°, 132°, 360° and 530°, but does not identify which physical endpoint is left
 or right. Do not infer direction from those values. Set these parameters only
 after mapping physical directions on this exact station. The panel has no raw
-motor target entry. Both endpoint wrappers use the existing conservative
-`SorterPosition` path, including its same-session stationary telemetry, home
-reference, six-second phase budget and terminal position checks. Zero must use
-switch homing; 550° is an unqualified guard boundary and is rejected. Distances
-outside the existing six-second budget are rejected with the existing reason.
+motor target entry. Both endpoint wrappers share the existing conservative single-phase sorter
+implementation. Each endpoint runs at most three phases of at most 200° under
+one workflow job and a 29-second overall deadline. Every phase independently
+requires advancing same-session stationary telemetry and the home reference,
+uses the unchanged six-second phase budget, and verifies its exact native job ID
+and terminal position. Cancellation and deadlines are checked between phases.
+The original typed `SorterPosition` service remains a single phase. Zero must use
+switch homing; 550° is an unqualified guard boundary and is rejected. Typed single-phase distances outside the existing six-second budget continue
+to be rejected with the existing reason. Endpoint routes stop after any failed
+phase and never continue to the next target.
 
 There is no existing native feeder homing operation. Eject requires the current
 session's physically established `feeder/eject` reference and `sorter/home`.
-The existing `/station/ev3/confirm_reference` service requires explicit
-`physically_verified: true`; the panel never establishes this assertion.
+The existing `/station/ev3/confirm_reference` typed service requires explicit
+`physically_verified: true`. The Record feeder eject reference button asks the
+operator to manually position the stopped pusher fully EJECTED and physically
+verify that pose. The dialog defaults to No. Declining sends no request; Yes
+sends exactly `name: feeder`, `reference: eject`, `physically_verified: true`
+through the existing service. This records the current position as zero and
+does not move or home the feeder. Connect, Wake and panel load never establish
+this reference. The status area explicitly explains a missing feeder reference.
 The eject wrapper additionally requires advancing fresh stopped telemetry via
 `require_fresh_stationary`, then uses the existing native bounded cycle and
 terminal job checks. Component feeder stroke calibration is recorded in
@@ -70,8 +82,10 @@ Use stock CycloneDDS, `ROS_DOMAIN_ID=75`, `QT_QPA_PLATFORM=offscreen` and the
 conda ROS wrapper. Build `so101_station_operator` with `BUILD_TESTING=ON`, source
 `ros2/install/local_setup.bash`, then run
 `ros2/build/so101_station_operator/ev3_panel_load_check`. The plugin factory test
-checks nine actions, only STOP enabled at construction, no startup service calls,
-and an acknowledged STOP against a fake service while telemetry is stale/busy.
+checks ten actions, only STOP enabled at construction, no startup service calls,
+an acknowledged STOP against a fake service while telemetry is stale/busy,
+zero reference requests after declining the dialog, and the exact typed physical
+acknowledgement after accepting it.
 Run `python -m unittest discover -s tests -p test_ev3_operator.py` for projection
 and capability checks. These checks do not actuate physical hardware.
 
