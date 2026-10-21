@@ -20,6 +20,8 @@ class SimCamera:
     index: int = 0
 
     def detect(self):
+        if not self.colors:
+            raise ValueError("SimCamera needs at least one color reading")
         value = self.colors[self.index % len(self.colors)]
         self.index += 1
         print(f"CAMERA: {value}")
@@ -48,7 +50,9 @@ class Factory:
             self.belt.advance()
             self.belt.stop()  # stationary pick; never sense/grasp on a running belt
             color = self.camera.detect()
-            destination = rules.get(color, "reject")
+            destination = rules.get(color, "reject") if isinstance(color, str) else "reject"
+            if destination not in ("left", "right", "reject"):
+                destination = "reject"
             self.robot.sort(destination)
             self.counts[destination] = self.counts.get(destination, 0) + 1
             return destination
