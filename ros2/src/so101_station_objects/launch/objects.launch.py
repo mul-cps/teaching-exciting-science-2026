@@ -23,6 +23,7 @@ def generate_launch_description():
             "CYCLONEDDS_URI", default_value=PathJoinSubstitution([
                 FindPackageShare("so101_station_perception"), "config", "cyclonedds_rgbd.xml"]))),
         DeclareLaunchArgument("analysis_timing_diagnostics", default_value="false"),
+        DeclareLaunchArgument("color_mask_backend", default_value="cpu"),
         DeclareLaunchArgument("allow_derived_source", default_value="false"),
         DeclareLaunchArgument("derived_source_cohort", default_value=""),
         DeclareLaunchArgument("color_topic", default_value="/camera/color/image_raw"),
@@ -40,6 +41,7 @@ def generate_launch_description():
         Node(package="so101_station_objects", executable="colored_objects",
              additional_env={"CYCLONEDDS_URI": LaunchConfiguration("cyclonedds_uri")},
              name="so101_colored_objects", output="screen", parameters=[{
+                 "color_mask_backend": ParameterValue(LaunchConfiguration("color_mask_backend"), value_type=str),
                  "analysis_timing_diagnostics": ParameterValue(LaunchConfiguration("analysis_timing_diagnostics"), value_type=bool),
                  "allow_derived_source": ParameterValue(LaunchConfiguration("allow_derived_source"), value_type=bool),
                  "derived_source_cohort": ParameterValue(LaunchConfiguration("derived_source_cohort"), value_type=str),
