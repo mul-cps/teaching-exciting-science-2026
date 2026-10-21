@@ -33,7 +33,8 @@ def test_perception_and_station_have_real_default_off_leaf_forwarding():
         desc=module(path).generate_launch_description();args={a.name:a for a in desc.entities if isinstance(a,DeclareLaunchArgument)}
         assert ''.join(x.text for x in args['perception_supervisor_enabled'].default_value)=='false'
         for key in PARAMETERS:assert 'perception_supervisor_'+key in args
-        ctx=LaunchContext();ctx.launch_configurations.update({name:''.join(x.text for x in a.default_value) for name,a in args.items()})
+        ctx=LaunchContext()
+        for argument in args.values():argument.execute(ctx)
         for key in PARAMETERS:ctx.launch_configurations['perception_supervisor_'+key]='00123'
         includes=[a for a in desc.entities if isinstance(a,IncludeLaunchDescription)]
         matches=[a for a in includes if any(k in ('confirmed_adoption_acceptance_artifact','perception_supervisor_confirmed_adoption_acceptance_artifact') for k,v in a.launch_arguments)]
