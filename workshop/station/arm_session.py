@@ -597,7 +597,7 @@ class ArmSession:
         self._elbow_trial_verify(self._elbow_trial_snapshot(), target_p=16)
         self._elbow_trial_set_p(24)
         self._elbow_trial_live = True
-        self._event("elbow_stiffness_trial_applied", profile="elbow-p24-v1", trial_id=record["trial_id"],
+        self._event("elbow_stiffness_trial_applied", trial_profile="elbow-p24-v1", trial_id=record["trial_id"],
                     journal=str(self._elbow_trial_journal), original=original,
                     readback=self._elbow_trial_snapshot(), owner_source_sha256=self._owner_source_sha256)
 
@@ -623,7 +623,7 @@ class ArmSession:
             self._elbow_trial_journal.name + ".restored-" + self._elbow_trial_record["trial_id"])
         arm_module.atomic_json(archive, dict(self._elbow_trial_record,
             restored_utc=self.wall_clock().isoformat(), restored_readback=restored))
-        self._event("elbow_stiffness_trial_restored", profile="elbow-p24-v1",
+        self._event("elbow_stiffness_trial_restored", trial_profile="elbow-p24-v1",
                     trial_id=self._elbow_trial_record["trial_id"], archive=str(archive), readback=restored)
         self._elbow_trial_journal.unlink()
         directory = os.open(self._elbow_trial_journal.parent, os.O_RDONLY | os.O_DIRECTORY)
