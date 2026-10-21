@@ -961,6 +961,7 @@ class ArmSession:
         profile = {register: dict(values) for register, values in PROFILE.items()}
         if native_320:
             profile["Goal_Velocity"] = {joint: (220 if joint == "gripper" else 320) for joint in JOINTS}
+            profile["Acceleration"]["shoulder_pan"] = 2
         if teleop:
             # Position mode: zero selects the servo's maximum velocity.
             # Retain acceleration smoothing and the existing torque limits.
@@ -973,7 +974,7 @@ class ArmSession:
                     raise RuntimeError("native RAM profile readback mismatch: " + register)
         self._active_profile = {register: dict(values) for register, values in profile.items()}
         self.profile = ("teleop-8-uncapped-velocity-torque-700-250" if teleop else
-                        "native-8-320-220-torque-700-250" if native_320 else
+                        "native-pan-a2-body-a8-320-220-torque-700-250" if native_320 else
                         "native-8-160-220-torque-700-250")
         if self._elbow_trial_live:
             self.profile += ";elbow-p24-v1"
