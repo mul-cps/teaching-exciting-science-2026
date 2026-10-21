@@ -45,6 +45,7 @@ def generate_launch_description():
         'marker_allow_derived_source': 'false',
         'marker_derived_source_cohort': '',
         'marker_depth_topic': '/camera/aligned_depth_to_color/image_raw',
+        'color_mask_backend': 'cpu',
         'objects_allow_derived_source': 'false',
         'objects_derived_source_cohort': '',
         'objects_depth_topic': '/camera/aligned_depth_to_color/image_raw',
@@ -161,6 +162,7 @@ def generate_launch_description():
                 },
                 condition=IfCondition(LaunchConfiguration('use_web_twin'))),
         include('so101_station_objects', 'objects.launch.py', {
+                    'color_mask_backend': LaunchConfiguration('color_mask_backend'),
                     'allow_derived_source': LaunchConfiguration('objects_allow_derived_source'),
                     'derived_source_cohort': LaunchConfiguration('objects_derived_source_cohort'),
                     'depth_topic': LaunchConfiguration('objects_depth_topic'),

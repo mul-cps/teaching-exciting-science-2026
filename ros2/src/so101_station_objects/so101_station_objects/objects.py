@@ -42,6 +42,7 @@ from so101_station_objects.colored_object_validation import (  # noqa: E402
     validate_colored_component,
     validate_child_visibility,
 )
+from so101_station_objects.color_mask_backend import ColorMaskBackend
 from so101_station_objects.analysis_worker import LatestOnlyAnalysisWorker  # noqa: E402
 from so101_station_objects.percentile import linear_percentile  # noqa: E402
 from workshop.digital_twin.grasp_geometry import fit_support_plane, footprint_grasps  # noqa: E402
@@ -373,7 +374,8 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                  max_object_height_m=DEFAULT_MAX_OBJECT_HEIGHT_M,
                  support_plane=None, *, observation_roi=None, pickup_roi=None,
                  support_roi=None,
-                 max_observation_depth_m=DEFAULT_MAX_OBSERVATION_DEPTH_M):
+                 max_observation_depth_m=DEFAULT_MAX_OBSERVATION_DEPTH_M,
+                 color_mask_backend=None):
     """Track visible colored surfaces; propose grasps only in the pickup ROI.
 
     `world_roi` remains the compatibility default for support fitting and
@@ -403,7 +405,8 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                    & (depth_m <= max_observation_depth_m))
     if int(valid_depth.sum()) < 100:
         raise ValueError("insufficient valid depth in camera frame")
-    masks = color_masks(rgb)
+    mask_backend = ColorMaskBackend() if color_mask_backend is None else color_mask_backend
+    masks = mask_backend(rgb)
     if support_plane is None:
         plane = _fit_world_support(depth_m, valid_depth, rgb, intrinsics, distortion,
                                    transform, support_roi, masks=masks)
@@ -580,7 +583,8 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
     return {"support_plane": plane, "objects": objects,
             "qualified": False, "frame_id": "charuco_board",
             "observation_depth_range_m": [MIN_OBSERVATION_DEPTH_M, max_observation_depth_m],
-            "validation_diagnostics": validation_diagnostics}
+            "validation_diagnostics": validation_diagnostics,
+            "color_mask_backend": mask_backend.status()}
 
 
 class StableObjectTracker:
@@ -972,6 +976,7 @@ class ColoredObjectsNode:
                     "max_object_height_m": DEFAULT_MAX_OBJECT_HEIGHT_M,
                     "max_gripper_opening_m": 0.055,
                     "max_processing_hz": 5.0,
+                    "color_mask_backend": "cpu",
                     "acquisition_min_frames": 3,
                     "max_pending_tracks": 64,
                 }
@@ -990,6 +995,8 @@ class ColoredObjectsNode:
                                                     "opencv_threads": int(cv2.getNumThreads())}
                     self.timing_pub = self.create_publisher(String, "~/analysis_timing", 1)
                     self.timing_timer = self.create_timer(.5, self._publish_timing)
+                self.color_mask_backend = ColorMaskBackend(
+                    str(self.get_parameter("color_mask_backend").value))
                 self.board_frame = str(self.get_parameter("board_frame").value)
                 self.require_registration_tracking = bool(
                     self.get_parameter("require_registration_tracking").value)
@@ -1266,7 +1273,7 @@ class ColoredObjectsNode:
                     self._publish_unavailable(color_msg.header.stamp, "unavailable", str(error))
 
             def _analyze_job(self, job):
-                """Pure CPU analysis; this worker never accesses ROS or mutable tracking state."""
+                """Serial analysis; backend device state belongs to this worker."""
                 diagnostic = job.get("_analysis_timing")
                 try:
                     if diagnostic is not None:count_analyze(diagnostic)
@@ -1275,7 +1282,8 @@ class ColoredObjectsNode:
                         job["scale"], job["board_from_camera"], self.support_roi,
                         self.max_opening, max_object_height_m=self.max_object_height,
                         observation_roi=self.observation_roi, pickup_roi=self.pickup_roi,
-                        max_observation_depth_m=self.max_observation_depth)
+                        max_observation_depth_m=self.max_observation_depth,
+                        color_mask_backend=self.color_mask_backend)
                 except SupportPlaneUnavailable:
                     cache = job["support_plane_cache"]
                     cache_age = None if cache is None else job["stamp"] - cache["stamp"]
@@ -1289,7 +1297,8 @@ class ColoredObjectsNode:
                         observation_roi=self.observation_roi, pickup_roi=self.pickup_roi,
                         support_plane={key: value for key, value in cache.items()
                                        if key != "stamp"},
-                        max_observation_depth_m=self.max_observation_depth)
+                        max_observation_depth_m=self.max_observation_depth,
+                        color_mask_backend=self.color_mask_backend)
                     report["support_plane"]["plane_source"] = "cached_measured_support_plane"
                     report["support_plane"]["support_plane_age_s"] = float(cache_age)
                     return report
@@ -1527,6 +1536,7 @@ class ColoredObjectsNode:
                         "ik_validated": False, "collision_checked": False,
                     } for obj in report["objects"]],
                     "grasp_candidates": grasp_records,
+                    "color_mask_backend": report.get("color_mask_backend", {}),
                     "validation_diagnostics": report.get(
                         "validation_diagnostics", {}),
                     "expired_tracks": report.get("expired_tracks", []),
