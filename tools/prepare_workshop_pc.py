@@ -18,6 +18,9 @@ STATE = Path.home() / '.local/share/exciting-science/workshop-20261022'
 VENV = STATE / 'venv'
 STUDENT = 'notebooks/Robot_Candy_Factory_Student.ipynb'
 LIVE = 'notebooks/Robot_Candy_Factory_Live_SO101.ipynb'
+RUNTIME = Path(os.environ.get('XDG_RUNTIME_DIR', '/dev/shm')) / 'exciting-science'
+STATION_LOCK = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'exciting-science/station.lock'
+CONTRACT = Path.home() / '.local/share/exciting-science/station/joint-limits-current.json'
 
 
 def clean_env():
@@ -108,11 +111,18 @@ def station_command():
     repair = ROOT / 'ros2/.cache/realsense-cpu-texture-bounds/install'
     if not repair.is_dir():
         raise SystemExit('Camera runtime repair is missing; run the documented preparation build.')
+    contract = CONTRACT
+    if not contract.is_file():
+        raise SystemExit('Fresh joint-limit contract missing. Follow the instructor passive bootstrap in docs/fwmini4-workshop.md before starting.')
     return [str(Path.home() / '.local/bin/station-fwmini4'), 'ros-vulkan',
             'ros2', 'launch', 'so101_station_bringup', 'station_live.launch.py',
             'station_root:=' + str(ROOT), 'station_config:=' + str(config),
             'station_python:=' + str(Path.home() / '.local/share/exciting-science/station/venv/bin/python'),
             'calibration_dir:=' + str(leader.parent),
+            'joint_limit_contract:=' + str(contract),
+            'state_file:=' + str(RUNTIME / 'arm-state.json'),
+            'station_lock:=' + str(STATION_LOCK),
+            'log_dir:=' + str(RUNTIME / 'arm-owner-logs'),
             'camera_repair_prefix:=' + str(repair),
             'camera_sdk_prefix:=' + str(Path.home() / 'miniforge3/envs/so101-jazzy'),
             'enable_hardware:=true', 'external_state_only:=false', 'rviz:=true',

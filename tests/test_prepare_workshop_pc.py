@@ -47,6 +47,17 @@ class LauncherTests(unittest.TestCase):
             leader.write_text('{}')
             with patch.object(Path, 'home', return_value=home), self.assertRaisesRegex(SystemExit, 'Connect the identified follower'):
                 module.station_command()
+            state = home / 'workshop-runtime'
+            state.mkdir()
+            with patch.object(Path, 'home', return_value=home), patch.object(module, 'CONTRACT', state / 'joint-limit-contract.json'), patch.object(module, 'RUNTIME', state), patch.object(module, 'STATION_LOCK', state / 'arm-session.lock'), patch.object(Path, 'exists', return_value=True), patch.object(Path, 'is_dir', return_value=True):
+                with self.assertRaisesRegex(SystemExit, 'Fresh joint-limit contract missing'):
+                    module.station_command()
+                (state / 'joint-limit-contract.json').write_text('{}')
+                command = module.station_command()
+                self.assertIn('joint_limit_contract:=' + str(state / 'joint-limit-contract.json'), command)
+                self.assertIn('state_file:=' + str(state / 'arm-state.json'), command)
+                self.assertIn('station_lock:=' + str(state / 'arm-session.lock'), command)
+                self.assertIn('log_dir:=' + str(state / 'arm-owner-logs'), command)
 
     def test_duplicate_station_button_cannot_start_another_graph(self):
         with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module, 'station_command', return_value=['existing-wrapper']), patch.object(module.fcntl, 'flock', side_effect=BlockingIOError), patch.object(module.subprocess, 'run') as run, patch.object(module.sys.stdin, 'isatty', return_value=False), self.assertRaises(SystemExit):
