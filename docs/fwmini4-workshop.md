@@ -4,30 +4,34 @@ Use the **bjoern** Linux login. The active graphical session found during remote
 
 The deployed checkout is `/home/bjoern/git/teaching-exciting-science-2026-current-20261021`, tracking `https://github.com/mul-cps/teaching-exciting-science-2026.git`. Update only with a clean working tree and `git pull --ff-only origin main`.
 
-## Latest verified preparation — 21 October, 23:56 CEST
+## Latest verified preparation — 22 October 2026
 
-The native component recipe was installed **disabled** on fwmini4. Its verified
-build source was `11bd1e711e287d0571a18f8d9e3d59c377b971ef`: all 21 ROS packages
-built in 16.4 seconds, and production `systemd-analyze --user verify` exited 0.
+The native component recipe remains installed **disabled** on fwmini4. The latest
+verified build source was `a88acb870acb5115acc2d78c5c274b504f3206af`: all 21 ROS
+packages built successfully in 16.3 seconds (19.05 seconds wall time), without new
+dependencies. All twelve manifest source pins and the manifest hash were unchanged.
 All eight `so101-fwmini4-{owner,camera,tags,movegroup,objects,scene,leader,apis}`
-units were loaded, inactive and static, with no `WantedBy` autostart target.
-The ten manifest source hashes, four installed launch files and both API origins
-matched the reviewed source. The manifest selects native ROS, domain177,
-Vulkan masks, and candidate 640×480×30 RGB/depth profiles.
+units and their states were unchanged: loaded, inactive and static, with MainPID 0
+and no pending jobs. The manifest selects native ROS, domain177, Vulkan masks,
+and candidate 640×480×30 RGB/depth profiles.
 
-The classroom Blockly launcher was also reopened after its source update. Its
-served editor and learner ZIP hashes matched the published files, and a repeated
-conditional program completed two simulated sorting cycles. It remains in
-**simulation mode**. The separate physical controller remains on the local PC.
+During the earlier 21 October preparation, the classroom Blockly launcher was
+reopened after its source update. Its served editor and learner ZIP hashes
+matched the published files, and a repeated conditional program completed two
+simulated sorting cycles. It remains in **simulation mode**. The separate physical
+controller remains on the local PC.
 
-This installs the software needed for later native recovery commissioning.
-No remote component unit was started or enabled, no fresh hardware contract was
-created, and no remote device or actuator was accessed. Connected-device startup,
-restart/reset, physical STOP, camera throughput and pick/place are still open.
-The active graphical session still belongs to cpsadmin; bjoern's display has not
-been rehearsed. Detailed evidence is in
-`~/.local/share/exciting-science/workshop-20261022/evidence/native-disabled-install/`
-and `blockly-cycle-refresh.json` in the same evidence directory.
+This build prepares the software for later native recovery commissioning.
+No remote component unit was started, restarted or enabled, no fresh hardware
+contract was created, and no ROS graph, remote device, actuator or GUI was
+accessed during the build. Connected-device startup, restart/reset, physical STOP,
+camera throughput and pick/place are still open. The last observed graphical
+session belonged to cpsadmin; bjoern's display has not been rehearsed.
+Latest build evidence (`before.json`, `build.log`, `build-result.json` and
+`after.json`) is in
+`~/.local/share/exciting-science/workshop-20261022/evidence/final-ros-build-a88-20261022-engineer/`.
+Earlier preparation evidence is in `native-disabled-install/` and
+`blockly-cycle-refresh.json` under the same evidence directory.
 
 ## Prepared launchers
 
