@@ -1,0 +1,124 @@
+{
+  "schema": "root-executed-servo-identification-plan-v1",
+  "root_execution_only": true,
+  "hardware_execution_implemented": false,
+  "readiness": "BLOCKED until root records fresh pose/load, source/profile/readbacks, collision-checked path and visual coverage",
+  "baseline_binding": {
+    "owner_session_id": "arm-session-6b45c02f4aa341058590c30b90744eb4",
+    "calibration_sha256": "bc688147848f386899f8f34eb09cdb285fcdb0fc8de576b78a50a8efaf7f424c",
+    "owner_source_sha256": {
+      "arm": "45975dfa331b8bac176d3dab981437f5589c568bd6b4ea142075ef93c6ea9338",
+      "arm_session": "59b9f810389647f979a09841786bd67b17759595dfe33979788a0e5042506260",
+      "camera_recovery": "ab3c06237e638784d3f08eadb46f3c35677ab9ef7c173729406ce09e26f4e867",
+      "recovery_runtime": "91ba8228e61b4cc05f11768b8fae8d257e78ecb302a96bae45865b049e17a735",
+      "recovery_runtime_config": "9222f0a1a1f74b6c41f93ab60098a41844ae07915acdb51d696dbbd16c7cc14c",
+      "recovery_types": "6fae84eaa0b300c5908b71ad1ad0d89a9d8d105f889763fc7d7e138f3cedb8f8",
+      "ros_trajectory": "52c44720a64d7c96fe8f1de580b413fa2b84490b516c9628370c174581096fbe"
+    },
+    "profile": "native-8-320-220-torque-700-250;elbow-p24-v1",
+    "profile_registers": {
+      "Acceleration": {
+        "elbow_flex": 8,
+        "gripper": 8,
+        "shoulder_lift": 8,
+        "shoulder_pan": 8,
+        "wrist_flex": 8,
+        "wrist_roll": 8
+      },
+      "Goal_Velocity": {
+        "elbow_flex": 320,
+        "gripper": 220,
+        "shoulder_lift": 320,
+        "shoulder_pan": 320,
+        "wrist_flex": 320,
+        "wrist_roll": 320
+      },
+      "Torque_Limit": {
+        "elbow_flex": 700,
+        "gripper": 250,
+        "shoulder_lift": 700,
+        "shoulder_pan": 700,
+        "wrist_flex": 700,
+        "wrist_roll": 700
+      }
+    },
+    "sample_period_s": 0.02
+  },
+  "load_pose_id": null,
+  "path_id": null,
+  "external_observation": {
+    "run_id": null,
+    "clock_domain": null,
+    "angle_observation_file": null,
+    "uncertainty_deg": null
+  },
+  "optional_trials": [
+    {
+      "id": "speed",
+      "joint": "shoulder_pan",
+      "factor": "requested peak velocity deg/s",
+      "A": 3.0,
+      "B": 6.0,
+      "status": "root must first admit the SAME path for both; baseline native settings fixed"
+    },
+    {
+      "id": "P",
+      "joint": "shoulder_pan",
+      "factor": "P_Coefficient",
+      "A": 16,
+      "B": 12,
+      "status": "OPTIONAL, separate root authorization/journal/readback required"
+    },
+    {
+      "id": "D",
+      "joint": "shoulder_pan",
+      "factor": "D_Coefficient",
+      "A": 32,
+      "B": 40,
+      "status": "OPTIONAL, separate root authorization/journal/readback required"
+    },
+    {
+      "id": "startup",
+      "joint": "shoulder_pan",
+      "factor": "Minimum_Startup_Force",
+      "A": 16,
+      "B": 12,
+      "status": "BLOCKED: exact model/firmware register width conflicts across primary docs and installed map"
+    }
+  ],
+  "protocol": {
+    "order": "one chosen factor only; A-B-A, both directions per condition, repeat once only if safe and useful",
+    "fixed": [
+      "same pose/endpoints, load and gripper",
+      "same owner/source/calibration and 50Hz period",
+      "same native profile and unmodified gains except chosen factor",
+      "same velocity/acceleration/jerk except speed factor",
+      "same camera/encoder clocks and timestamp uncertainty"
+    ],
+    "stop": [
+      "tracking exceeds existing3degree gate",
+      "stale feedback/torque/position/collision/safety violation",
+      "operator sees stronger jerk or unsafe motion",
+      "restoration or readback mismatch"
+    ],
+    "acceptance": "smoother REAL motion judged from timestamped external angle/video and operator, with existing tracking/dynamics/collision gates; metrics alone never promote defaults",
+    "restoration": [
+      "durable before-readback journal including gain/startup/Lock and native profile",
+      "root verifies baseline and fresh pose before every A/B motion",
+      "restore only this trial fields; retain existing elbowP24 ownership journal",
+      "read back restored values after trial or error",
+      "after power interruption treat restore pending until root recovery verifies journal",
+      "never restart rejected pan Acceleration2 setting"
+    ]
+  },
+  "compensation": {
+    "enabled": false,
+    "coefficients": "all zero",
+    "reason": "No whole-trajectory matched train/validation evidence; do not fit sample-wise splits"
+  },
+  "source_reference": "docs/servo-identification.md",
+  "seal": {
+    "algorithm": "sha256 of sorted compact JSON excluding seal",
+    "sha256": "66bff400e0d8761d05873506ede6134d979fc0e000e061829a913fdbba09cbf2"
+  }
+}
