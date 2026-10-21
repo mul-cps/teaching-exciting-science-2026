@@ -3,3 +3,5 @@
 Panels:
   - Class: so101_station_operator/Operations
     Name: Station operations
+  - Class: so101_station_operator/EV3Operations
+    Name: LEGO EV3 operations

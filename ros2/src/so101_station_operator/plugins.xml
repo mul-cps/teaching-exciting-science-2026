@@ -2,4 +2,7 @@
   <class name="so101_station_operator/Operations" type="so101_station_operator::OperatorPanel" base_class_type="rviz_common::Panel">
     <description>Station modes, measured torque, manual reference and bounded service restarts.</description>
   </class>
+  <class name="so101_station_operator/EV3Operations" type="so101_station_operator::EV3Panel" base_class_type="rviz_common::Panel">
+    <description>LEGO EV3 bounded operations through the resident station workflow owner.</description>
+  </class>
 </library>
