@@ -177,7 +177,7 @@ def test_malformed_timing_is_diagnostic_error_not_analysis_error():
     assert json.loads(recorder.drain())['counts']['invalid']==1
 
 
-def test_legacy_publication_ast_and_pure_algorithms_unchanged():
+def test_timing_preserves_accepted_publication_and_algorithms():
     import ast,hashlib
     source=ROOT/'ros2/src/so101_station_objects/so101_station_objects/objects.py'
     tree=ast.parse(source.read_text())
@@ -185,9 +185,9 @@ def test_legacy_publication_ast_and_pure_algorithms_unchanged():
     names={'timing','TimingRecorder','timing_site','finish_node'}
     publish.body=[stmt for stmt in publish.body if not any(isinstance(n,ast.Name) and n.id in names for n in ast.walk(stmt))]
     digest=stable_ast_digest
-    assert digest(publish)==BASE_PUBLISH_AST
+    assert digest(publish)==ACCEPTED_PUBLISH_AST
     actual={node.name:digest(node) for node in tree.body if isinstance(node,(ast.FunctionDef,ast.ClassDef)) and node.name!='ColoredObjectsNode'}
-    assert actual==BASE_ALGORITHM_AST
+    assert actual==ACCEPTED_ALGORITHM_AST
 
 
 
@@ -292,3 +292,19 @@ def test_local_buffer_field_never_claims_full_acquisition_coverage():
     packet=json.loads(recorder.drain())
     assert 'coverage_complete' not in packet and packet['rows']==[]
     assert packet['locally_drained_without_known_loss'] is True
+
+
+# Accepted percentile/backend metadata changes relative to original source
+# a25b7697e31442dd13ea5655cac62e8c5a270e80; historical baseline above stays frozen.
+ACCEPTED_ALGORITHM_REVISION='be2b249644f1716a76aa71d1887559026cd4d562'
+ACCEPTED_PUBLISH_AST='d4ba078c8402667aeb85ff8f7a613f380d906d9d246618c44bd9425b6d957a42'
+ACCEPTED_ALGORITHM_AST={**BASE_ALGORITHM_AST,
+    '_visible_component_geometry':'b21feab132bc39986c182f20e078f836c02374c2cc15447f90663977f904ab03',
+    'analyze_rgbd':'5a61458c5cf878be36fb4b91b632af23184c715b3701b8595ff8a2f2b54a58f4'}
+
+
+def test_accepted_algorithm_changes_are_exactly_documented():
+    assert ACCEPTED_ALGORITHM_AST.keys()==BASE_ALGORITHM_AST.keys()
+    assert {name for name in BASE_ALGORITHM_AST
+            if ACCEPTED_ALGORITHM_AST[name]!=BASE_ALGORITHM_AST[name]}=={
+                '_visible_component_geometry','analyze_rgbd'}
