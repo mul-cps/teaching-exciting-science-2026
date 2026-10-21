@@ -28,7 +28,7 @@ from .locking import station_lock, station_lock_path
 from .camera_recovery import plan_bound_reentry
 from .recovery_types import CAMERA_RECOVERY_MAX_DISPLACEMENT_COUNTS, CAMERA_RECOVERY_INWARD_COUNTS, CameraRecoveryPolicy, owner_source_sha256
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
-                             ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S,
+                             ROS_MAX_JERK_RAD_S3, ROS_MAX_VELOCITY_RAD_S, ROS_TRAJECTORY_PERIOD_S,
                              path_digest, prepare_trajectory, resolve_ros_motion_profile,
                              SUPERVISED_LIMITS, SUPERVISED_QUALIFICATION)
 
@@ -114,6 +114,10 @@ def _atomic_snapshot_json(path, data):
 
 class ArmSessionCancelled(RuntimeError):
     """Internal signal used to unwind motion into verified torque-off cleanup."""
+
+
+class _ControlDeadlineMissed(ArmSessionCancelled):
+    """A private high-rate trial refused an obsolete command before dispatch."""
 
 
 class _ImmutableBounds(dict):
@@ -1757,7 +1761,7 @@ class ArmSession:
                            max_velocity=None,
                            max_acceleration=None,
                            max_jerk=ROS_MAX_JERK_RAD_S3,
-                           expected_path_sha256=None, period=PERIOD_S,
+                           expected_path_sha256=None, period=ROS_TRAJECTORY_PERIOD_S,
                            calibration_endpoint=False, supervised_commissioning=False,
                            expected_start_raw=None, ros_motion_profile="default"):
         """Execute one prevalidated C2 ROS trajectory without waypoint dwells."""
@@ -1845,6 +1849,11 @@ class ArmSession:
                     sample_period_s=period)
         previous_feedback = start_time
         feedback_samples = []
+        # Numeric buffers only in the control loop; summarize/flush once at termination.
+        tick_durations, write_durations, dispatch_lateness, feedback_gaps = [], [], [], []
+        write_start_times, write_start_intervals = [], []
+        timing_receipt = {}
+        timing_outcome = "failed"
         motion_started = False
         try:
             self._ensure_profile()
@@ -1880,41 +1889,60 @@ class ArmSession:
                 if self.clock() - deadline > MAX_FEEDBACK_GAP_S:
                     raise RuntimeError("trajectory command missed its scheduled tick")
                 self._calibration_guard()
-                self.bus.sync_write("Goal_Position", target_raw, normalize=False, num_retry=0)
-                goal_read_started = self.clock()
-                goals = self._read("Goal_Position")
-                if any(abs(goals[joint] - target_raw[joint]) > 1 for joint in JOINTS):
-                    raise RuntimeError("trajectory goal readback mismatch")
-                actual = self._read("Present_Position")
-                read_ended = self.clock()
-                position_utc = self.wall_clock() if supervised_commissioning else None
-                self._check_feedback_freshness(
-                    label=goal_id, phase="trajectory", previous_read_at=previous_feedback,
-                    read_started=goal_read_started, read_ended=read_ended,
-                    total_missed=0, previous_tick_timing=None)
-                previous_feedback = read_ended
-                if supervised_commissioning:
-                    self._guard_supervised_actual(actual, held_raw)
-                actual_radians = self._arm_radians(actual)
-                for joint in ARM_JOINTS:
-                    if abs(actual_radians[joint] - sample.positions[ARM_JOINTS.index(joint)]) > track_limit:
-                        raise RuntimeError("trajectory tracking error exceeded fixed limit: " + joint)
-                torque = self._read("Torque_Enable")
-                feedback_clocks = ({"position_monotonic": read_ended, "position_utc": position_utc,
-                    "torque_monotonic": self.clock(), "torque_utc": self.wall_clock()}
-                    if supervised_commissioning else {})
-                if any(torque[joint] != 1 for joint in JOINTS):
-                    raise RuntimeError("trajectory torque state changed unexpectedly")
-                state = self.publish_state(event="trajectory_feedback", raw=actual,
-                                           torque=torque, phase="trajectory", label=goal_id,
-                                           **feedback_clocks,
-                                           trajectory_goal_id=goal_id,
-                                           trajectory_time=sample.time,
-                                           trajectory_desired=dict(zip(ARM_JOINTS, sample.positions)))
-                feedback_samples.append({"time": sample.time, "monotonic": read_ended,
-                                         "raw": actual, "goal_raw": target_raw,
-                                         "state_timestamp_utc": state["timestamp_utc"]})
-                self._poll_busy_input()
+                tick_started = self.clock()
+                lateness = max(0.0, tick_started - deadline)
+                dispatch_lateness.append(lateness)
+                if period < PERIOD_S and lateness > period:
+                    raise _ControlDeadlineMissed("control_deadline_missed: obsolete trajectory knot not sent")
+                write_ended = None
+                write_started = self.clock()
+                if write_start_times:
+                    write_start_intervals.append(write_started - write_start_times[-1])
+                write_start_times.append(write_started)
+                try:
+                    self.bus.sync_write("Goal_Position", target_raw, normalize=False, num_retry=0)
+                    write_ended = self.clock()
+                    write_durations.append(max(0.0, write_ended - write_started))
+                    goal_read_started = self.clock()
+                    goals = self._read("Goal_Position")
+                    if any(abs(goals[joint] - target_raw[joint]) > 1 for joint in JOINTS):
+                        raise RuntimeError("trajectory goal readback mismatch")
+                    actual = self._read("Present_Position")
+                    read_ended = self.clock()
+                    position_utc = self.wall_clock() if supervised_commissioning else None
+                    gap, _, _ = self._check_feedback_freshness(
+                        label=goal_id, phase="trajectory", previous_read_at=previous_feedback,
+                        read_started=goal_read_started, read_ended=read_ended,
+                        total_missed=0, previous_tick_timing=None)
+                    feedback_gaps.append(gap)
+                    previous_feedback = read_ended
+                    if supervised_commissioning:
+                        self._guard_supervised_actual(actual, held_raw)
+                    actual_radians = self._arm_radians(actual)
+                    for joint in ARM_JOINTS:
+                        if abs(actual_radians[joint] - sample.positions[ARM_JOINTS.index(joint)]) > track_limit:
+                            raise RuntimeError("trajectory tracking error exceeded fixed limit: " + joint)
+                    torque = self._read("Torque_Enable")
+                    feedback_clocks = ({"position_monotonic": read_ended, "position_utc": position_utc,
+                        "torque_monotonic": self.clock(), "torque_utc": self.wall_clock()}
+                        if supervised_commissioning else {})
+                    if any(torque[joint] != 1 for joint in JOINTS):
+                        raise RuntimeError("trajectory torque state changed unexpectedly")
+                    state = self.publish_state(event="trajectory_feedback", raw=actual,
+                                               torque=torque, phase="trajectory", label=goal_id,
+                                               **feedback_clocks,
+                                               trajectory_goal_id=goal_id,
+                                               trajectory_time=sample.time,
+                                               trajectory_desired=dict(zip(ARM_JOINTS, sample.positions)))
+                    feedback_samples.append({"time": sample.time, "monotonic": read_ended,
+                                             "raw": actual, "goal_raw": target_raw,
+                                             "state_timestamp_utc": state["timestamp_utc"]})
+                    self._poll_busy_input()
+                finally:
+                    tick_ended = self.clock()
+                    tick_durations.append(max(0.0, tick_ended - tick_started))
+                    if write_ended is None:
+                        write_durations.append(max(0.0, tick_ended - write_started))
 
             # Keep commanding the terminal pose until measured state is within
             # tolerance for three consecutive observations or deadline expires.
@@ -2026,7 +2054,9 @@ class ArmSession:
                 self._record(record)
                 self._sag_recovery_available = False
                 self.last_command = self.clock()
+                timing_outcome = "calibration_measured_endpoint_held"
                 return {"state": state, "trajectory": {
+                    "timing": timing_receipt,
                     "goal_id": goal_id, "duration_s": prepared.duration,
                     "sample_count": len(prepared.samples),
                     "feedback_count": len(feedback_samples),
@@ -2044,7 +2074,9 @@ class ArmSession:
                 raise RuntimeError("supervised completion acquisition became stale during publication")
             self._sag_recovery_available = False
             self.last_command = self.clock()
+            timing_outcome = "succeeded"
             return {"state": state, "trajectory": {
+                "timing": timing_receipt,
                 "goal_id": goal_id, "duration_s": prepared.duration,
                 "sample_count": len(prepared.samples),
                 "feedback_count": len(feedback_samples),
@@ -2054,9 +2086,42 @@ class ArmSession:
                     "qualification": SUPERVISED_QUALIFICATION, "qualified": False}
                    if supervised_commissioning else {})}}
         except ArmSessionCancelled as error:
-            if self._cancel_reason == "trajectory_cancel_hold" and not (supervised_commissioning and not motion_started):
+            deadline_missed = isinstance(error, _ControlDeadlineMissed)
+            timing_outcome = "control_deadline_missed" if deadline_missed else "cancelled"
+            if (deadline_missed or self._cancel_reason == "trajectory_cancel_hold") and not (supervised_commissioning and not motion_started):
                 try:
+                    if deadline_missed:
+                        # Preserve pending hard STOP/source failures before reusing
+                        # the existing measured-pose operator cancel/hold path.
+                        try:
+                            self._poll_busy_input()
+                        except ArmSessionCancelled:
+                            if self._cancel_reason != "trajectory_cancel_hold":
+                                raise
+                        self._calibration_guard()
+                        if owner_source_sha256(Path(__file__).parent) != RUNTIME_OWNER_SOURCE_SHA256:
+                            raise RuntimeError("control deadline hold source cohort changed")
+                        fresh = self.read_state()
+                        if (fresh.get("arm_bounds", {}).get("classification") != "normal" or
+                                any(type(v) is not int or v != 1 for v in fresh["torque"].values()) or
+                                any(not 0 <= self.clock()-fresh[k] <= .1
+                                    for k in ("monotonic", "torque_monotonic"))):
+                            raise RuntimeError("control deadline hold requires fresh normal all-on state")
                     state = self.cancel_hold()
+                    if deadline_missed:
+                        try:
+                            self._poll_busy_input()
+                        except ArmSessionCancelled:
+                            if self._cancel_reason != "trajectory_cancel_hold":
+                                raise
+                        self._calibration_guard()
+                        if owner_source_sha256(Path(__file__).parent) != RUNTIME_OWNER_SOURCE_SHA256:
+                            raise RuntimeError("control deadline held source cohort changed")
+                        if (state.get("arm_bounds", {}).get("classification") != "normal" or
+                                any(type(v) is not int or v != 1 for v in state["torque"].values()) or
+                                any(not 0 <= self.clock()-state[k] <= .1
+                                    for k in ("monotonic", "torque_monotonic"))):
+                            raise RuntimeError("control deadline measured hold was not verified fresh/all-on")
                     if self._failed_endpoint_hold is not None:
                         self._cancel_requested = False
                         return self._failed_hold_reply(state)
@@ -2066,11 +2131,18 @@ class ArmSession:
                     except BaseException as cleanup_error:
                         hold_error.add_note("cancel hold cleanup failed: " + str(cleanup_error))
                     raise
+                if deadline_missed:
+                    self._cancel_requested = False
+                    return {"ok": False, "status": "control_deadline_missed",
+                            "target_reached": False, "error": str(error), "state": state,
+                            "trajectory": {"goal_id": goal_id, "feedback_count": len(feedback_samples),
+                                           "status": "control_deadline_missed", "timing": timing_receipt}}
                 self._record({"event": "trajectory_cancelled", "goal_id": goal_id,
                               "feedback_samples": feedback_samples, "state": state})
                 self._cancel_requested = False
                 return {"cancelled": True, "state": state,
-                        "trajectory": {"goal_id": goal_id, "feedback_count": len(feedback_samples)}}
+                        "trajectory": {"goal_id": goal_id, "feedback_count": len(feedback_samples),
+                                       "timing": timing_receipt}}
             if motion_started or (supervised_commissioning and self.saved_ram is not None):
                 self.shutdown(reason=self._cancel_reason or str(error))
             raise
@@ -2084,6 +2156,45 @@ class ArmSession:
                           "error": str(error), "error_type": type(error).__name__,
                           "feedback_samples": feedback_samples})
             raise
+
+        finally:
+            active_error = sys.exc_info()[1]
+            try:
+                def summarize(values):
+                    ordered = sorted(values)
+                    count = len(ordered)
+                    return {"count": count, "min_s": ordered[0] if count else None,
+                            "mean_s": sum(ordered) / count if count else None,
+                            "p99_s": ordered[math.ceil(0.99 * count) - 1] if count else None,
+                            "max_s": ordered[-1] if count else None,
+                            "over_period_count": sum(value > period for value in ordered),
+                            "over_10ms_count": sum(value > 0.01 for value in ordered)}
+                interval_summary = summarize(write_start_intervals)
+                interval_summary.update(
+                    under_period_tolerance_s=FEEDBACK_GAP_EPSILON_S,
+                    under_period_count=sum(value < period - FEEDBACK_GAP_EPSILON_S
+                                           for value in write_start_intervals),
+                    under_period_without_tolerance_count=sum(value < period for value in write_start_intervals))
+                timing_receipt.update(schema="trajectory-timing-v2", period_s=period,
+                    outcome=timing_outcome, full_tick=summarize(tick_durations),
+                    goal_write=summarize(write_durations),
+                    dispatch_lateness=summarize(dispatch_lateness),
+                    position_feedback_gap=summarize(feedback_gaps),
+                    write_start_interval=interval_summary,
+                    write_start_monotonic_s=write_start_times,
+                    write_start_interval_s=write_start_intervals,
+                    dispatch_policy="refuse more than one period late; shorter dispatch intervals remain possible and are measured",
+                    full_tick_scope="before Goal_Position write through feedback publication and busy-input poll; interrupted ticks included",
+                    percentile="nearest rank; measured wall-clock durations, not a hard-real-time guarantee")
+                self._record({"event": "trajectory_timing", "goal_id": goal_id,
+                              "timing": timing_receipt})
+            except Exception as timing_error:
+                # Ordinary receipt errors must not replace motion/cleanup exceptions;
+                # KeyboardInterrupt/SystemExit propagate to outer shutdown handling.
+                if active_error is not None:
+                    active_error.add_note("trajectory timing receipt failed: " + str(timing_error))
+                else:
+                    timing_receipt["receipt_error"] = str(timing_error)
 
     def home(self):
         """Reach measured home through validated raw sublegs of at most 100 counts."""

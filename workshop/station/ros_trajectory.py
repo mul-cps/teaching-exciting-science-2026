@@ -28,6 +28,7 @@ POSITION_LIMITS_RAD = MappingProxyType({
 ROS_MAX_VELOCITY_RAD_S = 0.125
 ROS_MAX_ACCELERATION_RAD_S2 = 0.2
 ROS_MAX_JERK_RAD_S3 = 2.0
+ROS_TRAJECTORY_PERIOD_S = 0.02
 MAX_COLLISION_CHECK_STATES = 12000
 ROS_MOTION_PROFILES = MappingProxyType({
     "default": (0.125, 0.2, 2.0),
@@ -255,9 +256,9 @@ def _position_limits(admitted):
 
 
 def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
-                       max_acceleration, max_jerk=ROS_MAX_JERK_RAD_S3, period=0.05,
+                       max_acceleration, max_jerk=ROS_MAX_JERK_RAD_S3, period=ROS_TRAJECTORY_PERIOD_S,
                        position_limits=None):
-    """Validate a ROS-like position trajectory and generate 20 Hz spline samples.
+    """Validate a ROS-like position trajectory and generate spline samples on the requested control grid.
 
     Input derivatives are preserved but intentionally not commanded. `start`
     must agree with fresh measured state; the measured values become the exact
@@ -326,7 +327,7 @@ def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
                       max_jerk, limits[joint])
         coeff_by_joint.append(coeffs)
     count = int(math.ceil(duration / period - 1e-12))
-    # Keep writes on the 20 Hz grid. If the trajectory ends between ticks,
+    # Keep writes on the requested control grid. If the trajectory ends between ticks,
     # issue its terminal hold on the next tick rather than burst-writing early.
     sample_times = [i * period for i in range(count + 1)]
     samples = []
@@ -344,7 +345,7 @@ def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
 
 
 def prepare_collinear_quintic(joint_names, points, *, start_radians, max_velocity,
-                              max_acceleration, max_jerk, period=0.05):
+                              max_acceleration, max_jerk, period=ROS_TRAJECTORY_PERIOD_S):
     """Return an admitted two-knot candidate only for roundoff-collinear monotone paths.
 
     The caller keeps its already validated original timing when this returns None.

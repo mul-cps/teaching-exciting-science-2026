@@ -251,7 +251,7 @@ def prepare_with_controller_timing(helper, joint_names, points, *, start_radians
                 joint_names, effective_points, start_radians=start_radians,
                 max_velocity=profile.max_velocity,
                 max_acceleration=profile.max_acceleration,
-                max_jerk=max_jerk, period=0.05)
+                max_jerk=max_jerk, period=helper.ROS_TRAJECTORY_PERIOD_S)
         except ValueError as error:
             if not str(error).startswith(retry_prefixes):
                 raise
@@ -3046,7 +3046,7 @@ class TrajectoryBridge(Node):
             trajectory.joint_names, parsed_points, start_radians=start,
             max_velocity=self._ros_motion_profile.max_velocity,
             max_acceleration=self._ros_motion_profile.max_acceleration,
-            max_jerk=max_jerk, period=0.05)
+            max_jerk=max_jerk, period=helper.ROS_TRAJECTORY_PERIOD_S)
         if candidate is not None and candidate[1].duration < prepared.duration:
             command_points, prepared, collinear_residual = candidate
             retiming_factor = prepared.duration / parsed_points[-1]["time"]
@@ -3083,6 +3083,7 @@ class TrajectoryBridge(Node):
             "path_tolerance": "default only; non-default rejected",
             "goal_tolerance": "default only; station final tolerance is 2 degrees",
             "max_jerk_rad_s3": max_jerk,
+            "sample_period_s": helper.ROS_TRAJECTORY_PERIOD_S,
         }
         for index, positions in enumerate(dense):
             with self._active_lock:
@@ -3472,6 +3473,7 @@ class TrajectoryBridge(Node):
                     "original_points": command_points, "joint_names": names}
         try:
             artifact = self._collision_check_path(trajectory, trajectory.points, goal_id)
+            artifact["controller_action_goal_uuid"] = [int(value) for value in goal_handle.goal_id.uuid]
             command_points = artifact["command_points"]
             if artifact["retiming_factor"] != 1.0 or len(command_points) != len(trajectory.points):
                 trajectory = copy.deepcopy(trajectory)
