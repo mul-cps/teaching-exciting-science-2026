@@ -118,3 +118,26 @@ preflight and the same owner reconstruction and effective-path digest checks.
 Artifacts retain every original knot and distinguish the selected timing
 method, residual and original/command point counts. This does not increase
 any dynamics limit or qualify an unchecked path for execution.
+
+## Private 50 Hz and 100 Hz control trials
+
+These private cohorts use a single source-pinned ROS trajectory period: 0.02 s
+for the 50 Hz baseline or 0.01 s for the later 100 Hz comparison, identically in
+bridge collision preparation and owner reconstruction. It retains the global 0.05 s
+teleop/recovery/idle period and the existing absolute freshness, motion, torque,
+PID, Phase, source and restoration guards. Both frequency cohorts revert the
+pan-acceleration-2 trial: the local pan override is removed and the profile
+label is restored to `native-8-320-220-torque-700-250`, matching c6 native
+acceleration 8 for all six joints. The P24 suffix remains when applicable. A sub-50 ms trajectory refuses a
+command before writing when it is more than one requested period late, using
+the existing measured-pose cancel/hold path after fresh normal/all-on checks,
+returning failure instead of catching up obsolete knots. Failure to verify that
+hold retains the existing shutdown cleanup.
+
+The scheduled motion loop stores numeric timing samples in memory until one terminal `trajectory_timing`
+receipt reports tick/write duration, dispatch lateness and encoder gaps with
+counts, min/mean/p99/max and overruns. A tick covers the goal write through
+critical reads, feedback publication and busy-input polling. No extra USB reads
+or per-tick log flushes are added. These measurements do not establish hard
+real-time behavior: existing serial TX/flush can still block. Qualification
+starts with a short no-motion hold; small moves require valid timing first.
