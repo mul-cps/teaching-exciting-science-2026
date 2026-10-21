@@ -25,6 +25,7 @@ from workshop.safe_home import load_home
 from . import arm as arm_module
 from .config import JOINTS, load_config
 from .locking import station_lock, station_lock_path
+from .native_damping import NativeDampingMixin, NativeDampingPreflightError
 from .camera_recovery import plan_bound_reentry
 from .recovery_types import CAMERA_RECOVERY_MAX_DISPLACEMENT_COUNTS, CAMERA_RECOVERY_INWARD_COUNTS, CameraRecoveryPolicy, owner_source_sha256
 from .ros_trajectory import (ARM_JOINTS, ROS_MAX_ACCELERATION_RAD_S2,
@@ -144,7 +145,7 @@ class ArmPlanPreflightError(ValueError):
     """A move plan rejected before any profile, goal, or torque write."""
 
 
-class ArmSession:
+class ArmSession(NativeDampingMixin):
     """One serialized owner of a connected follower bus.
 
     ``arm`` is a :class:`LeRobotArm` or a protocol-compatible fake.  It is
@@ -209,15 +210,20 @@ class ArmSession:
         self._teleop = None
         self._teleop_skip_next_sample = False
         self._elbow_stiffness_mode = self.arm.settings.get("elbow_stiffness_profile")
+        self._configured_elbow_stiffness_mode = self._elbow_stiffness_mode
+        self._elbow_first_trial_after_observation = self._observe_only and self._elbow_stiffness_mode == "elbow-p24-v1"
         if self._elbow_stiffness_mode not in (None, "elbow-p24-v1", "restore-elbow-p16-only"):
             raise ValueError("unsupported named elbow stiffness profile")
         if self._observe_only and self._elbow_stiffness_mode is not None:
-            raise ValueError("observe-only owner cannot apply or restore elbow stiffness")
+            if self._elbow_stiffness_mode != "elbow-p24-v1":
+                raise ValueError("observe-only owner cannot restore elbow stiffness")
+            self._elbow_stiffness_mode = None  # observation never applies a configured trial
         self._elbow_trial_journal = Path(self.arm.settings["calibration"]["path"]).resolve().with_suffix(
             ".elbow-p24-pending.json")
         self._elbow_trial_record = None
         self._elbow_trial_live = False
         self._elbow_restore_attempted = False
+        self._elbow_restored_receipt = None
         # This callback must be nonblocking latest-observation/cache access.
         # It receives (measured_raw_copy, exact_encoder_stamp_monotonic) and
         # supplies a qualified scene paired to that encoder observation.
@@ -226,6 +232,7 @@ class ArmSession:
         # Production startup deliberately supplies neither provider nor policy.
         self.camera_scene_provider = camera_scene_provider
         self.camera_recovery_policy = camera_recovery_policy
+        self._native_damping_init()
 
     @staticmethod
     def _six_ints(values, label):
@@ -637,8 +644,60 @@ class ArmSession:
             os.fsync(directory)
         finally:
             os.close(directory)
+        self._elbow_restored_receipt = (str(archive), hashlib.sha256(archive.read_bytes()).hexdigest())
         self._elbow_trial_record = None
         self._elbow_trial_live = False
+
+    def _rearm_motion_profile(self, command):
+        """Explicitly start another named P24 trial after proven same-owner restore."""
+        if (set(command) != {"command", "request_id"} or not isinstance(command.get("request_id"), str) or
+                len(command["request_id"]) != 32 or any(c not in "0123456789abcdef" for c in command["request_id"])):
+            raise ArmPlanPreflightError("profile rearm requires a correlated request UUID")
+        if self._native_damping is not None or self._native_damping_record is not None or self._native_damping_restore_only:
+            raise ArmPlanPreflightError("profile rearm requires completed native damping restoration")
+        self._elbow_trial_guard()
+        if self._configured_elbow_stiffness_mode is None:
+            return {"ok": True, "command": "rearm_motion_profile", "request_id": command["request_id"],
+                    "state": self.publish_state(event="motion_profile_not_required")}
+        if self._configured_elbow_stiffness_mode != "elbow-p24-v1" or self._elbow_stiffness_mode != "elbow-p24-v1":
+            raise ArmPlanPreflightError("restore-only or observe-only profile cannot be rearmed")
+        if self._elbow_trial_live:
+            raise ArmPlanPreflightError("configured elbow trial is already armed")
+        if self._elbow_trial_record is not None or self._elbow_trial_journal.exists() or self._native_damping_journal.exists():
+            raise ArmPlanPreflightError("pending PID/damping journal blocks profile rearm")
+        first_trial = self._elbow_first_trial_after_observation
+        if first_trial:
+            baseline = {register: {j: value for j in JOINTS} for register, value in
+                        (("P_Coefficient", 16), ("I_Coefficient", 0), ("D_Coefficient", 32), ("Lock", 0))}
+            if self._elbow_trial_snapshot() != baseline:
+                raise ArmPlanPreflightError("new observed generation requires exact six-joint P16/I0/D32/Lock0 baseline")
+            # This is a new trial, not a claim about a previous owner's restoration.
+            for index, joint in enumerate(JOINTS, 1):
+                if self.bus.ping(joint, num_retry=0, raise_on_error=True) != 777 or self.bus.motors[joint].id != index:
+                    raise ArmPlanPreflightError("new generation requires exact STS3215 firmware/model identities")
+        else:
+            if not self._elbow_restore_attempted or self._elbow_restored_receipt is None:
+                raise ArmPlanPreflightError("profile rearm requires proven complete same-owner restoration")
+            path, digest = self._elbow_restored_receipt
+            encoded = Path(path).read_bytes()
+            if hashlib.sha256(encoded).hexdigest() != digest:
+                raise ArmPlanPreflightError("same-owner restoration receipt changed")
+            receipt = json.loads(encoded)
+            record = {k: v for k, v in receipt.items() if k not in {"restored_utc", "restored_readback"}}
+            self._elbow_trial_validate_record(record)
+            if (record["owner_session_id"] != self._owner_session_id or
+                    receipt.get("restored_readback") != record["original"] or
+                    self._elbow_trial_snapshot() != record["original"]):
+                raise ArmPlanPreflightError("same-owner restored P16/PID/Lock proof differs")
+        self._poll_busy_input()
+        self._elbow_trial_guard()
+        # Reset only after exact persisted restoration and current baseline proof.
+        self._elbow_restore_attempted = False
+        self._elbow_first_trial_after_observation = False
+        self._shutdown_complete = False
+        self._elbow_trial_startup()
+        return {"ok": True, "command": "rearm_motion_profile", "request_id": command["request_id"],
+                "state": self.publish_state(event="motion_profile_rearmed")}
 
     def initialize(self):
         """Connect/admit state; the explicit named elbow trial may write P while all OFF."""
@@ -695,7 +754,7 @@ class ArmSession:
                 self.firmware_min[joint],self.firmware_max[joint]) for joint in JOINTS)
             torque = self._read("Torque_Enable")
             torque_stamp, torque_utc = self.clock(), self.wall_clock()
-            if not self._observe_only and any(value != 0 for value in torque.values()):
+            if not self._observe_only and not self._native_damping_restore_only and any(value != 0 for value in torque.values()):
                 raise RuntimeError("resident session requires verified torque-off startup")
             # Validate measured-home provenance and its calibrated representation.
             self.home_pose = self.arm._pose(load_home(
@@ -712,8 +771,9 @@ class ArmSession:
                     overrun = actual[joint] - self.firmware_max[joint] if actual[joint] > self.firmware_max[joint] else self.firmware_min[joint] - actual[joint]
                     if (not self._sag_recovery_available or joint == "gripper" or overrun > 16):
                         raise ValueError("actual raw position outside firmware limits: " + joint)
+            self._native_damping_startup()
             self._elbow_trial_startup()
-            if self._elbow_stiffness_mode is not None:
+            if self._elbow_stiffness_mode is not None or self._native_damping_restore_only:
                 actual = self._read("Present_Position")
                 position_stamp, position_utc = self.clock(), self.wall_clock()
                 torque = self._read("Torque_Enable")
@@ -824,8 +884,10 @@ class ArmSession:
         if torque_monotonic is None:
             torque_monotonic = self.clock()
             torque_utc = self.wall_clock()
-        if any(value not in (0, 1) for value in torque.values()):
+        damping_active = self._native_damping is not None
+        if any(value not in ((0, 1, 2) if damping_active else (0, 1)) for value in torque.values()):
             raise RuntimeError("non-binary torque state")
+        self._native_damping_monitor(raw, torque, position_monotonic)
         state = dict(schema=1, event=event, arm_id=self.arm.settings["id"],
                      owner_session_id=self._owner_session_id,
                      failed_endpoint_hold=self._failed_endpoint_hold,
@@ -833,6 +895,10 @@ class ArmSession:
                          if event == "held_jaw_acknowledged" else None),
                      calibration_sha256=self.calibration_digest,
                      observe_only=self._observe_only,
+                     native_damping=self._native_damping,
+                     native_damping_restore_pending=self._native_damping_record is not None,
+                     native_damping_supported=self._native_damping_enabled and bool(self._native_damping_firmware),
+                     motion_profile_rearm_required=self._configured_elbow_stiffness_mode == "elbow-p24-v1" and not self._elbow_trial_live,
                      arm_bounds=self._arm_bounds_observation(raw,position_monotonic),
                      owner_source_sha256=self._owner_source_sha256,
                      camera_recovery_cache_generation=getattr(self.camera_scene_provider, 'cache_generation', None),
@@ -933,6 +999,8 @@ class ArmSession:
         self._component_scope = False
 
     def _ensure_profile(self, *, teleop=False):
+        if self._native_damping is not None or self._native_damping_record is not None:
+            raise ArmPlanPreflightError("native damping requires verified stop and RAM restoration before motion")
         if self._observe_only:
             raise ArmPlanPreflightError("observe-only owner requires explicit verified stop before motion")
         native_320 = not teleop and self._ros_motion_profile.name == "v375-a400"
@@ -3200,18 +3268,18 @@ class ArmSession:
         if self._observe_only:
             # Observe-only idle/EOF/failure/exit never turn a read-only reconnect
             # into implicit torque writes. Explicit command_stop is distinct.
-            if self._elbow_trial_record is not None:
+            if self._elbow_trial_record is not None or self._native_damping_record is not None:
                 raise RuntimeError("pending elbow restoration cannot complete in observe-only scope")
             return True
         if self._component_scope:
             result = self._component_shutdown(reason)
-            if self._elbow_trial_record is not None:
+            if self._elbow_trial_record is not None or self._native_damping_record is not None:
                 raise RuntimeError("pending elbow restoration cannot complete in component-only scope")
             return result
-        if self._shutdown_complete and self._elbow_trial_record is None:
+        if self._shutdown_complete and self._elbow_trial_record is None and self._native_damping_record is None:
             return True
         if self.bus is None or not getattr(self.bus, "is_connected", False):
-            if self._elbow_trial_record is not None:
+            if self._elbow_trial_record is not None or self._native_damping_record is not None:
                 raise RuntimeError("pending elbow restoration requires a connected sole-owner bus")
             return True
         failures = []
@@ -3228,6 +3296,12 @@ class ArmSession:
         except BaseException as error:
             failures.append("torque-off verification: " + str(error))
         if torque is not None and all(value == 0 for value in torque.values()):
+            self._native_damping = None
+            if self._native_damping_record is not None:
+                try:
+                    self._native_damping_restore()
+                except BaseException as error:
+                    failures.append("native damping RAM restoration: " + str(error))
             if self._elbow_trial_record is not None:
                 try:
                     self._elbow_trial_restore()
@@ -3481,6 +3555,22 @@ class ArmSession:
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
+        if self._native_damping_restore_only and name not in {"read_state", "stop", "exit"}:
+            raise ArmPlanPreflightError("native damping restore-only owner cannot admit actuation")
+        if ((self._native_damping is not None or self._native_damping_record is not None) and
+                name not in {"read_state", "native_damping_renew", "stop", "exit"}):
+            raise ArmPlanPreflightError("native damping requires verified stop and RAM restore before ordinary commands")
+        if name in {"native_damping", "native_damping_renew", "native_damping_inventory"}:
+            if self._elbow_stiffness_mode == "restore-elbow-p16-only":
+                raise ArmPlanPreflightError("elbow restore-only owner cannot admit native damping commands")
+            try:
+                if name == "native_damping_inventory":
+                    return self._native_damping_inventory(command)
+                return self._native_damping_enter(command) if name == "native_damping" else self._native_damping_renew(command)
+            except NativeDampingPreflightError as error:
+                raise ArmPlanPreflightError(str(error)) from error
+        if name == "rearm_motion_profile":
+            return self._rearm_motion_profile(command)
         if self._elbow_stiffness_mode == "restore-elbow-p16-only" and name not in {
                 "read_state", "joint_diagnostics", "jaw_diagnostics", "stop", "exit"}:
             raise ArmPlanPreflightError("elbow restore-only owner cannot admit motion")
@@ -3592,6 +3682,8 @@ class ArmSession:
             except BaseException:
                 self._observe_only = was_observe_only
                 raise
+            if was_observe_only:
+                self._elbow_stiffness_mode = self._configured_elbow_stiffness_mode
             self._teleop = None
             was_failed_hold = self._failed_endpoint_hold is not None
             self._failed_endpoint_hold = None
@@ -3627,6 +3719,9 @@ class ArmSession:
         self._emit = emit
         while True:
             now = self.clock()
+            if self._native_damping is not None and now >= self._native_damping["deadline_monotonic"]:
+                self.shutdown(reason="native_damping_lease_expired")
+                emit({"ok": True, "command": "native_damping_watchdog", "state": self._latest_state()})
             if self._teleop is not None and now - self._teleop["last_valid"] > 0.30:
                 expired_session_id = self._teleop["session_id"]
                 try:
@@ -3685,7 +3780,7 @@ class ArmSession:
                             self.clock()-self._failed_hold_last_tick > .1):
                         raise RuntimeError("failed endpoint hold buffered command health deadline expired")
                     previous_idle_handled = self._idle_handled
-                    if name in ("joint_diagnostics", "jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory", "acknowledge_held_jaw"):
+                    if name in ("native_damping", "native_damping_renew", "joint_diagnostics", "jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory", "acknowledge_held_jaw"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None

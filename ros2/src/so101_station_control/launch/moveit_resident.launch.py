@@ -102,6 +102,9 @@ def _launch_nodes(context):
     })
 
     bridge_parameters = {
+        "operator_service_units": [LaunchConfiguration(key).perform(context) for key in
+                                   ("operator_camera_unit", "operator_depth_unit", "operator_tags_unit")],
+        "operator_maintenance_journal": LaunchConfiguration("operator_maintenance_journal"),
         "enable_hardware": LaunchConfiguration("enable_hardware"),
         "external_state_only": LaunchConfiguration("external_state_only"),
         "station_python": LaunchConfiguration("station_python"),
@@ -165,6 +168,10 @@ def generate_launch_description():
                               description="RViz configuration for robot state and perception markers"),
         DeclareLaunchArgument("station_python", default_value="",
                               description="Absolute stationvenv Python executable"),
+        DeclareLaunchArgument("operator_camera_unit", default_value=""),
+        DeclareLaunchArgument("operator_depth_unit", default_value=""),
+        DeclareLaunchArgument("operator_tags_unit", default_value=""),
+        DeclareLaunchArgument("operator_maintenance_journal", default_value=str(Path.home()/".local/share/exciting-science/station/operator-maintenance-pending.json")),
         DeclareLaunchArgument("station_root", default_value=os.getcwd(),
                               description="Checkout containing workshop.station.arm_session"),
         DeclareLaunchArgument("station_config", default_value="",
