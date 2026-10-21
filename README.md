@@ -19,7 +19,9 @@ Students predict, change one value, run and check. Red goes left, blue right, ev
 - [Prepared fwmini4 launchers and checks](docs/fwmini4-workshop.md)
 - [Automated developer code reference](docs/code-reference/index.md)
 - [Live ROS teleoperation contract](docs/so101-ros-teleop.md) and [resident station API](docs/ros-station-api.md)
-- [Station acceptance criteria](docs/acceptance.md)
+- [Current ROS sorting acceptance and remaining gates](docs/ros-sorting-acceptance.md)
+- [Blockly station commissioning evidence (2026-10-21; physical subset)](docs/blockly-station-commissioning-2026-10-21.json), [EV3 panel commissioning](docs/ev3-panel-commissioning-2026-10-21.json) and [gripper measurement](docs/gripper-measurement-2026-10-21.json)
+- [Historical early-project acceptance baseline](docs/acceptance.md)
 
 For the standard-library fallback run `python3 exercises/check_setup.py`, then scripts `01_python.py`, `03_vision.py`, `02_robot.py`, `04_sort.py`. Run `python3 exercises/05_visual_sort.py` and open `sorting-result.html` for the visual fallback. The supplied scripts need Python 3.11 or newer and no ROS, GPU or internet. Hardware instructions remain instructor material in the station documentation.
 

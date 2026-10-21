@@ -17,7 +17,9 @@ Start with the [workshop overview](../README.md). The current class route uses t
 - [Prepared teaching PC launchers](fwmini4-workshop.md)
 - [Live station overview](so101-live-station.md), [RViz operations panel](rviz-operation-panel.md) and [emergency reset](station-emergency-reset.md)
 - [Leader teleoperation](so101-ros-teleop.md), [camera startup](camera-startup.md) and [EV3 station](ev3-arm-station.md)
-- [Acceptance criteria](acceptance.md) and [ROS sorting acceptance](ros-sorting-acceptance.md)
+- [Current ROS sorting acceptance and remaining gates](ros-sorting-acceptance.md)
+- [Blockly station commissioning evidence (2026-10-21; physical subset)](blockly-station-commissioning-2026-10-21.json), [EV3 panel commissioning](ev3-panel-commissioning-2026-10-21.json) and [gripper measurement](gripper-measurement-2026-10-21.json)
+- [Historical early-project acceptance baseline](acceptance.md)
 - [Current material revisions and outstanding rehearsal](workshop-revision-log.md)
 
 ## For station developers
