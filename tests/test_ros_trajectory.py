@@ -94,3 +94,32 @@ def test_dense_collision_path_is_bounded_and_digest_is_stable():
     assert path_digest(result) == path_digest(result)
     with pytest.raises(ValueError, match="exceed"):
         dense_path_samples(sparse, max_joint_step_rad=1e-5, max_states=5)
+
+
+@pytest.mark.parametrize("requested_duration", [0.4, 8.0])
+def test_collinear_candidate_preserves_requested_duration_floor(requested_duration):
+    from workshop.station.ros_trajectory import prepare_collinear_quintic
+
+    points = [{"time": requested_duration * fraction,
+               "positions": [0.1 * fraction, 0.0, 0.0, 0.0, 0.0]}
+              for fraction in (0.0, 0.5, 1.0)]
+    minimum = 1.03 * max(1.875 * 0.1 / 0.125,
+                         math.sqrt((10 / math.sqrt(3)) * 0.1 / 0.2),
+                         (60 * 0.1 / 2.0) ** (1 / 3), 0.1)
+    expected = math.ceil(max(requested_duration, minimum) * 1e9) / 1e9
+    candidate = prepare_collinear_quintic(
+        ARM_JOINTS, points, start_radians={j: 0.0 for j in ARM_JOINTS},
+        max_velocity=0.125, max_acceleration=0.2, max_jerk=2.0)
+    assert candidate is not None
+    command_points, prepared, residual = candidate
+    if requested_duration == 0.4:
+        # Pin the pre-fix sample digest when the existing safe minimum dominates.
+        assert path_digest(prepared) == "3319aac5eca8d41be3ab2207357a728f468f25b56cdef582d764e9b21dd5ec46"
+    assert prepared.duration == pytest.approx(expected, abs=1e-9)
+    assert prepared.duration >= requested_duration
+    assert command_points[-1]["time"] == prepared.duration
+    assert residual < 1e-10
+    assert prepared.samples[0].positions == (0.0,) * 5
+    assert prepared.samples[-1].positions == pytest.approx((0.1, 0.0, 0.0, 0.0, 0.0))
+    assert all(sample.time == pytest.approx(i * .02)
+               for i, sample in enumerate(prepared.samples))
