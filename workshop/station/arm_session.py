@@ -202,6 +202,16 @@ class ArmSession:
         self._read_diagnostics = {}
         self._teleop = None
         self._teleop_skip_next_sample = False
+        self._elbow_stiffness_mode = self.arm.settings.get("elbow_stiffness_profile")
+        if self._elbow_stiffness_mode not in (None, "elbow-p24-v1", "restore-elbow-p16-only"):
+            raise ValueError("unsupported named elbow stiffness profile")
+        if self._observe_only and self._elbow_stiffness_mode is not None:
+            raise ValueError("observe-only owner cannot apply or restore elbow stiffness")
+        self._elbow_trial_journal = Path(self.arm.settings["calibration"]["path"]).resolve().with_suffix(
+            ".elbow-p24-pending.json")
+        self._elbow_trial_record = None
+        self._elbow_trial_live = False
+        self._elbow_restore_attempted = False
         # This callback must be nonblocking latest-observation/cache access.
         # It receives (measured_raw_copy, exact_encoder_stamp_monotonic) and
         # supplies a qualified scene paired to that encoder observation.
@@ -430,8 +440,202 @@ class ArmSession:
         if digest != self.calibration_digest:
             raise RuntimeError("calibration file changed during resident session")
 
+    def _elbow_trial_guard(self, *, restoring=False):
+        """Explicit EEPROM transaction admission; never called by telemetry ticks."""
+        from .discovery import discover_arm
+        if (self._observe_only or self._component_scope or self._component_saved_ram is not None or
+                (not restoring and (self._teleop is not None or self._active_leg is not None or
+                                    self._failed_endpoint_hold is not None)) or not self.bus.is_connected):
+            raise RuntimeError("elbow stiffness requires an idle ordinary sole owner")
+        self._calibration_guard()
+        if owner_source_sha256(Path(__file__).parent) != self._owner_source_sha256:
+            raise RuntimeError("elbow stiffness owner source changed")
+        usb = self.arm.settings["usb"]
+        matches = [v for v in discover_arm() if all(v.get(k) == usb[k]
+                   for k in ("vendor_id", "product_id", "serial"))]
+        if (not usb["serial"] or len(matches) != 1 or len(matches[0]["serial_devices"]) != 1 or
+                self.arm.port is None or Path(matches[0]["serial_devices"][0]["path"]).resolve() !=
+                Path(self.arm.port).resolve()):
+            raise RuntimeError("elbow stiffness physical USB identity/owner port mismatch")
+        for index, joint in enumerate(JOINTS, 1):
+            if self.bus.motors[joint].id != index or self.bus.motors[joint].model != "sts3215":
+                raise RuntimeError("elbow stiffness requires exact six STS3215 motor identities")
+        raw = self._read("Present_Position")
+        position_stamp = self.clock()
+        torque = self._read("Torque_Enable")
+        torque_stamp = self.clock()
+        if (any(value != 0 for value in torque.values()) or
+                self._arm_bounds_observation(raw, position_stamp)["classification"] != "normal" or
+                not 0 <= self.clock()-min(position_stamp, torque_stamp) <= .1):
+            raise RuntimeError("elbow stiffness requires fresh all-six OFF and normal bounds")
+
+    def _elbow_trial_snapshot(self):
+        return {register: self._read(register)
+                for register in ("P_Coefficient", "I_Coefficient", "D_Coefficient", "Lock")}
+
+    def _elbow_trial_validate_record(self, record):
+        expected = {"schema", "profile", "trial_id", "arm_id", "calibration_sha256", "usb",
+                    "owner_source_sha256", "owner_session_id", "created_utc", "original"}
+        if (not isinstance(record, dict) or set(record) != expected or
+                record.get("schema") != "elbow-p24-pending-v1" or record.get("profile") != "elbow-p24-v1" or
+                not isinstance(record.get("trial_id"), str) or len(record["trial_id"]) != 32 or
+                any(c not in "0123456789abcdef" for c in record["trial_id"]) or
+                record.get("arm_id") != self.arm.settings["id"] or
+                record.get("calibration_sha256") != self.calibration_digest or
+                record.get("usb") != {k: self.arm.settings["usb"][k]
+                                      for k in ("vendor_id", "product_id", "serial")} or
+                record.get("owner_source_sha256") != self._owner_source_sha256):
+            raise RuntimeError("pending elbow journal is malformed or belongs to another identity/cohort")
+        previous_owner = record.get("owner_session_id")
+        if (not isinstance(previous_owner, str) or not previous_owner.startswith("arm-session-") or
+                len(previous_owner) != len("arm-session-")+32 or
+                any(c not in "0123456789abcdef" for c in previous_owner[len("arm-session-"):]) or
+                not isinstance(record.get("created_utc"), str)):
+            raise RuntimeError("pending elbow journal has malformed provenance")
+        try:
+            if datetime.fromisoformat(record["created_utc"]).tzinfo is None:
+                raise ValueError("journal timestamp lacks timezone")
+        except ValueError as error:
+            raise RuntimeError("pending elbow journal has malformed creation time") from error
+        original = record.get("original")
+        if (not isinstance(original, dict) or
+                set(original) != {"P_Coefficient", "I_Coefficient", "D_Coefficient", "Lock"}):
+            raise RuntimeError("pending elbow journal lacks the exact original PID/Lock inventory")
+        for register, values in original.items():
+            if (not isinstance(values, dict) or set(values) != set(JOINTS) or
+                    any(type(v) is not int or not 0 <= v <= (1 if register == "Lock" else 255)
+                        for v in values.values())):
+                raise RuntimeError("pending elbow journal contains invalid raw PID/Lock values")
+        if tuple(original[r]["elbow_flex"] for r in
+                 ("P_Coefficient", "I_Coefficient", "D_Coefficient")) != (16, 0, 32):
+            raise RuntimeError("pending elbow journal must restore the measured P16/I0/D32 baseline")
+
+    def _elbow_trial_verify(self, snapshot, *, target_p, allow_unlocked=False):
+        expected = {r: dict(v) for r, v in self._elbow_trial_record["original"].items()}
+        expected["P_Coefficient"]["elbow_flex"] = target_p
+        if allow_unlocked:
+            actual_lock = snapshot["Lock"]["elbow_flex"]
+            if actual_lock not in (0, expected["Lock"]["elbow_flex"]):
+                raise RuntimeError("elbow trial Lock changed unexpectedly")
+            expected["Lock"]["elbow_flex"] = actual_lock
+        if snapshot != expected:
+            raise RuntimeError("elbow stiffness PID/Lock inventory differs from exact transaction expectation")
+
+    def _elbow_trial_write(self, register, value):
+        # This is deliberately not a public/general register writer.
+        if (register, value) not in (("P_Coefficient", 16), ("P_Coefficient", 24), ("Lock", 0), ("Lock", 1)):
+            raise RuntimeError("elbow trial write is outside its fixed whitelist")
+        if self._elbow_trial_record is None:
+            raise RuntimeError("elbow trial write requires durable original-value authority")
+        if json.loads(self._elbow_trial_journal.read_text()) != self._elbow_trial_record:
+            raise RuntimeError("pending elbow journal changed before EEPROM transaction")
+        self._elbow_trial_validate_record(self._elbow_trial_record)
+        self._elbow_trial_guard(restoring=self._elbow_restore_attempted)
+        self.bus.write(register, "elbow_flex", value, normalize=False, num_retry=0)
+        if self._read(register)["elbow_flex"] != value:
+            raise RuntimeError("elbow trial single-shot write/readback mismatch: " + register)
+
+    def _elbow_trial_restore_lock(self):
+        original = self._elbow_trial_record["original"]["Lock"]
+        actual = self._read("Lock")
+        if actual["elbow_flex"] != original["elbow_flex"]:
+            self._elbow_trial_write("Lock", original["elbow_flex"])
+        if self._read("Lock") != original:
+            raise RuntimeError("elbow trial did not preserve every original Lock register")
+
+    def _elbow_trial_set_p(self, target):
+        try:
+            current_p = self._read("P_Coefficient")["elbow_flex"]
+            if current_p not in ((16, 24) if self._elbow_restore_attempted else (16,)):
+                raise RuntimeError("elbow trial found an unexpected P before its bounded write")
+            if current_p != target:
+                if self._read("Lock")["elbow_flex"] != 0:
+                    self._elbow_trial_write("Lock", 0)
+                self._elbow_trial_write("P_Coefficient", target)
+        finally:
+            self._elbow_trial_restore_lock()
+        self._elbow_trial_verify(self._elbow_trial_snapshot(), target_p=target)
+        self._elbow_trial_guard(restoring=self._elbow_restore_attempted)
+
+    def _elbow_trial_startup(self):
+        pending = self._elbow_trial_journal.exists()
+        if pending and self._elbow_stiffness_mode != "restore-elbow-p16-only":
+            raise RuntimeError("pending elbow EEPROM journal blocks startup; use restore-elbow-p16-only")
+        if self._elbow_stiffness_mode is None:
+            return
+        self._elbow_trial_guard()
+        if self._elbow_stiffness_mode == "restore-elbow-p16-only":
+            if not pending:
+                raise RuntimeError("restore-only startup requires an existing pending elbow journal")
+            record = json.loads(self._elbow_trial_journal.read_text())
+            self._elbow_trial_validate_record(record)
+            self._elbow_trial_record = record
+            self._elbow_trial_restore()
+            return
+        original = self._elbow_trial_snapshot()
+        record = dict(schema="elbow-p24-pending-v1", profile="elbow-p24-v1",
+            trial_id=uuid.uuid4().hex, arm_id=self.arm.settings["id"],
+            calibration_sha256=self.calibration_digest,
+            usb={k: self.arm.settings["usb"][k] for k in ("vendor_id", "product_id", "serial")},
+            owner_source_sha256=dict(self._owner_source_sha256), owner_session_id=self._owner_session_id,
+            created_utc=self.wall_clock().isoformat(), original=original)
+        self._elbow_trial_validate_record(record)
+        self._elbow_trial_guard()
+        # Exclusive creation never overwrites pending recovery proof. Both fsyncs
+        # complete before the first unlock or coefficient write can be attempted.
+        with self._elbow_trial_journal.open("x") as stream:
+            json.dump(record, stream, indent=2, allow_nan=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        directory = os.open(self._elbow_trial_journal.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+        self._elbow_trial_record = record
+        self._elbow_trial_verify(self._elbow_trial_snapshot(), target_p=16)
+        self._elbow_trial_set_p(24)
+        self._elbow_trial_live = True
+        self._event("elbow_stiffness_trial_applied", profile="elbow-p24-v1", trial_id=record["trial_id"],
+                    journal=str(self._elbow_trial_journal), original=original,
+                    readback=self._elbow_trial_snapshot(), owner_source_sha256=self._owner_source_sha256)
+
+    def _elbow_trial_restore(self):
+        if self._elbow_trial_record is None:
+            return
+        if self._elbow_restore_attempted:
+            raise RuntimeError("elbow restoration previously failed; pending journal requires explicit new restore-only startup")
+        self._elbow_restore_attempted = True
+        self._elbow_trial_guard(restoring=True)
+        self._elbow_trial_validate_record(self._elbow_trial_record)
+        if json.loads(self._elbow_trial_journal.read_text()) != self._elbow_trial_record:
+            raise RuntimeError("pending elbow journal changed before restoration")
+        snapshot = self._elbow_trial_snapshot()
+        p = snapshot["P_Coefficient"]["elbow_flex"]
+        if p not in (16, 24):
+            raise RuntimeError("elbow restoration found an unapproved P coefficient")
+        self._elbow_trial_verify(snapshot, target_p=p, allow_unlocked=True)
+        self._elbow_trial_set_p(16)
+        restored = self._elbow_trial_snapshot()
+        self._elbow_trial_verify(restored, target_p=16)
+        archive = self._elbow_trial_journal.with_name(
+            self._elbow_trial_journal.name + ".restored-" + self._elbow_trial_record["trial_id"])
+        arm_module.atomic_json(archive, dict(self._elbow_trial_record,
+            restored_utc=self.wall_clock().isoformat(), restored_readback=restored))
+        self._event("elbow_stiffness_trial_restored", profile="elbow-p24-v1",
+                    trial_id=self._elbow_trial_record["trial_id"], archive=str(archive), readback=restored)
+        self._elbow_trial_journal.unlink()
+        directory = os.open(self._elbow_trial_journal.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+        self._elbow_trial_record = None
+        self._elbow_trial_live = False
+
     def initialize(self):
-        """Connect/admit read-only state; no goal/profile write occurs here."""
+        """Connect/admit state; the explicit named elbow trial may write P while all OFF."""
         self.logdir.mkdir(parents=True, exist_ok=True)
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         self._log_stream = self.log_path.open("a", buffering=1)
@@ -502,6 +706,12 @@ class ArmSession:
                     overrun = actual[joint] - self.firmware_max[joint] if actual[joint] > self.firmware_max[joint] else self.firmware_min[joint] - actual[joint]
                     if (not self._sag_recovery_available or joint == "gripper" or overrun > 16):
                         raise ValueError("actual raw position outside firmware limits: " + joint)
+            self._elbow_trial_startup()
+            if self._elbow_stiffness_mode is not None:
+                actual = self._read("Present_Position")
+                position_stamp, position_utc = self.clock(), self.wall_clock()
+                torque = self._read("Torque_Enable")
+                torque_stamp, torque_utc = self.clock(), self.wall_clock()
             state = self.publish_state(event="connected", torque=torque, raw=actual,
                 position_monotonic=position_stamp, position_utc=position_utc,
                 torque_monotonic=torque_stamp, torque_utc=torque_utc)
@@ -749,6 +959,8 @@ class ArmSession:
         self._active_profile = {register: dict(values) for register, values in profile.items()}
         self.profile = ("teleop-8-uncapped-velocity-torque-700-250" if teleop else
                         "native-8-160-220-torque-700-250")
+        if self._elbow_trial_live:
+            self.profile += ";elbow-p24-v1"
 
     def _enable_current_goal(self, target, started, label, *, on_goal_dispatch=None):
         if self._observe_only:
@@ -2850,12 +3062,19 @@ class ArmSession:
         if self._observe_only:
             # Observe-only idle/EOF/failure/exit never turn a read-only reconnect
             # into implicit torque writes. Explicit command_stop is distinct.
+            if self._elbow_trial_record is not None:
+                raise RuntimeError("pending elbow restoration cannot complete in observe-only scope")
             return True
         if self._component_scope:
-            return self._component_shutdown(reason)
-        if self._shutdown_complete:
+            result = self._component_shutdown(reason)
+            if self._elbow_trial_record is not None:
+                raise RuntimeError("pending elbow restoration cannot complete in component-only scope")
+            return result
+        if self._shutdown_complete and self._elbow_trial_record is None:
             return True
         if self.bus is None or not getattr(self.bus, "is_connected", False):
+            if self._elbow_trial_record is not None:
+                raise RuntimeError("pending elbow restoration requires a connected sole-owner bus")
             return True
         failures = []
         for joint in JOINTS:
@@ -2871,6 +3090,11 @@ class ArmSession:
         except BaseException as error:
             failures.append("torque-off verification: " + str(error))
         if torque is not None and all(value == 0 for value in torque.values()):
+            if self._elbow_trial_record is not None:
+                try:
+                    self._elbow_trial_restore()
+                except BaseException as error:
+                    failures.append("elbow EEPROM restoration: " + str(error))
             if self.saved_ram is not None:
                 for register, values in self.saved_ram.items():
                     for joint, value in values.items():
@@ -3119,6 +3343,15 @@ class ArmSession:
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
+        if self._elbow_stiffness_mode == "restore-elbow-p16-only" and name not in {
+                "read_state", "joint_diagnostics", "jaw_diagnostics", "stop", "exit"}:
+            raise ArmPlanPreflightError("elbow restore-only owner cannot admit motion")
+        if self._elbow_trial_record is not None and name in {
+                "commission_gripper_step", "commission_gripper_held_step"}:
+            raise ArmPlanPreflightError("elbow stiffness trial cannot enter component-only cleanup scope")
+        if self._elbow_stiffness_mode == "elbow-p24-v1" and not self._elbow_trial_live and name not in {
+                "read_state", "joint_diagnostics", "jaw_diagnostics", "stop", "exit"}:
+            raise ArmPlanPreflightError("elbow stiffness trial was restored; a new trial requires new startup")
         if name == "acknowledge_held_jaw":
             return self.acknowledge_held_jaw(command)
         if self._failed_endpoint_hold is not None:

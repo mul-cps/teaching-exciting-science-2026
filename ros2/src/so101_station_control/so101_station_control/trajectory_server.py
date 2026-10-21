@@ -3623,9 +3623,17 @@ class TrajectoryBridge(Node):
             artifact["result"] = result_payload
             self._write_artifact(artifact)
             goal_handle.abort()
+            message = "calibration_measured_endpoint_held: measured endpoint held; plan target not reached"
+            errors = result_payload.get("goal_error_rad")
+            if isinstance(errors, dict):
+                valid_errors = [(joint, value) for joint, value in errors.items()
+                                if joint in ARM_JOINTS and type(value) in (int, float)
+                                and value >= 0 and math.isfinite(value)]
+                if valid_errors:
+                    joint, error = max(valid_errors, key=lambda item: item[1])
+                    message += f"; {joint} endpoint error {math.degrees(error):.2f}deg"
             return self._result(
-                FollowJointTrajectory.Result.GOAL_TOLERANCE_VIOLATED,
-                "calibration_measured_endpoint_held: measured endpoint held; plan target not reached")
+                FollowJointTrajectory.Result.GOAL_TOLERANCE_VIOLATED, message)
         if result_payload and result_payload.get("ok"):
             artifact["status"] = "succeeded"
             artifact["result"] = result_payload
