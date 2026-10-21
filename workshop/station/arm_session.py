@@ -80,6 +80,14 @@ JAW_DIAGNOSTIC_REGISTERS = (
     ("Status", 65, 1), ("Moving", 66, 1),
 )
 JAW_DIAGNOSTIC_DEADLINE_S = .5
+JOINT_DIAGNOSTIC_DEADLINE_S = .08
+# Ordered passive inventory: position error first, then controller configuration.
+JOINT_DIAGNOSTIC_REGISTERS = (
+    "Goal_Position", "P_Coefficient", "I_Coefficient", "D_Coefficient",
+    "CW_Dead_Zone", "CCW_Dead_Zone", "Minimum_Startup_Force",
+    "Torque_Limit", "Max_Torque_Limit", "Present_Load", "Present_Current",
+    "Present_Voltage", "Present_Temperature", "Status", "Moving",
+)
 
 
 def _atomic_snapshot_json(path, data):
@@ -2887,6 +2895,115 @@ class ArmSession:
         self._shutdown_complete = True
         return True
 
+    def joint_diagnostics(self):
+        """Read the sole bus passively; optional failures never trigger cleanup writes."""
+        started = self.clock()
+        result = dict(schema="passive_joint_diagnostics", diagnostic_only=True,
+            calibration_authority=False, motion_authority=False, available=False,
+            arm_id=self.arm.settings["id"], calibration_sha256=self.calibration_digest,
+            owner_source_sha256=dict(self._owner_source_sha256),
+            owner_session_id=self._owner_session_id, started_monotonic=started,
+            read_budget_s=JOINT_DIAGNOSTIC_DEADLINE_S, registers={}, before=None, after=None)
+
+        def cohort():
+            self._poll_busy_input()
+            current = (self.arm.settings["id"], self.calibration_digest,
+                self._owner_source_sha256, tuple(self.bus.motors[j].id for j in JOINTS))
+            if (current != self._jaw_diagnostic_cohort or
+                    self.arm.settings["calibration"]["sha256"] != self.calibration_digest or
+                    self._owner_source_sha256 != RUNTIME_OWNER_SOURCE_SHA256):
+                raise ValueError("joint diagnostic identity/calibration/source cohort changed")
+            self._calibration_guard()
+            if owner_source_sha256(Path(__file__).parent) != self._owner_source_sha256:
+                raise ValueError("joint diagnostic source files changed")
+
+        def read(register):
+            self._poll_busy_input()
+            if self.clock()+SYNC_READ_DEADLINE_S > deadline:
+                raise TimeoutError("joint diagnostic required read budget exhausted")
+            began = self.clock()
+            values = self._read(register)
+            ended = self.clock()
+            if ended > deadline:
+                raise TimeoutError("joint diagnostic total read budget exceeded")
+            return values, dict(status="available", values=values,
+                units="raw SDK integer; physical units unqualified",
+                started_monotonic=began, ended_monotonic=ended,
+                ended_utc=self.wall_clock().isoformat())
+
+        def feedback():
+            raw, position = read("Present_Position")
+            torque, torque_read = read("Torque_Enable")
+            if (any(not 0 <= v <= 4095 for v in raw.values()) or
+                    any(v not in (0, 1) for v in torque.values()) or len(set(torque.values())) != 1):
+                raise ValueError("joint diagnostics require six valid positions and uniform ON or OFF torque")
+            bounds = self._arm_bounds_observation(raw, position["ended_monotonic"])
+            if bounds["classification"] != "normal":
+                raise ValueError("joint diagnostics require normal admitted arm bounds")
+            return dict(raw=raw, torque=torque, monotonic=position["ended_monotonic"],
+                torque_monotonic=torque_read["ended_monotonic"], arm_bounds=bounds), position, torque_read
+
+        try:
+            if (not self._initialized or self._observe_only or not self.bus.is_connected or
+                    self._teleop is not None or self._component_saved_ram is not None or
+                    self._component_scope or self._failed_endpoint_hold is not None or
+                    self._shutdown_complete or self._active_leg is not None or
+                    getattr(self, "_camera_recovery_wait_active", False) or
+                    getattr(self, "_camera_recovery_stationary_wait", None) is not None):
+                raise ValueError("joint diagnostics require a healthy idle sole owner")
+            cohort()
+            acquisition_started = self.clock()
+            deadline = acquisition_started+JOINT_DIAGNOSTIC_DEADLINE_S
+            result["acquisition_started_monotonic"] = acquisition_started
+            result["before"], _, _ = feedback()
+            for register in JOINT_DIAGNOSTIC_REGISTERS:
+                row = dict(status="unsupported", units="raw SDK integer; physical units unqualified")
+                result["registers"][register] = row
+                metadata = {j: self.bus.model_ctrl_table.get(self.bus.motors[j].model, {}).get(register)
+                            for j in JOINTS}
+                if any(value is None for value in metadata.values()) or len(set(metadata.values())) != 1:
+                    row["error"] = "register absent or not uniform across six SDK motor tables"
+                    continue
+                address, width = next(iter(metadata.values()))
+                row.update(address=address, width_bytes=width)
+                # Preserve two full existing 20 ms transaction bounds for final feedback.
+                if self.clock()+3*SYNC_READ_DEADLINE_S > deadline:
+                    row.update(status="budget_exhausted", error="reserved final position/torque read budget")
+                    continue
+                try:
+                    values, observation = read(register)
+                    row.update(observation)
+                except ArmSessionCancelled:
+                    raise
+                except (ConnectionError, OSError, RuntimeError, ValueError, TypeError) as error:
+                    row.update(status="read_error", error=str(error), error_type=type(error).__name__)
+            final, position, torque_read = feedback()
+            result["acquisition_ended_monotonic"] = self.clock()
+            if result["acquisition_ended_monotonic"] > deadline:
+                raise TimeoutError("joint diagnostic total acquisition exceeded 80 ms")
+            result["after"] = final
+            result["registers"].update(Present_Position=position, Torque_Enable=torque_read)
+            if final["torque"] != result["before"]["torque"]:
+                raise ValueError("joint diagnostic torque state changed during acquisition")
+            cohort()
+            if any(not 0 <= self.clock()-final[k] <= .1 for k in ("monotonic", "torque_monotonic")):
+                raise ValueError("joint diagnostic final measurements are stale")
+            state = self.publish_state(event="joint_diagnostics", raw=final["raw"],
+                torque=final["torque"], position_monotonic=final["monotonic"],
+                position_utc=datetime.fromisoformat(position["ended_utc"]),
+                torque_monotonic=final["torque_monotonic"],
+                torque_utc=datetime.fromisoformat(torque_read["ended_utc"]))
+            if any(not 0 <= self.clock()-final[k] <= .1 for k in ("monotonic", "torque_monotonic")):
+                raise ValueError("joint diagnostic final measurements became stale during publication")
+            result["available"] = True
+        except ArmSessionCancelled:
+            raise
+        except (ConnectionError, OSError, RuntimeError, ValueError, TypeError, KeyError, AttributeError) as error:
+            result.update(error=str(error), error_type=type(error).__name__)
+        result["ended_monotonic"] = self.clock()
+        return {"command": "joint_diagnostics", "ok": result["available"], "diagnostic": result,
+                **({"state": state} if result["available"] else {})}
+
     def jaw_diagnostics(self):
         """One bounded passive inventory; unavailable observations confer no authority.
 
@@ -3014,6 +3131,10 @@ class ArmSession:
                 state = self.read_state()
                 self._check_failed_hold_snapshot(state, state["monotonic"])
                 return self._failed_hold_reply(state)
+        if name == "joint_diagnostics":
+            if set(command) != {"command"}:
+                raise ArmPlanPreflightError("joint_diagnostics accepts no arguments")
+            return self.joint_diagnostics()
         if name == "jaw_diagnostics":
             if set(command) != {"command"}:
                 raise ArmPlanPreflightError("jaw_diagnostics accepts no arguments")
@@ -3191,7 +3312,7 @@ class ArmSession:
                             self.clock()-self._failed_hold_last_tick > .1):
                         raise RuntimeError("failed endpoint hold buffered command health deadline expired")
                     previous_idle_handled = self._idle_handled
-                    if name in ("jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory", "acknowledge_held_jaw"):
+                    if name in ("joint_diagnostics", "jaw_diagnostics", "move_plan", "move_gripper", "commission_gripper_step", "commission_gripper_held_step", "recover_camera", "home", "execute_trajectory", "acknowledge_held_jaw"):
                         self._motion_busy = True
                         self._cancel_requested = False
                         self._cancel_reason = None

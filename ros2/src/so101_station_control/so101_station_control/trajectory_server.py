@@ -270,7 +270,7 @@ def _control_callback(callback):
             if self._stop_latched:
                 if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
                     return GoalResponse.REJECT
-                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_acknowledge_held_jaw", "_gripper_diagnostics", "_calibration_ready", "_set_teleop_enabled"}:
+                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_acknowledge_held_jaw", "_gripper_diagnostics", "_joint_diagnostics", "_calibration_ready", "_set_teleop_enabled"}:
                     response = args[1]
                     response.success, response.message = False, "owner stop remains latched"
                     if callback.__name__ == "_prepare":
@@ -486,6 +486,9 @@ class TrajectoryBridge(Node):
         self._gripper_diagnostics_service = self.create_service(
             Trigger, "/follower/gripper_diagnostics", self._gripper_diagnostics,
             callback_group=self._teleop_service_group)
+        self._joint_diagnostics_service = self.create_service(
+            Trigger, "/follower/joint_diagnostics", self._joint_diagnostics,
+            callback_group=self._teleop_service_group)
         self._sorting_ready_service = self.create_service(
             Trigger, "/follower/sorting_ready", self._sorting_ready,
             callback_group=self._teleop_service_group)
@@ -694,6 +697,12 @@ class TrajectoryBridge(Node):
                 if isinstance(response, dict) and response.get("command") != "teleop_step":
                     self._cache_owner_state(response.get("state", response.get("final_state")),
                                             generation=generation, process=process)
+                if isinstance(response, dict) and response.get("command") == "joint_diagnostics":
+                    with self._active_lock:
+                        expected = self._active_goal == "joint_diagnostics"
+                    if not expected:
+                        self._mark_owner_fault("unexpected_joint_diagnostics_reply")
+                        continue
                 if self._route_stop_response(response):
                     continue
                 if not self._route_teleop_response(response):
@@ -1411,6 +1420,9 @@ class TrajectoryBridge(Node):
             try:
                 reply = self._response_queue.get(timeout=min(.05, remaining))
                 self._assert_owner_reservation(reservation, process, generation)
+                if payload["command"] == "joint_diagnostics" and (
+                        not isinstance(reply, dict) or reply.get("command") != "joint_diagnostics"):
+                    raise RuntimeError("joint diagnostic response kind mismatch; owner result unknown")
                 return reply
             except queue.Empty:
                 continue
@@ -2129,6 +2141,120 @@ class TrajectoryBridge(Node):
             "reasons": reasons}
         response.success = True
         response.message = json.dumps(payload, allow_nan=False)
+        return response
+
+    @_control_callback
+    def _joint_diagnostics(self, _request, response):
+        """Serialize a passive six-joint inventory through the resident bus owner."""
+        response.success = False
+        process, generation = self._process, self._owner_started
+        cohort = (self._expected_arm_id, self._expected_calibration_sha256,
+                  dict(self._owner_source_expected or {}))
+        started = time.monotonic()
+        try:
+            with self._active_lock:
+                if (self._active_goal is not None or self._teleop_state != "disabled" or
+                        self._prepare_reservation is not None or self._closed or
+                        self._stop_latched or self._cancel_before_start):
+                    raise ValueError("joint diagnostics require an unreserved idle owner")
+            state = self._read_state()
+            try:
+                classification = self._prepare_owner_state(state, process, generation)
+            except RuntimeError as error:
+                # A passive request rejected before delivery cannot poison another operation.
+                raise ValueError(str(error)) from error
+            if classification != "normal":
+                raise ValueError("joint diagnostics require normal owner bounds")
+            if (len(set(state["torque"].values())) != 1 or
+                    state.get("trajectory_goal_id") is not None or state.get("phase") is not None or
+                    state.get("failed_endpoint_hold") is not None or
+                    state.get("camera_recovery_phase") is not None or
+                    state.get("component_restore_pending") is not False):
+                raise ValueError("joint diagnostics require idle uniform six-joint ON or OFF torque")
+            owner_session_id = state.get("owner_session_id")
+            if not isinstance(owner_session_id, str) or not owner_session_id:
+                raise ValueError("joint diagnostic owner session is missing")
+            with self._active_lock:
+                if (self._active_goal is not None or self._teleop_state != "disabled" or
+                        self._prepare_reservation is not None or self._closed or
+                        self._stop_latched or self._cancel_before_start):
+                    raise ValueError("joint diagnostics require an unreserved idle owner")
+                self._active_goal = "joint_diagnostics"
+            result = self._reserved_owner_reply("joint_diagnostics", process, generation,
+                                                started+1., "joint_diagnostics")
+            self._assert_owner_reservation("joint_diagnostics", process, generation)
+            if cohort != (self._expected_arm_id, self._expected_calibration_sha256,
+                          self._owner_source_expected):
+                raise RuntimeError("joint diagnostic identity/source cohort replaced")
+            diagnostic = result.get("diagnostic")
+            if (not isinstance(diagnostic, dict) or
+                    diagnostic.get("schema") != "passive_joint_diagnostics" or
+                    diagnostic.get("diagnostic_only") is not True or
+                    diagnostic.get("calibration_authority") is not False or
+                    diagnostic.get("motion_authority") is not False or
+                    diagnostic.get("owner_session_id") != owner_session_id or
+                    (diagnostic.get("arm_id"), diagnostic.get("calibration_sha256"),
+                     diagnostic.get("owner_source_sha256")) != cohort):
+                raise RuntimeError("joint diagnostic acknowledgement lacks original owner cohort")
+            payload = dict(diagnostic, owner_started_monotonic=generation)
+            response.message = json.dumps(payload, allow_nan=False)
+            if result.get("ok") is not True or diagnostic.get("available") is not True:
+                return response
+            final = result.get("state")
+            if (self._prepare_owner_state(final, process, generation, after=started) != "normal" or
+                    final.get("event") != "joint_diagnostics" or
+                    final.get("owner_session_id") != owner_session_id or
+                    final["torque"] != state["torque"]):
+                raise RuntimeError("joint diagnostic final owner state or torque cohort changed")
+            after = diagnostic.get("after")
+            if (not isinstance(after, dict) or any(after.get(k) != final.get(k)
+                    for k in ("raw", "torque", "monotonic", "torque_monotonic", "arm_bounds"))):
+                raise RuntimeError("joint diagnostic final measurements do not match owner state")
+            acquisition_start = diagnostic.get("acquisition_started_monotonic")
+            acquisition_end = diagnostic.get("acquisition_ended_monotonic")
+            if (any(type(v) not in (int, float) or not math.isfinite(v)
+                    for v in (acquisition_start, acquisition_end)) or
+                    not started <= acquisition_start <= acquisition_end <= time.monotonic() or
+                    acquisition_end-acquisition_start > .08 or diagnostic.get("read_budget_s") != .08):
+                raise RuntimeError("joint diagnostic read acquisition exceeded its 80 ms bound")
+            expected = {"Goal_Position", "Present_Position", "Torque_Enable", "P_Coefficient",
+                "I_Coefficient", "D_Coefficient", "CW_Dead_Zone", "CCW_Dead_Zone",
+                "Minimum_Startup_Force", "Torque_Limit", "Max_Torque_Limit", "Present_Load",
+                "Present_Current", "Present_Voltage", "Present_Temperature", "Status", "Moving"}
+            rows = diagnostic.get("registers")
+            if not isinstance(rows, dict) or set(rows) != expected:
+                raise RuntimeError("joint diagnostic inventory differs from fixed read whitelist")
+            for name, row in rows.items():
+                if (not isinstance(row, dict) or row.get("status") not in
+                        {"available", "unsupported", "budget_exhausted", "read_error"} or
+                        row.get("units") != "raw SDK integer; physical units unqualified"):
+                    raise RuntimeError("joint diagnostic register observation is malformed")
+                if row["status"] == "available":
+                    values = row.get("values")
+                    if (not isinstance(values, dict) or set(values) != set(TELEOP_JOINTS) or
+                            any(type(v) is not int for v in values.values()) or
+                            type(row.get("started_monotonic")) not in (int, float) or
+                            type(row.get("ended_monotonic")) not in (int, float) or
+                            not acquisition_start <= row["started_monotonic"] <=
+                                row["ended_monotonic"] <= acquisition_end):
+                        raise RuntimeError("joint diagnostic requires original six-joint raw register values")
+                elif name in {"Present_Position", "Torque_Enable"} or not isinstance(row.get("error"), str):
+                    raise RuntimeError("joint diagnostic required feedback is unavailable")
+            if (rows["Present_Position"]["values"] != final["raw"] or
+                    rows["Torque_Enable"]["values"] != final["torque"]):
+                raise RuntimeError("joint diagnostic register/final feedback values differ")
+            response.success = True
+        except (OSError, RuntimeError, TimeoutError, TypeError, ValueError, KeyError) as error:
+            if isinstance(error, (RuntimeError, OSError)):
+                self._mark_owner_fault("_joint_diagnostics")
+            response.success = False
+            response.message = json.dumps(dict(schema="passive_joint_diagnostics",
+                diagnostic_only=True, calibration_authority=False, motion_authority=False,
+                available=False, error=str(error), error_type=type(error).__name__), allow_nan=False)
+        finally:
+            with self._active_lock:
+                if self._active_goal == "joint_diagnostics":
+                    self._active_goal = None
         return response
 
     @_control_callback
@@ -2915,6 +3041,7 @@ class TrajectoryBridge(Node):
             "start_state": {"raw": state.get("raw"), "pose": state.get("pose"),
                             "monotonic": state.get("monotonic")},
             "original_points": parsed_points,
+            "joint_names": list(trajectory.joint_names),
             "retiming_factor": retiming_factor, "command_points": command_points,
             "effective_path_sha256": helper.path_digest(
                 prepared, held_gripper_raw=state["raw"]["gripper"]),
