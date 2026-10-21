@@ -15,7 +15,7 @@ OperatorPanel::OperatorPanel(QWidget * parent) : rviz_common::Panel(parent) {
   layout->addWidget(status_);
   auto grid = new QGridLayout;
   const std::vector<std::pair<QString, QString>> commands = {
-    {"Reset (torque OFF)", "reset"}, {"Saved home position", "start"},
+    {"Reset station (torque OFF)", "emergency_reset"}, {"Saved home position", "start"},
     {"Release for manual setup", "base_release"}, {"Record manual reference", "base_confirm"},
     {"Leader teleop", "teleop"}, {"MoveIt mode", "moveit"},
     {"Gentle damping / renew 60 s", "damping"}, {"ZERO TORQUE / STOP", "zero_torque"},
@@ -53,11 +53,11 @@ OperatorPanel::OperatorPanel(QWidget * parent) : rviz_common::Panel(parent) {
 }
 OperatorPanel::~OperatorPanel() { timer_.stop(); executor_.remove_node(node_); }
 void OperatorPanel::request(const QString & command) {
-  if (command == "base_release" || command == "reset") {
+  if (command == "base_release" || command == "reset" || command == "emergency_reset") {
     if (QMessageBox::question(this, "Release arm torque", "Support the arm before releasing torque. Continue?") != QMessageBox::Yes) return;
   }
   if (command == "damping" && QMessageBox::question(this, "Manual damping lease", "Hold/support the arm. Enable or renew gentle backdrivable resistance for 60 seconds? Torque switches OFF when the lease expires.") != QMessageBox::Yes) return;
-  if (pending_ && command != "zero_torque") return;
+  if (pending_ && command != "zero_torque" && command != "emergency_reset") return;
   auto client = node_->create_client<std_srvs::srv::Trigger>(("/station/operator/" + command).toStdString());
   if (!client->service_is_ready()) { result_->setText("Operator service unavailable"); return; }
   Request request;
@@ -81,7 +81,7 @@ void OperatorPanel::tick() {
         result_->setText(it->command + ": service failed: " + error.what());
       }
       it = requests_.erase(it);
-    } else if (it->elapsed.elapsed() > 110000) {
+    } else if (it->elapsed.elapsed() > (it->command == "emergency_reset" ? 125000 : 110000)) {
       result_->setText(it->command + ": response timed out; outcome unknown. Inspect status. STOP remains available.");
       uncertain_ = true;
       it = requests_.erase(it);
@@ -95,8 +95,8 @@ void OperatorPanel::tick() {
     const auto capability = capabilities_.value(command).toObject();
     const bool supported = capability.value("enabled").toBool(false);
     button->setToolTip(capability.value("reason").toString());
-    button->setEnabled(command == "zero_torque" || (live && !pending_ && supported && command == "verify_restart") ||
-      (live && !pending_ && !uncertain_ && !api_uncertain_ && supported && (fresh_ || command == "reset")));
+    button->setEnabled(command == "zero_torque" || (live && command == "emergency_reset" && supported) || (live && !pending_ && supported && command == "verify_restart") ||
+      (live && !pending_ && !uncertain_ && !api_uncertain_ && supported && (fresh_ || command == "reset" || command == "emergency_reset" || command == "emergency_reset")));
   }
 }
 }

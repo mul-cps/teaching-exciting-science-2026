@@ -46,6 +46,11 @@ class OperatorRestartMixin:
             if (not re.fullmatch(r"so101-[A-Za-z0-9_.@-]+\.service", unit) or
                     re.search(r"arm|bridge|move.group|rviz|teleop|ev3", unit, re.IGNORECASE)):
                 raise ValueError("operator restart allowlist accepts perception user units only")
+        self._operator_station_reset_units = {value for value in self.get_parameter("operator_station_reset_units").value if value}
+        for unit in self._operator_station_reset_units:
+            if (not re.fullmatch(r"so101-[A-Za-z0-9_.@-]+\.service", unit) or
+                    re.search(r"arm|bridge|rviz|teleop|ev3", unit, re.IGNORECASE)):
+                raise ValueError("station reset allowlist accepts nonactuating station user units only")
         self._operator_restart_journal = Path(str(self.get_parameter("operator_maintenance_journal").value))
         if not self._operator_restart_journal.is_absolute():
             raise ValueError("operator maintenance journal must be absolute")
@@ -71,7 +76,7 @@ class OperatorRestartMixin:
                 record.get("schema") != "operator-restart-pending-v1" or
                 any(not isinstance(record.get(k), str) or len(record[k]) != 32 or
                     any(c not in "0123456789abcdef" for c in record[k]) for k in ("job_id", "token")) or
-                record.get("unit") not in self._operator_restart_units or
+                record.get("unit") not in (self._operator_restart_units | self._operator_station_reset_units) or
                 record.get("arm_id") != self._expected_arm_id or record.get("calibration_sha256") != self._expected_calibration_sha256 or
                 record.get("owner_source_sha256") != self._owner_source_expected or
                 record.get("restart_source_sha256") != self._operator_restart_source_sha256 or
@@ -104,7 +109,10 @@ class OperatorRestartMixin:
 
     def _operator_restart_begin(self, token, unit):
         with self._operator_restart_lock:
-            if unit not in self._operator_restart_units or self._operator_external_job is not None:
+            allowed = self._operator_restart_units
+            if getattr(self, "_operator_maintenance_purpose", None) == "station_reset":
+                allowed = allowed | self._operator_station_reset_units
+            if unit not in allowed or self._operator_external_job is not None:
                 raise RuntimeError("restart unit is not allowlisted or another external job is unresolved")
             if token != self._operator_maintenance_token or not self._active_goal_is("operator_maintenance"):
                 raise RuntimeError("restart does not own a live maintenance reservation")

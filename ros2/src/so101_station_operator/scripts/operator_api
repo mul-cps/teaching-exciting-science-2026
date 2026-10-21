@@ -11,14 +11,17 @@ import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import CameraInfo
+from rclpy.qos import qos_profile_sensor_data, QoSProfile, ReliabilityPolicy
+from sensor_msgs.msg import CameraInfo, Image, JointState
+from vision_msgs.msg import Detection3DArray
+from moveit_msgs.srv import GetPlanningScene
+from moveit_msgs.msg import PlanningSceneComponents
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
 from so101_station_operator.srv import OperatorMaintenance
 
 JOINTS = {"shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"}
-COMMANDS = ("reset", "start", "base_release", "base_confirm", "teleop", "moveit",
+COMMANDS = ("emergency_reset", "reset", "start", "base_release", "base_confirm", "teleop", "moveit",
             "damping", "zero_torque", "restart_camera", "restart_depth", "restart_tags", "restart_all", "verify_restart")
 
 
@@ -27,6 +30,15 @@ class OperatorAPI(Node):
         super().__init__("so101_operator_api")
         for name, default in {"station_config": "", "station_root": "", "enable_service_restarts": False,
                               "camera_unit": "", "depth_unit": "", "tags_unit": "",
+                              "movegroup_unit": "", "objects_unit": "", "scene_unit": "", "leader_readonly_unit": "",
+                              "leader_required": False,
+                              "alignment_reseed_service": "",
+                              "alignment_status_topic": "/so101_perception/live_tag_alignment/status",
+                              "rgb_image_topic": "/camera/color/image_raw",
+                              "depth_image_topic": "/so101_perception/rocm/aligned_depth",
+                              "objects_topic": "/so101/objects", "scene_status_topic": "/so101_scene/status",
+                              "joint_states_topic": "/follower/joint_states",
+                              "get_scene_service": "/follower/get_planning_scene",
                               "rgb_topic": "/camera/color/camera_info",
                               "tags_topic": "/so101_perception/tag_detections",
                               "depth_topic": "/so101_perception/rocm/aligned_camera_info"}.items():
@@ -49,6 +61,23 @@ class OperatorAPI(Node):
         self.streams = {"rgb": None, "depth": None, "tags": None}
         self.stream_stamps = {"rgb": -1, "depth": -1, "tags": -1}
         self.stream_errors = {}
+        self.reset_cancel = threading.Event()
+        self.stop_generation = 0
+        self.stop_intent_lock = threading.Lock()
+        self.reset_rpc_deadline = threading.local()
+        self.alignment_status = None
+        self.tag_source_context = None
+        self.reset_progress = None
+        self.reset_samples = {}
+        self.reset_image_lock = threading.Lock()
+        self.reset_image_generation = 0
+        self.reset_image_subscriptions = []
+        self.reset_image_source_after = 0
+        self.reset_scene_applied = None
+        self.reset_scene_empty = False
+        self.reset_scene_world_ids = []
+        self.reset_scene_instance = None
+        self.reset_previous_scene_instance = None
         self.units = {}
         for key in ("camera", "depth", "tags"):
             unit = self.get_parameter(key + "_unit").value
@@ -57,13 +86,27 @@ class OperatorAPI(Node):
             if unit and re.search(r"arm|bridge|move.group|rviz|teleop|ev3", unit, re.IGNORECASE):
                 raise ValueError("restart slots cannot select arm, bridge, MoveIt, RViz, teleop or EV3 units")
             self.units[key] = unit
+        self.reset_units = {}
+        for key in ("movegroup", "objects", "scene", "leader_readonly"):
+            unit = self.get_parameter(key + "_unit").value
+            if unit and (not re.fullmatch(r"so101-[A-Za-z0-9_.@-]+\.service", unit) or
+                         re.search(r"arm|bridge|rviz|teleop|ev3", unit, re.IGNORECASE)):
+                raise ValueError("station reset slots require exact nonactuating so101 user units")
+            self.reset_units[key] = unit
         self.service_clients = {
             key: self.create_client(Trigger, "/follower/" + endpoint, callback_group=self.group)
-            for key, endpoint in {"status": "status", "stop": "stop", "home": "home", "reconnect": "reconnect", "damping": "damping_enable", "rearm": "rearm_motion_profile"}.items()}
+            for key, endpoint in {"status": "status", "stop": "stop", "home": "home", "reconnect": "reconnect", "reset_owner": "reset_owner", "damping": "damping_enable", "rearm": "rearm_motion_profile"}.items()}
         self.service_clients["recovery_start"] = self.create_client(Trigger, "/so101_perception_recovery/start_recovery", callback_group=self.group)
         self.service_clients["recovery_status"] = self.create_client(Trigger, "/so101_perception_recovery/recovery_status", callback_group=self.group)
         self.service_clients["teleop"] = self.create_client(SetBool, "/follower/teleop_enable", callback_group=self.group)
         self.service_clients["maintenance"] = self.create_client(OperatorMaintenance, "/follower/operator_maintenance_enable", callback_group=self.group)
+        alignment = self.get_parameter("alignment_reseed_service").value
+        if alignment not in ("", "/so101_perception/live_tag_alignment/reseed"):
+            raise ValueError("alignment reset accepts only the configured read-only display reseed endpoint")
+        if alignment:
+            self.service_clients["alignment_reseed"] = self.create_client(Trigger, alignment, callback_group=self.group)
+        self.stream_subscriptions_alignment = self.create_subscription(String, self.get_parameter("alignment_status_topic").value, self.alignment_stream, 10)
+        self.scene_client = self.create_client(GetPlanningScene, self.get_parameter("get_scene_service").value, callback_group=self.group)
         self.publisher = self.create_publisher(String, "/station/operator/status", 1)
         self.operator_services = [self.create_service(Trigger, "/station/operator/" + command,
                          functools.partial(self.command, command), callback_group=self.group)
@@ -73,15 +116,52 @@ class OperatorAPI(Node):
                               for key in ("rgb", "depth")]
         self.stream_subscriptions.append(self.create_subscription(String, self.get_parameter("tags_topic").value,
                                   functools.partial(self.stream, "tags"), 1))
+        for key, kind in (("objects", Detection3DArray), ("joint_states", JointState), ("scene_status", String)):
+            self.stream_subscriptions.append(self.create_subscription(kind, self.get_parameter(key + "_topic").value,
+                functools.partial(self.reset_stream, key), qos_profile_sensor_data if key != "scene_status" else 10))
         self.create_timer(.5, self.tick, callback_group=self.group)
+
+    @staticmethod
+    def bounded_object(message):
+        raw = message.data
+        if not isinstance(raw, str) or len(raw) > 65536 or len(raw.encode("utf-8")) > 65536:
+            raise ValueError("status payload exceeds 64 KiB")
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("status payload must be an object")
+        return data
+
+    @staticmethod
+    def source_context(data):
+        if not isinstance(data, dict):
+            return None
+        projected = {}
+        for key, length in (("consumer_epoch", 32), ("source_pin_sha256", 64),
+                            ("producer_generation", 32), ("source_generation", 64)):
+            value = data.get(key)
+            if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{%d}" % length, value):
+                return None
+            projected[key] = value
+        serial = data.get("camera_serial")
+        if not isinstance(serial, str) or not 1 <= len(serial) <= 128 or any(ord(c) < 32 for c in serial):
+            return None
+        return {**projected, "camera_serial": serial}
+
+    @staticmethod
+    def source_stamp(data):
+        if not isinstance(data, dict) or type(data.get("sec")) is not int or type(data.get("nanosec")) is not int:
+            raise ValueError("source stamp must contain integer seconds/nanoseconds")
+        if not 0 <= data["sec"] <= 2**32 or not 0 <= data["nanosec"] < 1_000_000_000:
+            raise ValueError("invalid source stamp")
+        return {"sec": data["sec"], "nanosec": data["nanosec"]}
 
     def stream(self, key, _message):
         try:
             if key == "tags":
-                data = json.loads(_message.data)
+                data = self.bounded_object(_message)
                 if data.get("schema") != "so101-tag-detections-v1":
                     raise ValueError("unsupported tag detections schema")
-                if not isinstance(data.get("observations"), list):
+                if not isinstance(data.get("observations"), list) or len(data["observations"]) > 128:
                     raise ValueError("tag observations must be a list")
                 sec, nanosec = data["stamp"]["sec"], data["stamp"]["nanosec"]
             else:
@@ -89,16 +169,309 @@ class OperatorAPI(Node):
             if type(sec) is not int or sec < 0 or type(nanosec) is not int or not 0 <= nanosec < 1_000_000_000:
                 raise ValueError("invalid source stamp")
             stamp = sec*1_000_000_000 + nanosec
+            if key == "tags" and not 0 <= self.get_clock().now().nanoseconds-stamp < 1_000_000_000:
+                raise ValueError("tag source exposure is stale or in the future")
             if stamp <= self.stream_stamps[key]:
                 self.stream_errors[key] = "source stamp is not advancing"
                 return
+            if key == "tags":
+                self.tag_source_context = self.source_context(data.get("source_context"))
             self.stream_stamps[key] = stamp
             self.stream_errors.pop(key, None)
             self.streams[key] = time.monotonic()
         except (ValueError, KeyError, TypeError, AttributeError) as error:
-            self.stream_errors[key] = str(error)
+            self.stream_errors[key] = str(error)[:512]
+
+    def alignment_stream(self, message):
+        try:
+            data = self.bounded_object(message)
+            if data.get("schema") != "so101-live-tag-alignment-v1":
+                return
+            projected = {key: data.get(key) is True for key in (
+                "candidate_available", "independent_device_info_identity_current")}
+            projected.update(qualified=data.get("qualified") if type(data.get("qualified")) is bool else None,
+                canonical_control_tf_modified=data.get("canonical_control_tf_modified") if type(data.get("canonical_control_tf_modified")) is bool else None,
+                source_context=self.source_context(data.get("source_context")),
+                stamp=self.source_stamp(data["stamp"]) if "stamp" in data else {},
+                reason=str(data.get("reason", ""))[:512],
+                display_mode=str(data.get("display_mode", ""))[:32])
+            self.alignment_status = (time.monotonic(), projected)
+        except (ValueError, TypeError, KeyError, AttributeError):
+            self.alignment_status = None
+
+    def reset_alignment(self, token, deadline):
+        if not self.get_parameter("alignment_reseed_service").value:
+            return
+        self.reset_phase("display alignment reseed", deadline)
+        before = self.stream_stamps["tags"]
+        self.rpc("alignment_reseed", timeout=2.)
+        started = time.monotonic()
+        baseline = None
+        cohort = None
+        while True:
+            self.reset_phase("fresh display alignment", deadline)
+            self.maintenance_state(token)
+            admitted = False
+            if self.alignment_status is not None:
+                received, data = self.alignment_status
+                stamp = data.get("stamp", {})
+                if isinstance(stamp, dict):
+                    source = stamp.get("sec", -1)*1_000_000_000 + stamp.get("nanosec", -1)
+                    context = self.source_context(data.get("source_context"))
+                    if (received >= started and time.monotonic()-received < 1. and source > before and
+                            0 <= self.get_clock().now().nanoseconds-source < 1_000_000_000 and
+                            data.get("candidate_available") is True and data.get("display_mode") == "tag_alignment" and
+                            data.get("qualified") is False and data.get("canonical_control_tf_modified") is False and
+                            data.get("independent_device_info_identity_current") is True and
+                            context is not None and context == self.tag_source_context):
+                        admitted = True
+                        if cohort == context and baseline is not None and source > baseline:
+                            return
+                        if cohort != context or baseline is None:
+                            baseline, cohort = source, context
+            if not admitted:
+                baseline = cohort = None
+            time.sleep(.05)
+
+    def activate_reset_images(self):
+        """Pay Image DDS/deserialization cost only for explicit fresh reset proof."""
+        self.retire_reset_images()
+        try:
+            with self.reset_image_lock:
+                self.reset_image_generation += 1
+                generation = self.reset_image_generation
+                self.reset_image_source_after = self.get_clock().now().nanoseconds
+                for key in ("rgb_image", "depth_image"):
+                    self.reset_samples.pop(key, None)
+                    subscription = self.create_subscription(Image, self.get_parameter(key + "_topic").value,
+                        functools.partial(self.reset_image, generation, key),
+                        QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
+                    self.reset_image_subscriptions.append(subscription)
+        except Exception:
+            self.retire_reset_images()
+            raise
+
+    def retire_reset_images(self):
+        with self.reset_image_lock:
+            self.reset_image_generation += 1
+            subscriptions, self.reset_image_subscriptions = self.reset_image_subscriptions, []
+        for subscription in subscriptions:
+            self.destroy_subscription(subscription)
+
+    def reset_image(self, generation, key, message):
+        with self.reset_image_lock:
+            if generation != self.reset_image_generation or not self.reset_image_subscriptions:
+                return
+            stamp = message.header.stamp.sec*1_000_000_000 + message.header.stamp.nanosec
+            if stamp <= self.reset_image_source_after:
+                return
+            self.reset_stream(key, message)
+
+    def reset_stream(self, key, message):
+        """Admission uses payload/source stamps, never publisher counts or CameraInfo."""
+        now = time.monotonic()
+        try:
+            if key == "scene_status":
+                data = self.bounded_object(message)
+                instance = data.get("instance_id")
+                if not isinstance(instance, str) or not re.fullmatch(r"[0-9a-f]{32}", instance):
+                    return
+                if data.get("state") not in {"updated", "empty", "applied"}:
+                    return
+                live = data.get("live_ids")
+                applied = data.get("applied_world_ids")
+                if (not isinstance(live, list) or not isinstance(applied, list) or len(live) > 24 or len(applied) > 32 or
+                        any(not isinstance(v, str) or not re.fullmatch(r"[A-Za-z0-9_.%~\-]{1,300}", v) for v in live+applied) or
+                        len(set(live)) != len(live) or len(set(applied)) != len(applied) or
+                        data.get("scene_busy") is not False or data.get("pending_count") != 0 or data.get("scene_fault") or
+                        set(live) != {v for v in applied if v.startswith("colorbrick_")}):
+                    return
+                stamp = float(data["source_stamp"] if data["state"] == "applied" else data["stamp"])
+                scene_empty = data["state"] == "empty" and data.get("accepted") == 0 and not live
+            else:
+                stamp = message.header.stamp.sec + message.header.stamp.nanosec * 1e-9
+                if key.endswith("image") and (message.width <= 0 or message.height <= 0 or not message.data):
+                    return
+                if key == "objects" and len(message.detections) > 24:
+                    return
+                if key == "joint_states" and (len(message.name) != 6 or set(message.name) != JOINTS or
+                        len(message.position) != len(message.name) or
+                        any(not math.isfinite(v) for v in message.position)):
+                    return
+            source_now = self.get_clock().now().nanoseconds * 1e-9
+            if not math.isfinite(stamp) or not 0 <= source_now-stamp < 1.:
+                return
+            previous = self.reset_samples.get(key)
+            if previous is not None and stamp < previous[0]:
+                return
+            if key == "scene_status":
+                # An ACK may repeat this instance's already-admitted source stamp.
+                # It updates application proof without renewing acquisition counts.
+                if previous is not None and stamp == previous[0] and instance != self.reset_scene_instance:
+                    return
+                self.reset_scene_instance = instance
+                self.reset_scene_world_ids = list(applied)
+                self.reset_scene_empty = scene_empty
+                if data["state"] == "applied":
+                    self.reset_scene_applied = (instance, now, stamp)
+            if previous is None or stamp > previous[0]:
+                self.reset_samples[key] = (stamp, now, (previous[2] if previous else 0)+1)
+        except (ValueError, KeyError, TypeError, AttributeError):
+            pass
+
+    def reset_phase(self, phase, deadline):
+        if self.reset_cancel.is_set():
+            raise RuntimeError("station reset interrupted by STOP; fresh reset required")
+        if time.monotonic() >= deadline:
+            raise RuntimeError("station reset phase deadline elapsed: " + phase)
+        self.reset_progress = {"phase": phase, "deadline_monotonic": deadline,
+                               "initialized_all_off": False, "pick_place_ready": False}
+
+    def reset_owner_proof(self, state, identity=None, token=None):
+        if token is None:
+            self.idle(state, allow_fault=True)
+        elif (state.get("fresh") is not True or state.get("active_operation") != "operator_maintenance" or
+              state.get("operator_maintenance_token") != token):
+            raise RuntimeError("final owner proof lost its exact station reset reservation")
+        if not self.all_off(state) or state.get("fault_observation") or state.get("owner_faulted"):
+            raise RuntimeError("station reset requires fresh normal owner and measured six-OFF")
+        current = (state.get("arm_id"), state.get("calibration_sha256"),
+                   state.get("owner_started_monotonic"), json.dumps(state.get("owner_source_sha256"), sort_keys=True))
+        if not all(current) or not isinstance(state.get("owner_source_sha256"), dict):
+            raise RuntimeError("station reset lacks complete owner identity")
+        if identity is not None and current != identity:
+            raise RuntimeError("station owner identity changed during reset")
+        return current
+
+    def reset_fresh_proofs(self, token, deadline):
+        try:
+            self.activate_reset_images()
+            return self._reset_fresh_proofs(token, deadline)
+        finally:
+            self.retire_reset_images()
+
+    def _reset_fresh_proofs(self, token, deadline):
+        baseline = {key: value[2] for key, value in self.reset_samples.items()}
+        tag_stamp = self.stream_stamps["tags"]
+        object_stamp = self.reset_samples.get("objects", (-1.,))[0]
+        started = self.reset_scene_started
+        required = ("rgb_image", "depth_image", "objects", "scene_status", "joint_states")
+        while True:
+            self.reset_phase("fresh acquisition and scene acceptance", deadline)
+            self.maintenance_state(token)
+            now = time.monotonic()
+            if (all(key in self.reset_samples and self.reset_samples[key][2] >= baseline.get(key, 0)+2 and
+                    now-self.reset_samples[key][1] < 1. for key in required) and
+                    self.stream_stamps["tags"] > tag_stamp and self.streams["tags"] is not None and
+                    now-self.streams["tags"] < 1. and
+                    self.reset_scene_instance != self.reset_previous_scene_instance and
+                    (self.reset_scene_empty or (self.reset_scene_applied is not None and
+                     self.reset_scene_applied[0] == self.reset_scene_instance and self.reset_scene_applied[1] >= started and
+                     self.reset_scene_applied[2] > object_stamp))):
+                break
+            time.sleep(.05)
+        self.retire_reset_images()
+        self.reset_phase("MoveIt current scene", deadline)
+        if not self.scene_client.service_is_ready():
+            raise RuntimeError("MoveIt get_planning_scene service unavailable")
+        request = GetPlanningScene.Request()
+        request.components.components = (PlanningSceneComponents.ROBOT_STATE | PlanningSceneComponents.WORLD_OBJECT_NAMES)
+        future = self.scene_client.call_async(request)
+        done = threading.Event()
+        future.add_done_callback(lambda _: done.set())
+        while not done.wait(.05):
+            self.reset_phase("MoveIt current scene", deadline)
+            self.maintenance_state(token)
+        result = future.result()
+        if result is None:
+            raise RuntimeError("MoveIt returned no current scene")
+        joints = result.scene.robot_state.joint_state
+        stamp = joints.header.stamp.sec + joints.header.stamp.nanosec*1e-9
+        if (len(joints.name) > 16 or not JOINTS.issubset(joints.name) or len(joints.position) != len(joints.name) or
+                any(not math.isfinite(v) for v in joints.position) or
+                not 0 <= self.get_clock().now().nanoseconds*1e-9-stamp < 1.):
+            raise RuntimeError("MoveIt scene lacks current complete measured joint state")
+        actual_ids = {item.id for item in result.scene.world.collision_objects if item.id.startswith("colorbrick_")}
+        expected_ids = {v for v in self.reset_scene_world_ids if v.startswith("colorbrick_")}
+        if actual_ids != expected_ids:
+            raise RuntimeError("MoveIt world objects do not match the current SceneUpdater applied cohort")
+        state = self.maintenance_state(token)
+        if self.get_parameter("leader_required").value and state.get("teleop_leader_ready") is not True:
+            raise RuntimeError("configured read-only leader is not freshly initialized: " + str(state.get("teleop_leader_reason")))
+        self.reset_alignment(token, deadline)
+
+    def emergency_reset(self):
+        """A single reservation excludes goals until fresh admission; never arms or homes."""
+        self.reset_progress = None
+        deadline = getattr(self.reset_rpc_deadline, "value", time.monotonic()+110.)
+        self.reset_phase("owner reconnect and torque OFF", deadline)
+        state = self.snapshot()  # No reply means bounded failure; never start a second bus owner.
+        if state.get("operator_external_job") is not None or self.uncertain:
+            raise RuntimeError("unresolved acknowledgement or manager journal; Verify restart/inspect owner before station reset")
+        self.reset_phase("owner reconnect and torque OFF", deadline)
+        if state.get("connected") is False or state.get("fault_observation"):
+            self.rpc("reconnect", timeout=20.)
+        self.reset_phase("owner torque OFF", deadline)
+        self.rpc("stop")
+        self.reset_owner_proof(self.snapshot())
+        if self.get_parameter("enable_service_restarts").value is not True:
+            raise RuntimeError("station reset disabled: configure exact running user units on API and bridge")
+        required_units = [*self.units.values(), *(self.reset_units[k] for k in ("movegroup", "objects", "scene"))]
+        if self.get_parameter("leader_required").value:
+            required_units.append(self.reset_units["leader_readonly"])
+        allowed = state.get("operator_restart_units", []) + state.get("operator_station_reset_units", [])
+        if any(not unit or unit not in allowed for unit in required_units):
+            raise RuntimeError("station reset requires configured camera/depth/tags/MoveGroup/objects/scene units in API and bridge allowlists")
+        self.reset_phase("controller passive reinitialization", deadline)
+        self.rpc("reset_owner", timeout=20.)
+        self.reset_phase("new owner torque OFF", deadline)
+        self.rpc("stop")
+        identity = self.reset_owner_proof(self.snapshot())
+        message = self.restart("all", station_reset=True, deadline=deadline)
+        self.reset_phase("final reserved owner acceptance", deadline)
+        token = self.reset_token
+        state = self.maintenance_state(token)
+        self.reset_owner_proof(state, identity, token=token)
+        self.manual_reference = self.manual_record = None
+        self.manual_confirmed = False
+        blockers = [str(state[key]) for key in ("planning_joint_limits_error", "home_required_reason") if state.get(key)]
+        if state.get("home_completed_this_session") is not True:
+            blockers.append("saved home pending")
+        if state.get("motion_profile_rearm_required"):
+            blockers.append("motion profile rearm pending")
+        with self.stop_intent_lock:
+            self.reset_phase("final acceptance before release", deadline)
+        try:
+            # All acquisition/identity proofs completed while the exact token held.
+            # Release acknowledgement is the final backend operation on success.
+            self.rpc("maintenance", OperatorMaintenance.Request(enable=False, token=token))
+            with self.stop_intent_lock:
+                self.reset_phase("release acknowledged", deadline)
+                self.reset_progress = {"phase": "initialized all OFF", "initialized_all_off": True,
+                                       "pick_place_ready": False, "motion_blockers": blockers}
+        except (RuntimeError, ValueError, TypeError, OSError) as error:
+            self.uncertain = True
+            previous_deadline = getattr(self.reset_rpc_deadline, "value", None)
+            self.reset_rpc_deadline.value = time.monotonic()+2.
+            try:
+                self.rpc("stop", timeout=2.)
+                stopped = "bounded STOP confirmed"
+            except (RuntimeError, ValueError, TypeError, OSError) as stop_error:
+                stopped = "bounded STOP failed: " + str(stop_error)[:512]
+            finally:
+                if previous_deadline is None:
+                    del self.reset_rpc_deadline.value
+                else:
+                    self.reset_rpc_deadline.value = previous_deadline
+            raise RuntimeError("station reset release/finalization not confirmed; reservation may already be released; " +
+                               stopped + "; " + str(error)[:512]) from error
+        return message + "; station initialized, six torque OFF; pick/place readiness unqualified; MOTION blockers: " + ("; ".join(blockers) or "physical qualification required")
 
     def rpc(self, key, request=None, timeout=8.):
+        deadline = getattr(self.reset_rpc_deadline, "value", float("inf"))
+        timeout = min(timeout, deadline-time.monotonic())
+        if timeout <= 0:
+            raise RuntimeError("station reset RPC deadline elapsed before " + key)
         client = self.service_clients[key]
         if not client.service_is_ready():
             raise RuntimeError(key + " service unavailable")
@@ -110,6 +483,8 @@ class OperatorAPI(Node):
             self.uncertain_motion = self.uncertain_motion or key != "maintenance"
             raise RuntimeError(key + " acknowledgement timed out; outcome unknown; no automatic retry")
         result = future.result()
+        if time.monotonic() >= deadline:
+            raise RuntimeError("station reset RPC deadline elapsed after " + key)
         if result is None or not result.success:
             raise RuntimeError(key + ": " + (result.message if result else "no response"))
         return result.message
@@ -199,6 +574,8 @@ class OperatorAPI(Node):
             raise RuntimeError("perception recovery did not acknowledge an exact job")
         completed = False
         while True:
+            if self.pending == "emergency_reset":
+                self.reset_phase("coordinated perception recovery", deadline)
             self.maintenance_state(token)
             remaining = deadline-time.monotonic()
             if remaining <= 0:
@@ -223,13 +600,17 @@ class OperatorAPI(Node):
                 # this job through transient lease races; never dispatch another reset.
             time.sleep(.1)
 
-    def restart(self, key):
+    def restart(self, key, *, station_reset=False, deadline=None):
         if self.get_parameter("enable_service_restarts").value is not True:
             raise RuntimeError("service restarts disabled; configure exact station user units first")
         if any(not self.service_clients[name].service_is_ready() for name in ("recovery_start", "recovery_status")):
             raise RuntimeError("perception recovery coordinator services unavailable; no unit restart dispatched")
         keys = ("camera", "depth", "tags") if key == "all" else (key,)
         units = [self.units[k] for k in keys]
+        if station_reset:
+            extra = ("movegroup", "objects", "scene") + (("leader_readonly",) if self.get_parameter("leader_required").value else ())
+            keys = keys + extra
+            units += [self.reset_units[k] for k in extra]
         if not all(units):
             raise RuntimeError("every requested restart requires a configured exact unit")
         results = []
@@ -237,14 +618,18 @@ class OperatorAPI(Node):
         self.idle(state)
         if not self.all_off(state):
             raise RuntimeError("service restart requires ZERO TORQUE / STOP first")
-        reservation = json.loads(self.rpc("maintenance", OperatorMaintenance.Request(enable=True, token="")))
+        reservation = json.loads(self.rpc("maintenance", OperatorMaintenance.Request(enable=True, token="", operation="station_reset" if station_reset else "")))
         token = reservation["token"]
         if not isinstance(token, str) or len(token) != 32:
             raise RuntimeError("maintenance response lacks exact ownership token")
-        deadline = time.monotonic()+50.
+        deadline = deadline or time.monotonic()+50.
+        if station_reset:
+            self.reset_token = token
         try:
             completed_units = set()
             for name, unit in zip(keys, units):
+                if station_reset:
+                    self.reset_phase("restart " + name, deadline)
                 if unit in completed_units:
                     continue
                 # Exact token proves STOP or another client has not replaced this reservation.
@@ -255,10 +640,15 @@ class OperatorAPI(Node):
                     raise RuntimeError("operator maintenance reservation revoked; restart sequence aborted")
                 if deadline-time.monotonic() <= 5.:
                     raise RuntimeError("restart sequence exceeded bounded maintenance budget")
+                if station_reset and name == "scene":
+                    self.reset_scene_started = time.monotonic()
+                    self.reset_previous_scene_instance = self.reset_scene_instance
                 accepted = json.loads(self.rpc("maintenance", OperatorMaintenance.Request(
                     enable=True, token=token, operation="restart", unit=unit)))
                 job_id = accepted["job_id"]
                 while True:
+                    if station_reset:
+                        self.reset_phase("wait for " + name, deadline)
                     state = self.snapshot()
                     result = state.get("operator_restart_result")
                     if isinstance(result, dict) and result.get("job_id") == job_id:
@@ -278,10 +668,16 @@ class OperatorAPI(Node):
                     time.sleep(.1)
                 completed_units.add(unit)
                 results.append(name + ": unit active")
+            if station_reset:
+                self.reset_phase("coordinated perception recovery", deadline)
             recovery_job = self.recover_perception(token, deadline)
             results.append("source recovery: " + recovery_job)
             # Require observations after recovery and manager completion proofs, not messages
             # received before restart while an old invocation was still publishing.
+            if station_reset:
+                self.reset_phase("fresh acquisition", deadline)
+                self.reset_fresh_proofs(token, deadline)
+                return "; ".join(results) + "; advancing RGB/depth payloads, tags, objects, scene and current MoveIt state observed"
             initial_stamps = dict(self.stream_stamps)
             required_streams = {"camera": "rgb", "depth": "depth", "tags": "tags"}
             while any(self.stream_stamps[required_streams[k]] <= initial_stamps[required_streams[k]] or
@@ -296,19 +692,63 @@ class OperatorAPI(Node):
                     raise RuntimeError("unit jobs completed, but requested fresh advancing streams not observed")
                 time.sleep(.1)
         finally:
-            state = self.snapshot()
-            if (state.get("operator_maintenance_token") == token and state.get("operator_external_job") is None
-                    and not self.uncertain_motion and state.get("fresh") is True and self.all_off(state)):
-                self.rpc("maintenance", OperatorMaintenance.Request(enable=False, token=token))
+            if not station_reset:
+                state = self.snapshot()
+                if (state.get("operator_maintenance_token") == token and state.get("operator_external_job") is None
+                        and not self.uncertain_motion and state.get("fresh") is True and self.all_off(state)):
+                    self.rpc("maintenance", OperatorMaintenance.Request(enable=False, token=token))
         return "; ".join(results) + "; fresh advancing metadata observed; image contents/registration not qualified"
 
     def command(self, command, _request, response):
-        # STOP has its own lock so a slow home/restart request cannot suppress disarm.
+        if command != "emergency_reset":
+            return self._command(command, _request, response)
+        self.reset_rpc_deadline.value = time.monotonic()+110.
+        try:
+            return self._command(command, _request, response)
+        finally:
+            del self.reset_rpc_deadline.value
+
+    def _command(self, command, _request, response):
+        # Emergency entry disarms through the independent STOP path before waiting
+        # for a slow normal command. Unknown outcomes still block the later recipe.
+        if command == "emergency_reset":
+            already_resetting = self.pending == "emergency_reset"
+            with self.stop_intent_lock:
+                expected_stop = self.stop_generation + 1
+            stopped = self.command("zero_torque", _request, response)
+            if not stopped.success:
+                # A dead owner may need guarded reconnect after this STOP attempt.
+                # An unknown acknowledgement never permits a lifecycle retry.
+                try:
+                    state = self.snapshot() if not self.uncertain else {}
+                except (RuntimeError, ValueError, TypeError):
+                    state = {}
+                if self.uncertain or not (state.get("connected") is False or state.get("fault_observation")):
+                    self.reset_progress = {"phase": "failed", "reason": stopped.message,
+                                           "initialized_all_off": False, "pick_place_ready": False}
+                    self.last_result = {"command": command, "success": False, "message": stopped.message}
+                    return stopped
+            if already_resetting:
+                response.success, response.message = False, "station reset already in progress; STOP requested; wait for its result before retry"
+                return response
+            with self.stop_intent_lock:
+                if self.stop_generation == expected_stop:
+                    self.reset_cancel.clear()
+        if command == "zero_torque":
+            with self.stop_intent_lock:
+                self.stop_generation += 1
+                self.reset_cancel.set()
         lock = self.stop_lock if command == "zero_torque" else self.command_lock
-        if not lock.acquire(blocking=False):
-            response.success, response.message = False, "another operator request is pending"
+        remaining = getattr(self.reset_rpc_deadline, "value", float("inf"))-time.monotonic()
+        acquired = lock.acquire(timeout=max(0., min(3., remaining))) if command == "emergency_reset" else lock.acquire(blocking=False)
+        if not acquired:
+            if command == "emergency_reset":
+                self.reset_progress = {"phase": "failed", "reason": "previous operator command has not quiesced after STOP",
+                                       "initialized_all_off": False, "pick_place_ready": False}
+            response.success, response.message = False, "STOP attempted; previous operator request has not quiesced" if command == "emergency_reset" else "another operator request is pending"
             return response
-        self.pending = command
+        if command != "zero_torque":
+            self.pending = command
         try:
             if self.uncertain and command not in {"zero_torque", "verify_restart"}:
                 raise RuntimeError("previous acknowledgement unknown; inspect owner and restart adapter explicitly")
@@ -330,6 +770,8 @@ class OperatorAPI(Node):
                 message = "all six joints measured torque OFF; support arm" + ("; manually position, then Record manual reference" if command == "base_release" else "")
                 if data.get("operator_external_job") is not None:
                     message += "; unresolved external restart barrier remains; use Verify restart"
+            elif command == "emergency_reset":
+                message = self.emergency_reset()
             elif command == "reset":
                 data = self.snapshot()
                 if data.get("connected") is False:
@@ -406,10 +848,17 @@ class OperatorAPI(Node):
                 self.manual_record = None
             response.success, response.message = True, message
         except (RuntimeError, ValueError, KeyError, TypeError, OSError) as error:
-            response.success, response.message = False, str(error)
+            response.success, response.message = False, str(error)[:1024]
+            if command == "emergency_reset":
+                detail = str(error)[:1024]
+                if self.alignment_status is not None and "alignment" in detail:
+                    detail += "; alignment: " + str(self.alignment_status[1].get("reason", "no admitted current candidate"))
+                    response.message = detail
+                self.reset_progress = {"phase": "failed", "reason": detail, "initialized_all_off": False, "pick_place_ready": False}
         finally:
             self.last_result = {"command": command, "success": response.success, "message": response.message}
-            self.pending = None
+            if command != "zero_torque":
+                self.pending = None
             lock.release()
         return response
 
@@ -420,7 +869,7 @@ class OperatorAPI(Node):
         return "" if data.get("teleop_leader_ready") is True else (data.get("teleop_leader_reason") or "no fresh calibrated leader pose is available")
 
     def capabilities(self, data):
-        dependencies = {"reset": ("status", "stop", "rearm"), "start": ("status", "home", "rearm"),
+        dependencies = {"emergency_reset": ("status", "stop", "reconnect", "reset_owner", "maintenance", "recovery_start", "recovery_status"), "reset": ("status", "stop", "rearm"), "start": ("status", "home", "rearm"),
                         "base_release": ("status", "stop"), "base_confirm": ("status",),
                         "teleop": ("status", "teleop", "rearm"), "moveit": ("status", "teleop", "rearm"),
                         "damping": ("status", "damping"), "verify_restart": ("status", "maintenance", "stop")}
@@ -428,7 +877,16 @@ class OperatorAPI(Node):
         for command in COMMANDS:
             reason = ""
             required = dependencies.get(command, ("status", "maintenance", "recovery_start", "recovery_status"))
-            if command.startswith("restart_"):
+            if command == "emergency_reset":
+                slots = [*self.units.values(), *(self.reset_units[k] for k in ("movegroup", "objects", "scene"))]
+                if self.get_parameter("leader_required").value:
+                    slots.append(self.reset_units["leader_readonly"])
+                allowed = data.get("operator_restart_units", []) + data.get("operator_station_reset_units", [])
+                if self.get_parameter("enable_service_restarts").value is not True or any(not v or v not in allowed for v in slots):
+                    reason = "Station reset disabled: configure exact running recipe units on API and bridge"
+                if "alignment_reseed" in self.service_clients and not self.service_clients["alignment_reseed"].service_is_ready():
+                    reason = "Configured display alignment reseed service unavailable"
+            elif command.startswith("restart_"):
                 keys = ("camera", "depth", "tags") if command == "restart_all" else (command.removeprefix("restart_"),)
                 allowed = data.get("operator_restart_units", [])
                 if self.get_parameter("enable_service_restarts").value is not True:
@@ -441,6 +899,8 @@ class OperatorAPI(Node):
                 reason = self.teleop_unavailable(data)
             elif command == "base_confirm" and self.manual_reference is None:
                 reason = "Release for manual setup first; this records an observation, not a motion target"
+            if self.pending == "emergency_reset" and command != "zero_torque":
+                reason = "Station reset in progress; STOP remains available"
             if command != "zero_torque":
                 missing = [key for key in required if not self.service_clients[key].service_is_ready()]
                 if missing:
@@ -488,9 +948,11 @@ class OperatorAPI(Node):
                    "outcome_unknown": self.uncertain, "manual_start_confirmed": self.manual_confirmed,
                    "follower": data, "streams": streams, "last_result": self.last_result,
                    "manual_reference": self.manual_record, "capabilities": self.capabilities(data),
+                   "station_reset": self.reset_progress, "station_reset_units": self.reset_units,
                    "restart_units": self.units, "damping_supported": data.get("native_damping_supported") is True,
                    "damping_lease_remaining_s": lease,
                    "summary": f"Mode: {mode}" + (f" | Damping expires OFF in {lease:.1f} s" if lease is not None else "") +
+                       ("\nReset: " + self.reset_progress["phase"] if self.reset_progress else "") +
                        f"\n{measured_label}\nTorque{stale_label}: {data.get('torque')}\nStop latch{stale_label}: {data.get('stop_latched')} | Fault{stale_label}: {data.get('owner_faulted')}\nRGB info: {'fresh' if streams['rgb']['fresh'] else 'stale'} | Depth info: {'fresh' if streams['depth']['fresh'] else 'stale'} | Tags: {'fresh' if streams['tags']['fresh'] else 'stale'}" + restart_summary +
                        (f"\nTags: {streams['tags']['publishers']} publisher(s); {streams['tags']['reason']}" if not streams['tags']['fresh'] else "") +
                        ("\nLeader teleop unavailable: " + self.teleop_unavailable(data) if fresh and self.teleop_unavailable(data) else "") +

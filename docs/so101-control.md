@@ -62,9 +62,12 @@ the measured pose is outside the motion bounds. Genuine bus or serial startup
 errors still fail visibly; observation does not authorize execution.
 
 Support the arm and manually align it if the measured pose is outside the bounds.
-Then use the operator panel's **Reset**: it explicitly stops the owner, confirms
-fresh all-six torque OFF, and rearms the configured profile only with a fresh
-normal pose. Use **Start** next to perform the measured home sequence. After home
+Then use **Reset station (torque OFF)** for the configured ordered station
+restart and fresh acquisition checks; see [Emergency station reset](station-emergency-reset.md).
+It leaves torque OFF and does not rearm a profile or home. The existing
+`/station/operator/reset` API retains its profile-reset behavior and requires a
+fresh normal pose. Use **Saved home position** next to perform the measured home
+sequence and any required profile rearm. After home
 completion, use ordinary MoveIt planning and execution. **Verify restart / recover**
 also performs an explicit verified STOP; a subsequent **Start** applies any
 required profile rearm before homing. Start alone rejects observation mode.
