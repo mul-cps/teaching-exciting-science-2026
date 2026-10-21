@@ -22,7 +22,7 @@ from so101_station_operator.srv import OperatorMaintenance
 
 JOINTS = {"shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"}
 COMMANDS = ("emergency_reset", "reset", "start", "base_release", "base_confirm", "teleop", "teleop_relative", "teleop_absolute", "moveit",
-            "damping", "zero_torque", "restart_camera", "restart_depth", "restart_tags", "restart_all", "verify_restart")
+            "damping", "zero_torque", "restart_moveit", "restart_camera", "restart_depth", "restart_tags", "restart_all", "verify_restart")
 
 
 class OperatorAPI(Node):
@@ -381,6 +381,18 @@ class OperatorAPI(Node):
         self.retire_reset_images()
         self.reset_phase("MoveIt current scene", deadline)
         self.fresh_source_admissions(token, deadline)
+        result = self.current_moveit_proof(token, deadline, self.reset_phase)
+        actual_ids = {item.id for item in result.scene.world.collision_objects if item.id.startswith("colorbrick_")}
+        expected_ids = {v for v in self.reset_scene_world_ids if v.startswith("colorbrick_")}
+        if actual_ids != expected_ids:
+            raise RuntimeError("MoveIt world objects do not match the current SceneUpdater applied cohort")
+        state = self.maintenance_state(token)
+        if self.get_parameter("leader_required").value and state.get("teleop_leader_ready") is not True:
+            raise RuntimeError("configured read-only leader is not freshly initialized: " + str(state.get("teleop_leader_reason")))
+        self.reset_alignment(token, deadline)
+
+    def current_moveit_proof(self, token, deadline, phase):
+        """Check the restarted planning state against independent current measurements."""
         identity = self.reset_owner_proof(self.maintenance_state(token), token=token)
         measured_before = self.reset_measured_joints
         if measured_before is None or time.monotonic()-measured_before[1] >= 1.:
@@ -396,9 +408,9 @@ class OperatorAPI(Node):
         done = threading.Event()
         future.add_done_callback(lambda _: done.set())
         while not done.wait(.05):
-            self.reset_phase("MoveIt current scene", rpc_deadline)
+            phase("MoveIt current scene", rpc_deadline)
             self.maintenance_state(token)
-        self.reset_phase("MoveIt current scene", rpc_deadline)
+        phase("MoveIt current scene", rpc_deadline)
         result = future.result()
         if result is None:
             raise RuntimeError("MoveIt returned no current scene")
@@ -411,7 +423,7 @@ class OperatorAPI(Node):
             raise RuntimeError("MoveIt scene lacks complete finite joint state")
         planned = dict(zip(joints.name, joints.position))
         while True:
-            self.reset_phase("MoveIt measured state bracket", rpc_deadline)
+            phase("MoveIt measured state bracket", rpc_deadline)
             self.reset_owner_proof(self.maintenance_state(token), identity, token=token)
             measured_after = self.reset_measured_joints
             if (measured_after is not None and measured_after[2] > measured_before[2] and
@@ -421,14 +433,7 @@ class OperatorAPI(Node):
             time.sleep(.02)
         if any(abs(planned[j]-measured[j]) > .01 for measured in (measured_before[3], measured_after[3]) for j in JOINTS):
             raise RuntimeError("MoveIt joint positions disagree with fresh measured state bracket (0.01 rad)")
-        actual_ids = {item.id for item in result.scene.world.collision_objects if item.id.startswith("colorbrick_")}
-        expected_ids = {v for v in self.reset_scene_world_ids if v.startswith("colorbrick_")}
-        if actual_ids != expected_ids:
-            raise RuntimeError("MoveIt world objects do not match the current SceneUpdater applied cohort")
-        state = self.maintenance_state(token)
-        if self.get_parameter("leader_required").value and state.get("teleop_leader_ready") is not True:
-            raise RuntimeError("configured read-only leader is not freshly initialized: " + str(state.get("teleop_leader_reason")))
-        self.reset_alignment(token, deadline)
+        return result
 
     def emergency_reset(self):
         """A single reservation excludes goals until fresh admission; never arms or homes."""
@@ -688,10 +693,13 @@ class OperatorAPI(Node):
     def restart(self, key, *, station_reset=False, deadline=None):
         if self.get_parameter("enable_service_restarts").value is not True:
             raise RuntimeError("service restarts disabled; configure exact station user units first")
-        if any(not self.service_clients[name].service_is_ready() for name in ("recovery_start", "recovery_status")):
+        moveit_only = key == "moveit"
+        if not moveit_only and any(not self.service_clients[name].service_is_ready() for name in ("recovery_start", "recovery_status")):
             raise RuntimeError("perception recovery coordinator services unavailable; no unit restart dispatched")
         keys = ("camera", "depth", "tags") if key == "all" else (key,)
-        units = [self.units[k] for k in keys]
+        units = [self.units[k] for k in keys] if not moveit_only else [self.reset_units[k] for k in ("movegroup", "scene")]
+        if moveit_only:
+            keys = ("movegroup", "scene")
         if station_reset:
             extra = ("movegroup", "objects", "scene") + (("leader_readonly",) if self.get_parameter("leader_required").value else ())
             keys = keys + extra
@@ -703,13 +711,21 @@ class OperatorAPI(Node):
         self.idle(state)
         if not self.all_off(state):
             raise RuntimeError("service restart requires ZERO TORQUE / STOP first")
-        reservation = json.loads(self.rpc("maintenance", OperatorMaintenance.Request(enable=True, token="", operation="station_reset" if station_reset else "")))
+        reservation = json.loads(self.rpc("maintenance", OperatorMaintenance.Request(enable=True, token="", operation="station_reset" if station_reset or moveit_only else "")))
         token = reservation["token"]
         if not isinstance(token, str) or len(token) != 32:
             raise RuntimeError("maintenance response lacks exact ownership token")
         deadline = deadline or time.monotonic()+50.
         if station_reset:
             self.reset_token = token
+        stop_generation = self.stop_generation
+        identity = self.reset_owner_proof(state) if moveit_only else None
+        def moveit_phase(phase, limit):
+            if self.stop_generation != stop_generation:
+                raise RuntimeError("MoveIt restart interrupted by STOP")
+            if time.monotonic() >= limit:
+                raise RuntimeError("MoveIt restart deadline elapsed: " + phase)
+            self.reset_owner_proof(self.maintenance_state(token), identity, token=token)
         try:
             completed_units = set()
             for name, unit in zip(keys, units):
@@ -725,7 +741,7 @@ class OperatorAPI(Node):
                     raise RuntimeError("operator maintenance reservation revoked; restart sequence aborted")
                 if deadline-time.monotonic() <= 5.:
                     raise RuntimeError("restart sequence exceeded bounded maintenance budget")
-                if station_reset and name == "scene":
+                if (station_reset or moveit_only) and name == "scene":
                     self.reset_scene_started = time.monotonic()
                     self.reset_previous_scene_instance = self.reset_scene_instance
                 accepted = json.loads(self.rpc("maintenance", OperatorMaintenance.Request(
@@ -734,6 +750,8 @@ class OperatorAPI(Node):
                 while True:
                     if station_reset:
                         self.reset_phase("wait for " + name, deadline)
+                    if moveit_only:
+                        moveit_phase("manager job", deadline)
                     state = self.snapshot()
                     result = state.get("operator_restart_result")
                     if isinstance(result, dict) and result.get("job_id") == job_id:
@@ -753,6 +771,24 @@ class OperatorAPI(Node):
                     time.sleep(.1)
                 completed_units.add(unit)
                 results.append(name + ": unit active")
+            if moveit_only:
+                while True:
+                    moveit_phase("fresh scene", deadline)
+                    sample = self.reset_samples.get("scene_status")
+                    if (self.scene_client.service_is_ready() and self.reset_scene_instance != self.reset_previous_scene_instance and sample is not None and
+                            sample[1] >= self.reset_scene_started and time.monotonic()-sample[1] < 1. and
+                            (self.reset_scene_empty or (self.reset_scene_applied is not None and
+                             self.reset_scene_applied[0] == self.reset_scene_instance and
+                             self.reset_scene_applied[1] >= self.reset_scene_started))):
+                        break
+                    time.sleep(.05)
+                result = self.current_moveit_proof(token, deadline, moveit_phase)
+                actual = {item.id for item in result.scene.world.collision_objects if item.id.startswith("colorbrick_")}
+                if actual != {v for v in self.reset_scene_world_ids if v.startswith("colorbrick_")}:
+                    raise RuntimeError("MoveIt world objects do not match the current SceneUpdater applied cohort")
+                moveit_phase("release", deadline)
+                self.rpc("maintenance", OperatorMaintenance.Request(enable=False, token=token))
+                return "; ".join(results) + "; fresh current measured planning state; torque OFF; no homing or encoder/calibration changes"
             if station_reset:
                 self.reset_phase("coordinated perception recovery", deadline)
             recovery_job = self.recover_perception(token, deadline)
@@ -778,7 +814,7 @@ class OperatorAPI(Node):
                 time.sleep(.1)
             self.fresh_source_admissions(token, deadline)
         finally:
-            if not station_reset:
+            if not station_reset and not moveit_only:
                 state = self.snapshot()
                 if (state.get("operator_maintenance_token") == token and state.get("operator_external_job") is None
                         and not self.uncertain_motion and state.get("fresh") is True and self.all_off(state)):
@@ -858,6 +894,10 @@ class OperatorAPI(Node):
                     message += "; unresolved external restart barrier remains; use Verify restart"
             elif command == "emergency_reset":
                 message = self.emergency_reset()
+            elif command == "restart_moveit":
+                # STOP is explicit and independently measured before taking a goal barrier.
+                self.rpc("stop")
+                message = self.restart("moveit")
             elif command == "reset":
                 data = self.snapshot()
                 if data.get("connected") is False:
@@ -973,7 +1013,7 @@ class OperatorAPI(Node):
                         "base_release": ("status", "stop"), "base_confirm": ("status",),
                         "teleop": ("status", "teleop", "rearm"),
                         "teleop_relative": ("status", "teleop_mode", "rearm"), "teleop_absolute": ("status", "teleop_mode", "rearm"), "moveit": ("status", "teleop", "rearm"),
-                        "damping": ("status", "damping"), "verify_restart": ("status", "maintenance", "stop")}
+                        "damping": ("status", "damping"), "restart_moveit": ("status", "stop", "maintenance"), "verify_restart": ("status", "maintenance", "stop")}
         result = {}
         for command in COMMANDS:
             reason = ""
@@ -987,6 +1027,11 @@ class OperatorAPI(Node):
                     reason = "Station reset disabled: configure exact running recipe units on API and bridge"
                 if "alignment_reseed" in self.service_clients and not self.service_clients["alignment_reseed"].service_is_ready():
                     reason = "Configured display alignment reseed service unavailable"
+            elif command == "restart_moveit":
+                allowed = data.get("operator_station_reset_units", [])
+                if (self.get_parameter("enable_service_restarts").value is not True or
+                        any(not self.reset_units[k] or self.reset_units[k] not in allowed for k in ("movegroup", "scene"))):
+                    reason = "MoveIt restart disabled: exact MoveGroup/scene units missing from API or bridge allowlist"
             elif command.startswith("restart_"):
                 keys = ("camera", "depth", "tags") if command == "restart_all" else (command.removeprefix("restart_"),)
                 allowed = data.get("operator_restart_units", [])
