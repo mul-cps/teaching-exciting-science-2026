@@ -55,19 +55,19 @@ class OperatorAPI(Node):
             if unit and re.search(r"arm|bridge|move.group|rviz|teleop|ev3", unit, re.IGNORECASE):
                 raise ValueError("restart slots cannot select arm, bridge, MoveIt, RViz, teleop or EV3 units")
             self.units[key] = unit
-        self.clients = {
+        self.service_clients = {
             key: self.create_client(Trigger, "/follower/" + endpoint, callback_group=self.group)
             for key, endpoint in {"status": "status", "stop": "stop", "home": "home", "reconnect": "reconnect", "damping": "damping_enable", "rearm": "rearm_motion_profile"}.items()}
-        self.clients["teleop"] = self.create_client(SetBool, "/follower/teleop_enable", callback_group=self.group)
-        self.clients["maintenance"] = self.create_client(OperatorMaintenance, "/follower/operator_maintenance_enable", callback_group=self.group)
+        self.service_clients["teleop"] = self.create_client(SetBool, "/follower/teleop_enable", callback_group=self.group)
+        self.service_clients["maintenance"] = self.create_client(OperatorMaintenance, "/follower/operator_maintenance_enable", callback_group=self.group)
         self.publisher = self.create_publisher(String, "/station/operator/status", 1)
-        self.services = [self.create_service(Trigger, "/station/operator/" + command,
+        self.operator_services = [self.create_service(Trigger, "/station/operator/" + command,
                          functools.partial(self.command, command), callback_group=self.group)
                          for command in COMMANDS]
-        self.subscriptions = [self.create_subscription(CameraInfo, self.get_parameter(key + "_topic").value,
+        self.stream_subscriptions = [self.create_subscription(CameraInfo, self.get_parameter(key + "_topic").value,
                               functools.partial(self.stream, key), qos_profile_sensor_data)
                               for key in ("rgb", "depth")]
-        self.subscriptions.append(self.create_subscription(String, self.get_parameter("tags_topic").value,
+        self.stream_subscriptions.append(self.create_subscription(String, self.get_parameter("tags_topic").value,
                                   functools.partial(self.stream, "tags"), 1))
         self.create_timer(.5, self.tick, callback_group=self.group)
 
@@ -80,7 +80,7 @@ class OperatorAPI(Node):
         self.streams[key] = time.monotonic()
 
     def rpc(self, key, request=None, timeout=8.):
-        client = self.clients[key]
+        client = self.service_clients[key]
         if not client.service_is_ready():
             raise RuntimeError(key + " service unavailable")
         future = client.call_async(request or Trigger.Request())
@@ -315,11 +315,11 @@ class OperatorAPI(Node):
             except (ValueError, TypeError, AttributeError):
                 pass
             self.status_pending = None
-        if self.status_pending is None and self.clients["status"].service_is_ready():
-            self.status_pending = self.clients["status"].call_async(Trigger.Request())
+        if self.status_pending is None and self.service_clients["status"].service_is_ready():
+            self.status_pending = self.service_clients["status"].call_async(Trigger.Request())
             self.status_sent = now
         elif self.status_pending is not None and now - self.status_sent > 2.:
-            self.clients["status"].remove_pending_request(self.status_pending)
+            self.service_clients["status"].remove_pending_request(self.status_pending)
             self.status_pending = None
         data = self.cached
         fresh = bool(now - self.status_stamp < 1.5 and data.get("fresh") is True)
