@@ -151,13 +151,16 @@ case "$ACTION" in
     ;;
   fetch)
     "$ROS2_DIR/scripts/so101.sh" fetch
+    "$ROS2_DIR/conda/fetch-pick-ik.sh"
     ;;
   build)
     "$ROS2_DIR/scripts/so101.sh" fetch
+    "$ROS2_DIR/conda/fetch-pick-ik.sh"
     mkdir -p "$BUILD_BASE" "$INSTALL_BASE" "$LOG_BASE"
-    conda_run colcon --log-base "$LOG_BASE" build \
+    # The runtime-only GID alias has no CMake package; compile against stock RMW.
+    conda_run env RMW_IMPLEMENTATION=rmw_cyclonedds_cpp colcon --log-base "$LOG_BASE" build \
       --parallel-workers 2 \
-      --base-paths "$ROS2_DIR/.cache/upstream/so101-ros-physical-ai" "$ROS2_DIR/src" \
+      --base-paths "$ROS2_DIR/.cache/upstream/so101-ros-physical-ai" "$ROS2_DIR/.cache/upstream/pick_ik" "$ROS2_DIR/src" \
       --build-base "$BUILD_BASE" \
       --install-base "$INSTALL_BASE" \
       --symlink-install
