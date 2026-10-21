@@ -19,7 +19,7 @@ from std_srvs.srv import Trigger
 
 from .aligned_cohort import AlignedCohorts
 from .derived_lineage import (TOPICS, ALIGNED_TOPIC, LINEAGE_TOPIC, SCHEMA, require,
-    finite, statement_pin, validate_statement, validate_graph, validate_camera)
+    finite, canonical_gid, statement_pin, validate_statement, validate_graph, validate_camera)
 from .diagnostic_cloud import quaternion_matrix
 from .admission_proof import AdmissionProof,pin_digest
 
@@ -69,6 +69,8 @@ class DerivedAligned:
             if self.core is not None:self.core.close()
             self.core=core;self.fault=None;self.last_take=0.
             self.consumer_epoch=uuid.uuid4().hex
+            self._early_info_drops=dict.fromkeys(('depth_info','color_info'),0)
+            self._early_info_last_age_ns=dict.fromkeys(('depth_info','color_info'),None)
             self.source_pin_sha256=pin_digest(core.ledger.pin)
             self.last_proof=None
         self._invalidate_offers()
@@ -103,7 +105,21 @@ class DerivedAligned:
                 clocks={'now_ns':self.node.get_clock().now().nanoseconds,'now_mono':time.monotonic()}
                 if kind=='lineage':self.core.lineage(message.data,gid,**clocks)
                 else:
-                    if kind in ('depth_info','color_info'):self._validate_received_info(kind,message)
+                    if kind in ('depth_info','color_info'):
+                        self._validate_received_info(kind,message)
+                        # Discard only independently validated, pinned native Info
+                        # received before its header time. This input is never
+                        # admitted or retained and cannot renew any receipt.
+                        if self.metadata_offer is not None:
+                            stamp=message.header.stamp
+                            if (type(stamp.sec) is int and 0<=stamp.sec<=2**31-1
+                                    and type(stamp.nanosec) is int and 0<=stamp.nanosec<1_000_000_000):
+                                header_ns=stamp.sec*1_000_000_000+stamp.nanosec
+                                if (header_ns>clocks['now_ns'] and canonical_gid(gid)==
+                                        self.core.ledger.pin['source'][kind+'_publisher_gid']):
+                                    self._early_info_drops[kind]=min(2**31-1,self._early_info_drops[kind]+1)
+                                    self._early_info_last_age_ns[kind]=clocks['now_ns']-header_ns
+                                    return
                     self.core.receive(kind,message,gid,**clocks)
                 if not self.period and self.metadata_offer is None:token=self.core.take(**clocks)
             except (ValueError,KeyError,TypeError,AttributeError) as error:
@@ -299,6 +315,13 @@ class DerivedAligned:
                 'binding_invalidated':bool(core.ledger.invalid_reason),
                 'consumer_epoch':epoch,'source_pin_sha256':self.source_pin_sha256,
                 'producer_generation':core.ledger.pin['producer_generation'],
+                'early_native_info_diagnostics':{
+                    'consumer_epoch':epoch,'enabled':getattr(self,'metadata_offer',None) is not None,
+                    'input_admitted':False,'processing_progress':False,'qualified':False,
+                    'streams':{kind:{
+                        'discarded_unadmitted_count':getattr(self,'_early_info_drops',{}).get(kind,0),
+                        'last_header_age_ns':getattr(self,'_early_info_last_age_ns',{}).get(kind)
+                    } for kind in ('depth_info','color_info')}},
                 'camera_info_validation':'independent_native_info',
                 'identity_validation':'producer_attested_device_info_no_new_rpc',
                 'optical_tf_validation':'local_exact_depth_timestamp',
