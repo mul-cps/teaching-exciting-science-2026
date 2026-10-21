@@ -119,7 +119,7 @@ A fresh, idle **SIMULATION** server was left ready on ports 8877/8878 with an em
 
 **Hardware commissioning remains open on fwmini4.** No real joint-limit contract was generated, no physical Blockly server or station units were started, and no actuators were accessed. Updated owner source requires the real passive bootstrap after device attachment. Individual service units are still unconfigured and service restarts disabled: browser capability checks and Qt mocks do not qualify Restart MoveIt, full reset or physical STOP here. Display/login, cameras, Teachable Machine training, EV3 hardware and pick/place remain unverified. Only bjoern's launchers were prepared; cpsadmin's desktop was not changed.
 
-## Explicit native recovery profile (implementation review, not commissioned)
+## Explicit native recovery profile (software verified; hardware uncommissioned)
 
 The operator API now has an explicit `recovery_profile:=native_ros` option for
 native CPU RGB-D and Vulkan masks. The default remains `derived_rocm`; its
@@ -181,30 +181,131 @@ with the actual generated OperatorMaintenance interface available, and explicitl
 set `ROS_DOMAIN_ID=75 ROS_LOCALHOST_ONLY=1`. It refuses other domains. No physical
 units, devices, actuator operations, or domain76 were used for these checks.
 
-### Next deployment task: small portable unit recipe
+### Implemented component units; disabled installation and commissioning
 
-Prepare a user-relative manifest and real user units, without enabling or
-starting them during installation:
+The component installer and guarded lifecycle are implemented in source commit
+`9ed044c50d40f7951cbe773c5569c5e335780bb1`. This supersedes the earlier unit-recipe
+plan. Installation and physical commissioning are separate steps. No native
+component units were started or enabled during these software checks.
 
-| Unit role | Existing composition to reuse | Restart allowlist |
-| --- | --- | --- |
-| Resident owner + robot state publisher | Split `moveit_resident.launch.py` with explicit bridge/RSP/MoveGroup switches; retain singleton lock and real contract bootstrap | Excluded |
-| CPU camera | `perception.launch.py` with marker/tag/diagnostic children disabled, exact serial/profile and validated CPU repair/SDK paths | Camera and depth share this one unit |
-| Tags | Native marker pipeline with explicit camera topics and existing calibration inputs | Tags |
-| MoveGroup | Same resident launch with bridge/RSP/leader/RViz disabled | MoveGroup |
-| Vulkan objects | `objects.launch.py`, native aligned depth, `color_mask_backend:=vulkan` | Objects |
-| SceneUpdater | Existing scene launch with exact objects/MoveIt service endpoints | Scene |
-| Read-only leader, when required | Existing calibrated reader launch | Read-only leader |
-| Operator/workflow APIs and optional EV3 tunnel | Existing API/SSH commands and reviewed configuration | Excluded |
-| RViz | Existing guarded RViz command in the logged-in desktop session | Excluded |
+The explicit `component` enum selects existing station actions:
+`owner`, `camera`, `tags`, `movegroup`, `objects`, `scene`, `leader`, `apis`, or
+`rviz`. Default `integrated` behavior is retained. Only `owner` starts the resident
+bridge and robot state publisher; only `camera` starts the camera driver. Tags
+run without a second camera. APIs, the owner, and RViz are excluded from operator
+restart allowlists; camera and depth refer to the same actual camera unit.
+There is no new controller, coordinator, or runtime supervision loop.
 
-Every command uses the existing `station-fwmini4 ros-vulkan` environment after
-clean Conda activation. Generate API and bridge allowlists from the same manifest;
-forward all reset-unit slots to the owner. Extend the existing start/stop lifecycle
-for that explicit unit profile, preserving STOP acknowledgement, fresh real
-contract generation, and PID/owner/lock checks. Keep current integrated startup
-and local ROCm defaults. This unit recipe is a plan, not an installed or qualified
-remote configuration.
+The native manifest explicitly pins **RGB 640×480×30 and depth 640×480×30**,
+matching the prepared `station-fwmini4 camera-lowpower` wrapper recipe (line55,
+checked read-only on the PC). These are candidate low-power settings, **not** a
+measured live camera/vision throughput result. Integrated defaults remain RGB
+1920×1080×30 and depth 1280×720×30. Every component command uses the same manifest
+parameters, source hashes, domain177, CPU repair/SDK paths, and Vulkan backend.
+
+#### Render and install disabled files
+
+Use the tested `bjoern` account and the clean published checkout. Build its ROS
+overlay before commissioning; unit startup verifies installed launch/API/control
+origins against the current source files and refuses a stale overlay.
+
+```sh
+cd ~/git/teaching-exciting-science-2026-current-20261021
+python3 tools/install_station_user_units.py render \
+  --output-dir /tmp/fwmini4-units-review \
+  --profile fwmini4 --color-mask-backend vulkan
+```
+
+After source review/merge and the matching ROS overlay build:
+
+```sh
+python3 tools/install_station_user_units.py install \
+  --profile fwmini4 --color-mask-backend vulkan
+systemctl --user daemon-reload
+systemd-analyze --user verify \
+  "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"/so101-fwmini4-*.service
+```
+
+The installer writes `~/.local/share/exciting-science/station/fwmini4-units.json`
+and eight `so101-fwmini4-*.service` files under the current user's configuration
+directory. It does not reload, enable, start, open devices, or generate a contract.
+Units have `Restart=no` and no `[Install]`/`WantedBy` autostart section. Different
+existing files are preserved and installation refuses to overwrite them.
+
+If an already verified EV3 SSH forward will be reused, include `--existing-tunnel`
+in **both** generator/install and startup commands. Otherwise the API component
+owns the same explicit tunnel recipe as integrated startup.
+
+#### Later connected-device commissioning: explicit start and stop
+
+Run these commands after the devices are attached and during connected-device
+commissioning; they were **not run** during disabled preparation. The existing exact USB,
+calibration, CPU repair and EV3 prerequisite checks remain mandatory. Contract
+bootstrap is passive and uses the identified devices; it is never replaced by a
+copied historical contract.
+
+```sh
+./tools/start_station.sh --profile fwmini4 --deployment user-units \
+  --color-mask-backend vulkan --bootstrap-owner
+./tools/stop_station.sh --profile fwmini4 --deployment user-units
+```
+
+Unit startup returns only after the existing non-motion EV3 Connect, correlated
+station STOP completion and fresh matched six-joint torque OFF. This does not
+qualify pick-and-place or prove that Restart MoveIt/full station recovery works
+on connected hardware. Those buttons remain a commissioning gate.
+
+To open **RViz only** after the managed native station has been commissioned,
+use its exact manifest command; this role cannot start another owner:
+
+```sh
+python3 - <<'PY_RVIZ'
+from pathlib import Path
+import subprocess
+from tools.install_station_user_units import load_manifest, component_command
+manifest = load_manifest(Path.home() / '.local/share/exciting-science/station/fwmini4-units.json')
+subprocess.run(component_command(manifest, 'rviz'), check=True)
+PY_RVIZ
+```
+
+The existing integrated robot desktop route must not run alongside unit mode.
+The tested account remains `bjoern`; physical display login remains unverified.
+
+#### Failure handling and software evidence
+
+Startup/shutdown records are bound to the reviewed manifest, exact user-manager
+bus/boot identity, real unit fragment, InvocationID, PID/starttime and cgroup.
+Legitimate panel restarts are recognized only through the existing owner's
+correlated resolved manager receipts. STOP is attempted for the same matched
+owner even when it is faulted or has pending external work. Unit termination
+requires the matching workflow STOP `request_id` to report `pending=false`,
+`ev3_stopped=true`, `arm_disarmed=true`, plus a fresh measured six-OFF follower.
+Trigger admission alone is insufficient.
+
+A failure before the workflow API starts attempts independent follower STOP
+and **retains the prefix ownership record for inspection** because workflow/EV3
+completion cannot be proved. A new failed owner invocation, unknown manager/STOP
+outcome, changed identity, or unknown cleanup also retains the record; there is
+no broad kill, automatic retry, or automatic second owner. Resolve the recorded
+condition before attempting another startup.
+
+Software verification: **51** lifecycle/renderer/process tests passed, including
+negative manifest, missing API, unknown STOP, request-correlation and failed-owner
+cases; **186** combined lifecycle and operator regressions passed. Four actual
+ROS launch-role test bodies and six original camera launch tests passed without
+executing nodes. Ordinary ROS pytest collection was blocked by an unrelated
+optional `trimesh` skip, so those ten original bodies ran directly. Independent
+review approved the frozen core and measured median 3.74ms/p95 4.34ms to render all
+eight unit strings on the development host. No timers, publishers or subscriptions
+were added to the lifecycle/installer modules.
+
+Local `systemd-analyze --user verify` accepted all eight syntax fixtures, which
+substituted only `/usr/bin/true` for the PC-only wrapper. Production unit checking
+on the development host reported the expected missing
+`~/.local/bin/station-fwmini4`; exact production verification belongs on the PC
+after disabled installation. This component-unit revision has not
+been installed remotely; no native units were started, and no physical/domain76
+acceptance is claimed by this report.
 
 ## N100 synthetic gripper camera replay, 2026-10-22
 
