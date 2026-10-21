@@ -991,7 +991,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 if self._process is not retiring or self._owner_started != generation or self._closed:
                     raise RuntimeError("fault-observing owner changed before explicit exit")
                 self._send({"command": "exit"})
-                retiring.wait(timeout=3.)
+                retiring.wait(timeout=8.)
             elif self._process is not None:
                 self._process.wait(timeout=.5)
             for reader in self._owner_readers:
