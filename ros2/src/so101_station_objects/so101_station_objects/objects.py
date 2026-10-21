@@ -473,6 +473,8 @@ def analyze_rgbd(rgb, depth, intrinsics, distortion, depth_scale_m,
                 validation = validate_colored_component(
                     rgb[piece_crop], depth_m[piece_crop], piece.mask, local_intrinsics, distortion,
                     support_mask=piece.support_mask,
+                    detailed_rejection_diagnostics=(
+                        len(validation_diagnostics["rejected_samples"]) < 5),
                     max_observation_depth_m=max_observation_depth_m)
                 component_pixels = int(piece.mask.sum())
                 if not validation.accepted:

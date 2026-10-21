@@ -148,7 +148,8 @@ def split_depth_coherent_components(parent_mask, depth_m, *, max_neighbor_jump_m
 
 
 def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distortion=None,
-                               *, support_mask=None, min_supported_fraction=.90,
+                               *, support_mask=None, detailed_rejection_diagnostics=True,
+                               min_supported_fraction=.90,
                                max_neighbor_jump_m=.012, max_jump_fraction=.10,
                                max_depth_split_m=.020, min_split_fraction=.08,
                                max_observation_depth_m=DEFAULT_MAX_OBSERVATION_DEPTH_M):
@@ -193,20 +194,21 @@ def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distort
     metrics['core_supported_fraction'] = float((core & selected).sum()/core.sum()) if core.any() else None
     if int(selected.sum()) < 24:
         return ComponentValidation(False, 'insufficient_depth_support', metrics)
-    # Calculate all geometry diagnostics even for rejected depth support so the
-    # live evidence explains leaks rather than merely reporting a boolean gate.
     try:
         values = np.asarray([intrinsics[k] for k in ('fx', 'fy', 'ppx', 'ppy')], dtype=float)
     except (TypeError, KeyError) as error:
         raise ValueError('calibrated color intrinsics required') from error
     if not np.isfinite(values).all() or min(values[:2]) <= 0:
         raise ValueError('finite positive color focal lengths required')
-    values = values.copy()
-    values[2] -= x_offset
-    values[3] -= y_offset
     d = np.zeros(5) if distortion is None else np.asarray(distortion, dtype=float)
     if d.ndim != 1 or len(d) not in (4, 5, 8) or not np.isfinite(d).all():
         raise ValueError('finite explicit OpenCV distortion required')
+    if supported_fraction < min_supported_fraction and not detailed_rejection_diagnostics:
+        return ComponentValidation(False, 'locally_unsupported_color_depth', metrics)
+    # Retained rejection samples include the complete geometry diagnostics.
+    values = values.copy()
+    values[2] -= x_offset
+    values[3] -= y_offset
     y, x = np.nonzero(selected)
     k = np.array([[values[0], 0, values[2]], [0, values[1], values[3]], [0, 0, 1.]])
     normalized = cv2.undistortPoints(np.column_stack((x, y)).astype(float).reshape(-1, 1, 2), k, d).reshape(-1, 2)
