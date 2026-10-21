@@ -69,6 +69,8 @@ class OperatorAPI(Node):
         self.tag_source_context = None
         self.reset_progress = None
         self.reset_samples = {}
+        self.reset_measured_joints = None
+        self.recovery_binding = None
         self.reset_image_lock = threading.Lock()
         self.reset_image_generation = 0
         self.reset_image_subscriptions = []
@@ -97,6 +99,8 @@ class OperatorAPI(Node):
             key: self.create_client(Trigger, "/follower/" + endpoint, callback_group=self.group)
             for key, endpoint in {"status": "status", "stop": "stop", "home": "home", "reconnect": "reconnect", "reset_owner": "reset_owner", "damping": "damping_enable", "rearm": "rearm_motion_profile"}.items()}
         self.service_clients["recovery_start"] = self.create_client(Trigger, "/so101_perception_recovery/start_recovery", callback_group=self.group)
+        for key, endpoint in (("marker_admission", "/so101_charuco_world"), ("objects_admission", "/so101_colored_objects")):
+            self.service_clients[key] = self.create_client(Trigger, endpoint + "/derived_source_status", callback_group=self.group)
         self.service_clients["recovery_status"] = self.create_client(Trigger, "/so101_perception_recovery/recovery_status", callback_group=self.group)
         self.service_clients["teleop"] = self.create_client(SetBool, "/follower/teleop_enable", callback_group=self.group)
         self.service_clients["teleop_mode"] = self.create_client(SetBool, "/follower/teleop_absolute_mode", callback_group=self.group)
@@ -316,7 +320,10 @@ class OperatorAPI(Node):
                 if data["state"] == "applied":
                     self.reset_scene_applied = (instance, now, stamp)
             if previous is None or stamp > previous[0]:
-                self.reset_samples[key] = (stamp, now, (previous[2] if previous else 0)+1)
+                count = (previous[2] if previous else 0)+1
+                if key == "joint_states":
+                    self.reset_measured_joints = (stamp, now, count, dict(zip(message.name, message.position)))
+                self.reset_samples[key] = (stamp, now, count)
         except (ValueError, KeyError, TypeError, AttributeError):
             pass
 
@@ -373,25 +380,47 @@ class OperatorAPI(Node):
             time.sleep(.05)
         self.retire_reset_images()
         self.reset_phase("MoveIt current scene", deadline)
+        self.fresh_source_admissions(token, deadline)
+        identity = self.reset_owner_proof(self.maintenance_state(token), token=token)
+        measured_before = self.reset_measured_joints
+        if measured_before is None or time.monotonic()-measured_before[1] >= 1.:
+            raise RuntimeError("fresh measured joint cohort unavailable before MoveIt RPC")
         if not self.scene_client.service_is_ready():
             raise RuntimeError("MoveIt get_planning_scene service unavailable")
         request = GetPlanningScene.Request()
         request.components.components = (PlanningSceneComponents.ROBOT_STATE | PlanningSceneComponents.WORLD_OBJECT_NAMES)
+        sent = time.monotonic()
+        source_floor = self.get_clock().now().nanoseconds * 1e-9
+        rpc_deadline = min(deadline, sent+2.)
         future = self.scene_client.call_async(request)
         done = threading.Event()
         future.add_done_callback(lambda _: done.set())
         while not done.wait(.05):
-            self.reset_phase("MoveIt current scene", deadline)
+            self.reset_phase("MoveIt current scene", rpc_deadline)
             self.maintenance_state(token)
+        self.reset_phase("MoveIt current scene", rpc_deadline)
         result = future.result()
         if result is None:
             raise RuntimeError("MoveIt returned no current scene")
         joints = result.scene.robot_state.joint_state
-        stamp = joints.header.stamp.sec + joints.header.stamp.nanosec*1e-9
-        if (len(joints.name) > 16 or not JOINTS.issubset(joints.name) or len(joints.position) != len(joints.name) or
-                any(not math.isfinite(v) for v in joints.position) or
-                not 0 <= self.get_clock().now().nanoseconds*1e-9-stamp < 1.):
-            raise RuntimeError("MoveIt scene lacks current complete measured joint state")
+        # MoveIt serializes RobotState with an unset (zero) JointState header.
+        # Establish currency through independent measured states around the RPC.
+        if (len(joints.name) > 16 or len(set(joints.name)) != len(joints.name) or
+                not JOINTS.issubset(joints.name) or len(joints.position) != len(joints.name) or
+                any(not math.isfinite(v) for v in joints.position)):
+            raise RuntimeError("MoveIt scene lacks complete finite joint state")
+        planned = dict(zip(joints.name, joints.position))
+        while True:
+            self.reset_phase("MoveIt measured state bracket", rpc_deadline)
+            self.reset_owner_proof(self.maintenance_state(token), identity, token=token)
+            measured_after = self.reset_measured_joints
+            if (measured_after is not None and measured_after[2] > measured_before[2] and
+                    measured_after[0] > max(measured_before[0], source_floor) and measured_after[1] >= sent and
+                    time.monotonic()-measured_after[1] < 1.):
+                break
+            time.sleep(.02)
+        if any(abs(planned[j]-measured[j]) > .01 for measured in (measured_before[3], measured_after[3]) for j in JOINTS):
+            raise RuntimeError("MoveIt joint positions disagree with fresh measured state bracket (0.01 rad)")
         actual_ids = {item.id for item in result.scene.world.collision_objects if item.id.startswith("colorbrick_")}
         expected_ids = {v for v in self.reset_scene_world_ids if v.startswith("colorbrick_")}
         if actual_ids != expected_ids:
@@ -573,15 +602,13 @@ class OperatorAPI(Node):
         if accepted.get("accepted") is not True or not isinstance(job_id, str) or not re.fullmatch(r"[0-9a-f]{32}", job_id):
             self.uncertain = self.uncertain_motion = True
             raise RuntimeError("perception recovery did not acknowledge an exact job")
-        completed = False
+        self.recovery_binding = None
         while True:
             if self.pending == "emergency_reset":
                 self.reset_phase("coordinated perception recovery", deadline)
             self.maintenance_state(token)
             remaining = deadline-time.monotonic()
             if remaining <= 0:
-                if completed:
-                    raise RuntimeError("perception recovery completed but fresh source admission remained unavailable until deadline")
                 self.uncertain = self.uncertain_motion = True
                 raise RuntimeError("perception recovery deadline elapsed; completion unknown; no automatic retry")
             state = self.recovery_reply("recovery_status", min(2., remaining))
@@ -594,12 +621,69 @@ class OperatorAPI(Node):
             if state.get("state") == "completed":
                 if state.get("operation_success") is not True:
                     raise RuntimeError("perception recovery completed without successful source adoption")
-                completed = True
-                if state.get("ready_now") is True:
-                    return job_id
-                # Completion and current receipt leases are separate. Keep polling
-                # this job through transient lease races; never dispatch another reset.
+                # A completed job is historical source adoption. Its original
+                # readiness lease cannot be renewed by polling this status.
+                binding = {k: state.get(k) for k in ("producer_generation", "source_pin_sha256")}
+                if (not isinstance(binding["producer_generation"], str) or
+                        not re.fullmatch(r"[0-9a-f]{32}", binding["producer_generation"]) or
+                        not isinstance(binding["source_pin_sha256"], str) or
+                        not re.fullmatch(r"[0-9a-f]{64}", binding["source_pin_sha256"])):
+                    raise RuntimeError("completed perception recovery lacks source identity")
+                consumers = state.get("consumers")
+                if not isinstance(consumers, dict):
+                    raise RuntimeError("completed perception recovery lacks consumer adoption")
+                binding["consumer_epochs"] = {}
+                for endpoint in ("/so101_charuco_world", "/so101_colored_objects"):
+                    record = consumers.get(endpoint)
+                    latest = record.get("latest") if isinstance(record, dict) else None
+                    if not isinstance(latest, dict):
+                        raise RuntimeError("completed perception recovery lacks consumer adoption proof")
+                    epoch = latest.get("consumer_epoch")
+                    if (not isinstance(epoch, str) or not re.fullmatch(r"[0-9a-f]{32}", epoch) or
+                            any(latest.get(k) != binding[k] for k in ("producer_generation", "source_pin_sha256"))):
+                        raise RuntimeError("completed perception consumer adoption identity mismatch")
+                    binding["consumer_epochs"][endpoint] = epoch
+                self.recovery_binding = binding
+                return job_id
             time.sleep(.1)
+
+    def fresh_source_admissions(self, token, deadline):
+        """Current checked leases must match the completed historical adoption."""
+        binding = self.recovery_binding
+        if not isinstance(binding, dict):
+            raise RuntimeError("fresh source proof lacks completed recovery binding")
+        leases = []
+        for key, endpoint in (("marker_admission", "/so101_charuco_world"), ("objects_admission", "/so101_colored_objects")):
+            if self.pending == "emergency_reset":
+                self.reset_phase("fresh checked source admission", deadline)
+            elif time.monotonic() >= deadline:
+                raise RuntimeError("fresh source proof deadline elapsed")
+            self.maintenance_state(token)
+            proof = self.recovery_reply(key, min(2., deadline-time.monotonic()))
+            now, ns = time.monotonic(), self.get_clock().now().nanoseconds
+            if (proof.get("schema") != "so101-derived-admission-status-v1" or proof.get("state") != "ready" or
+                    proof.get("qualified") is not False or proof.get("execution_enabled") is not False or
+                    any(proof.get(k) != binding[k] for k in ("producer_generation", "source_pin_sha256")) or
+                    proof.get("consumer_epoch") != binding["consumer_epochs"][endpoint] or
+                    type(proof.get("original_receipt_expiry_monotonic")) not in (int, float) or
+                    not math.isfinite(proof["original_receipt_expiry_monotonic"]) or
+                    now >= proof["original_receipt_expiry_monotonic"] or
+                    type(proof.get("original_header_expiry_ros_ns")) is not int or ns >= proof["original_header_expiry_ros_ns"] or
+                    type(proof.get("checked_ros_ns")) is not int or not 0 <= ns-proof["checked_ros_ns"] < 500_000_000):
+                raise RuntimeError("current checked source admission is stale or differs from completed recovery")
+            leases.append((proof["original_receipt_expiry_monotonic"], proof["original_header_expiry_ros_ns"]))
+        self.maintenance_state(token)
+        if self.pending == "emergency_reset":
+            self.reset_phase("fresh checked source admission", deadline)
+        elif time.monotonic() >= deadline:
+            raise RuntimeError("fresh source proof deadline elapsed")
+        context = self.tag_source_context
+        if (context is None or any(context.get(k) != binding[k] for k in ("producer_generation", "source_pin_sha256")) or
+                context.get("consumer_epoch") != binding["consumer_epochs"]["/so101_charuco_world"]):
+            raise RuntimeError("fresh tag source context differs from completed recovery")
+        now, ns = time.monotonic(), self.get_clock().now().nanoseconds
+        if any(now >= receipt or ns >= header for receipt, header in leases):
+            raise RuntimeError("checked source admission expired while collecting both consumers")
 
     def restart(self, key, *, station_reset=False, deadline=None):
         if self.get_parameter("enable_service_restarts").value is not True:
@@ -672,7 +756,7 @@ class OperatorAPI(Node):
             if station_reset:
                 self.reset_phase("coordinated perception recovery", deadline)
             recovery_job = self.recover_perception(token, deadline)
-            results.append("source recovery: " + recovery_job)
+            results.append("historical source adoption: " + recovery_job)
             # Require observations after recovery and manager completion proofs, not messages
             # received before restart while an old invocation was still publishing.
             if station_reset:
@@ -692,6 +776,7 @@ class OperatorAPI(Node):
                 if time.monotonic() >= deadline:
                     raise RuntimeError("unit jobs completed, but requested fresh advancing streams not observed")
                 time.sleep(.1)
+            self.fresh_source_admissions(token, deadline)
         finally:
             if not station_reset:
                 state = self.snapshot()
