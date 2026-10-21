@@ -118,3 +118,90 @@ The final remote software rehearsal used published source **`a4e859464f16144b09f
 A fresh, idle **SIMULATION** server was left ready on ports 8877/8878 with an empty action trace; the desktop launcher reopens it. Results are stored under `~/.local/share/exciting-science/workshop-20261022/evidence/` and copied to the instructor's `workshop-beginner-rebuild/fwmini4-final` evidence folder. The generated reference is outside the checkout at `~/.local/share/exciting-science/workshop-20261022/code-reference/site/index.html`.
 
 **Hardware commissioning remains open on fwmini4.** No real joint-limit contract was generated, no physical Blockly server or station units were started, and no actuators were accessed. Updated owner source requires the real passive bootstrap after device attachment. Individual service units are still unconfigured and service restarts disabled: browser capability checks and Qt mocks do not qualify Restart MoveIt, full reset or physical STOP here. Display/login, cameras, Teachable Machine training, EV3 hardware and pick/place remain unverified. Only bjoern's launchers were prepared; cpsadmin's desktop was not changed.
+
+## Explicit native recovery profile (implementation review, not commissioned)
+
+The operator API now has an explicit `recovery_profile:=native_ros` option for
+native CPU RGB-D and Vulkan masks. The default remains `derived_rocm`; its
+coordinator and derived-source admission checks are unchanged. Native recovery
+uses the existing owner/maintenance and correlated unit-job protocol, without
+adding a coordinator, source protocol, or additional hardware owner.
+
+Native configuration must supply `native_publisher_nodes_json`: an exact map
+from each of `rgb_image`, `depth_image`, `rgb`, `depth`, `tags`, `objects`,
+`objects_status`, `scene_status`, `joint_states`, and `movegroup` to its absolute
+ROS node name. This must come from the reviewed component manifest, not names
+inferred from publisher counts. Explicitly set the native aligned depth image
+and CameraInfo topics, and `native_mask_backend:=vulkan`. The existing object
+status endpoint is `/so101/grasp_status`. The launch files expose these settings;
+the integrated launch prefixes them with `operator_`.
+
+The proof requires unique expected publishers, changed DDS identities for
+restarted components (an absent old publisher is allowed), unchanged identities
+for other components, and fresh advancing actual payload metadata. It joins tags
+and tracking detections to observed camera exposures, checks the actual selected
+mask backend, and joins the newest settled scene/application to the newest
+admitted detection IDs. Invalid/unavailable/busy status revokes current readiness.
+The original scene/world, measured-joint bracket, owner identity, six-torque-OFF,
+STOP cancellation, exact manager job and unknown-outcome gates remain. Images
+stay subscribed through the final MoveIt read; final source/receipt freshness
+and publisher identity are checked again afterward. Metadata windows are bounded
+to 128 records per endpoint; image pixels are neither copied nor scanned.
+Existing float scene/status stamps receive a 1 microsecond join tolerance;
+integer image/tag/detection stamps match exactly.
+
+This is software recovery evidence only: it establishes neither ROCm lineage nor
+image quality, geometric accuracy, or physical pick-and-place qualification.
+Remote component units are still a deployment/commissioning prerequisite;
+unconfigured Restart MoveIt / Restart entire station buttons remain unavailable.
+
+### Review evidence, 2026-10-21
+
+Source base: `fc42d53`. In the isolated native-recovery worktree, 135 focused
+operator/native/emergency/reset/teleop tests passed. Three real ROS domain75,
+localhost-only fixture tests passed in 5.708 seconds using the existing D6
+OperatorMaintenance interface overlay. The fixture uses fake owner/manager
+services, actual DDS payload callbacks and publisher replacement. It covers full
+reset with absent camera endpoints, MoveIt restart, fresh→stale→fresh evidence,
+expiry during the MoveIt read, and an unknown manager job retaining the barrier.
+It does **not** exercise real systemd processes, hardware, or a real MoveGroup.
+The independent review measured approximately 1.21 ms per metadata check with
+128-row windows on the development host; target N100 timing is unmeasured.
+
+Reproduce unit tests:
+
+```sh
+python -m pytest -q tests/test_operator_native_recovery.py \
+  tests/test_station_emergency_reset.py tests/test_operator_moveit_restart.py \
+  tests/test_operator_restart.py tests/test_operator_teleop_modes.py
+```
+
+Run `tests/operator_native_recovery_domain75.py` only in a built ROS overlay
+with the actual generated OperatorMaintenance interface available, and explicitly
+set `ROS_DOMAIN_ID=75 ROS_LOCALHOST_ONLY=1`. It refuses other domains. No physical
+units, devices, actuator operations, or domain76 were used for these checks.
+
+### Next deployment task: small portable unit recipe
+
+Prepare a user-relative manifest and real user units, without enabling or
+starting them during installation:
+
+| Unit role | Existing composition to reuse | Restart allowlist |
+| --- | --- | --- |
+| Resident owner + robot state publisher | Split `moveit_resident.launch.py` with explicit bridge/RSP/MoveGroup switches; retain singleton lock and real contract bootstrap | Excluded |
+| CPU camera | `perception.launch.py` with marker/tag/diagnostic children disabled, exact serial/profile and validated CPU repair/SDK paths | Camera and depth share this one unit |
+| Tags | Native marker pipeline with explicit camera topics and existing calibration inputs | Tags |
+| MoveGroup | Same resident launch with bridge/RSP/leader/RViz disabled | MoveGroup |
+| Vulkan objects | `objects.launch.py`, native aligned depth, `color_mask_backend:=vulkan` | Objects |
+| SceneUpdater | Existing scene launch with exact objects/MoveIt service endpoints | Scene |
+| Read-only leader, when required | Existing calibrated reader launch | Read-only leader |
+| Operator/workflow APIs and optional EV3 tunnel | Existing API/SSH commands and reviewed configuration | Excluded |
+| RViz | Existing guarded RViz command in the logged-in desktop session | Excluded |
+
+Every command uses the existing `station-fwmini4 ros-vulkan` environment after
+clean Conda activation. Generate API and bridge allowlists from the same manifest;
+forward all reset-unit slots to the owner. Extend the existing start/stop lifecycle
+for that explicit unit profile, preserving STOP acknowledgement, fresh real
+contract generation, and PID/owner/lock checks. Keep current integrated startup
+and local ROCm defaults. This unit recipe is a plan, not an installed or qualified
+remote configuration.

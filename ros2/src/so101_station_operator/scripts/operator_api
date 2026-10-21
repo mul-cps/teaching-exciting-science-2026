@@ -25,6 +25,155 @@ COMMANDS = ("emergency_reset", "reset", "start", "base_release", "base_confirm",
             "damping", "zero_torque", "restart_moveit", "restart_camera", "restart_depth", "restart_tags", "restart_all", "verify_restart")
 
 
+class NativeResetProof:
+    """Bounded metadata-only native graph proof; no lineage/geometry qualification."""
+
+    def __init__(self, gids, source_after, received_after, backend, pair_delta):
+        self.gids = dict(gids)
+        self.source_after, self.received_after = source_after, received_after
+        self.backend, self.pair_ns = backend, round(pair_delta*1e9)
+        self.samples = {key: [] for key in gids}
+        self.lock = threading.Lock()
+        self.blocked = {}
+
+    @staticmethod
+    def gid(value):
+        # Jazzy RMW versions expose either 16-byte RTPS IDs or zero-padded 24-byte IDs.
+        if value is None or len(value) not in (16,24):
+            raise ValueError('native DDS GID unavailable')
+        result = bytes(value)
+        if len(result) not in (16,24) or not any(result) or (len(result)==24 and any(result[16:])):
+            raise ValueError('native DDS GID invalid')
+        return result[:16]
+
+    @staticmethod
+    def check_graph(before, after, replaced):
+        for key, gid in after.items():
+            if not gid or (key in replaced and before[key] == gid):
+                raise RuntimeError('native publisher was not replaced: ' + key)
+            if key not in replaced and before[key] != gid:
+                raise RuntimeError('unrestarted native publisher identity changed: ' + key)
+
+    def add(self, key, message, gid, now, ros_ns):
+        if gid != self.gids.get(key) or now < self.received_after:
+            return
+        admitted = False
+        ns = ros_ns
+        try:
+            meta = {}
+            if key in {'tags', 'objects_status', 'scene_status'}:
+                data = OperatorAPI.bounded_object(message)
+                if key == 'tags':
+                    if data.get('schema') != 'so101-tag-detections-v1' or not isinstance(data.get('observations'), list) or len(data['observations']) > 128:
+                        return
+                    stamp = OperatorAPI.source_stamp(data['stamp'])
+                    ns = stamp['sec']*10**9 + stamp['nanosec']
+                else:
+                    seconds = data['source_stamp'] if key == 'scene_status' and data.get('state') == 'applied' else data['stamp']
+                    if type(seconds) not in (int, float) or not math.isfinite(seconds):
+                        return
+                    ns = round(seconds*1e9)
+                    if key == 'objects_status':
+                        if (data.get('schema') != 1 or data.get('state') != 'tracking' or
+                                data.get('color_mask_backend', {}).get('selected') != self.backend):
+                            return
+                        meta['frame'] = data['frame_id']
+                    else:
+                        live, applied = data['live_ids'], data['applied_world_ids']
+                        if (data.get('state') not in {'empty', 'updated', 'applied'} or
+                                not isinstance(data.get('instance_id'), str) or not re.fullmatch('[0-9a-f]{32}', data['instance_id']) or
+                                data.get('scene_busy') is not False or data.get('pending_count') != 0 or data.get('scene_fault') or data.get('rejected',0) != 0 or
+                                not isinstance(live, list) or not isinstance(applied, list) or len(live)>24 or len(applied)>32 or
+                                any(not isinstance(v, str) or len(v)>300 for v in live+applied) or
+                                len(set(live)) != len(live) or len(set(applied)) != len(applied) or
+                                set(live) != {v for v in applied if v.startswith('colorbrick_')}):
+                            return
+                        meta.update(instance=data['instance_id'], applied=data['state']=='applied',
+                                    empty=data['state']=='empty' and data.get('accepted')==0 and not live,
+                                    ids=tuple(applied), rejected=data.get('rejected',0))
+            else:
+                stamp = OperatorAPI.source_stamp({'sec': message.header.stamp.sec, 'nanosec': message.header.stamp.nanosec})
+                ns = stamp['sec']*10**9 + stamp['nanosec']
+                meta['frame'] = message.header.frame_id
+                if not isinstance(meta['frame'], str) or not (0 if key=='joint_states' else 1) <= len(meta['frame']) <= 256:
+                    return
+                if key in {'rgb_image','depth_image','rgb','depth'}:
+                    w,h = message.width,message.height
+                    if type(w) is not int or type(h) is not int or not (0<w<=4096 and 0<h<=4096):
+                        return
+                    meta.update(width=w,height=h)
+                    if key.endswith('image'):
+                        encodings = {'rgb8':3, 'bgr8':3, 'rgba8':4, 'bgra8':4, 'mono8':1} if key=='rgb_image' else {'16UC1':2,'32FC1':4}
+                        bpp = encodings.get(message.encoding)
+                        if (bpp is None or type(message.step) is not int or not w*bpp<=message.step<=w*bpp+4096 or
+                                len(message.data) != message.step*h or len(message.data)>128*1024*1024):
+                            return
+                    elif (len(message.k)!=9 or any(not math.isfinite(v) for v in message.k) or message.k[0]<=0 or message.k[4]<=0):
+                        return
+                elif key == 'objects':
+                    if len(message.detections)>24 or any(not isinstance(v.id,str) or not re.fullmatch(r'[A-Za-z0-9_.~-]{1,96}',v.id) for v in message.detections):
+                        return
+                    meta['ids'] = tuple('colorbrick_'+v.id for v in message.detections)
+                    if len(set(meta['ids'])) != len(meta['ids']):
+                        return
+                elif key == 'joint_states':
+                    if (len(message.name)!=6 or set(message.name)!=JOINTS or len(message.position)!=6 or any(not math.isfinite(v) for v in message.position)):
+                        return
+            if ns <= self.source_after or not 0 <= ros_ns-ns < 10**9:
+                return
+            with self.lock:
+                rows = self.samples[key]
+                if rows and ns <= rows[-1]['ns']:
+                    # Same-source scene ACK can establish application but never renew its receipt.
+                    if key=='scene_status' and ns==rows[-1]['ns'] and meta.get('applied') and meta['instance']==rows[-1].get('instance'):
+                        rows[-1].update(meta)
+                        admitted = True
+                    return admitted
+                rows.append(dict(ns=ns,received=now,**meta))
+                del rows[:-128]
+                admitted = True
+            return True
+        except (ValueError, KeyError, TypeError, AttributeError, OverflowError):
+            return False
+        finally:
+            if key in {'objects_status','scene_status'}:
+                with self.lock:
+                    if not admitted:
+                        self.blocked[key] = max(ns,self.blocked.get(key,0))
+                    elif ns >= self.blocked.get(key,0):
+                        self.blocked.pop(key,None)
+
+    def ready(self, now, ros_ns):
+        with self.lock:
+            if self.blocked:
+                return False
+            rows = {key: [v.copy() for v in values if 0<=now-v['received']<1. and 0<=ros_ns-v['ns']<10**9]
+                    for key,values in self.samples.items()}
+        required = ('rgb_image','depth_image','rgb','depth','tags','objects','objects_status','scene_status','joint_states')
+        if any(len(rows[key])<2 for key in required):
+            return False
+        def profile(a,b):
+            return all(a[k]==b[k] for k in ('width','height','frame'))
+        rgb = {v['ns']:v for v in rows['rgb_image'] if
+               any(abs(v['ns']-d['ns'])<=self.pair_ns and profile(v,d) for d in rows['depth_image']) and
+               all(any(abs(v['ns']-i['ns'])<=500_000_000 and profile(v,i) for i in rows[key]) for key in ('rgb','depth'))}
+        tags = {v['ns'] for v in rows['tags'] if v['ns'] in rgb}
+        # Float status stamps lose sub-microsecond precision at present ROS epoch.
+        # Only these existing float fields receive a 1 us join tolerance.
+        objects = [v for v in rows['objects'] if v['ns'] in rgb and any(
+            abs(s['ns']-v['ns'])<=1000 and s['frame']==v['frame'] for s in rows['objects_status'])]
+        if len(rgb)<2 or len(tags)<2 or len(objects)<2 or objects[-1]['ns']!=rows['objects'][-1]['ns']:
+            return False
+        # The newest admitted scene must cover the newest detections. Never
+        # fall back to an older successful cohort after a current rejection.
+        scene, obj = rows['scene_status'][-1], objects[-1]
+        return (not scene['rejected'] and (scene['empty'] or scene['applied']) and
+                abs(scene['ns']-obj['ns'])<=1000 and
+                set(obj['ids'])=={i for i in scene['ids'] if i.startswith('colorbrick_')} and
+                (not scene['empty'] or not obj['ids']))
+
+
+
 class OperatorAPI(Node):
     def __init__(self):
         super().__init__("so101_operator_api")
@@ -33,6 +182,10 @@ class OperatorAPI(Node):
                               "movegroup_unit": "", "objects_unit": "", "scene_unit": "", "leader_readonly_unit": "",
                               "leader_required": False,
                               "alignment_reseed_service": "",
+                              "recovery_profile": "derived_rocm", "native_publisher_nodes_json": "",
+                              "native_mask_backend": "vulkan", "native_pair_delta_s": .04,
+                              "objects_status_topic": "/so101/grasp_status",
+                              "movegroup_scene_topic": "/follower/monitored_planning_scene",
                               "alignment_status_topic": "/so101_perception/live_tag_alignment/status",
                               "rgb_image_topic": "/camera/color/image_raw",
                               "depth_image_topic": "/so101_perception/rocm/aligned_depth",
@@ -43,6 +196,24 @@ class OperatorAPI(Node):
                               "tags_topic": "/so101_perception/tag_detections",
                               "depth_topic": "/so101_perception/rocm/aligned_camera_info"}.items():
             self.declare_parameter(name, default)
+        self.recovery_profile = self.get_parameter('recovery_profile').value
+        if self.recovery_profile not in {'derived_rocm', 'native_ros'}:
+            raise ValueError('recovery_profile must be derived_rocm or native_ros')
+        self.native_proof = None
+        if self.native_mode():
+            self.native_topics = {key: self.get_parameter(key+'_topic').value for key in
+                ('rgb_image','depth_image','rgb','depth','tags','objects','objects_status','scene_status','joint_states')}
+            self.native_topics['movegroup'] = self.get_parameter('movegroup_scene_topic').value
+            self.native_nodes = json.loads(self.get_parameter('native_publisher_nodes_json').value)
+            if (not isinstance(self.native_nodes, dict) or set(self.native_nodes)!=set(self.native_topics) or
+                    any(not isinstance(v,str) or not re.fullmatch(r'/[A-Za-z0-9_/]+',v) for v in self.native_nodes.values()) or
+                    len(set(self.native_topics.values()))!=len(self.native_topics) or
+                    any(not isinstance(v,str) or not re.fullmatch(r'/[A-Za-z0-9_/]+',v) for v in self.native_topics.values()) or
+                    self.get_parameter('native_mask_backend').value not in {'cpu','vulkan'} or
+                    not 0 < self.get_parameter('native_pair_delta_s').value <= .04):
+                raise ValueError('native_ros needs exact explicit publisher nodes, distinct topics, backend and bounded pair tolerance')
+            if '/rocm/' in self.native_topics['depth_image'] or '/rocm/' in self.native_topics['depth']:
+                raise ValueError('native_ros requires explicit native aligned depth and CameraInfo topics')
         self.group = ReentrantCallbackGroup()
         self.command_lock = threading.Lock()
         self.stop_lock = threading.Lock()
@@ -117,14 +288,115 @@ class OperatorAPI(Node):
                          functools.partial(self.command, command), callback_group=self.group)
                          for command in COMMANDS]
         self.stream_subscriptions = [self.create_subscription(CameraInfo, self.get_parameter(key + "_topic").value,
-                              functools.partial(self.stream, key), qos_profile_sensor_data)
+                              functools.partial(self.native_callback if self.native_mode() else self.stream, key), qos_profile_sensor_data)
                               for key in ("rgb", "depth")]
         self.stream_subscriptions.append(self.create_subscription(String, self.get_parameter("tags_topic").value,
-                                  functools.partial(self.stream, "tags"), 1))
+                                  functools.partial(self.native_callback if self.native_mode() else self.stream, "tags"), 1))
         for key, kind in (("objects", Detection3DArray), ("joint_states", JointState), ("scene_status", String)):
             self.stream_subscriptions.append(self.create_subscription(kind, self.get_parameter(key + "_topic").value,
-                functools.partial(self.reset_stream, key), qos_profile_sensor_data if key != "scene_status" else 10))
+                functools.partial(self.native_callback if self.native_mode() else self.reset_stream, key), qos_profile_sensor_data if key != "scene_status" else 10))
+        if self.native_mode():
+            self.stream_subscriptions.append(self.create_subscription(String, self.native_topics['objects_status'],
+                functools.partial(self.native_callback, 'objects_status'), 10))
         self.create_timer(.5, self.tick, callback_group=self.group)
+
+    def native_mode(self):
+        return getattr(self, 'recovery_profile', 'derived_rocm') == 'native_ros'
+
+    def native_graph(self, allow_missing=False):
+        result = {}
+        for key, topic in self.native_topics.items():
+            endpoints = self.get_publishers_info_by_topic(topic)
+            if not endpoints and allow_missing:
+                result[key] = None
+                continue
+            if len(endpoints) != 1:
+                raise RuntimeError('native endpoint requires one publisher: ' + key)
+            endpoint = endpoints[0]
+            name = endpoint.node_namespace.rstrip('/') + '/' + endpoint.node_name
+            try:
+                gid = NativeResetProof.gid(endpoint.endpoint_gid)
+            except (ValueError,TypeError):
+                raise RuntimeError('native endpoint DDS identity unavailable: ' + key) from None
+            if name != self.native_nodes[key]:
+                raise RuntimeError('native endpoint publisher identity mismatch: ' + key)
+            result[key] = gid
+        return result
+
+    def native_callback(self, key, message, message_info):
+        # Required MessageInfo argument matters: rclpy selects one-argument callbacks
+        # when an optional second argument can be omitted.
+        if not self.native_add(key, message, message_info):
+            return
+        if key in {'rgb','depth','tags'}:
+            self.stream(key, message)
+        elif key != 'objects_status':
+            self.reset_stream(key, message)
+
+    def native_add(self, key, message, message_info):
+        proof = getattr(self, 'native_proof', None)
+        if proof is not None:
+            try:
+                value = message_info.get('publisher_gid') if isinstance(message_info,dict) else getattr(message_info,'publisher_gid',None)
+                gid = NativeResetProof.gid(value)
+            except (ValueError,TypeError):
+                return False
+            return proof.add(key, message, gid, time.monotonic(), self.get_clock().now().nanoseconds)
+        return True
+
+    def native_image(self, generation, key, message, message_info):
+        self.reset_image(generation, key, message, message_info)
+
+    def native_final_check(self, token, deadline):
+        self.source_admission_phase(deadline, self.native_stop_generation)
+        self.reset_owner_proof(self.maintenance_state(token), self.native_owner_identity, token=token)
+        self.source_admission_phase(deadline, self.native_stop_generation)
+        current = self.native_graph()
+        if current != self.native_proof.gids:
+            raise RuntimeError('native publisher identity changed during proof')
+        if not self.native_proof.ready(time.monotonic(), self.get_clock().now().nanoseconds):
+            raise RuntimeError('native payload/source/receipt joins are not currently fresh')
+        self.source_admission_phase(deadline, self.native_stop_generation)
+
+    def native_wait(self, token, deadline, *, full):
+        # Manager terminal success is necessary; it does not establish new DDS data.
+        # An absent old endpoint is allowed, but every new endpoint must be unique.
+        while True:
+            self.source_admission_phase(deadline, self.native_stop_generation)
+            self.reset_owner_proof(self.maintenance_state(token), self.native_owner_identity, token=token)
+            try:
+                current = self.native_graph()
+                NativeResetProof.check_graph(self.native_before, current, self.native_replaced)
+                break
+            except RuntimeError as error:
+                self.native_graph_reason = str(error)
+                self.source_admission_pause(min(.05, max(0., deadline-time.monotonic())))
+        self.native_proof = NativeResetProof(current, self.get_clock().now().nanoseconds,
+            time.monotonic(), self.get_parameter('native_mask_backend').value,
+            self.get_parameter('native_pair_delta_s').value)
+        self.activate_reset_images()
+        try:
+            while True:
+                self.source_admission_phase(deadline, self.native_stop_generation)
+                self.reset_owner_proof(self.maintenance_state(token), self.native_owner_identity, token=token)
+                if self.native_graph() != current:
+                    raise RuntimeError('native publisher identity changed during acquisition')
+                if self.native_proof.ready(time.monotonic(), self.get_clock().now().nanoseconds):
+                    break
+                self.source_admission_pause(min(.05, max(0., deadline-time.monotonic())))
+            if full:
+                # Existing scene-instance, world, measured-joint and alignment gates.
+                # Images remain subscribed until after the final MoveIt RPC checks.
+                self._reset_fresh_proofs(token, deadline)
+            else:
+                result = self.current_moveit_proof(token, deadline,
+                    lambda phase, limit: self.source_admission_phase(limit, self.native_stop_generation))
+                actual = {item.id for item in result.scene.world.collision_objects if item.id.startswith('colorbrick_')}
+                if actual != {v for v in self.reset_scene_world_ids if v.startswith('colorbrick_')}:
+                    raise RuntimeError('MoveIt world differs after native acquisition proof')
+                self.native_final_check(token, deadline)
+        finally:
+            self.retire_reset_images()
 
     @staticmethod
     def bounded_object(message):
@@ -249,7 +521,7 @@ class OperatorAPI(Node):
                 for key in ("rgb_image", "depth_image"):
                     self.reset_samples.pop(key, None)
                     subscription = self.create_subscription(Image, self.get_parameter(key + "_topic").value,
-                        functools.partial(self.reset_image, generation, key),
+                        functools.partial(self.native_image if self.native_mode() else self.reset_image, generation, key),
                         QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
                     self.reset_image_subscriptions.append(subscription)
         except Exception:
@@ -263,12 +535,14 @@ class OperatorAPI(Node):
         for subscription in subscriptions:
             self.destroy_subscription(subscription)
 
-    def reset_image(self, generation, key, message):
+    def reset_image(self, generation, key, message, message_info=None):
         with self.reset_image_lock:
             if generation != self.reset_image_generation or not self.reset_image_subscriptions:
                 return
             stamp = message.header.stamp.sec*1_000_000_000 + message.header.stamp.nanosec
             if stamp <= self.reset_image_source_after:
+                return
+            if message_info is not None and not self.native_add(key, message, message_info):
                 return
             self.reset_stream(key, message)
 
@@ -378,9 +652,11 @@ class OperatorAPI(Node):
                      self.reset_scene_applied[2] > object_stamp))):
                 break
             time.sleep(.05)
-        self.retire_reset_images()
+        if not self.native_mode():
+            self.retire_reset_images()
         self.reset_phase("MoveIt current scene", deadline)
-        self.fresh_source_admissions(token, deadline)
+        if not self.native_mode():
+            self.fresh_source_admissions(token, deadline)
         result = self.current_moveit_proof(token, deadline, self.reset_phase)
         actual_ids = {item.id for item in result.scene.world.collision_objects if item.id.startswith("colorbrick_")}
         expected_ids = {v for v in self.reset_scene_world_ids if v.startswith("colorbrick_")}
@@ -390,6 +666,8 @@ class OperatorAPI(Node):
         if self.get_parameter("leader_required").value and state.get("teleop_leader_ready") is not True:
             raise RuntimeError("configured read-only leader is not freshly initialized: " + str(state.get("teleop_leader_reason")))
         self.reset_alignment(token, deadline)
+        if self.native_mode():
+            self.native_final_check(token, deadline)
 
     def current_moveit_proof(self, token, deadline, phase):
         """Check the restarted planning state against independent current measurements."""
@@ -779,7 +1057,7 @@ class OperatorAPI(Node):
         if self.get_parameter("enable_service_restarts").value is not True:
             raise RuntimeError("service restarts disabled; configure exact station user units first")
         moveit_only = key == "moveit"
-        if not moveit_only and any(not self.service_clients[name].service_is_ready() for name in ("recovery_start", "recovery_status")):
+        if not moveit_only and not self.native_mode() and any(not self.service_clients[name].service_is_ready() for name in ("recovery_start", "recovery_status")):
             raise RuntimeError("perception recovery coordinator services unavailable; no unit restart dispatched")
         keys = ("camera", "depth", "tags") if key == "all" else (key,)
         units = [self.units[k] for k in keys] if not moveit_only else [self.reset_units[k] for k in ("movegroup", "scene")]
@@ -791,11 +1069,23 @@ class OperatorAPI(Node):
             units += [self.reset_units[k] for k in extra]
         if not all(units):
             raise RuntimeError("every requested restart requires a configured exact unit")
+        if self.native_mode():
+            self.native_before = self.native_graph(allow_missing=True)
+            components = {
+                'camera': {'rgb_image','depth_image','rgb','depth'},
+                'depth': {'rgb_image','depth_image','rgb','depth'},
+                'tags': {'tags'}, 'objects': {'objects','objects_status'},
+                'scene': {'scene_status'}, 'movegroup': {'movegroup'}, 'leader_readonly': set()}
+            # Slots sharing one real unit share its restarted endpoints.
+            restarted = set(units)
+            slots = dict(self.units, **self.reset_units)
+            self.native_replaced = set().union(*(components[k] for k,v in slots.items() if v in restarted))
         results = []
         state = self.snapshot()
         self.idle(state)
         if not self.all_off(state):
             raise RuntimeError("service restart requires ZERO TORQUE / STOP first")
+        native_identity = self.reset_owner_proof(state) if self.native_mode() else None
         reservation = json.loads(self.rpc("maintenance", OperatorMaintenance.Request(enable=True, token="", operation="station_reset" if station_reset or moveit_only else "")))
         token = reservation["token"]
         if not isinstance(token, str) or len(token) != 32:
@@ -805,6 +1095,11 @@ class OperatorAPI(Node):
             self.reset_token = token
         stop_generation = self.stop_generation
         identity = self.reset_owner_proof(state) if moveit_only else None
+        previous_rpc_deadline = getattr(self.reset_rpc_deadline, 'value', None)
+        if self.native_mode():
+            self.reset_rpc_deadline.value = min(deadline, previous_rpc_deadline if previous_rpc_deadline is not None else deadline)
+            self.native_owner_identity = native_identity
+            self.native_stop_generation = stop_generation
         def moveit_phase(phase, limit):
             if self.stop_generation != stop_generation:
                 raise RuntimeError("MoveIt restart interrupted by STOP")
@@ -871,9 +1166,14 @@ class OperatorAPI(Node):
                 actual = {item.id for item in result.scene.world.collision_objects if item.id.startswith("colorbrick_")}
                 if actual != {v for v in self.reset_scene_world_ids if v.startswith("colorbrick_")}:
                     raise RuntimeError("MoveIt world objects do not match the current SceneUpdater applied cohort")
+                if self.native_mode():
+                    self.native_wait(token, deadline, full=False)
                 moveit_phase("release", deadline)
                 self.rpc("maintenance", OperatorMaintenance.Request(enable=False, token=token))
                 return "; ".join(results) + "; fresh current measured planning state; torque OFF; no homing or encoder/calibration changes"
+            if self.native_mode():
+                self.native_wait(token, deadline, full=station_reset)
+                return '; '.join(results) + '; native current payload/scene/joint proof; torque OFF; no ROCm lineage or physical qualification'
             if station_reset:
                 self.reset_phase("coordinated perception recovery", deadline)
             recovery_job = self.recover_perception(token, deadline)
@@ -899,6 +1199,12 @@ class OperatorAPI(Node):
                 time.sleep(.1)
             self.fresh_source_admissions(token, deadline)
         finally:
+            self.native_proof = None
+            if self.native_mode():
+                if previous_rpc_deadline is None:
+                    del self.reset_rpc_deadline.value
+                else:
+                    self.reset_rpc_deadline.value = previous_rpc_deadline
             if not station_reset and not moveit_only:
                 state = self.snapshot()
                 if (state.get("operator_maintenance_token") == token and state.get("operator_external_job") is None
@@ -1103,6 +1409,8 @@ class OperatorAPI(Node):
         for command in COMMANDS:
             reason = ""
             required = dependencies.get(command, ("status", "maintenance", "recovery_start", "recovery_status"))
+            if self.native_mode():
+                required = tuple(key for key in required if key not in {'recovery_start','recovery_status'})
             if command == "emergency_reset":
                 slots = [*self.units.values(), *(self.reset_units[k] for k in ("movegroup", "objects", "scene"))]
                 if self.get_parameter("leader_required").value:
