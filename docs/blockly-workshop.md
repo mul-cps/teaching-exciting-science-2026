@@ -98,6 +98,48 @@ calibrated grip/release commands. These capabilities do not establish that a
 physical autonomous sorting cycle has passed. The instructor must qualify the
 exact strokes, object, jaw gap and environment before students run that cycle.
 
+### Build a complete cycle
+
+Prepare and qualify the strokes before the class. Names below are suggestions,
+not supplied recordings. Each stroke's fixed jaw opening must match the preceding
+jaw instruction, and its first arm pose must match the preceding stroke's end.
+
+```text
+Connect EV3
+Repeat 2 times:
+  Dispense one brick
+  Conveyor right end (the commissioned pickup side)
+  If sensor is red:
+    Open jaw to the measured release gap
+    Replay approach_open
+    Close jaw to the measured grasp gap
+    Replay lift_closed
+    Replay place_left_closed
+    Open jaw to the measured release gap
+    Replay return_left_open
+  Else if sensor is blue:
+    Open jaw to the measured release gap
+    Replay approach_open
+    Close jaw to the measured grasp gap
+    Replay lift_closed
+    Replay place_right_closed
+    Open jaw to the measured release gap
+    Replay return_right_open
+  Else: log "Unknown: ask the instructor" and STOP
+```
+
+For a real cycle, check unknown color **before dispensing or grasping** whenever
+the sensor can already observe the object. If color becomes available only at
+pickup, branch there before closing the jaw. The sketch's final return must be
+inside each color branch so that the correct return stroke is selected. Test
+each branch separately in simulation; do not assume a left return starts at the
+right destination. The beginner's core task remains the 35-minute simulation
+challenge; a physical cycle is an instructor extension using qualified strokes.
+
+Keep demonstrations short and move continuously. Recorded pauses and encoder
+variation remain in the stroke; the bridge may lengthen it to satisfy its motion
+limits. The replay speed is a request, not a guaranteed execution duration.
+
 ## Exposed interfaces
 
 | Blockly function | Existing ROS interface | Completion |
@@ -182,3 +224,15 @@ must be qualified on the connected hardware separately.
 Physical platform commissioning and a complete autonomous pick/place cycle remain
 separate acceptance steps. In particular, a feeder reference, calibrated jaw gap,
 valid demonstrated strokes and current collision scene are required.
+
+### Connected-station rehearsal, 21 October
+
+The local station passed measured recording and physical replay through Blockly,
+an EV3 connect → left-end → right-end program, correlated STOP on the separate
+listener, and explicit recovery after a missing-stroke error. Recording captured
+204 samples during two small supervised MoveIt moves; human leader movement was
+not used in this rehearsal. The bridge retimed the 20.35-second recording at
+speed 0.5 to 117.22 seconds. All six servos were measured torque off after STOP.
+The [commissioning record](blockly-station-commissioning-2026-10-21.json) retains
+the source identity, measured results and remaining acceptance steps. Dispensing,
+metric jaw control and a full payload pick/place cycle were not commissioned.

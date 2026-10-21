@@ -1,0 +1,74 @@
+{
+  "schema": "blockly-station-commissioning-v1",
+  "date": "2026-10-21",
+  "host": "local SO-ARM101 and EV3 station",
+  "runtime_source_commit": "cefe640b7e0e33ce81178b803e509a1d059e0f15",
+  "owner_source_sha256": "2c92bb07285b7b8fb241c795993a8315bb3e2bbb82a2d8ed1f931db8746ea528",
+  "robot_owner_serial": "5AB9068906",
+  "ros_domain": 76,
+  "existing_resident_owner_reused": true,
+  "new_hardware_driver": false,
+  "full_reset": {
+    "success": true,
+    "elapsed_s": 12.455457799020223,
+    "terminal": "fresh sources/scene, all six torque off"
+  },
+  "measured_home": {
+    "success": true,
+    "elapsed_s": 0.7894824959803373
+  },
+  "arm_record_and_replay": {
+    "recorded_samples": 204,
+    "recorded_duration_s": 20.35059404373169,
+    "recording_sha256": "2116cb73d271178467e541d98ae5b46aa2df37eb36a8f631d842a5a950ed97ed",
+    "demonstration_source": "two small instructor-supervised MoveIt pan moves, not a human teleop demonstration",
+    "replay_speed_setting": 0.5,
+    "bridge_retiming_factor": 2.88,
+    "effective_duration_s": 117.22,
+    "effective_samples": 5862,
+    "terminal_status": "succeeded",
+    "blockly_job_state": "complete",
+    "physical_contact_or_grasp_tested": false
+  },
+  "ev3": {
+    "program": [
+      "connect",
+      "left_end",
+      "right_end"
+    ],
+    "blockly_job_state": "complete",
+    "left_endpoint_deg": 10,
+    "right_endpoint_deg": 530,
+    "final_measured_sorter_deg": 530,
+    "workflow_job_completion_checked": true,
+    "dispensing_tested": false
+  },
+  "stop": {
+    "separate_listener_port": 8898,
+    "correlated_station_stop": true,
+    "ev3_stopped": true,
+    "arm_disarmed": true,
+    "fresh_measured_six_torque_off": true
+  },
+  "error_and_recovery": {
+    "failed_job": {
+      "id": "9803b2c942f42fe9",
+      "state": "failed",
+      "error": "recording not found"
+    },
+    "motion_blocked_after_failure": true,
+    "recovered": {
+      "recovered": true
+    },
+    "final_recovery_required": false,
+    "fresh_six_torque_off": true
+  },
+  "physical_acceptance_open": [
+    "Human leader movement recording/replay demonstration",
+    "Feeder EJECT reference and dispensing cycle",
+    "Measured SI jaw-gap and joint-angle calibration",
+    "Payload grasp and complete autonomous pick/place",
+    "Remote-PC physical devices and restart commissioning"
+  ],
+  "evidence_directory": "station/evidence/2026-10-21-sorting/pick-place-resume/restored-station/deploy-v7-start-retry"
+}
