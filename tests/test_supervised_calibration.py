@@ -40,7 +40,8 @@ def command(session, arm):
         session._arm_radians(start), session.admitted_min, session.admitted_max)
     return dict(command='execute_trajectory', goal_id='test', joint_names=list(rt.ARM_JOINTS),
                 points=points, path_sha256=rt.path_digest(prepared, held_gripper_raw=start['gripper']),
-                supervised_commissioning=True, expected_start_raw=start)
+                supervised_commissioning=True, expected_start_raw=start,
+                ros_motion_profile=session._ros_motion_profile.name)
 
 
 @pytest.mark.parametrize('bad', [True, 2000.0, -1, 4096, None])
