@@ -8,7 +8,7 @@ The two web activities below fit inside the four hours. Open their tabs before s
 
 | Elapsed time | Activity | Minutes |
 |---|---|---:|
-| 00:00–00:25 | Eight-slide introduction | 25 |
+| 00:00–00:25 | Ten-slide introduction | 25 |
 | 00:25–00:35 | Blockly Maze | 10 |
 | 00:35–01:05 | Python experiments | 30 |
 | 01:05–01:25 | Teachable Machine perception | 20 |
@@ -46,14 +46,16 @@ Use **three classes** named `red`, `blue`, and `background / no object`. A class
 2. Minute 1–3: create and name all three classes. Explain that these labels are the possible answers being taught.
 3. Minute 3–9: collect examples for each class. Aim for about 20–30 frames per class as a bounded classroom task. Move the red and blue objects slightly between examples. For background, remove the object and show the same work area. Keep faces out of the object examples.
 4. Minute 9–13: choose **Train Model**. While it runs, ask pairs to predict the empty-background result. If training does not complete in this slot, move to the controlled-photo fallback.
-5. Minute 13–18: test a red object, a blue object, an empty background, and one changed view that was not used during collection. Change one condition at a time: position, lighting, or background. Write down one observed output. A large score is an output of the model, not proof that its answer is correct.
+5. Minute 13–18: first test red, blue, and empty background. Then predict and test a held-out green object and a changed background. Record the actual label and explain one mistake or limitation. The model has no green class, so adding a background class does not guarantee a correct reject decision. A large score is an output, not proof of correctness. The sorter's unknown/reject policy remains a separate rule.
 6. Minute 18–20: explain one correct result and one mistake or limitation. Ask, “What should our sorter do when we cannot trust the label?” Use reject or ask for a new observation. Return to the workshop notebook; exporting or uploading a trained model is unnecessary.
 
 Do not train only red and blue and then treat every highest-scoring answer as a reliable detection. Empty scenes and unfamiliar objects need explicit tests. Our workshop sorting rule still handles unknown or missing readings, even when a model appears certain.
 
-**Fallback:** use the prepared station photographs in the notebook. Identify the red, blue, and background areas, predict the supplied rule's result, and compare it with the displayed result. Record which conditions could make that result wrong. Do this alternative within the same twenty minutes, not as an additional assignment.
+**Prepared-photo alternative:** the red, blue, and background crops in `assets/lecture/tm-samples/` come from the actual station capture. Upload each folder to its matching class through the app's file picker if no webcam is connected. These nine correlated crops demonstrate the workflow; they do not establish general recognition quality. Test a new object/view separately.
 
-**Local browser check, 21 October 2026:** the image-project editor rendered in Chrome. Adding and naming a third class worked, with the three names above visible. Training, camera permission, and recognition quality were not verified in this check. They remain part of the prepared-PC rehearsal. The text-only web fetch reported an unsupported browser, so it is not evidence of the Chrome result.
+**Complete twenty-minute fallback:** if web training is unavailable, use the prepared station photographs in the notebook. Identify the red, blue, and background areas, predict the supplied rule's result, and compare it with the displayed result. Record which conditions could make that result wrong. Do this alternative within the same twenty minutes, not as an additional assignment.
+
+**Local browser check, 21 October 2026:** the image-project editor rendered in Chrome and adding/naming all three classes worked. A prepared-photo upload was attempted: the file chooser opened, but the browser automation extension rejected file selection because it lacks access to local file URLs. No broader browser permission was changed. A complete training/inference cycle, webcam access, and recognition quality remain unverified. They are part of the prepared-PC rehearsal. The text-only web fetch reported an unsupported browser; that is separate from the observed Chrome editor result.
 
 ## One optional video excerpt
 
