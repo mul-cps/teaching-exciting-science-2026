@@ -205,3 +205,128 @@ def test_destroy_serializes_reconnect_and_leaves_no_live_generation(bridge, monk
     assert not response.success and not process.alive
     if phase=='before_spawn': assert not calls and not process.commands
     else: assert process.commands == [{'command':'exit'}]
+
+
+def fault_observed(node):
+    state = observed(node)
+    state.update(observe_only=False, write_scope='fault_observation', owner_session_id='arm-session-' + '1' * 32)
+    state['fault_observation'] = dict(schema=1, owner_session_id=state['owner_session_id'],
+        entered_monotonic=node._owner_started + .001, command='home',
+        error='leg deadline', error_type='TimeoutError')
+    return state
+
+
+def install_fault_observer(node, process):
+    calls = install(node, process)
+    node._owner_started = time.monotonic() - .02
+    node._owner_source_expected = {'arm': 'a' * 64, 'arm_session': 'b' * 64}
+    process.alive = True
+    node._read_state = lambda **kw: fault_observed(node)
+    original_write = process.write
+    def write(line):
+        import json
+        command = json.loads(line)
+        if command['command'] == 'exit':
+            process.commands.append(command)
+            process.alive = False
+        else:
+            original_write(line)
+    process.write = write
+    def wait(**kwargs):
+        assert not process.alive
+        return 0
+    process.wait = wait
+    return calls
+
+
+def test_explicit_reconnect_exits_only_verified_live_fault_observer_then_passively_replaces(bridge):
+    node, process = bridge
+    calls = install_fault_observer(node, process)
+    node._home_completed_owner_started = node._owner_started
+    response = node._reconnect(Trigger.Request(), Trigger.Response())
+    assert response.success, response.message
+    assert process.commands == [{'command': 'exit'}]
+    assert calls == [{'observe_only': True}]
+    assert node._owner_faulted and node._reconnect_observe
+    assert node._home_completed_owner_started is None
+
+
+@pytest.mark.parametrize('case', ['normal', 'identity', 'calibration', 'source', 'stale', 'torque_stale',
+    'torque_on', 'missing_joint', 'fault_session', 'old_fault', 'future_fault', 'active', 'callback'])
+def test_explicit_live_reconnect_requires_complete_current_fault_observation(bridge, case):
+    node, process = bridge
+    calls = install_fault_observer(node, process)
+    state = fault_observed(node)
+    if case == 'normal': state['fault_observation'] = None
+    if case == 'identity': state['arm_id'] = 'other'
+    if case == 'calibration': state['calibration_sha256'] = 'c' * 64
+    if case == 'source': state['owner_source_sha256'] = {'arm': 'z' * 64}
+    if case == 'stale': state['monotonic'] -= 1
+    if case == 'torque_stale': state['torque_monotonic'] -= 1
+    if case == 'torque_on': state['torque']['elbow_flex'] = 1
+    if case == 'missing_joint': state['raw'].pop('gripper')
+    if case == 'fault_session': state['fault_observation']['owner_session_id'] = 'other'
+    if case == 'old_fault': state['fault_observation']['entered_monotonic'] = node._owner_started - .01
+    if case == 'future_fault': state['fault_observation']['entered_monotonic'] = time.monotonic() + 1
+    if case == 'active': node._active_goal = 'home'
+    if case == 'callback': node._control_callbacks = 1
+    node._read_state = lambda **kw: state
+    home_proof = node._home_completed_owner_started
+    assert not node._reconnect(Trigger.Request(), Trigger.Response()).success
+    assert process.alive and not process.commands and not calls
+    if case == 'normal':
+        assert not node._owner_faulted
+        assert node._home_completed_owner_started == home_proof
+
+
+def test_verified_stop_cannot_clear_owner_fault_observation_or_home_proof(bridge):
+    node, process = bridge
+    install_fault_observer(node, process)
+    node._owner_faulted = True
+    node._home_completed_owner_started = node._owner_started
+    def transform(reply):
+        state = fault_observed(node)
+        state['event'] = 'torque_off'
+        reply['state'] = state
+        return reply
+    process.transform = transform
+    result = stop(node)
+    assert result.success, result.message
+    assert node._owner_faulted
+    assert node._home_completed_owner_started is None
+
+
+def test_explicit_reset_owner_reinitializes_healthy_idle_alloff_without_weakening_reconnect(bridge):
+    node, process = bridge
+    calls = install_fault_observer(node, process)
+    def healthy(**kwargs):
+        value = fault_observed(node)
+        value['fault_observation'] = None
+        value['write_scope'] = 'normal'
+        return value
+    node._read_state = healthy
+    node._home_completed_owner_started = node._owner_started
+    assert node._reset_owner_service.callback_group is node._stop_group
+    assert not node._reconnect(Trigger.Request(), Trigger.Response()).success
+    assert not process.commands and not calls
+    response = node._reset_owner(Trigger.Request(), Trigger.Response())
+    assert response.success, response.message
+    assert process.commands == [{'command': 'exit'}]
+    assert calls == [{'observe_only': True}]
+    assert node._home_completed_owner_started is None and node._owner_faulted
+
+
+@pytest.mark.parametrize('failure', ['torque_on', 'stale', 'source', 'busy', 'teleop'])
+def test_explicit_reset_owner_requires_fresh_idle_alloff_proof(bridge, failure):
+    node, process = bridge
+    calls = install_fault_observer(node, process)
+    state = fault_observed(node)
+    state['fault_observation'] = None
+    if failure == 'torque_on': state['torque']['gripper'] = 1
+    if failure == 'stale': state['monotonic'] -= 1
+    if failure == 'source': state['owner_source_sha256'] = {}
+    if failure == 'busy': node._active_goal = 'home'
+    if failure == 'teleop': node._teleop_state = 'active'
+    node._read_state = lambda **kwargs: state
+    assert not node._reset_owner(Trigger.Request(), Trigger.Response()).success
+    assert not calls and not process.commands

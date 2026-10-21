@@ -201,6 +201,7 @@ class ArmSession(NativeDampingMixin):
         self._failed_jaw_ack_context = None
         self._last_held_jaw_ack = None
         self._initialized = False
+        self._fault_observation = None
         self._home_completed_this_session = False
         self._motion_busy = False
         self._cancel_requested = False
@@ -794,7 +795,8 @@ class ArmSession(NativeDampingMixin):
         self._record(dict(event=event, utc=self.wall_clock().isoformat(),
                           monotonic=self.clock(), arm_id=self.arm.settings["id"],
                           calibration_sha256=self.calibration_digest,
-                          write_scope=("observe_only" if self._observe_only else
+                          write_scope=("fault_observation" if self._fault_observation is not None else
+                                       "observe_only" if self._observe_only else
                                        "gripper_only" if self._component_scope else "normal"),
                           component_profile_registers=dict(self._component_profile_readback),
                           component_command=(dict(self._component_command) if self._component_command else None),
@@ -885,6 +887,7 @@ class ArmSession(NativeDampingMixin):
                          if event == "held_jaw_acknowledged" else None),
                      calibration_sha256=self.calibration_digest,
                      observe_only=self._observe_only,
+                     fault_observation=(dict(self._fault_observation) if self._fault_observation is not None else None),
                      native_damping=self._native_damping,
                      native_damping_restore_pending=self._native_damping_record is not None,
                      native_damping_supported=self._native_damping_enabled and bool(self._native_damping_firmware),
@@ -902,7 +905,8 @@ class ArmSession(NativeDampingMixin):
                      torque_timestamp_utc=torque_utc.isoformat(),
                      torque_monotonic=torque_monotonic,
                      violations=violations,
-                     write_scope=("observe_only" if self._observe_only else
+                     write_scope=("fault_observation" if self._fault_observation is not None else
+                                  "observe_only" if self._observe_only else
                                        "gripper_only" if self._component_scope else "normal"),
                      component_profile_registers=dict(self._component_profile_readback),
                      component_command=(dict(self._component_command) if self._component_command else None),
@@ -993,6 +997,8 @@ class ArmSession(NativeDampingMixin):
         self._component_scope = False
 
     def _ensure_profile(self, *, teleop=False):
+        if self._fault_observation is not None:
+            raise ArmPlanPreflightError("fault-observing owner requires explicit reconnect before motion")
         if self._native_damping is not None or self._native_damping_record is not None:
             raise ArmPlanPreflightError("native damping requires verified stop and RAM restoration before motion")
         if self._observe_only:
@@ -3609,6 +3615,8 @@ class ArmSession(NativeDampingMixin):
         if not isinstance(command, dict) or not isinstance(command.get("command"), str):
             raise ValueError("command must be a JSON object with string command")
         name = command["command"]
+        if self._fault_observation is not None and name not in {"read_state", "stop", "exit"}:
+            raise ArmPlanPreflightError("fault-observing owner requires explicit reconnect; only read_state, stop and exit are accepted")
         if self._native_damping_restore_only and name not in {"read_state", "stop", "exit"}:
             raise ArmPlanPreflightError("native damping restore-only owner cannot admit actuation")
         if ((self._native_damping is not None or self._native_damping_record is not None) and
@@ -3790,7 +3798,7 @@ class ArmSession(NativeDampingMixin):
                 except BaseException:
                     self.shutdown(reason="teleop_watchdog_hold_error")
                     raise
-            if (self._failed_endpoint_hold is None and not self._idle_handled and
+            if (self._fault_observation is None and self._failed_endpoint_hold is None and not self._idle_handled and
                     now - self.last_command >= self.idle_timeout):
                 self._event("idle_timeout", idle_seconds=now - self.last_command)
                 self.shutdown(reason="idle_timeout")
@@ -3809,7 +3817,7 @@ class ArmSession(NativeDampingMixin):
                 self._event("sample_error", error=str(error), error_type=type(error).__name__)
                 self.shutdown(reason="sample_error")
                 raise
-            timeout = (PERIOD_S if self._idle_handled or self._failed_endpoint_hold is not None else
+            timeout = (PERIOD_S if self._fault_observation is not None or self._idle_handled or self._failed_endpoint_hold is not None else
                        min(PERIOD_S, max(0.0, self.idle_timeout -
                                          (self.clock() - self.last_command))))
             ready, _, _ = wait([fd], [], [], timeout)
@@ -3831,6 +3839,7 @@ class ArmSession(NativeDampingMixin):
                 if len(line) > 1_048_576:
                     self.shutdown(reason="oversized_command")
                     raise ValueError("JSON-lines command exceeds 1 MiB")
+                name = None
                 try:
                     command = json.loads(line)
                     name = command.get("command") if isinstance(command, dict) else None
@@ -3907,7 +3916,53 @@ class ArmSession(NativeDampingMixin):
                         emit({"ok": False, "error": str(error), "error_type": type(error).__name__})
                     finally:
                         self.shutdown(reason="command_error")
-                    raise
+                    if not isinstance(error, Exception):
+                        raise
+                    # A verified all-off fault keeps this sole owner observable.
+                    # The latch is independent of STOP and cannot grant motion.
+                    if self._fault_observation is None:
+                        torque = self._read("Torque_Enable")
+                        if (not self._shutdown_complete or any(torque.values()) or
+                                self.saved_ram is not None or self._component_saved_ram is not None or
+                                self._elbow_trial_record is not None or self._native_damping_record is not None):
+                            raise RuntimeError("fault observation requires verified complete all-off cleanup") from error
+                        self._fault_observation = MappingProxyType(dict(
+                            schema=1, owner_session_id=self._owner_session_id,
+                            command=name[:128] if isinstance(name, str) else "invalid",
+                            error=str(error)[:512], error_type=type(error).__name__[:128],
+                            entered_monotonic=self.clock()))
+                        self._home_completed_this_session = False
+                        self._teleop = None
+                        # The old hold monitor requires torque ON. Verified
+                        # all-off cleanup above ends that hold, not the fault.
+                        self._failed_endpoint_hold = None
+                        self._failed_hold_last_tick = None
+                        # Keep safety/status requests already queued behind the
+                        # fault, including correlated STOP acknowledgments.
+                        # Complete motion requests are discarded. Retain a
+                        # partial trailing line for the ordinary bounded parser;
+                        # the immutable fault gate rejects any later actuation.
+                        pending = bytearray()
+                        lines = self._input_buffer.split(b"\n")
+                        for line in lines[:-1]:
+                            try:
+                                queued = json.loads(line)
+                                if not isinstance(queued, dict):
+                                    continue
+                                queued_name = queued.get("command")
+                                if not isinstance(queued_name, str):
+                                    continue
+                                if queued_name == "stop":
+                                    self._stop_request_id(queued)
+                                elif queued_name not in {"read_state", "exit"} or set(queued) != {"command"}:
+                                    continue
+                            except (ValueError, UnicodeDecodeError, RecursionError):
+                                continue
+                            pending.extend(json.dumps(queued, separators=(",", ":")).encode() + b"\n")
+                        pending.extend(lines[-1])
+                        self._input_buffer[:] = pending
+                        self.publish_state(event="fault_observation")
+                    continue
 
     def close_log(self):
         if self._log_stream is not None:

@@ -64,3 +64,31 @@ not write calibration or EEPROM. A process-level station lock prevents a
 second station controller from taking the bus and remains held until torque-off,
 RAM restore, and bus close complete. This software does not replace
 the physical emergency stop or collision-clearance checks.
+
+### Observation after a control fault
+
+After a command fault and successful verified torque-off/RAM cleanup, the resident
+owner keeps publishing fresh passive measurements. Snapshots include an immutable
+`fault_observation` record and `write_scope: fault_observation`. Only `read_state`,
+explicit `stop`, and `exit` are accepted. STOP verifies disarm and preserves the
+owner fault latch; queued motion is discarded. Cleanup failure remains fatal.
+The fault observer stays resident past the idle deadline and never retries motion.
+
+Follower status reports `owner_faulted: true` and
+`recovery_action: explicit_reconnect_then_stop` while these measurements remain
+fresh. Use the existing Connect route (`/follower/reconnect`) to explicitly retire
+a fresh identity/source/generation-matched fault observer with all six servos OFF.
+The bridge sends one exit, waits for termination, and starts a passive owner; an
+explicit STOP is then required. Connect refuses a healthy live owner.
+
+`/follower/reset_owner` is the explicit controller reset route for an idle, fresh,
+identity/source/generation-matched owner with all six servos OFF, including a
+healthy disarmed owner. It uses the same exit/wait/passive-start sequence, never
+kills a running owner, and revokes previous measured-home completion. Neither
+route homes, arms, modifies joint limits, nor restores old home proof.
+
+A separate `station_reset` operator-maintenance reservation lasts 120 seconds
+(ordinary maintenance remains 60 seconds). Its purpose and separately configured
+`operator_station_reset_units` are exposed in status. Extended restart units are
+usable only under this purpose. Reset acceptance failure retains the reservation;
+expiry latches a fault/STOP barrier until an explicit verified STOP.
