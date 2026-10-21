@@ -24,6 +24,11 @@ from moveit_configs_utils import MoveItConfigsBuilder
 ARM_JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
 
 
+def _independent_joint_limits(limits):
+    """Detach YAML aliases before applying any per-joint dynamics or positions."""
+    return {joint: dict(values) for joint, values in limits.items()}
+
+
 def _launch_nodes(context):
     station_root = Path(LaunchConfiguration("station_root").perform(context)).resolve()
     config_value = LaunchConfiguration("station_config").perform(context)
@@ -60,6 +65,8 @@ def _launch_nodes(context):
         )
         .to_moveit_configs()
     )
+    planning = moveit_config.joint_limits["robot_description_planning"]
+    planning["joint_limits"] = _independent_joint_limits(planning["joint_limits"])
     for joint in ARM_JOINTS:
         moveit_config.joint_limits["robot_description_planning"]["joint_limits"][joint].update({
             "has_velocity_limits": True, "max_velocity": profile.max_velocity,
