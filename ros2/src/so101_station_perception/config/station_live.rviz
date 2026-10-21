@@ -8,6 +8,16 @@ Panels:
 Visualization Manager:
   Class: ""
   Displays:
+    - Class: moveit_rviz_plugin/MotionPlanning
+      MoveIt_Allow_Approximate_IK: true
+      Enabled: true
+      Move Group Namespace: /follower
+      Name: MotionPlanning
+      Planning Request:
+        Planning Group: manipulator
+      Planning Scene Topic: /follower/monitored_planning_scene
+      Robot Description: robot_description
+      Value: true
     - Class: rviz_default_plugins/Grid
       Enabled: true
       Name: Grid
