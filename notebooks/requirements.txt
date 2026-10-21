@@ -1,0 +1,5 @@
+jupyterlab>=4.4,<5
+matplotlib>=3.10,<4
+Pillow>=11,<13
+nbclient>=0.10,<1
+nbconvert>=7.16,<8

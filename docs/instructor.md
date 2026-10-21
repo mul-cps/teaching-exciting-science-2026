@@ -1,99 +1,84 @@
-# Instructor runbook: Autonomous Robot Sorting
+# Teaching the sorting factory workshop
+22 October 2026 · Four hours · First semester · No programming or robotics prerequisites
 
-Thursday, 22 October 2026. Four hours, six first-semester bachelor students, three pairs. Use [the timed lesson plan](lesson-plan.md), [eight introductory slides](workshop-slides.pptx) and [one-page worksheet](student-worksheet.docx). English student instructions. No programming or ROS prerequisite.
+The class learns by predicting a small change, running it, and explaining visible results. Use the student notebook as the main route. The separate instructor notebook adds answers beside the same activities. Pair one student who types with one who predicts and have them swap roles each activity. Success means an explained, tested result, not finishing every optional challenge.
 
-## 1. Before students arrive
+## Prepare before the class
+Give every pair an extracted student ZIP and an already prepared Python environment. Jupyter and Matplotlib need dependencies; the lesson works without internet after preparation. The plain Python scripts and HTML animation need only Python 3.11 or newer. Do not spend classroom time installing packages.
 
-Prepare Python 3.11 or newer and a text editor on each laptop. Open a terminal in the repository or extracted student bundle. Use the same tested Python command throughout the session (`python`, or `python3` where required). No package installation or internet should be necessary in class.
+On the classroom computer prepare a dedicated environment, separate from any robot or ROS environment:
 
-Run these commands on **each** student laptop, with networking disconnected:
-
-```sh
-python --version
-python exercises/check_setup.py
-python exercises/01_python.py
-python exercises/02_robot.py
-python exercises/03_vision.py
-python exercises/04_sort.py
-python exercises/05_visual_sort.py
-python -m workshop
+```bash
+python3 -m venv .venv-workshop
+.venv-workshop/bin/python -m pip install -r notebooks/requirements.txt
+.venv-workshop/bin/python tools/verify_notebooks.py
+.venv-workshop/bin/python exercises/make_student_bundle.py --output docs/student-workshop.zip
 ```
 
-Open `sorting-result.html` in the laptop's browser. Confirm that the animation advances, labels are readable, and unknown objects reach reject. Edit one rule, rerun the Python file and reload the browser. Confirm that the output changes. These commands use simulated hardware and standard Python.
+Copy the ZIP to student machines and extract it. Prepare the same dependencies on those machines before class; a virtual environment copied from another machine is not portable. On Windows the environment Python is `.venv-workshop\Scripts\python.exe`. Install using that Python and the same requirements file.
 
-Prepare a portable copy in advance:
+Launch from the extracted folder:
 
-```sh
-python exercises/make_student_bundle.py --output student-workshop.zip
+```bash
+.venv-workshop/bin/python notebooks/launch.py
 ```
 
-Extract it into a writable folder on each laptop. Rerun the checks there. Keep a USB copy, printed worksheets, the slides and a PDF copy if the presentation application differs. Test all three laptops; one passing workstation does not establish that all laptops work.
+If Jupyter is already prepared under another interpreter, run that interpreter followed by `notebooks/launch.py`. The launcher opens the student notebook in JupyterLab with the bundle folder as its root. On Windows use the prepared Python executable with the same argument. Make a team copy with File → Save Notebook As; retain the original. Restarting the kernel clears memory, not saved file edits. Keep the instructor notebook away from the learner ZIP.
 
-| Computer | Python and four exercises | Visual HTML changed and replayed | Offline test | Checked by |
-|---|---|---|---|---|
-| Pair 1 | ___ | ___ | ___ | ___ |
-| Pair 2 | ___ | ___ | ___ | ___ |
-| Pair 3 | ___ | ___ | ___ | ___ |
+Before students arrive, open the notebook, run setup and the first mission, and check that the bins appear. Confirm that a fresh copy runs top to bottom. Print one worksheet per pair. Project the eight introduction slides. If hardware is unavailable, use the station photograph, paper objects and notebook simulation for all rotations. Only the instructor controls physical equipment; autonomous physical sorting is not established by these notebook checks.
 
-## 2. Physical-station decision
+## Introduction 25 minutes
+Use the eight slide deck and its speaker notes. Ask students how they would sort one object by hand. Build observe → decide → act → check from their answers. Point out the camera, conveyor and robot in the real station photograph. Define sensor as something that measures and actuator as something that changes the world. Ask what should happen when a camera report is missing. Finish by showing exactly how to open a team copy, click a code cell, press Shift+Enter, find output and save.
 
-Check the actual camera, robot and conveyor separately before class. Record the accepted demonstration for each. Secure the arm, conveyor, camera and cables. Keep an accessible stop and power disconnect. Only the instructor enables actuators. Brief students before touching leader controls. Never run a second motor owner or generic calibration command alongside the station controller.
+## A First instructions 25 minutes
+Allow 5 minutes for the one-line worked example and notebook controls, 8 minutes for reading and running the original mission, 8 minutes for individual changes and 4 minutes for pair explanation. Ask “What will the last object number be?” before running. Point to a single `=` storing a value, a double `==` asking a question, quotes marking text and four spaces grouping a loop body. Avoid introducing concepts that have not appeared yet.
 
-| Station | Check before enabling | Fallback |
-|---|---|---|
-| Robot | Fresh feedback, calibrated leader/follower, known stop response, clear workspace and supervised motion | `python exercises/02_robot.py`; explain a sequence of simulated actions |
-| Conveyor | Correct direction, working stop, clear mechanism, repeatable object stopping | `python -m workshop`; inspect the unpowered mechanism |
-| Camera | Advancing real images and classifications under actual lighting | `docs/assets/vision-demo.png` and `docs/assets/vision-roi.png`, plus exercise 03 |
+Expected original output: object numbers 1, 2, 3 and decision left. Five repetitions produce 1–5; blue chooses right; yellow chooses reject. Green extension uses another `elif COLOR == "green":` before else and an indented `destination = "left"`. First hint: change only the value on the right of `=`. Second hint: point to the quoted color. Ask a student to explain why changing a name label does not change the repeat count.
 
-The included images are labeled teaching schematics, not photographs or validation evidence. A physical autonomous pick/place remains a separate commissioning result. Demonstrate it only if the complete cycle has actually passed the current station checks. Component tests or a successful simulation do not prove a physical sort.
+If a quote is missing, read the last error line aloud, repair one quote and rerun. If indentation changes, compare the line with the clean original. Demonstrate this once; do not treat an error as failure.
 
-If a stream becomes stale, a person enters the work envelope or motion differs from expectations, stop the hardware and switch that station to its fallback. Do not troubleshoot powered hardware while students wait. Students must not change calibration, joint limits, motor settings or service configurations.
+## B Camera information 35 minutes
+Spend 8 minutes comparing the real photograph crops and their human labels, 12 minutes on the five simulated reports, 10 minutes on actual versus reported color, and 5 minutes sharing explanations. The photograph contains real colored objects; the lists are controlled simulated sensor reports, not an implemented image classifier.
 
-## 3. Introduction: eight slides, 25 minutes
+Default counts: left 2, right 2, reject 1. Changing the second blue report to red produces 3, 1, 1. Adding green without a rule adds a reject. Reverse the two destination variables to flip individual actions. For green insert an elif before else; preserve fallback rejection. In the actual/report experiment, changing only the first report from red to blue sends an actual red object right. Changing it to None rejects it. A believable incorrect report is not detectable by this routing rule alone.
 
-1. Can a robot run a factory? (3 min): ask what it must know before moving a block.
-2. Our miniature factory (3 min): point to the actual camera, LEGO belt, arm and bins. The slide is a schematic.
-3. Observe, decide, act, check (4 min): classify camera as sensor and motor as actuator. Ask how to check a result.
-4. A camera sees pixels (3 min): compare red, blue and unknown examples. Discuss lighting, shadows and missing information.
-5. Robot joints and gripper (3 min): show joints and a target, using only an accepted motion demonstration.
-6. Your first Python rule (4 min): predict a tiny loop and color condition. Avoid a long syntax lecture.
-7. What can go wrong? (3 min): ask students for a failure and a safe response.
-8. Your challenge (2 min): pairs must change a rule, test five objects and explain rejection.
+First hint: trace one list item through its condition. Second hint: underline the report and destination separately. Ask “Did the program do the wrong thing, or did it receive wrong information?” Invite lighting, shadows and occlusion examples. Do not claim the human crop labels are measured recognition accuracy.
 
-The presentation contains speaker notes with prompts and pacing. Continue with the exact [240-minute schedule](lesson-plan.md).
+## Break 10 minutes
+Save work. Display the three rotation groups and their starting stations. Keep a clean original ready for students who need recovery.
 
-## 4. Three rotations: 01:35–02:20
+## C Three rotations 45 minutes
+Run three slots of exactly 15 minutes. Group 1: robot → conveyor → camera. Group 2: conveyor → camera → robot. Group 3: camera → robot → conveyor. In each slot allow 2 minutes to describe the task, 9 minutes to try it, 3 minutes to explain an observation and 1 minute to rotate.
 
-Use pairs A, B and C. Each visit lasts 15 minutes, including transition. The instructor supervises any powered robot activity; if the other stations require supervision too, use their offline alternatives. Swap the typing / predicting roles between activities.
+At robot use notebook 02 to plan left/left/right, then add reject and an invalid command. Default left/right/left gives left 2/right 1; changed left/left/right has the same totals and a different order. Middle becomes reject. Ask what a real arm needs beyond a label: coordinates relative to a reference, reachable positions, a safe path and gripper timing. A recorded action is not proof of a completed placement.
 
-| Time | Pair A | Pair B | Pair C |
-|---|---|---|---|
-| 01:35–01:50 | Robot | Conveyor | Camera |
-| 01:50–02:05 | Conveyor | Camera | Robot |
-| 02:05–02:20 | Camera | Robot | Conveyor |
+At conveyor ask one partner to call move → stop → observe → decide → pick while the other moves paper objects. Ask what changes if pick happens before stop. At camera compare crops, hide part of one object and discuss uncertain reports. These are complete fallback activities; live demonstrations supplement them only when the instructor has qualified the station. Keep students outside any moving workspace.
 
-Robot question: How easy is it to reach the same target twice? Conveyor question: Does a sensor trigger guarantee a repeatable stopping position? Camera question: Which change makes recognition less reliable? Each pair records one observation and one improvement.
+## D Integrated factory 45 minutes
+Use 8 minutes to trace the worked two-object example, 12 minutes for five-object predictions and baseline run, 15 minutes for rule changes, and 10 minutes to compare order and counts. Explain a mapping only now, using red → left and blue → right. Point out braces, colons and commas in the code.
 
-## 5. Sorting and independent challenges
+Baseline: left 2/right 2/reject 1, five advances and actions left/right/left/reject/right. A reversed rule has identical totals on this balanced input but different actions. This is a useful discovery: totals alone can hide a mistake. Ask teams to invent an asymmetric input. Every cycle stops the belt before reading or picking, and stops again on completion. The helper recreates state each time the cell runs.
 
-At 02:20, return all pairs to their laptops. Start with the unchanged exercise 04. Ask for predicted counts before execution, then reverse the destinations. Explain that the mapping accepts known labels and sends everything else to reject. Use exercise 05 for visible feedback. Students edit Python, rerun and reload the generated page; the page does not control real hardware.
+Green extension adds `"green": "left"` and at least one green report. None and unknown remain rejected with the normal red/blue/green rules. An invalid destination such as middle is rejected. The count assertion checks that objects are not lost; it does not prove each destination is correct.
 
-For fast pairs, use the six graded challenges on the worksheet. Complete reversing and counting first. Then introduce green, invalid/missing readings, new sequences or a reliability improvement. Do not require every pair to finish all six.
+## E Independent experiments 40 minutes
+Give 5 minutes to choose two challenges and write predictions, 25 minutes to run and record them, and 10 minutes to swap tests with another pair. Offer one hint at a time. Early finishers design a test that catches swapped rules; they do not need physical hardware.
 
-Expected baseline counts and current examples are in the tested exercise files. After editing a sequence, count it by hand first. Counts must sum to the sequence length, unknown/missing/invalid readings must be rejected, and changing a recognized color's destination must change its route.
+Suggested answers: adding None, unknown, 42 and empty text to baseline produces left 2/right 2/reject 5. A middle destination for red makes baseline left 0/right 2/reject 3. A ten-report run must total ten. Green without a rule rejects; with a valid rule it reaches that bin. Swapping an unbalanced input changes totals. An assertion like `assert factory.counts["reject"] == 1` is useful on baseline but insufficient alone.
 
-## 6. Closing and readiness record
+## Closing 15 minutes
+Give pairs 5 minutes to prepare a result, 7 minutes for several short presentations and 3 minutes for a final explanation and save. Each presentation includes a prediction, a changed rule, observed evidence and one real-world limitation. Invite quieter students to explain a single route. Collect worksheets as formative evidence, not a speed contest.
 
-At 03:45, allow 2–3 minutes per pair. Each pair shows a changed rule, one prediction versus result, and a possible failure response. Close with the most advanced physical demonstration accepted that day, or the visual simulator.
+## If the notebook environment fails
+Use the prepared plain Python route. Open a terminal, then run one command at a time. The scripts locate their own imports, so they also work when invoked with an absolute path from another directory.
 
-Before class, tick only what you have actually checked:
+```bash
+python3 exercises/check_setup.py
+python3 exercises/01_python.py
+python3 exercises/03_vision.py
+python3 exercises/02_robot.py
+python3 exercises/04_sort.py
+python3 exercises/05_visual_sort.py
+```
 
-- [ ] All three laptops pass the offline commands and edit / rerun test.
-- [ ] Eight slides open correctly on the projector.
-- [ ] Six one-page worksheets are printed.
-- [ ] Red, blue and unknown objects are prepared and fit the station.
-- [ ] Camera, robot and conveyor each have an accepted demonstration or fallback.
-- [ ] USB student bundle and image examples are available without networking.
-- [ ] Pairs and rotation order are assigned.
-
-Student success means a tested five-object simulated sorter and a clear explanation. Hardware integration remains instructor infrastructure; students do not need to learn ROS during this session.
+Students edit the marked STUDENT AREA, save, and rerun the same command. Open sorting-result.html in a browser for the fallback animation; it needs no network. Use student-exercises.md for explanations and print the station photo if necessary. If no computers work, enact the same decision rules with paper reports and three labeled bins and record predictions on the worksheet.

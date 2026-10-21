@@ -1,48 +1,52 @@
-# Autonomous Robot Sorting
+# My sorting factory
+22 October 2026 · Pair names ______________________________
 
-**Team:** __________  **Names:** ____________________  **22 October 2026**
+Use this page to record ideas. The notebook explains each step. One partner predicts, one types; swap roles after each activity. Open your team copy and run with Shift+Enter. Save with Ctrl+S or Command+S.
 
-**Mission:** Observe, decide, act, check. Sort red and blue objects. Reject unknown or missing readings. Work in pairs: one types, one predicts; swap roles after each activity.
+## A First program 25 minutes
+Before running, I predict the last object number and destination:
 
-## A. First Python experiments (25 min)
+____________________________________________________________
 
-Run `python exercises/01_python.py`. Predict first: how many greeting lines? ____
-Change the greeting and make it repeat five times. Actual greeting lines: ____
-Change the color decision so red goes right and blue goes left. Explain your `if`: ____________________
+One value we changed __________________ Output __________________
 
-## B. Sensors and decisions (35 min)
+## B Camera decisions 35 minutes
+For the original five reports, predict: left ____ right ____ reject ____
 
-Run `python exercises/03_vision.py`. Predict what red / blue / unknown produce.
-Try an unfamiliar color and a missing reading. What should happen? ____________________
-Compare the image examples or live camera. One recognition problem: ____________________
+After running: left ____ right ____ reject ____
 
-## C. Robot, conveyor and camera (3 × 15 min)
+An actual red object reported as blue goes ______________________
 
-Follow your assigned rotation. Keep hands clear of moving equipment. The instructor enables physical motion. Offline: `python exercises/02_robot.py` and `python -m workshop`.
-One observation: ____________________  One improvement: ____________________
+A report I would reject and why _______________________________
 
-## D. Build your sorter (45 min)
+## C Three station rotations 45 minutes
+Spend 15 minutes each at robot, conveyor and camera.
 
-Run `python exercises/04_sort.py`. Use the five-object sequence shown in the file.
-Predict: left ____ right ____ reject ____  Actual: left ____ right ____ reject ____
-Reverse red and blue destinations; run again. Does unknown stay rejected? ____
-Run `python exercises/05_visual_sort.py`; open `sorting-result.html` in a browser.
-Change a Python rule and run again. Which block moved differently? ____________________
+A sensor measures __________________ An actuator changes __________
 
-## E. Challenge board (40 min)
+Why stop before picking ______________________________________
 
-Finish 1 and 2 first, then choose. Tick a box after you can explain your result.
+## D Our complete factory 45 minutes
+Our changed rule _____________________________________________
 
-- [ ] 1 Easy: Reverse the destinations and verify the result.
-- [ ] 2 Easy: Count left, right and reject. Do they sum to the number of objects?
-- [ ] 3 Medium: Add green and choose a destination. Test it.
-- [ ] 4 Medium: Reject missing (`None`) and invalid color readings.
-- [ ] 5 Medium: Create two sequences. Predict counts before running each one.
-- [ ] 6 Advanced: Improve reliability. Demonstrate your idea in simulation.
+Prediction: left ____ right ____ reject ____ total ____
 
-## Show your result (2–3 min per pair)
+Observed: left ____ right ____ reject ____ total ____
 
-Our rule: ____________________  Test result: ____________________
-Sensor: __________  Actuator: __________  Failure and response: ____________________
+Did the action order also match __________________________________
 
-**Stop and ask the instructor if equipment behaves unexpectedly.** No installation or ROS commands are needed for these activities.
+## E Our experiments 40 minutes
+Challenge and prediction ______________________________________
+
+Observed result ______________________________________________
+
+A second challenge and what it taught us _______________________
+
+____________________________________________________________
+
+## Closing 15 minutes
+One difference between the simulation and a real factory:
+
+____________________________________________________________
+
+Notebook route A → B → break → C rotations → D → E → closing. Introduction 25 minutes; break 10 minutes. Total 4 hours. Save your work and keep the original notebook as a clean copy.
