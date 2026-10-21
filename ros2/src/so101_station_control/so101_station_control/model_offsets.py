@@ -76,3 +76,26 @@ def apply_model_offsets(description, configuration):
     return apply_joint_zero_offsets(
         apply_gripper_mount_roll(description, configuration["gripper_mount_roll_deg"]),
         configuration.get("joint_zero_offsets_deg", {}))
+
+
+def model_position_limits(description, limits=None):
+    """Read or install model q bounds after origin offsets; never shift q."""
+    names = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
+    if limits is not None and set(limits) != set(names):
+        raise ValueError("model limits require exactly five arm joints")
+    root, result = ET.fromstring(description), {}
+    for name in names:
+        joints = root.findall(f"joint[@name='{name}']")
+        if len(joints) != 1 or joints[0].get("type") != "revolute":
+            raise ValueError("expected one bounded revolute model joint: " + name)
+        node = joints[0].find("limit")
+        if node is None:
+            raise ValueError("missing model joint limits: " + name)
+        low, high = limits[name] if limits is not None else (float(node.get("lower")), float(node.get("upper")))
+        if not (math.isfinite(low) and math.isfinite(high) and low < high):
+            raise ValueError("invalid model limits: " + name)
+        result[name] = (low, high)
+        if limits is not None:
+            node.set("lower", format(low, ".17g"))
+            node.set("upper", format(high, ".17g"))
+    return ET.tostring(root, encoding="unicode") if limits is not None else result

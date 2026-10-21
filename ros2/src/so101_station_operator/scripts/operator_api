@@ -342,7 +342,8 @@ class OperatorAPI(Node):
                    "restart_units": self.units, "damping_supported": data.get("native_damping_supported") is True,
                    "damping_lease_remaining_s": lease,
                    "summary": f"Mode: {mode}" + (f" | Damping expires OFF in {lease:.1f} s" if lease is not None else "") +
-                       f"\nTorque: {data.get('torque')}\nStop latch: {data.get('stop_latched')} | Fault: {data.get('owner_faulted')}\nRGB info: {'fresh' if streams['rgb']['fresh'] else 'stale'} | Depth info: {'fresh' if streams['depth']['fresh'] else 'stale'} | Tags: {'fresh' if streams['tags']['fresh'] else 'stale'}" + restart_summary}
+                       f"\nTorque: {data.get('torque')}\nStop latch: {data.get('stop_latched')} | Fault: {data.get('owner_faulted')}\nRGB info: {'fresh' if streams['rgb']['fresh'] else 'stale'} | Depth info: {'fresh' if streams['depth']['fresh'] else 'stale'} | Tags: {'fresh' if streams['tags']['fresh'] else 'stale'}" + restart_summary +
+                       ("\nPlanning blocked: " + str(data["planning_joint_limits_error"]) if data.get("planning_joint_limits_error") else "")}
         self.publisher.publish(String(data=json.dumps(payload, allow_nan=False)))
 
 

@@ -25,6 +25,112 @@ POSITION_LIMITS_RAD = MappingProxyType({
             (-1.65806, 1.65806) if joint == "wrist_flex" else (-math.pi / 2, math.pi / 2))
     for joint in ARM_JOINTS
 })
+
+# Encoder coordinates are unchanged by model origin rotations. All five arm
+# joints use the calibration midpoint and the legacy 4095-count revolution.
+LIMIT_MAPPING = "calibration-midpoint-2pi-over-4095-v1"
+BOUND_KEYS = ("admitted_min", "admitted_max", "firmware_min", "firmware_max")
+
+
+def admitted_raw_limits(calibration, configured, firmware_min, firmware_max):
+    """One startup-only intersection shared by owner and offline model export."""
+    low, high = {}, {}
+    for joint in (*ARM_JOINTS, "gripper"):
+        entry, limits = calibration[joint], configured[joint]
+        a, b = entry["range_min"], entry["range_max"]
+        fw_a, fw_b = firmware_min[joint], firmware_max[joint]
+        if any(type(v) is not int for v in (a, b, fw_a, fw_b)) or not (0 <= a < b <= 4095 and 0 <= fw_a < fw_b <= 4095):
+            raise ValueError("invalid calibrated/firmware bounds: " + joint)
+        lo, hi = float(limits["min"]), float(limits["max"])
+        if not (math.isfinite(lo) and math.isfinite(hi) and lo < hi):
+            raise ValueError("invalid configured position bounds: " + joint)
+        scale, zero = ((b-a)/100, a) if joint == "gripper" else (4095/360, (a+b)/2)
+        low[joint] = max(a, math.ceil(lo*scale+zero), fw_a)
+        high[joint] = min(b, math.floor(hi*scale+zero), fw_b)
+        if low[joint] >= high[joint]:
+            raise ValueError("empty firmware/calibration/configured raw intersection: " + joint)
+    return low, high
+
+
+def encoder_position_limits(calibration, low, high):
+    """Bounded model q, in radians; gripper has no qualified jaw mapping here."""
+    return {j: tuple((raw-(calibration[j]["range_min"]+calibration[j]["range_max"])/2)*2*math.pi/4095
+                     for raw in (low[j], high[j])) for j in ARM_JOINTS}
+
+
+def resolve_joint_limit_settings(settings, config_path):
+    """Match the owner's config-relative path resolution before binding settings."""
+    from pathlib import Path
+    result = json.loads(json.dumps(settings))
+    for parent, key in ((result.get("calibration", {}), "path"), (result, "home_file")):
+        value = parent.get(key)
+        if isinstance(value, str) and value and not Path(value).is_absolute():
+            parent[key] = str((Path(config_path).parent / value).resolve())
+    return result
+
+
+def arm_settings_digest(settings):
+    return hashlib.sha256(json.dumps(settings, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+
+
+def validate_joint_limit_contract(contract, settings, calibration, owner_sources):
+    """Reject stale configuration, calibration, sources, or fabricated ranges."""
+    if (contract.get("schema") != "so101-joint-limit-contract-v1" or
+            contract.get("mapping") != LIMIT_MAPPING or
+            contract.get("arm_id") != settings["id"] or
+            contract.get("calibration_sha256") != settings["calibration"]["sha256"] or
+            contract.get("arm_settings_sha256") != arm_settings_digest(settings) or
+            contract.get("owner_source_sha256") != owner_sources):
+        raise ValueError("joint-limit contract cohort mismatch; regenerate from new observe-only owner")
+    low, high = admitted_raw_limits(calibration, settings["limits"], contract["firmware_min"], contract["firmware_max"])
+    limits = encoder_position_limits(calibration, low, high)
+    if (contract.get("admitted_min") != low or contract.get("admitted_max") != high or
+            contract.get("position_limits_rad") != {j: list(v) for j, v in limits.items()}):
+        raise ValueError("joint-limit contract differs from calibrated admission")
+    return limits
+
+
+def freeze_joint_limit_contract(settings, calibration, state, owner_sources, *, now, freshness=1.0):
+    """Export fresh passive owner evidence; never reads a device or changes torque."""
+    stamp = state.get("monotonic")
+    bounds = state.get("arm_bounds", {})
+    if (type(stamp) not in (int, float) or not math.isfinite(stamp) or not 0 <= now-stamp <= freshness or
+            bounds.get("position_monotonic") != stamp or bounds.get("schema") != "arm-bounds-observation-v1" or
+            state.get("arm_id") != settings["id"] or
+            state.get("calibration_sha256") != settings["calibration"]["sha256"] or
+            state.get("owner_source_sha256") != owner_sources or
+            state.get("trajectory_goal_id") is not None or state.get("phase") is not None or
+            set(state.get("torque", {})) != set((*ARM_JOINTS, "gripper")) or
+            any(type(v) is not int or v not in (0, 1) for v in state["torque"].values()) or
+            len(set(state["torque"].values())) != 1 or
+            type(state.get("torque_monotonic")) not in (int, float) or
+            not 0 <= now-state["torque_monotonic"] <= freshness):
+        raise ValueError("export requires fresh idle identity/source-matched owner with uniform confirmed torque")
+    result = dict(schema="so101-joint-limit-contract-v1", mapping=LIMIT_MAPPING,
+        arm_id=settings["id"], calibration_sha256=settings["calibration"]["sha256"],
+        arm_settings_sha256=arm_settings_digest(settings), owner_source_sha256=owner_sources,
+        observed_owner_session_id=state.get("owner_session_id"), observed_monotonic=stamp,
+        **{key: bounds[key] for key in BOUND_KEYS})
+    result["position_limits_rad"] = {j: list(v) for j, v in encoder_position_limits(
+        calibration, result["admitted_min"], result["admitted_max"]).items()}
+    validate_joint_limit_contract(result, settings, calibration, owner_sources)
+    return result
+
+
+def check_joint_limit_state(contract, state):
+    """Cheap runtime comparison; retain the owner's out-of-range classification."""
+    if any(state.get(k) != contract.get(k) for k in ("arm_id", "calibration_sha256", "owner_source_sha256")):
+        raise ValueError("planning joint-limit cohort differs from resident owner; regenerate contract")
+    bounds = state.get("arm_bounds", {})
+    if any(bounds.get(k) != contract.get(k) for k in BOUND_KEYS):
+        raise ValueError("planning joint limits differ from resident firmware/admission; regenerate contract")
+    raw = state.get("raw", {})
+    if any(type(raw.get(j)) is not int or not contract["admitted_min"][j] <= raw[j] <= contract["admitted_max"][j]
+           for j in (*ARM_JOINTS, "gripper")):
+        raise ValueError("resident raw state is outside admitted planning bounds; bounded recovery required")
+    if bounds.get("classification") != "normal":
+        raise ValueError("resident state requires bounded recovery before planning: " + str(bounds.get("classification")))
+
 ROS_MAX_VELOCITY_RAD_S = 0.125
 ROS_MAX_ACCELERATION_RAD_S2 = 0.2
 ROS_MAX_JERK_RAD_S3 = 2.0
@@ -247,10 +353,6 @@ def _position_limits(admitted):
         low, high = (_number(value, "position_limits/" + joint) for value in bounds)
         if low >= high:
             raise ValueError("position_limits are inverted or empty: " + joint)
-        model_low, model_high = POSITION_LIMITS_RAD[joint]
-        low, high = max(low, model_low), min(high, model_high)
-        if low >= high:
-            raise ValueError("position_limits do not intersect model envelope: " + joint)
         effective[joint] = (low, high)
     return effective
 
@@ -264,7 +366,7 @@ def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
     must agree with fresh measured state; the measured values become the exact
     first knot so the path does not begin with a discontinuity. Optional
     `position_limits` are already admitted joint bounds in radians; they can
-    narrow, but never widen, the per-joint model envelope.
+    replace the portable model envelope only with calibrated owner admission.
     """
     limits = _position_limits(position_limits)
     names = tuple(joint_names)
@@ -345,7 +447,8 @@ def prepare_trajectory(joint_names, points, *, start_radians, max_velocity,
 
 
 def prepare_collinear_quintic(joint_names, points, *, start_radians, max_velocity,
-                              max_acceleration, max_jerk, period=ROS_TRAJECTORY_PERIOD_S):
+                              max_acceleration, max_jerk, period=ROS_TRAJECTORY_PERIOD_S,
+                              position_limits=None):
     """Return an admitted two-knot candidate only for roundoff-collinear monotone paths.
 
     The candidate never shortens the original requested total duration.
@@ -354,6 +457,7 @@ def prepare_collinear_quintic(joint_names, points, *, start_radians, max_velocit
     """
     tolerance = 1e-10
     try:
+        limits = _position_limits(position_limits)
         names = tuple(joint_names)
         if (len(names) != len(ARM_JOINTS) or set(names) != set(ARM_JOINTS) or
                 not isinstance(points, (list, tuple)) or not 2 < len(points) <= MAX_POINTS or
@@ -373,7 +477,7 @@ def prepare_collinear_quintic(joint_names, points, *, start_radians, max_velocit
                 return None
             row = [_number(value, "position") for value in positions]
             for joint, value in zip(names, row):
-                low, high = POSITION_LIMITS_RAD[joint]
+                low, high = limits[joint]
                 if not low <= value <= high or (index == 0 and
                         abs(value - start[joint]) > START_TOLERANCE_RAD):
                     return None
@@ -423,7 +527,8 @@ def prepare_collinear_quintic(joint_names, points, *, start_radians, max_velocit
         command_points = [{"time": 0.0, "positions": list(rows[0])},
             {"time": seconds + nanoseconds * 1e-9, "positions": list(rows[-1])}]
         prepared = prepare_trajectory(names, command_points, start_radians=start,
-            max_velocity=velocity, max_acceleration=acceleration, max_jerk=jerk, period=period)
+            max_velocity=velocity, max_acceleration=acceleration, max_jerk=jerk, period=period,
+            position_limits=position_limits)
         return command_points, prepared, residual
     except (ValueError, TypeError, KeyError, OverflowError):
         return None

@@ -234,7 +234,7 @@ def _duration(seconds):
 
 
 def prepare_with_controller_timing(helper, joint_names, points, *, start_radians, max_jerk,
-                                   motion_profile=None):
+                                   motion_profile=None, position_limits=None):
     """Retry controller limit failures up to 4x timing, retaining the 300s duration guard."""
     profile = motion_profile if motion_profile is not None else helper.resolve_ros_motion_profile({})
     retry_prefixes = ("velocity limit exceeded:", "acceleration limit exceeded:",
@@ -253,7 +253,8 @@ def prepare_with_controller_timing(helper, joint_names, points, *, start_radians
                 joint_names, effective_points, start_radians=start_radians,
                 max_velocity=profile.max_velocity,
                 max_acceleration=profile.max_acceleration,
-                max_jerk=max_jerk, period=helper.ROS_TRAJECTORY_PERIOD_S)
+                max_jerk=max_jerk, period=helper.ROS_TRAJECTORY_PERIOD_S,
+                position_limits=position_limits)
         except ValueError as error:
             if not str(error).startswith(retry_prefixes):
                 raise
@@ -314,6 +315,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self.declare_parameter("station_python", os.environ.get("SO101_STATION_PYTHON", ""))
         self.declare_parameter("station_root", os.environ.get("SO101_STATION_ROOT", os.getcwd()))
         self.declare_parameter("station_config", "")
+        self.declare_parameter("joint_limit_contract", "")
+        self.declare_parameter("planning_position_limits_json", "")
         self.declare_parameter("state_file", "")
         self.declare_parameter("log_dir", "")
         self.declare_parameter("trajectory_log_dir", "")
@@ -391,6 +394,11 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self._owner_started = 0.0
         self._owner_readers = []
         self._owner_source_expected = None
+        contract_path = str(self.get_parameter("joint_limit_contract").value)
+        self._planning_contract = json.loads(Path(contract_path).read_text()) if contract_path else None
+        limits_json = str(self.get_parameter("planning_position_limits_json").value)
+        self._planning_limits = json.loads(limits_json) if limits_json else None
+        self._planning_calibration = None
         self._reconnect_observe = False
         self._owner_fault_lock = threading.Lock()
         self._owner_fault_serial = 0
@@ -624,6 +632,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             raise RuntimeError("station_config has invalid arm identity or calibration SHA256")
         if self._trajectory_helper is None:
             self._trajectory_helper = self._load_trajectory_helper()
+        config_data["arm"] = self._trajectory_helper.resolve_joint_limit_settings(config_data["arm"], config_path)
         self._ros_motion_profile = self._trajectory_helper.resolve_ros_motion_profile(config_data["arm"])
         self._prepare_config_path = config_path
         option = config_data.get("arm", {}).get("camera_recovery")
@@ -651,6 +660,14 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
             raise RuntimeError("cannot load identity-matched gripper raw calibration") from error
         self._gripper_raw_limits = (low, high)
+        self._planning_calibration = raw_calibration
+        if self._planning_contract is not None:
+            validated_limits = self._trajectory_helper.validate_joint_limit_contract(
+                self._planning_contract, config_data["arm"], raw_calibration,
+                _load_owner_source_hashes(station_root))
+            if self._planning_limits is None or any(tuple(self._planning_limits[j]) != validated_limits[j] for j in ARM_JOINTS):
+                raise ValueError("loaded planner and bridge joint limits differ; relaunch with the same contract")
+            self._planning_limits = validated_limits
         jaw_path_value = str(self.get_parameter("gripper_jaw_calibration").value).strip()
         if jaw_path_value:
             try:
@@ -2394,6 +2411,13 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                           actual_sources == expected_sources)
         if not source_matches:
             reasons.append("owner_source_hashes_unconfirmed")
+        planning_limit_error = None
+        if state and getattr(self, "_planning_calibration", None) is not None:
+            try:
+                self._planning_limits_for_state(state)
+            except (ValueError, KeyError, TypeError) as error:
+                planning_limit_error = str(error)
+                reasons.append("planning_joint_limits_mismatch: " + planning_limit_error)
         home = bool(connected and generation_valid and identity and not faulted and not barrier and
                     source_matches and observe_only is False and completed is not None and completed == generation)
         trusted = generation_valid and identity and source_matches
@@ -2424,6 +2448,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             "owner_source_sha256": actual_sources,
             "expected_owner_source_sha256": expected_sources if isinstance(expected_sources, dict) else None,
             "arm_bounds": state.get("arm_bounds") if trusted else None,
+            "planning_joint_limits_ready": planning_limit_error is None and getattr(self, "_planning_contract", None) is not None,
+            "planning_joint_limits_error": planning_limit_error,
             "prepare_phase": self._prepare_phase,
             "camera_recovery": (state.get("camera_recovery_observation") if trusted else
                 {"supported": False, "phase": None, "held_raw": None,
@@ -3303,10 +3329,29 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             raise RuntimeError("MoveIt state-validity service returned no response")
         return response
 
+    def _planning_limits_for_state(self, state):
+        contract = getattr(self, "_planning_contract", None)
+        if contract is not None:
+            self._trajectory_helper.check_joint_limit_state(contract, state)
+            return self._planning_limits
+        # A portable model cannot authorize a hardware range it does not model.
+        bounds = _arm_bounds_observation(state)
+        if bounds is None or getattr(self, "_planning_calibration", None) is None:
+            raise ValueError("planning joint limits lack calibrated owner evidence; export joint_limit_contract")
+        actual = self._trajectory_helper.encoder_position_limits(self._planning_calibration,
+            bounds["admitted_min"], bounds["admitted_max"])
+        fallback = self._planning_limits or self._trajectory_helper.POSITION_LIMITS_RAD
+        if any(any(abs(a-b) > 1e-12 for a, b in zip(actual[j], fallback[j])) for j in ARM_JOINTS):
+            raise ValueError("portable model differs from owner limits; export joint_limit_contract from observe-only owner and relaunch")
+        if bounds["classification"] != "normal":
+            raise ValueError("resident state requires bounded recovery before planning")
+        return actual
+
     def _collision_check_path(self, trajectory, points, goal_id):
         state = self._read_state()
         if state is None:
             raise RuntimeError("fresh measured state is required before collision checking")
+        position_limits = self._planning_limits_for_state(state)
         start = {joint: math.radians(float(state["pose"][joint])) for joint in ARM_JOINTS}
         parsed_points = []
         for point in points:
@@ -3323,13 +3368,15 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             raise ValueError(f"max_jerk_rad_s3 must be in (0, {helper.ROS_MAX_JERK_RAD_S3}]")
         retiming_factor, command_points, prepared = prepare_with_controller_timing(
             helper, trajectory.joint_names, parsed_points, start_radians=start,
-            max_jerk=max_jerk, motion_profile=self._ros_motion_profile)
+            max_jerk=max_jerk, motion_profile=self._ros_motion_profile,
+            position_limits=position_limits)
         timing_method, collinear_residual = "uniform_controller_timing", None
         candidate = helper.prepare_collinear_quintic(
             trajectory.joint_names, parsed_points, start_radians=start,
             max_velocity=self._ros_motion_profile.max_velocity,
             max_acceleration=self._ros_motion_profile.max_acceleration,
-            max_jerk=max_jerk, period=helper.ROS_TRAJECTORY_PERIOD_S)
+            max_jerk=max_jerk, period=helper.ROS_TRAJECTORY_PERIOD_S,
+            position_limits=position_limits)
         if candidate is not None and candidate[1].duration < prepared.duration:
             command_points, prepared, collinear_residual = candidate
             retiming_factor = prepared.duration / parsed_points[-1]["time"]
@@ -3844,6 +3891,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                                "joint_names": names, "points": command_points,
                                "path_sha256": artifact["effective_path_sha256"],
                                "ros_motion_profile": artifact["ros_motion_profile"]}
+                    if self._planning_contract is not None:
+                        command["joint_limit_contract"] = self._planning_contract
                     if bool(self.get_parameter("calibration_endpoint_mode").value):
                         command["calibration_endpoint"] = True
                     self._send(command)

@@ -1,13 +1,14 @@
 """Real planning stack plus the ArmSession action bridge; no ros2_control mock."""
 import importlib.util
 import json
+import hashlib
 import os
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 import yaml
 
-from so101_station_control.model_offsets import apply_model_offsets
+from so101_station_control.model_offsets import apply_model_offsets, model_position_limits
 from so101_station_gpu.gpu_renderer import rviz_preload_value
 
 from ament_index_python.packages import get_package_share_directory
@@ -36,6 +37,8 @@ def _launch_nodes(context):
     helper = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = helper
     exec(compile(source.read_bytes(), str(source), "exec"), helper.__dict__)
+    if arm_settings:
+        arm_settings = helper.resolve_joint_limit_settings(arm_settings, config_path)
     profile = helper.resolve_ros_motion_profile(arm_settings)
     description_share = get_package_share_directory("so101_description")
     config_share = get_package_share_directory("so101_moveit_config")
@@ -79,6 +82,29 @@ def _launch_nodes(context):
     moveit_config.robot_description["robot_description"] = apply_model_offsets(
         moveit_config.robot_description["robot_description"],
         model_offsets)
+    contract_path = LaunchConfiguration("joint_limit_contract").perform(context)
+    contract = None
+    if contract_path:
+        contract = json.loads(Path(contract_path).read_text())
+        calibration_path = Path(arm_settings["calibration"]["path"])
+        if not calibration_path.is_absolute():
+            calibration_path = station_root / calibration_path
+        data = calibration_path.read_bytes()
+        if hashlib.sha256(data).hexdigest() != arm_settings["calibration"]["sha256"]:
+            raise ValueError("planning calibration hash mismatch")
+        source_spec = importlib.util.spec_from_file_location("so101_limit_sources", station_root / "workshop/station/recovery_types.py")
+        source_helper = importlib.util.module_from_spec(source_spec)
+        sys.modules[source_spec.name] = source_helper
+        source_spec.loader.exec_module(source_helper)
+        limits = helper.validate_joint_limit_contract(contract, arm_settings, json.loads(data),
+            source_helper.owner_source_sha256(station_root / "workshop/station"))
+        moveit_config.robot_description["robot_description"] = model_position_limits(
+            moveit_config.robot_description["robot_description"], limits)
+    else:
+        limits = model_position_limits(moveit_config.robot_description["robot_description"])
+    for joint, (low, high) in limits.items():
+        moveit_config.joint_limits["robot_description_planning"]["joint_limits"][joint].update({
+            "has_position_limits": True, "min_position": low, "max_position": high})
     # Keep the host DRM ABI override local to RViz. Its entrypoint probes GLX
     # with this environment before executing the renderer.
     rviz_environment = {"LD_PRELOAD": rviz_preload_value()}
@@ -102,6 +128,8 @@ def _launch_nodes(context):
     })
 
     bridge_parameters = {
+        "joint_limit_contract": contract_path,
+        "planning_position_limits_json": json.dumps(limits),
         "operator_service_units": [LaunchConfiguration(key).perform(context) for key in
                                    ("operator_camera_unit", "operator_depth_unit", "operator_tags_unit")],
         "operator_maintenance_journal": LaunchConfiguration("operator_maintenance_journal"),
@@ -166,6 +194,8 @@ def generate_launch_description():
         DeclareLaunchArgument("rviz_config",
                               default_value=os.path.join(get_package_share_directory("so101_station_perception"), "config", "station_live.rviz"),
                               description="RViz configuration for robot state and perception markers"),
+        DeclareLaunchArgument("joint_limit_contract", default_value="",
+                              description="Read-only calibrated owner limit export; regenerate after source/config/calibration change"),
         DeclareLaunchArgument("station_python", default_value="",
                               description="Absolute stationvenv Python executable"),
         DeclareLaunchArgument("operator_camera_unit", default_value=""),
