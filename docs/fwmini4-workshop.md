@@ -205,3 +205,68 @@ for that explicit unit profile, preserving STOP acknowledgement, fresh real
 contract generation, and PID/owner/lock checks. Keep current integrated startup
 and local ROCm defaults. This unit recipe is a plan, not an installed or qualified
 remote configuration.
+
+## N100 synthetic gripper camera replay, 2026-10-22
+
+The existing `GpuPointCamera` EGL/GLES visualization renderer passed a bounded,
+offscreen replay on fwmini4's Intel N100. GL vendor was `Intel`, renderer
+`Mesa Intel(R) Graphics (ADL-N)`, and version
+`OpenGL ES 3.2 Mesa 25.2.8-0ubuntu0.24.04.4`; the existing hardware-renderer
+guard passed. Vulkan/Slang masks remain the primary compute offload. This result
+covers the existing synthetic camera visualization, with no backend changes.
+
+The remote checkout was clean at `fc42d532d577db546180883d8efb7e4df4fe0f7d`.
+Although newer instructor source was at `f6e190f`, the three exercised
+renderer/geometry/mesh files matched it byte for byte. Each case used three
+warmup frames and 30 measured frames paced at 3 Hz, with 20,000 fixed RGB-D
+samples from the approved saved aligned capture. CAD cases included all three
+gripper visuals, totaling 76,146 triangles. Source intrinsics and recorded
+transforms were preserved; offline URDF FK matched the recorded gripper transform
+to a maximum matrix-element difference of `3.33e-16`.
+
+| Resolution | CAD | Render p50 / p95 (ms) | Replay p50 / p95 (ms) |
+|---|---|---|---|
+| 320×240 | off | 4.77 / 4.98 | 9.48 / 9.71 |
+| 320×240 | on | 6.25 / 6.49 | 11.01 / 11.24 |
+| 640×480 | off | 10.63 / 11.11 | 15.89 / 16.35 |
+| 640×480 | on | 12.62 / 12.97 | 17.88 / 18.32 |
+
+Replay time includes resident RGB-D sample gather/deprojection, rendering,
+readback, provenance construction and byte serialization. It excludes camera
+acquisition, file/image decoding, ROS/DDS publication, TF lookup, annotation and
+GUI. Valid sample indices and cached mesh uploads were prepared before timing.
+Readback waits include pending GPU draws; these are wall-clock measurements,
+not GPU timestamps. Both measured and CAD pixels were present in output images.
+Keep the production 320×240, 20k-point, 3 Hz defaults: its CAD replay p95 was
+11.24 ms within a 333 ms period. This isolated result does not establish headroom
+with all station workloads running concurrently.
+
+The workshop venv lacked SciPy, so the run used the existing
+`station-fwmini4 ros-vulkan python` environment (SciPy 1.16.2), with one BLAS/OMP
+thread and no dependency installation. The active seat0/tty2 desktop belonged
+to cpsadmin; bjoern's sessions were headless. No GUI access or RViz GUI replay
+was attempted. No motion or camera acquisition was performed. The saved capture
+remains explicitly unqualified for physical gripper mapping and base calibration;
+this replay establishes neither geometric accuracy nor physical acceptance.
+
+Raw captures, benchmark script, per-frame timings, output images and full report
+remain outside Git in the instructor evidence directory:
+`~/.local/share/exciting-science/station/evidence/2026-10-21-sorting/workshop-beginner-rebuild/fwmini4-render-check/`.
+The source capture was
+`pick-place-resume/restored-station/deploy-v7-start-retry/jaw-orient/baseline-aligned/`
+under the same `2026-10-21-sorting` evidence root. Exact SHA-256 pins:
+
+```text
+# Exercised source, identical in remote fc42d53 and instructor f6e190f:
+ros2/src/so101_station_perception/so101_station_perception/virtual_camera_gpu.py
+98deffedd572ab8577273c9dac9c479f073f5d5c8e8fa289fab03e2a5cb14f16
+workshop/digital_twin/virtual_camera.py
+4b084b3be754b7f6fb2f58e0cd33bde55cb547182bc6926aaca6fd81bcce0f06
+workshop/digital_twin/gripper_mesh.py
+6abdbc8ddd00b4e001c94819539ec8c3e01d28a21f37725c960c85cca8e1dcfe
+# Approved saved input bundle:
+capture.json 065abfcb5055af72afba491d13757a8b3a0f63ff37187ee2ba93dc4aee089d74
+depth.npy    cfa7f7e426bd4942e8f14d1c724c129db6024b14292ee09a3d7a691f0009f8fd
+color.png    f88abf0ec0c2fc5e6061b3c100333d76c7a7a151aa34b53870336354d7ac98c9
+robot.urdf   090c1aa1bc81c8d30d27f6b0cbe7efa5c0b9ad6a483b983ce79fd3ebf2ff03ef
+```
