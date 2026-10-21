@@ -1,0 +1,42 @@
+{
+  "schema": "so101-blockly-workspace-v1",
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "station_ev3",
+          "fields": {
+            "COMMAND": "connect"
+          },
+          "next": {
+            "block": {
+              "type": "station_ev3",
+              "fields": {
+                "COMMAND": "home"
+              },
+              "next": {
+                "block": {
+                  "type": "station_ev3",
+                  "fields": {
+                    "COMMAND": "left_end"
+                  },
+                  "next": {
+                    "block": {
+                      "type": "station_ev3",
+                      "fields": {
+                        "COMMAND": "right_end"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "x": 35,
+          "y": 35
+        }
+      ]
+    }
+  }
+}

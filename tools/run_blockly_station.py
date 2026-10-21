@@ -66,10 +66,24 @@ class Application:
         if self.recorder: raise RuntimeError('finish recording first')
         if self.operator_busy: raise RuntimeError('instructor operation active')
 
+    def _check_recordings(self,rows):
+        missing=set()
+        def walk(commands):
+            for row in commands:
+                if row['op']=='replay' and row['name'] not in self.recordings:
+                    missing.add(row['name'])
+                elif row['op']=='repeat': walk(row['body'])
+                elif row['op']=='if_color':
+                    walk(row['then']); walk(row['else'])
+        walk(rows)
+        if missing: raise ValueError('recording not found: '+', '.join(sorted(missing)))
+
     def run(self,program):
         validate_program(program)
         with self.lock:
-            self.idle(); self.cancel=threading.Event(); job=secrets.token_hex(8)
+            self.idle()
+            self._check_recordings(program)
+            self.cancel=threading.Event(); job=secrets.token_hex(8)
             self.job={'id':job,'state':'running'}
             def work():
                 try:

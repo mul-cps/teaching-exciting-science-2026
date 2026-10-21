@@ -102,6 +102,53 @@ def test_strict_json_and_physical_unknown_barrier(tmp_path):
     with pytest.raises(RuntimeError): app.run([{'op':'wait','seconds':0}])
 
 
+@pytest.mark.parametrize('tail', [
+    [{'op':'replay','name':'missing','speed':.5}],
+    [{'op':'repeat','count':2,'body':[{'op':'if_color','color':'red',
+       'then':[], 'else':[{'op':'replay','name':'missing','speed':.5}]}]}],
+    [{'op':'if_color','color':'blue',
+      'then':[{'op':'repeat','count':2,'body':[{'op':'replay','name':'missing','speed':.5}]}],
+      'else':[]}],
+])
+def test_application_rejects_missing_replay_before_dispatch(tmp_path, tail):
+    from tools.run_blockly_station import Application
+    app=Application(tmp_path)
+    class PhysicalLike(SimulationBackend):
+        physical=True
+        def status(self): raise AssertionError('static admission must not query backend status')
+        def color(self): raise AssertionError('static admission must not query backend color')
+    app.backend=PhysicalLike(app.recordings)
+    cancel=app.cancel; cancel.set()
+    job=app.job; thread=app.thread
+    try:
+        with pytest.raises(ValueError, match='missing'):
+            app.run([{'op':'ev3','command':'eject'}]+tail)
+    finally:
+        if app.thread: app.thread.join(2)
+    assert app.backend.events == []
+    assert app.cancel is cancel and app.cancel.is_set()
+    assert app.job is job and app.job == {'state':'idle'}
+    assert app.thread is thread
+    assert not app.recovery_required
+
+
+def test_application_allows_known_replays_in_nested_branches(tmp_path):
+    from tools.run_blockly_station import Application
+    app=Application(tmp_path)
+    class PhysicalLike(SimulationBackend):
+        physical=True
+    app.recordings['known']={'schema':'test-only'}
+    app.backend=PhysicalLike(app.recordings)
+    replay={'op':'replay','name':'known','speed':.5}
+    app.run([{'op':'ev3','command':'eject'},
+             {'op':'repeat','count':2,'body':[{'op':'if_color','color':'red',
+              'then':[replay], 'else':[replay]}]}])
+    app.thread.join(2)
+    assert app.job['state'] == 'complete'
+    assert app.backend.events == ['ev3:eject','replay:known','replay:known']
+    assert not app.recovery_required
+
+
 def test_ready_client_never_dispatches_after_cancel():
     from workshop.blockly_ros import ROSBackend
     backend=ROSBackend.__new__(ROSBackend); backend.lock=threading.Lock(); backend.dispatch_lock=threading.Lock(); backend.pending_mutations=set()

@@ -1,0 +1,100 @@
+{
+  "schema": "so101-blockly-workspace-v1",
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "station_ev3",
+          "x": 35,
+          "y": 35,
+          "fields": {
+            "COMMAND": "connect"
+          },
+          "next": {
+            "block": {
+              "type": "station_repeat",
+              "fields": {
+                "COUNT": 2
+              },
+              "inputs": {
+                "BODY": {
+                  "block": {
+                    "type": "station_color",
+                    "fields": {
+                      "COLOR": "red"
+                    },
+                    "inputs": {
+                      "THEN": {
+                        "block": {
+                          "type": "station_ev3",
+                          "fields": {
+                            "COMMAND": "eject"
+                          },
+                          "next": {
+                            "block": {
+                              "type": "station_ev3",
+                              "fields": {
+                                "COMMAND": "left_end"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "ELSE": {
+                        "block": {
+                          "type": "station_color",
+                          "fields": {
+                            "COLOR": "blue"
+                          },
+                          "inputs": {
+                            "THEN": {
+                              "block": {
+                                "type": "station_ev3",
+                                "fields": {
+                                  "COMMAND": "eject"
+                                },
+                                "next": {
+                                  "block": {
+                                    "type": "station_ev3",
+                                    "fields": {
+                                      "COMMAND": "right_end"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "ELSE": {
+                              "block": {
+                                "type": "node_logging_info",
+                                "inputs": {
+                                  "MESSAGE": {
+                                    "shadow": {
+                                      "type": "node_logging_text",
+                                      "fields": {
+                                        "TEXT": "Unknown object: ask the instructor. No dispensing or movement."
+                                      }
+                                    }
+                                  }
+                                },
+                                "next": {
+                                  "block": {
+                                    "type": "station_stop"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

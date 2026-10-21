@@ -57,7 +57,36 @@ const $=id=>document.getElementById(id);
 async function api(path,body){const base=path==='program/stop'?'http://127.0.0.1:'+(Number(location.port)+1):'';const response=await fetch(base+'/api/'+path,{method:body===undefined?'GET':'POST',headers:{'X-Station-Token':window.STATION_TOKEN,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const data=await response.json();if(!response.ok)throw Error(data.error||response.statusText);return data;}
 function show(data){$('result').textContent=typeof data==='string'?data:JSON.stringify(data,null,2);}
 function clicked(id,fn){$(id).onclick=async()=>{try{await fn();}catch(error){show(error.message);}};}
-function example(){workspace.clear();Blockly.serialization.workspaces.load({blocks:{languageVersion:0,blocks:[{type:'station_repeat',x:35,y:35,fields:{COUNT:2},inputs:{BODY:{block:{type:'station_ev3',fields:{COMMAND:'eject'},next:{block:{type:'station_wait',fields:{SECONDS:1},next:{block:{type:'station_replay',fields:{NAME:'demo',SPEED:.5}}}}}}}}}]}},workspace);}
+let knownMode=null;let startupModeResolved=false;let startupWorkspaceSnapshot=null;
+const starterFiles={ev3:'01_ev3.json',teach:'02_teach_replay.json',factory:'03_color_factory.json'};
+function loadWorkspace(state){
+ Blockly.Events.disable();
+ try{workspace.clear();Blockly.serialization.workspaces.load(state,workspace);}
+ finally{Blockly.Events.enable();}
+ updateReplayDurations();
+}
+function example(){
+ if(knownMode===false){
+  loadWorkspace({blocks:{languageVersion:0,blocks:[{type:'station_repeat',x:35,y:35,fields:{COUNT:2},inputs:{BODY:{block:{type:'station_ev3',fields:{COMMAND:'eject'},next:{block:{type:'station_wait',fields:{SECONDS:1},next:{block:{type:'station_replay',fields:{NAME:'demo',SPEED:.5}}}}}}}}}]}});
+ }else{
+  loadWorkspace({blocks:{languageVersion:0,blocks:[{type:'node_logging_info',x:35,y:35,inputs:{MESSAGE:{shadow:{type:'node_logging_text',fields:{TEXT:'Choose a starter with the instructor. Record and inspect paths before physical execution.'}}}}}]}});
+ }
+}
+function updateStarterDownload(){
+ const file=starterFiles[$('starter-choice').value];
+ if(!file)throw Error('Choose one of the three supplied starters');
+ $('download-starter').href='examples/'+file;
+}
+$('starter-choice').onchange=updateStarterDownload;
+clicked('load-starter',async()=>{
+ updateStarterDownload();
+ const response=await fetch($('download-starter').getAttribute('href'));
+ if(!response.ok)throw Error('Starter is unavailable');
+ const data=await response.json();
+ if(data.schema!=='so101-blockly-workspace-v1')throw Error('Unsupported starter format');
+ loadWorkspace(data.workspace);
+ show('Starter loaded. Predict its actions, check placeholders and ask the instructor before physical execution.');
+});
 clicked('example',example);clicked('run',async()=>show(await api('program/run',{program:compile()})));clicked('stop',async()=>show(await api('program/stop',{})));
 clicked('record-start',async()=>show(await api('record/start',{name:$('record-name').value})));
 clicked('record-stop',async()=>show(await api('record/stop',{})));
@@ -96,5 +125,5 @@ function updateInstructor(status){
  }
 }
 $('sim-color').onchange=async()=>{try{await api('simulation/color',{color:$('sim-color').value});}catch(error){show(error.message);}};
-let jawEnabled=true;let lastJob='';async function refresh(){try{const status=await api('status');recordingInfo=status.recording_info||{};updateReplayDurations();const nextJaw=!status.physical||Boolean(status.capabilities?.jaw);if(nextJaw!==jawEnabled){jawEnabled=nextJaw;toolbox.contents[0].contents.find(b=>b.type==='station_jaw').disabled=!nextJaw;workspace.updateToolbox(toolbox);}$('mode').textContent=status.physical?'PHYSICAL · instructor supervised':'SIMULATION · no robot motion';$('mode').style.background=status.physical?'#a54529':'#24566b';$('recordings').textContent='Available strokes: '+status.recordings.join(', ')+(status.recording?' · recording '+status.recording:'');updateInstructor(status);const encoded=JSON.stringify(status.job);if(encoded!==lastJob){show(status.job);lastJob=encoded;}if(status.record_error)show(status.record_error);if(status.recovery_required)show('Recovery required: inspect station, use instructor recovery controls, then Verify recovery / unlock Blockly.');$('sim-color-label').hidden=status.physical;$('readiness').textContent=status.physical?JSON.stringify(status.streams,null,2):'Simulation: no physical camera, perception or arm connection';const events=status.events||[];$('trace').textContent=events.length?events.join(' → '):'Run a sequence to see its actions.';if(events.length)$('brick').style.transform='translateX('+((events.length%3)-1)*35+'px)';window.stationStatus=status;}catch(error){updateInstructor({});$('mode').textContent='DISCONNECTED';show(error.message);}setTimeout(refresh,700);}
-example();refresh();
+let jawEnabled=true;let lastJob='';async function refresh(){try{const status=await api('status');if(typeof status.physical!=='boolean')throw Error('Station mode is unavailable');if(typeof status.physical==='boolean'){knownMode=status.physical;if(!startupModeResolved){startupModeResolved=true;if(knownMode===false&&JSON.stringify(Blockly.serialization.workspaces.save(workspace))===startupWorkspaceSnapshot)example();}}recordingInfo=status.recording_info||{};updateReplayDurations();const nextJaw=!status.physical||Boolean(status.capabilities?.jaw);if(nextJaw!==jawEnabled){jawEnabled=nextJaw;toolbox.contents[0].contents.find(b=>b.type==='station_jaw').disabled=!nextJaw;workspace.updateToolbox(toolbox);}$('mode').textContent=status.physical?'PHYSICAL · instructor supervised':'SIMULATION · no robot motion';$('mode').style.background=status.physical?'#a54529':'#24566b';$('recordings').textContent='Available strokes: '+status.recordings.join(', ')+(status.recording?' · recording '+status.recording:'');updateInstructor(status);const encoded=JSON.stringify(status.job);if(encoded!==lastJob){show(status.job);lastJob=encoded;}if(status.record_error)show(status.record_error);if(status.recovery_required)show('Recovery required: inspect station, use instructor recovery controls, then Verify recovery / unlock Blockly.');$('sim-color-label').hidden=status.physical;$('readiness').textContent=status.physical?JSON.stringify(status.streams,null,2):'Simulation: no physical camera, perception or arm connection';const events=status.events||[];$('trace').textContent=events.length?events.join(' → '):'Run a sequence to see its actions.';if(events.length)$('brick').style.transform='translateX('+((events.length%3)-1)*35+'px)';window.stationStatus=status;}catch(error){knownMode=null;updateInstructor({});$('mode').textContent='DISCONNECTED';show(error.message);}setTimeout(refresh,700);}
+example();startupWorkspaceSnapshot=JSON.stringify(Blockly.serialization.workspaces.save(workspace));refresh();
