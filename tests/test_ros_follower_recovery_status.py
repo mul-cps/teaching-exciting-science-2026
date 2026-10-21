@@ -440,3 +440,24 @@ def test_status_and_recovery_reject_each_source_pin_mismatch(ready, module):
     node._read_state = lambda **kwargs: observed
     assert not recover(node).success
     assert process.commands == []
+
+
+def test_fresh_fault_observation_stays_visible_and_unhealthy_even_if_bridge_bit_was_cleared(ready):
+    node, process = ready
+    fault = dict(schema=1, owner_session_id='arm-session-' + '1' * 32,
+                 command='home', error='deadline', error_type='TimeoutError',
+                 entered_monotonic=node._owner_started + .001)
+    sample = state(node, fault_observation=fault, owner_session_id=fault['owner_session_id'])
+    node._cache_owner_state(sample)
+    node._owner_faulted = False  # stale legacy bridge bit cannot authorize this generation
+    node._home_completed_owner_started = node._owner_started
+    value = status(node)
+    assert value['fresh'] and value['connected'] and value['owner_faulted']
+    assert value['fault_observation'] == fault
+    assert value['recovery_action'] == 'explicit_reconnect_then_stop'
+    assert not value['home_completed_this_session'] and not value['teleop_start_ready']
+    with pytest.raises(RuntimeError, match='fresh matching'):
+        node._prepare_owner_state(sample, process, node._owner_started, torque=0)
+    with pytest.raises(RuntimeError, match='explicit reconnect'):
+        node._send({'command': 'home'})
+    assert not process.commands

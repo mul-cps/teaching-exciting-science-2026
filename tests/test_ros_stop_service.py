@@ -18,7 +18,7 @@ from so101_station_control.trajectory_server import TrajectoryBridge, TELEOP_JOI
 def bridge(monkeypatch, tmp_path):
     assert os.environ.get('ROS_DOMAIN_ID') == '75'
     rclpy.init()
-    def start(node):
+    def start(node, **kwargs):
         node._expected_arm_id = 'fake-arm'
         node._expected_calibration_sha256 = 'a' * 64
     monkeypatch.setattr(TrajectoryBridge, '_start_owner', start)
@@ -26,7 +26,8 @@ def bridge(monkeypatch, tmp_path):
     node = TrajectoryBridge(parameter_overrides=[
         Parameter('station_root', value=str(root)),
         Parameter('state_file', value=str(tmp_path / 'state.json')),
-        Parameter('stop_timeout_s', value=.35)])
+        Parameter('stop_timeout_s', value=.35),
+        Parameter('operator_maintenance_journal', value=str(tmp_path / 'pending.json'))])
     class Process:
         alive = True
         transform = staticmethod(lambda response: response)

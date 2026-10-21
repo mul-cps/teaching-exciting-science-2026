@@ -159,6 +159,37 @@ def _observe_owner_error(state, *, arm_id, calibration_sha256, owner_started, so
     return None
 
 
+def _fault_observer_error(state, *, arm_id, calibration_sha256, owner_started, source_sha256, now, allow_disarmed=False):
+    """Only a fresh, pinned, all-off fault observer may exit for reconnect."""
+    if (not isinstance(state, dict) or not isinstance(source_sha256, dict) or not source_sha256 or
+            type(owner_started) not in (int, float) or not math.isfinite(owner_started) or owner_started <= 0):
+        return "fault-observing owner state or pinned generation missing"
+    if not isinstance(state.get("owner_session_id"), str) or not state["owner_session_id"]:
+        return "live owner session identity missing"
+    fault = state.get("fault_observation")
+    if fault is None and not allow_disarmed:
+        return "owner is alive without matching fault-observation identity"
+    if fault is not None:
+        if (not isinstance(fault, dict) or type(fault.get("schema")) is not int or fault.get("schema") != 1 or
+                not isinstance(state.get("owner_session_id"), str) or
+                fault.get("owner_session_id") != state["owner_session_id"]):
+            return "owner is alive without matching fault-observation identity"
+        entered = fault.get("entered_monotonic")
+        if (type(entered) not in (int, float) or not math.isfinite(entered) or
+                not owner_started <= entered <= now or
+                any(type(state.get(key)) not in (int, float) or entered > state[key]
+                    for key in ("monotonic", "torque_monotonic"))):
+            return "fault observation does not belong to this owner generation"
+    error = _observe_owner_error(dict(state, observe_only=True), arm_id=arm_id,
+        calibration_sha256=calibration_sha256, owner_started=owner_started,
+        source_sha256=source_sha256, now=now)
+    if error:
+        return error
+    if any(state["torque"].values()):
+        return "fault-observing reconnect requires all six servos off"
+    return None
+
+
 def _load_measured_home(config_data, station_root, arm_id, calibration_sha256):
     """Load the station's identity-bound measured home and shared pose tolerance."""
     try:
@@ -343,6 +374,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self.declare_parameter("trajectory_log_dir", "")
         self.declare_parameter("station_lock", "")
         self.declare_parameter("operator_service_units", [""])
+        self.declare_parameter("operator_station_reset_units", [""])
         self.declare_parameter("operator_maintenance_journal", str(Path.home()/".local/share/exciting-science/station/operator-maintenance-pending.json"))
         self.declare_parameter("owner_idle_timeout_s", 3600.0)
         self.declare_parameter("recover_sag", False)
@@ -376,6 +408,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self._active_lock = threading.Lock()
         self._active_goal = None
         self._operator_maintenance_token = None
+        self._operator_maintenance_purpose = None
         self._operator_maintenance_deadline = None
         self._cancel_before_start = False
         self._write_lock = threading.Lock()
@@ -515,6 +548,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self._stop_group = MutuallyExclusiveCallbackGroup()
         self._reconnect_service = self.create_service(
             Trigger, "/follower/reconnect", self._reconnect, callback_group=self._stop_group)
+        self._reset_owner_service = self.create_service(
+            Trigger, "/follower/reset_owner", self._reset_owner, callback_group=self._stop_group)
         self._stop_service = self.create_service(
             Trigger, str(self.get_parameter("stop_service").value),
             self._stop, callback_group=self._stop_group)
@@ -894,8 +929,12 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
     def _write_stop(self, command, deadline):
         self._write_owner_command(command, deadline)
 
-    def _reconnect(self, _request, response):
-        """Explicit dead-owner replacement; startup is strictly observe-only."""
+    def _reset_owner(self, request, response):
+        """Explicit controller reinitialization of a fresh, idle, all-off owner."""
+        return self._reconnect(request, response, allow_disarmed=True)
+
+    def _reconnect(self, _request, response, *, allow_disarmed=False):
+        """Explicit dead/fault-observing owner replacement; passive startup only."""
         response.success = False
         if not self._stop_lock.acquire(blocking=False):
             response.message = "stop/reconnect lifecycle operation is active"
@@ -905,8 +944,15 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         try:
             if self._external_state_only or self._closed:
                 raise RuntimeError("bridge cannot own a reconnect")
-            if self._process is not None and self._process.poll() is None:
-                raise RuntimeError("owner is alive; reconnect never kills or retries a live owner")
+            retiring = self._process if self._process is not None and self._process.poll() is None else None
+            if retiring is not None:
+                generation = self._owner_started
+                error = _fault_observer_error(self._read_state(), arm_id=self._expected_arm_id,
+                    calibration_sha256=self._expected_calibration_sha256,
+                    owner_started=generation, source_sha256=self._owner_source_expected,
+                    now=time.monotonic(), allow_disarmed=allow_disarmed)
+                if error:
+                    raise RuntimeError(error)
             with self._stop_condition:
                 with self._active_lock:
                     if (self._active_goal_is("native_damping", "operator_maintenance", "operator_maintenance_unknown", "native_damping_inventory") and
@@ -919,14 +965,27 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                         old_barrier = True
                         self._stop_latched = True
                         self._mark_owner_fault("dead_operator_generation_retired")
-                    if self._active_goal is not None or self._control_callbacks:
+                    if self._active_goal is not None or self._control_callbacks or self._teleop_state != "disabled":
                         raise RuntimeError("owner operation or callback has not quiesced")
                     self._stop_latched = True
                     self._active_goal = "reconnect"
                     reserved = True
             self._mark_owner_fault("_reconnect")
             self._home_completed_owner_started = None
-            if self._process is not None:
+            if retiring is not None:
+                generation = self._owner_started
+                state = self._read_state()
+                error = _fault_observer_error(state, arm_id=self._expected_arm_id,
+                    calibration_sha256=self._expected_calibration_sha256,
+                    owner_started=generation, source_sha256=self._owner_source_expected,
+                    now=time.monotonic(), allow_disarmed=allow_disarmed)
+                if error:
+                    raise RuntimeError(error)
+                if self._process is not retiring or self._owner_started != generation or self._closed:
+                    raise RuntimeError("fault-observing owner changed before explicit exit")
+                self._send({"command": "exit"})
+                retiring.wait(timeout=3.)
+            elif self._process is not None:
                 self._process.wait(timeout=.5)
             for reader in self._owner_readers:
                 reader.join(timeout=.5)
@@ -1044,8 +1103,11 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 raise RuntimeError("stop lacks fresh identity-bound six-joint torque-off readback")
             with self._write_lock:
                 self._stop_latched = self._operator_external_job is not None
-                if self._operator_external_job is None:
+                if self._operator_external_job is None and state.get("fault_observation") is None:
                     self._clear_owner_fault("_stop")
+                elif state.get("fault_observation") is not None:
+                    self._mark_owner_fault("owner_fault_observation")
+                    self._home_completed_owner_started = None
                 self._reconnect_observe = False
                 self._cancel_before_start = False
             self._cache_owner_state(state)
@@ -1089,7 +1151,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 response.token = request.token
                 response.message = json.dumps({"job_id": job_id, "state": "pending"})
                 return response
-            if request.operation:
+            if request.operation and (request.operation != "station_reset" or not request.enable):
                 raise RuntimeError("unknown operator maintenance operation")
             with self._active_lock:
                 if request.enable:
@@ -1099,7 +1161,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                         raise RuntimeError("owner must be idle before maintenance")
                     self._prepare_owner_state(state, process, generation, torque=0, nonactuating_maintenance=True)
                     self._operator_maintenance_token = uuid.uuid4().hex
-                    self._operator_maintenance_deadline = time.monotonic()+60.
+                    self._operator_maintenance_purpose = "station_reset" if request.operation == "station_reset" else "maintenance"
+                    self._operator_maintenance_deadline = time.monotonic()+(120. if self._operator_maintenance_purpose == "station_reset" else 60.)
                     self._active_goal = "operator_maintenance"
                 else:
                     if self._operator_external_job is not None:
@@ -1110,11 +1173,13 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                     self._prepare_owner_state(state, process, generation, torque=0, nonactuating_maintenance=True)
                     self._active_goal = None
                 response.token = self._operator_maintenance_token
+                purpose = getattr(self, "_operator_maintenance_purpose", None)
                 if not request.enable:
                     self._operator_maintenance_token = None
+                    self._operator_maintenance_purpose = None
                     self._operator_maintenance_deadline = None
             response.success = True
-            response.message = json.dumps({"state": "reserved" if request.enable else "released", "token": response.token})
+            response.message = json.dumps({"state": "reserved" if request.enable else "released", "token": response.token, "purpose": purpose})
         except (RuntimeError, ValueError, TypeError, OSError) as error:
             response.message = str(error)
         return response
@@ -1139,13 +1204,17 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 self._active_goal = None
             if (self._active_goal_is("operator_maintenance") and self._operator_maintenance_deadline is not None and
                     now >= self._operator_maintenance_deadline):
-                if self._operator_external_job is not None:
+                if (self._operator_external_job is not None or
+                        getattr(self, "_operator_maintenance_purpose", None) == "station_reset"):
                     self._active_goal = "operator_maintenance_unknown"
                     self._stop_latched = True
-                    self._mark_owner_fault("external_restart_lease_expired")
+                    self._mark_owner_fault("station_reset_acceptance_expired" if
+                        getattr(self, "_operator_maintenance_purpose", None) == "station_reset" else
+                        "external_restart_lease_expired")
                 elif fresh_off:
                     self._active_goal = None
                     self._operator_maintenance_token = None
+                    self._operator_maintenance_purpose = None
                     self._operator_maintenance_deadline = None
 
     @_control_callback
@@ -1799,7 +1868,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 type(generation) not in (int, float) or not math.isfinite(generation) or generation <= 0 or
                 self._owner_started != generation or self._reconnect_observe or self._owner_faulted or
                 self._stop_latched or self._cancel_before_start or not isinstance(state, dict) or
-                state.get("observe_only") is not False or
+                state.get("observe_only") is not False or state.get("fault_observation") is not None or
                 state.get("arm_id") != self._expected_arm_id or
                 state.get("calibration_sha256") != self._expected_calibration_sha256 or
                 not isinstance(self._owner_source_expected, dict) or not self._owner_source_expected or
@@ -2126,7 +2195,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         freshness = min(.1, float(self.get_parameter("state_freshness_s").value))
         if (not isinstance(state, dict) or type(generation) not in (int, float) or
                 not math.isfinite(generation) or generation <= 0 or
-                state.get("observe_only") is not False or
+                state.get("observe_only") is not False or state.get("fault_observation") is not None or
                 state.get("arm_id") != self._expected_arm_id or
                 state.get("calibration_sha256") != self._expected_calibration_sha256 or
                 not isinstance(self._owner_source_expected, dict) or
@@ -2209,6 +2278,16 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                     len(state[key]) <= 128 else None
                     for key in ("event", "arm_id", "calibration_sha256",
                                 "timestamp_utc", "torque_timestamp_utc")}
+        fault = state.get("fault_observation")
+        retained["fault_observation"] = None if fault is None else {}
+        if isinstance(fault, dict):
+            retained["fault_observation"] = {key: fault[key] for key in
+                ("owner_session_id", "command", "error", "error_type")
+                if isinstance(fault.get(key), str) and len(fault[key]) <= 512}
+            retained["fault_observation"].update(schema=fault.get("schema") if type(fault.get("schema")) is int else None,
+                entered_monotonic=fault.get("entered_monotonic") if type(fault.get("entered_monotonic")) in (int, float) and math.isfinite(fault["entered_monotonic"]) else None)
+        session_id = state.get("owner_session_id")
+        retained["owner_session_id"] = session_id if isinstance(session_id, str) and len(session_id) <= 128 else None
         retained.update(arm_bounds=bounds, monotonic=position, torque_monotonic=torque_stamp,
                         observe_only=state.get("observe_only") if
                         type(state.get("observe_only")) is bool else None,
@@ -2275,6 +2354,11 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 self._cached_owner_generation = generation
                 self._cached_owner_reason = reason
                 collector = self._recovery_depth_cache
+        if (retained["fault_observation"] is not None and self._owner_started == generation and
+                self._process is process and retained["owner_source_sha256"] == self._owner_source_expected):
+            if not self._owner_faulted:
+                self._mark_owner_fault("owner_fault_observation")
+            self._home_completed_owner_started = None
         if collector is not None:
             now = time.monotonic()
             admitted = (reason is None and not self._closed and process is not None and
@@ -2462,6 +2546,10 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                     state.get("calibration_sha256") == self._expected_calibration_sha256)
         if not identity:
             reasons.append("owner_identity_unconfirmed")
+        owner_fault = state.get("fault_observation")
+        if owner_fault is not None:
+            faulted = True
+            reasons.append("owner_fault_observation_requires_explicit_reconnect")
         mode = state.get("observe_only")
         observe_only = True if observing else mode if type(mode) is bool else None
         if observe_only is None:
@@ -2509,6 +2597,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             "connected": connected, "fresh": bool(connected and generation_valid and identity and
                                                     measurements_valid and timely and source_matches),
             "observe_only": observe_only, "owner_faulted": bool(faulted),
+            "fault_observation": owner_fault,
+            "recovery_action": "explicit_reconnect_then_stop" if owner_fault is not None else None,
             "stop_latched": bool(barrier), "home_completed_this_session": home,
             "active_operation": active if isinstance(active, str) else "trajectory" if active else None,
             "teleop_state": teleop_state, "owner_started_monotonic": generation if generation_valid else None,
@@ -2525,6 +2615,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             "operator_external_job": self._operator_external_job,
             "operator_restart_result": self._operator_restart_result,
             "operator_restart_units": sorted(self._operator_restart_units),
+            "operator_station_reset_units": sorted(getattr(self, "_operator_station_reset_units", ())),
+            "operator_maintenance_purpose": getattr(self, "_operator_maintenance_purpose", None),
             "position_age_s": position_age, "torque_age_s": torque_age,
             "position_monotonic": state.get("monotonic") if position_age is not None else None,
             "torque_monotonic": state.get("torque_monotonic") if torque_age is not None else None,
@@ -3391,6 +3483,11 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         try:
             if getattr(self, "_closed", False) and command.get("command") != "exit":
                 raise RuntimeError("bridge destruction rejects owner commands")
+            with self._state_cache_lock:
+                fault_observing = (isinstance(self._cached_owner_state, dict) and
+                                   self._cached_owner_state.get("fault_observation") is not None)
+            if fault_observing and command.get("command") not in {"read_state", "stop", "exit"}:
+                raise RuntimeError("fault-observing owner requires explicit reconnect before commands")
             if getattr(self, "_stop_latched", False) and command.get("command") not in {"stop", "exit"}:
                 raise RuntimeError("owner stop barrier rejects motion commands")
             self._write_owner_command(command, deadline)
