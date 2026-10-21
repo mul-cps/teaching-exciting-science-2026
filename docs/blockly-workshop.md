@@ -28,7 +28,8 @@ extensions. It does not claim to run the unmodified Windows application.
 - 0–5 min: predict the supplied dispense/wait/transfer sequence, run simulation.
 - 5–12 min: in pairs teach one fixed-jaw transfer stroke using RViz teleoperation.
   Record measured follower positions, stop recording, then disable teleoperation.
-- 12–22 min: connect replay and separate grip/release blocks. Add a repeat block.
+- 12–22 min: connect replay and separate jaw-position blocks. Add a repeat block.
+  Treat detected-object grasping as the missing ownership step described below.
 - 22–30 min: choose paths using red/blue EV3 color-sensor observations; reject unknowns.
 - 30–35 min: demonstrate one simulated cycle; instructor may qualify and run one
   physical cycle. Swap driver and observer roles halfway through.
@@ -93,8 +94,16 @@ Up to 64 recordings, 600 samples and 60 seconds per recording are retained under
 `~/.local/share/exciting-science/blockly-recordings/`. Archive older files while
 the server is stopped. Files are never overwritten silently.
 
-A complete dispense/pick/place program needs several taught strokes and explicit
-calibrated grip/release commands. These capabilities do not establish that a
+A complete detected-object dispense/pick/place program additionally needs the
+scene ownership transaction. Current Blockly blocks do **not** implement target
+locking, bounded finger-contact allowance, contact inference, attach/lift
+verification or detach/release ownership. The jaw-gap block requires a reached
+position and rejects inferred contact; it is not a grasp-contact block. A detected
+world brick can therefore make jaw closing or lifting fail collision preflight.
+Do not remove the brick from the scene or publish arbitrary attachment messages
+to bypass that check. Physical tracked-object picking needs a guarded high-level
+adapter to the existing ownership protocol first. Free-space taught motion and
+EV3 sequencing are the currently exposed physical activities. These capabilities do not establish that a
 physical autonomous sorting cycle has passed. The instructor must qualify the
 exact strokes, object, jaw gap and environment before students run that cycle.
 
@@ -236,3 +245,56 @@ speed 0.5 to 117.22 seconds. All six servos were measured torque off after STOP.
 The [commissioning record](blockly-station-commissioning-2026-10-21.json) retains
 the source identity, measured results and remaining acceptance steps. Dispensing,
 metric jaw control and a full payload pick/place cycle were not commissioned.
+
+## Optional replay timing: skip stationary pauses
+
+**Original timing remains the default**, including for saved workspaces and JSON
+programs that omit `timing`. Each replay block can explicitly select **Skip
+stationary pauses**. JSON uses `"timing": "skip_stationary_pauses"`; the only
+other accepted value is `"original"`.
+
+This option removes only redundant samples in long runs whose five arm positions
+are **exactly identical**. The first two and last two samples of every such run
+are retained. Every nonzero position edge and its order are unchanged. There is
+no filtering, relative offset, new approach movement or modification of saved
+recordings. Short runs, turns and corners are retained. Timing of pauses changes;
+put deliberate delays in Blockly **Wait** blocks instead.
+
+A replay block displays the recording's original duration and the duration
+requested by its timing option and speed. These are **before controller
+retiming**, not promises of execution time or collision acceptance. Summaries are
+computed when a recording is loaded/saved, not on the motor feedback tick.
+
+Before dispatching a transformed replay, an offline guard compares bounds of two
+**nominal requested** quintic curves using the same currently measured start:
+
+1. Reuse the existing trajectory helper's C² quintic spline construction.
+2. Convert each segment's coefficients to six degree-five Bezier control points.
+3. Bound the five-joint Euclidean distance from those controls to the corresponding
+   taught straight segment. Convexity makes this an upper bound for that nominal
+   segment, including between samples.
+4. Require the transformed curve's global bound to be no larger than the original
+   curve's bound. No new numeric tolerance or dynamics threshold is introduced.
+
+A transformed candidate that expands the bound is rejected with instructions to
+keep original timing or record a shorter stroke. There is no silent fallback to a
+modified timing mode. This conservative comparison can reject a transformation
+at a turn even when its numerical increase is small; original timing remains
+available.
+
+This guard does **not** certify the eventual executed curve. The bridge may obtain
+a newer measured start, retry admission or retime the trajectory. The existing
+bridge remains the sole authority for the actual curve, joint/dynamics limits,
+complete collision checks and exact owner sample hash. All those checks remain
+unchanged.
+
+Offline checks include five-joint turns/corners, constant and no-hold traces,
+nonuniform source timestamps, a different current start, 600-sample recordings,
+strict JSON settings and preservation of source files. On this workstation,
+comparing a 600-knot original against a 594-knot candidate took about 46 ms p95
+per replay; it adds no work to the control/feedback callback. Run:
+
+```bash
+python -m pytest tests/test_blockly_station.py tests/test_blockly_recording_timing.py -q
+python tests/blockly_timing_benchmark.py
+```

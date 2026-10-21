@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from workshop.blockly_program import ProgramRunner, SimulationBackend, name, validate_program
-from workshop.blockly_recording import Recorder
+from workshop.blockly_recording import Recorder, recording_timing
 
 
 class Application:
@@ -44,6 +44,7 @@ class Application:
                 except (ValueError,KeyError,TypeError): pass
         if not physical:
             self.recordings.setdefault('demo',{'schema':'simulation-only'})
+        self.recording_info={name:recording_timing(value) for name,value in self.recordings.items() if value.get('points')}
         if physical:
             from workshop.blockly_ros import ROSBackend
             self.backend=ROSBackend(self.recordings)
@@ -56,7 +57,7 @@ class Application:
     def status(self):
         with self.lock:
             return {'job':dict(self.job),'recording':self.recorder.name if self.recorder else None,
-                    'record_error':self.record_error,'recordings':sorted(self.recordings),
+                    'record_error':self.record_error,'recordings':sorted(self.recordings),'recording_info':dict(self.recording_info),
                     'recovery_required':self.recovery_required,'instructor':self.instructor,'operator_busy':self.operator_busy,**self.backend.status()}
 
     def idle(self,*,recovery=False):
@@ -119,7 +120,9 @@ class Application:
             if self.backend.identity()!=result['identity']: raise RuntimeError('follower identity changed during recording')
             path=self.directory/(result['name']+'.json')
             with path.open('x') as stream: json.dump(result,stream,allow_nan=False)
-            with self.lock: self.recordings[result['name']]=result
+            with self.lock:
+                self.recordings[result['name']]=result
+                self.recording_info[result['name']]=recording_timing(result)
             return {'name':result['name'],'samples':len(result['points'])}
         finally:
             with self.lock: self.operator_busy=False

@@ -3,7 +3,7 @@ registerRosBlocky(Blockly,python.pythonGenerator);
 const definitions=[
  {type:'station_ev3',message0:'EV3 %1',args0:[{type:'field_dropdown',name:'COMMAND',options:[['dispense one brick','eject'],['conveyor home','home'],['conveyor left','left_end'],['conveyor right','right_end'],['wake','wake'],['sleep','sleep'],['connect','connect']]}],previousStatement:null,nextStatement:null,colour:180},
  {type:'station_wait',message0:'wait %1 seconds',args0:[{type:'field_number',name:'SECONDS',value:1,min:0,max:10,precision:.1}],previousStatement:null,nextStatement:null,colour:210},
- {type:'station_replay',message0:'replay stroke %1 speed %2',args0:[{type:'field_input',name:'NAME',text:'demo'},{type:'field_number',name:'SPEED',value:.5,min:.1,max:1,precision:.1}],previousStatement:null,nextStatement:null,colour:30},
+ {type:'station_replay',message0:'replay stroke %1 speed %2 %3',args0:[{type:'field_input',name:'NAME',text:'demo'},{type:'field_number',name:'SPEED',value:.5,min:.1,max:1,precision:.1},{type:'field_dropdown',name:'TIMING',options:[['original timing','original'],['skip stationary pauses','skip_stationary_pauses']]}],message1:'%1',args1:[{type:'field_label_serializable',name:'DURATION',text:'duration unavailable; controller may retime'}],previousStatement:null,nextStatement:null,colour:30},
  {type:'station_jaw',message0:'jaw gap %1 mm',args0:[{type:'field_number',name:'GAP',value:30,min:0,max:200,precision:1}],previousStatement:null,nextStatement:null,colour:30},
  {type:'station_repeat',message0:'repeat %1 times %2 %3',args0:[{type:'field_number',name:'COUNT',value:2,min:1,max:5,precision:1},{type:'input_dummy'},{type:'input_statement',name:'BODY'}],previousStatement:null,nextStatement:null,colour:120},
  {type:'station_color',message0:'if sensor sees %1 %2 do %3 otherwise %4',args0:[{type:'field_dropdown',name:'COLOR',options:['red','blue','green','yellow','unknown'].map(c=>[c,c])},{type:'input_dummy'},{type:'input_statement',name:'THEN'},{type:'input_statement',name:'ELSE'}],previousStatement:null,nextStatement:null,colour:280},
@@ -19,7 +19,7 @@ function compileChain(block,depth=0){
   switch(block.type){
    case'station_ev3':row={op:'ev3',command:f('COMMAND')};break;
    case'station_wait':row={op:'wait',seconds:Number(f('SECONDS'))};break;
-   case'station_replay':row={op:'replay',name:f('NAME'),speed:Number(f('SPEED'))};break;
+   case'station_replay':row={op:'replay',name:f('NAME'),speed:Number(f('SPEED')),timing:f('TIMING')||'original'};break;
    case'station_jaw':row={op:'jaw',gap_mm:Number(f('GAP'))};break;
    case'station_repeat':row={op:'repeat',count:Number(f('COUNT')),body:compileChain(block.getInputTargetBlock('BODY'),depth+1)};break;
    case'station_color':row={op:'if_color',color:f('COLOR'),then:compileChain(block.getInputTargetBlock('THEN'),depth+1),else:compileChain(block.getInputTargetBlock('ELSE'),depth+1)};break;
@@ -33,6 +33,22 @@ function compileChain(block,depth=0){
  }
  return rows;
 }
+let recordingInfo={};
+function updateReplayDurations(){
+ for(const block of workspace.getAllBlocks(false)){
+  if(block.type!=='station_replay')continue;
+  const info=recordingInfo[block.getFieldValue('NAME')];const speed=Number(block.getFieldValue('SPEED'));
+  const duration=block.getFieldValue('TIMING')==='skip_stationary_pauses'?info?.skip_stationary_pauses_duration_s:info?.original_duration_s;
+  const text=Number.isFinite(duration)&&Number.isFinite(info?.original_duration_s)&&speed>0?
+   `original ${info.original_duration_s.toFixed(1)} s → requested ${(duration/speed).toFixed(1)} s; controller may retime`:
+   'duration unavailable; controller may retime';
+  if(block.getFieldValue('DURATION')!==text){
+   Blockly.Events.disable();
+   try{block.setFieldValue(text,'DURATION');}finally{Blockly.Events.enable();}
+  }
+ }
+}
+workspace.addChangeListener(updateReplayDurations);
 function compile(){const tops=workspace.getTopBlocks(true).filter(b=>!b.outputConnection);if(tops.length!==1)throw Error('Connect blocks into one sequence');return compileChain(tops[0]);}
 const $=id=>document.getElementById(id);
 async function api(path,body){const base=path==='program/stop'?'http://127.0.0.1:'+(Number(location.port)+1):'';const response=await fetch(base+'/api/'+path,{method:body===undefined?'GET':'POST',headers:{'X-Station-Token':window.STATION_TOKEN,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const data=await response.json();if(!response.ok)throw Error(data.error||response.statusText);return data;}
@@ -64,5 +80,5 @@ function updateInstructor(status){
  }
 }
 $('sim-color').onchange=async()=>{try{await api('simulation/color',{color:$('sim-color').value});}catch(error){show(error.message);}};
-let jawEnabled=true;let lastJob='';async function refresh(){try{const status=await api('status');const nextJaw=!status.physical||Boolean(status.capabilities?.jaw);if(nextJaw!==jawEnabled){jawEnabled=nextJaw;toolbox.contents[0].contents.find(b=>b.type==='station_jaw').disabled=!nextJaw;workspace.updateToolbox(toolbox);}$('mode').textContent=status.physical?'PHYSICAL · instructor supervised':'SIMULATION · no robot motion';$('mode').style.background=status.physical?'#a54529':'#24566b';$('recordings').textContent='Available strokes: '+status.recordings.join(', ')+(status.recording?' · recording '+status.recording:'');updateInstructor(status);const encoded=JSON.stringify(status.job);if(encoded!==lastJob){show(status.job);lastJob=encoded;}if(status.record_error)show(status.record_error);if(status.recovery_required)show('Recovery required: inspect station, use instructor recovery controls, then Verify recovery / unlock Blockly.');$('sim-color-label').hidden=status.physical;$('readiness').textContent=status.physical?JSON.stringify(status.streams,null,2):'Simulation: no physical camera, perception or arm connection';const events=status.events||[];$('trace').textContent=events.length?events.join(' → '):'Run a sequence to see its actions.';if(events.length)$('brick').style.transform='translateX('+((events.length%3)-1)*35+'px)';window.stationStatus=status;}catch(error){updateInstructor({});$('mode').textContent='DISCONNECTED';show(error.message);}setTimeout(refresh,700);}
+let jawEnabled=true;let lastJob='';async function refresh(){try{const status=await api('status');recordingInfo=status.recording_info||{};updateReplayDurations();const nextJaw=!status.physical||Boolean(status.capabilities?.jaw);if(nextJaw!==jawEnabled){jawEnabled=nextJaw;toolbox.contents[0].contents.find(b=>b.type==='station_jaw').disabled=!nextJaw;workspace.updateToolbox(toolbox);}$('mode').textContent=status.physical?'PHYSICAL · instructor supervised':'SIMULATION · no robot motion';$('mode').style.background=status.physical?'#a54529':'#24566b';$('recordings').textContent='Available strokes: '+status.recordings.join(', ')+(status.recording?' · recording '+status.recording:'');updateInstructor(status);const encoded=JSON.stringify(status.job);if(encoded!==lastJob){show(status.job);lastJob=encoded;}if(status.record_error)show(status.record_error);if(status.recovery_required)show('Recovery required: inspect station, use instructor recovery controls, then Verify recovery / unlock Blockly.');$('sim-color-label').hidden=status.physical;$('readiness').textContent=status.physical?JSON.stringify(status.streams,null,2):'Simulation: no physical camera, perception or arm connection';const events=status.events||[];$('trace').textContent=events.length?events.join(' → '):'Run a sequence to see its actions.';if(events.length)$('brick').style.transform='translateX('+((events.length%3)-1)*35+'px)';window.stationStatus=status;}catch(error){updateInstructor({});$('mode').textContent='DISCONNECTED';show(error.message);}setTimeout(refresh,700);}
 example();refresh();

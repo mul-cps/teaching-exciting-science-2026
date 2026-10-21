@@ -40,11 +40,22 @@ with sync_playwright() as p:
                  '/station/operator/status':{'age_s':.1,'data':{'schema':1,'fresh':True,'capabilities':{
                      'moveit':{'enabled':True,'reason':'fresh admitted owner'},
                      'restart_camera':{'enabled':False,'reason':'camera restart unit is not configured'}}}}}}
+    page.click('#example')
+    fixture['recording_info']={'demo':{'original_duration_s':20.,'skip_stationary_pauses_duration_s':3.}}
     page.route('**/api/status',lambda route:route.fulfill(json=fixture))
     def poll(marker):
         fixture['probe_marker']=marker
         page.wait_for_function('marker => window.stationStatus.probe_marker === marker',arg=marker)
     poll('fresh')
+    assert page.evaluate("compile()[0].body[2].timing")=='original'
+    assert page.evaluate("workspace.getAllBlocks(false).find(b=>b.type==='station_replay').getFieldValue('DURATION')")=="original 20.0 s → requested 40.0 s; controller may retime"
+    page.evaluate("workspace.clearUndo();workspace.getAllBlocks(false).find(b=>b.type==='station_replay').setFieldValue('skip_stationary_pauses','TIMING')")
+    page.wait_for_function("workspace.getAllBlocks(false).find(b=>b.type==='station_replay').getFieldValue('DURATION').includes('requested 6.0 s')")
+    assert page.evaluate("compile()[0].body[2].timing")=='skip_stationary_pauses'
+    page.evaluate('workspace.undo(false)')
+    page.wait_for_function("compile()[0].body[2].timing==='original' && workspace.getAllBlocks(false).find(b=>b.type==='station_replay').getFieldValue('DURATION').includes('requested 40.0 s')",timeout=3000)
+    page.evaluate('workspace.undo(true)')
+    page.wait_for_function("compile()[0].body[2].timing==='skip_stationary_pauses' && workspace.getAllBlocks(false).find(b=>b.type==='station_replay').getFieldValue('DURATION').includes('requested 6.0 s')",timeout=3000)
     moveit=page.locator('#instructor [data-command="moveit"]')
     restart=page.locator('#instructor [data-command="restart_camera"]')
     recovery=page.locator('#instructor [data-recovery]')
