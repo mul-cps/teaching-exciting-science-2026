@@ -1,54 +1,99 @@
-# Instructor setup, safety, and fallback
+# Instructor runbook: Autonomous Robot Sorting
 
-## Day-before setup (not during the student session)
+Thursday, 22 October 2026. Four hours, six first-semester bachelor students, three pairs. Use [the timed lesson plan](lesson-plan.md), [eight introductory slides](workshop-slides.pptx) and [one-page worksheet](student-worksheet.docx). English student instructions. No programming or ROS prerequisite.
 
-- Prepare Python 3.11+ on three laptops and clone repo locally. Run `python -m workshop` offline on all three. Preinstall `.[camera]` only on the vision laptop; no package installation in class.
-- Test neutral backdrop and red/blue 20–30 mm blocks with `tools/camera_probe.py`; photograph the pickup ROI and check thresholds on **real frames**, not only synthetic arrays.
-- Secure EV3 belt, leader, follower, camera mount and deposit bins; tape down cables and keep out of children's reach. Use a mechanical guide to stop the block at a repeatable location.
-- LeRobot: follow the official SO-101 [calibration and teleoperation guide](https://huggingface.co/docs/lerobot/en/so101) for the installed library revision. Identify actual `/dev/serial/by-id/` devices. Save positions/trajectories separately **after** supervising collision-free tests.
-- EV3: determine installed firmware: `ev3dev2` over an isolated RPyC network, or another OS requiring a *different* driver. Do not change EV3 firmware on workshop day.
-- Provide an emergency stop/access to power. Only instructor operates motors during validation. No automatic movement while someone is inside robot work envelope.
-- Print worksheets, display slides, and keep five test objects and one known unknown object.
+## 1. Before students arrive
 
-## Instructor arm setup (official LeRobot command, adjust real ports)
+Prepare Python 3.11 or newer and a text editor on each laptop. Open a terminal in the repository or extracted student bundle. Use the same tested Python command throughout the session (`python`, or `python3` where required). No package installation or internet should be necessary in class.
 
-```bash
-lerobot-calibrate --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=workshop_follower
-lerobot-calibrate --teleop.type=so101_leader --teleop.port=/dev/ttyACM1 --teleop.id=workshop_leader
-lerobot-teleoperate --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=workshop_follower --teleop.type=so101_leader --teleop.port=/dev/ttyACM1 --teleop.id=workshop_leader
+Run these commands on **each** student laptop, with networking disconnected:
+
+```sh
+python --version
+python exercises/check_setup.py
+python exercises/01_python.py
+python exercises/02_robot.py
+python exercises/03_vision.py
+python exercises/04_sort.py
+python exercises/05_visual_sort.py
+python -m workshop
 ```
 
-**Not executed here.** These are documented CLI examples; serial ports differ. Install LeRobot separately via official instructions; it intentionally is **not** a required package for student laptops.
+Open `sorting-result.html` in the laptop's browser. Confirm that the animation advances, labels are readable, and unknown objects reach reject. Edit one rule, rerun the Python file and reload the browser. Confirm that the output changes. These commands use simulated hardware and standard Python.
 
-## EV3 guarded probe
+Prepare a portable copy in advance:
 
-For ev3dev Linux only, install `rpyc` on instructor PC; configure the EV3 `rpyc_classic.py` service on a **dedicated trusted network**. RPyC classic exposes remote code execution capabilities and must not be exposed to campus/public networks. After confirming belt direction and free movement, a short guarded probe is:
-
-```bash
-pip install -e '.[ev3]'
-python tools/ev3_probe.py --host EV3_IP --i-understand-this-moves-hardware
+```sh
+python exercises/make_student_bundle.py --output student-workshop.zip
 ```
 
-**Unvalidated on physical hardware.** Motor port `outA` and brake behavior require confirmation. The script is for instructors only, not full automated conveyor control.
+Extract it into a writable folder on each laptop. Rerun the checks there. Keep a USB copy, printed worksheets, the slides and a PDF copy if the presentation application differs. Test all three laptops; one passing workstation does not establish that all laptops work.
 
-## Stop conditions and fallback
+| Computer | Python and four exercises | Visual HTML changed and replayed | Offline test | Checked by |
+|---|---|---|---|---|
+| Pair 1 | ___ | ___ | ___ | ___ |
+| Pair 2 | ___ | ___ | ___ | ___ |
+| Pair 3 | ___ | ___ | ___ | ___ |
 
-- A person enters work envelope → power off / stop actuators immediately.
-- Camera is disconnected or detection unknown → no robotic pick, stop belt and inspect.
-- EV3 timing does not reproducibly align object → run conveyor **manually**, do not chase moving parts.
-- LeRobot missing calibration or collision-free replay → no arm actuation; demonstrate leader mechanically if safe and use `SimRobot`.
-- GoPro stream does not work on Linux → switch to an available USB UVC camera or use `SimCamera`.
-- Power/network/GPU unavailable → full workshop remains possible on Python standard library.
+## 2. Physical-station decision
 
-## Instructor schedule and hardware QA
+Check the actual camera, robot and conveyor separately before class. Record the accepted demonstration for each. Secure the arm, conveyor, camera and cables. Keep an accessible stop and power disconnect. Only the instructor enables actuators. Brief students before touching leader controls. Never run a second motor owner or generic calibration command alongside the station controller.
 
-See `docs/lesson-plan.md` and `docs/acceptance.md`. There is no unsupervised student access to physical actuator commands in this repo.
+| Station | Check before enabling | Fallback |
+|---|---|---|
+| Robot | Fresh feedback, calibrated leader/follower, known stop response, clear workspace and supervised motion | `python exercises/02_robot.py`; explain a sequence of simulated actions |
+| Conveyor | Correct direction, working stop, clear mechanism, repeatable object stopping | `python -m workshop`; inspect the unpowered mechanism |
+| Camera | Advancing real images and classifications under actual lighting | `docs/assets/vision-demo.png` and `docs/assets/vision-roi.png`, plus exercise 03 |
 
+The included images are labeled teaching schematics, not photographs or validation evidence. A physical autonomous pick/place remains a separate commissioning result. Demonstrate it only if the complete cycle has actually passed the current station checks. Component tests or a successful simulation do not prove a physical sort.
 
-## Setup illustrations and references
+If a stream becomes stale, a person enters the work envelope or motion differs from expectations, stop the hardware and switch that station to its fallback. Do not troubleshoot powered hardware while students wait. Students must not change calibration, joint limits, motor settings or service configurations.
 
-![Safe layout schematic](assets/safety-layout.png)
+## 3. Introduction: eight slides, 25 minutes
 
-![Stop-pick-place sequence](assets/safe-sort-cycle.png)
+1. Can a robot run a factory? (3 min): ask what it must know before moving a block.
+2. Our miniature factory (3 min): point to the actual camera, LEGO belt, arm and bins. The slide is a schematic.
+3. Observe, decide, act, check (4 min): classify camera as sensor and motor as actuator. Ask how to check a result.
+4. A camera sees pixels (3 min): compare red, blue and unknown examples. Discuss lighting, shadows and missing information.
+5. Robot joints and gripper (3 min): show joints and a target, using only an accepted motion demonstration.
+6. Your first Python rule (4 min): predict a tiny loop and color condition. Avoid a long syntax lecture.
+7. What can go wrong? (3 min): ask students for a failure and a safe response.
+8. Your challenge (2 min): pairs must change a rule, test five objects and explain rejection.
 
-For conceptual photographic visuals, see [the image gallery](visual-gallery.md). Images described as *AI-generated* are not photographs of the real laboratory; validate all hardware placement and safety constraints before student use.
+The presentation contains speaker notes with prompts and pacing. Continue with the exact [240-minute schedule](lesson-plan.md).
+
+## 4. Three rotations: 01:35–02:20
+
+Use pairs A, B and C. Each visit lasts 15 minutes, including transition. The instructor supervises any powered robot activity; if the other stations require supervision too, use their offline alternatives. Swap the typing / predicting roles between activities.
+
+| Time | Pair A | Pair B | Pair C |
+|---|---|---|---|
+| 01:35–01:50 | Robot | Conveyor | Camera |
+| 01:50–02:05 | Conveyor | Camera | Robot |
+| 02:05–02:20 | Camera | Robot | Conveyor |
+
+Robot question: How easy is it to reach the same target twice? Conveyor question: Does a sensor trigger guarantee a repeatable stopping position? Camera question: Which change makes recognition less reliable? Each pair records one observation and one improvement.
+
+## 5. Sorting and independent challenges
+
+At 02:20, return all pairs to their laptops. Start with the unchanged exercise 04. Ask for predicted counts before execution, then reverse the destinations. Explain that the mapping accepts known labels and sends everything else to reject. Use exercise 05 for visible feedback. Students edit Python, rerun and reload the generated page; the page does not control real hardware.
+
+For fast pairs, use the six graded challenges on the worksheet. Complete reversing and counting first. Then introduce green, invalid/missing readings, new sequences or a reliability improvement. Do not require every pair to finish all six.
+
+Expected baseline counts and current examples are in the tested exercise files. After editing a sequence, count it by hand first. Counts must sum to the sequence length, unknown/missing/invalid readings must be rejected, and changing a recognized color's destination must change its route.
+
+## 6. Closing and readiness record
+
+At 03:45, allow 2–3 minutes per pair. Each pair shows a changed rule, one prediction versus result, and a possible failure response. Close with the most advanced physical demonstration accepted that day, or the visual simulator.
+
+Before class, tick only what you have actually checked:
+
+- [ ] All three laptops pass the offline commands and edit / rerun test.
+- [ ] Eight slides open correctly on the projector.
+- [ ] Six one-page worksheets are printed.
+- [ ] Red, blue and unknown objects are prepared and fit the station.
+- [ ] Camera, robot and conveyor each have an accepted demonstration or fallback.
+- [ ] USB student bundle and image examples are available without networking.
+- [ ] Pairs and rotation order are assigned.
+
+Student success means a tested five-object simulated sorter and a clear explanation. Hardware integration remains instructor infrastructure; students do not need to learn ROS during this session.

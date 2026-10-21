@@ -18,82 +18,84 @@ GOLD = "BF8D42"
 RED = "DC6658"
 
 
-def make_docx(filename, heading, subtitle, hero, sections):
+def make_docx(filename, source, *, worksheet=False):
+    """Render the Markdown handout source without maintaining a second lesson plan."""
+    import re
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
-    from docx.enum.text import WD_BREAK
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
 
     d = Document()
     sec = d.sections[0]
-    sec.top_margin, sec.bottom_margin = Inches(.55), Inches(.60)
-    sec.left_margin = sec.right_margin = Inches(.78)
-    for name, size in (("Normal", 9.2), ("Title", 23), ("Heading 1", 13), ("Heading 2", 11)):
+    sec.page_width, sec.page_height = Inches(8.27), Inches(11.69)
+    sec.top_margin = sec.bottom_margin = Inches(.45 if worksheet else .65)
+    sec.left_margin = sec.right_margin = Inches(.58 if worksheet else .72)
+    for name, size in (("Normal", 10), ("Title", 20 if worksheet else 24),
+                       ("Heading 1", 11 if worksheet else 15), ("Heading 2", 10 if worksheet else 12)):
         st = d.styles[name]
         st.font.name, st.font.size = "DejaVu Sans", Pt(size)
-        st.font.color.rgb = RGBColor.from_string(NAVY if name != "Normal" else "273C4D")
-    d.styles["Normal"].paragraph_format.space_after = Pt(4)
+        st.font.color.rgb = RGBColor.from_string(NAVY)
+        st.paragraph_format.space_after = Pt(3 if worksheet else 6)
+    for style in d.styles:
+        for border in style.element.findall(".//" + qn("w:pBdr")):
+            border.getparent().remove(border)
+    d.styles["Normal"].paragraph_format.line_spacing = 1.0 if worksheet else 1.08
     d.styles["Heading 1"].paragraph_format.space_before = Pt(7)
-    d.styles["Heading 1"].paragraph_format.space_after = Pt(2)
-    header = sec.header.paragraphs[0]
-    header.text = "MONTANUNIVERSITÄT LEOBEN  /  CYBER-PHYSICAL SYSTEMS"
-    header.runs[0].font.name = "DejaVu Sans"
-    header.runs[0].font.color.rgb = RGBColor.from_string(TEAL)
-    header.runs[0].font.size = Pt(7.5)
-    p = d.add_paragraph(style="Title")
-    p.add_run(heading)
-    p = d.add_paragraph(subtitle)
-    p.runs[0].font.color.rgb = RGBColor.from_string(GREY)
-    p.runs[0].font.size = Pt(10)
-    pict = d.add_paragraph()
-    pict.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    pict.paragraph_format.space_after = Pt(2)
-    pict.add_run().add_picture(str(ART / hero), width=Inches(5.9))
-    for title, elements in sections:
-        if title == "__PAGE_BREAK__":
-            d.add_page_break()
+    d.styles["Title"].paragraph_format.space_after = Pt(6)
+
+    def clean(text):
+        text = re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", text)
+        return text.replace("**", "").replace("`", "")
+
+    def runs(p, text, code=False):
+        if code:
+            run = p.add_run(text)
+            run.font.name, run.font.size = "DejaVu Sans Mono", Pt(8.5)
+            return
+        for i, part in enumerate(re.split(r"(`[^`]+`)", text)):
+            run = p.add_run(clean(part))
+            if part.startswith("`"):
+                run.font.name, run.font.size = "DejaVu Sans Mono", Pt(9 if worksheet else 9)
+
+    lines = (DOCS / source).read_text().splitlines()
+    table = None
+    code = False
+    for line in lines:
+        if line.startswith("```"):
+            code = not code
             continue
-        d.add_heading(title, 1)
-        if elements and isinstance(elements[0], tuple):
-            table = d.add_table(rows=1, cols=len(elements[0]))
-            table.style = "Light Shading Accent 1"
-            table.alignment = WD_TABLE_ALIGNMENT.CENTER
-            for j, content in enumerate(elements[0]):
-                table.rows[0].cells[j].text = str(content)
-            for values in elements[1:]:
-                row = table.add_row()
-                for j, content in enumerate(values):
-                    row.cells[j].text = str(content)
-                    row.cells[j].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-            for row in table.rows:
-                for cell in row.cells:
-                    for para in cell.paragraphs:
-                        for run in para.runs:
-                            run.font.size = Pt(8)
+        if not line.strip():
+            table = None
+            continue
+        if line.startswith("|"):
+            values = [clean(v.strip()) for v in line.strip("|").split("|")]
+            if all(re.fullmatch(r":?-+:?", v) for v in values):
+                continue
+            if table is None:
+                table = d.add_table(rows=0, cols=len(values))
+                table.style = "Light Shading Accent 1"
+            cells = table.add_row().cells
+            for cell, value in zip(cells, values):
+                runs(cell.paragraphs[0], value)
+                for run in cell.paragraphs[0].runs:
+                    run.font.size = Pt(8)
+            if len(table.rows) == 1:
+                table.rows[0]._tr.get_or_add_trPr().append(OxmlElement("w:tblHeader"))
+            continue
+        if line.startswith("# "):
+            d.add_paragraph(clean(line[2:]), "Title")
+        elif line.startswith("## "):
+            if not worksheet and line.startswith(("## 2.", "## 4.")):
+                d.add_page_break()
+            d.add_paragraph(clean(line[3:]), "Heading 1")
+        elif line.startswith("- [ ] "):
+            runs(d.add_paragraph(), "[ ] " + line[6:])
         else:
-            for element in elements:
-                if isinstance(element, str) and element.startswith("FIGURE:"):
-                    p = d.add_paragraph()
-                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    p.paragraph_format.space_after = Pt(1)
-                    p.add_run().add_picture(str(ART / element[7:]), width=Inches(5.9))
-                elif isinstance(element, str) and element.startswith("CODE:"):
-                    p = d.add_paragraph()
-                    p.paragraph_format.space_after = Pt(3)
-                    p.paragraph_format.left_indent = Inches(.22)
-                    for line in element[5:].split("\n"):
-                        r = p.add_run(line)
-                        r.font.name, r.font.size = "DejaVu Sans Mono", Pt(8)
-                        r.font.color.rgb = RGBColor.from_string(TEAL)
-                        r.add_break()
-                else:
-                    d.add_paragraph(str(element), style="List Bullet" if element.startswith("• ") else None)
-    footer = sec.footer.paragraphs[0]
-    footer.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    footer.text = "T17(1) | Exciting Science 2026  ·  Workshop draft"
-    footer.runs[0].font.color.rgb = RGBColor.from_string(GREY)
-    footer.runs[0].font.size = Pt(7)
+            p = d.add_paragraph()
+            runs(p, line, code=code)
+    d.core_properties.title = "Autonomous Robot Sorting"
+    d.core_properties.subject = "22 October 2026 workshop"
     d.save(DOCS / filename)
 
 
@@ -174,56 +176,47 @@ def make_slides():
         txt(s,9,3.13,3.32,2.85,explain,20,NAVY)
         return s
 
-    # 1-4. One goal and one visual language throughout. All art is local, editable SVG source.
-    diagram("Programmiert eure eigene Smart Factory", "factory-overview.png", "MISSION")
-    cardrow("Unser Ziel / Today's goal", [("1 · SENSE", "Camera sees a red or blue token."),("2 · DECIDE", "Python chooses left, right, or reject."),("3 · ACT", "Robot moves only when the belt is stopped.")],"MISSION")
-    diagram("Was macht das System cyber-physisch?", "cps-loop.png", "CONCEPTS")
-    cardrow("Physisch + Digital + Rückmeldung",[("PHYSICAL", "Conveyor, robot, blocks"),("DIGITAL", "Python, colors, sorting rules"),("FEEDBACK", "Stop, check, then repeat")],"CONCEPTS")
-    diagram("Sicherheit zuerst / Safety first", "safety-layout.png", "SAFETY")
-    diagram("A · LeRobot: Vormachen und Nachmachen", "robot-demo.png", "STATION A")
-    diagram("B · Kamera: Einen Gegenstand erkennen", "vision-roi.png", "STATION B")
-    diagram("C · LEGO EV3: Bewegen und stoppen", "belt-demo.png", "STATION C")
-    code_slide("Python in drei Minuten",'for number in range(3):\n    print("Hello robot", number + 1)',"Change 3 to 5.\n\nWhat happens?\n\nTry it together.","Exercise 01", "PYTHON")
-    diagram("Drei Stationen · Three stations", "three-stations.png", "STUDENT ROTATION")
-    code_slide("Station A · Erste Roboterbefehle",'from workshop import SimRobot\n\nrobot = SimRobot()\nrobot.sort("left")\nrobot.sort("right")\nprint(robot.actions)',"Simulation first.\n\nTry swapping left and right.\n\nReal robot: supervised demo only.","Exercise 02", "STATION A")
-    code_slide("Station B · Die Kamera sagt eine Farbe",'from workshop import SimCamera\n\ncamera = SimCamera(\n    ["red", "blue", "unknown"]\n)\nprint(camera.detect())',"What if the result is unknown?\n\nUnknown is not blue.\n\nStop or reject.","Exercise 03", "STATION B")
-    code_slide("Station C · Das Band sicher stoppen",'from workshop import SimBelt\n\nbelt = SimBelt()\nbelt.advance()\nbelt.stop()',"Never reach into a moving belt.\n\nPhysical EV3 control still needs an instructor bench test.","Simulated belt", "STATION C")
-    diagram("Die Entscheidung: links, rechts oder Fehler", "sorting-rules.png", "PYTHON")
-    code_slide("Euer Sortierprogramm",'from workshop import Factory, SimBelt\nfrom workshop import SimCamera, SimRobot\n\nf = Factory(SimBelt(),\n    SimCamera(), SimRobot())\nfor _ in range(5):\n    f.one_cycle({"red": "left",\n                 "blue": "right"})',"Five cycles.\n\nRed → left.\nBlue → right.\nUnknown → reject.\n\nChange the rules!","Exercise 04", "PYTHON")
-    diagram("Der sichere Ablauf: Stop, erkennen, sortieren", "safe-sort-cycle.png", "INTEGRATION")
-    diagram("Der Testlauf: 5 Objekte", "five-results.png", "INTEGRATION")
-    cardrow("Team-Challenges / Try it",[("EASY", "Swap red and blue.\nPredict the results."),("MEDIUM", "Count left / right / reject.\nWhy five objects?"),("BONUS", "Test a real webcam if the instructor approves.")],"TRY & IMPROVE")
-    diagram("Wenn Hardware fehlt: Simulation läuft weiter", "fallback.png", "ROBUSTNESS")
-    cardrow("Was nehmt ihr mit? / Recap",[("SENSOR", "What does the camera measure?"),("PYTHON", "What rule makes the decision?"),("ACTUATOR", "What actually moves?"),("SAFETY", "What should stop the system?")],"REFLECTION")
+    def notes(s, text):
+        s.notes_slide.notes_text_frame.text = text
+
+    s = diagram("Can a robot run a factory?", "factory-overview.png", "22 OCTOBER 2026")
+    notes(s, "3 minutes. Ask: what does a machine need to know before moving a block? Take three answers. Point to sensing, a decision and movement. This is our own teaching schematic, not a photograph of a working sorter. The actual camera model may differ. Autonomous physical sorting is an optional demonstration only after full station acceptance.")
+
+    s = diagram("Our miniature factory", "three-stations.png")
+    notes(s, "3 minutes. Point to the actual camera, SO-ARM101 robot, LEGO EV3 conveyor and bins. Identify which parts sense and which move. Students use three pairs. All laptops also have an offline simulator. Source: repository tools/make_assets.py, original teaching diagrams.")
+
+    s = diagram("Observe, decide, act, check", "cps-loop.png")
+    notes(s, "4 minutes. Ask students to describe sorting a block by hand. Camera gives information, Python chooses a route, motors act, feedback checks the result. Ask: how would you know that placement actually worked? A command alone does not prove success. Source: repository original schematic.")
+
+    s = diagram("A camera sees pixels", "vision-demo.png")
+    notes(s, "3 minutes. Ask which example is red, blue or unknown. Explain that measured color depends on light, background and position. Missing information must produce reject or stop. During activity B compare these schematic examples with a live camera only if it is ready. Source: repository original schematic.")
+
+    s = diagram("Robot joints and gripper", "robot-demo.png")
+    notes(s, "3 minutes. Show one joint and the gripper on the actual stationary arm. Explain that reaching a target and avoiding the table both matter. Demonstrate only prechecked supervised motion. Otherwise use simulated robot actions. Source: repository original schematic.")
+
+    s = code_slide("You can program this", 'for number in range(3):\n    print("Hello robot", number + 1)\n\ncolor = "red"\nif color == "red":\n    print("Move left")\nelse:\n    print("Move right")',
+        "Predict the output.\n\nChange 3 to 5.\n\nSwap left and right.", "Try a small change")
+    notes(s, "4 minutes. Ask for a prediction before running. Explain indentation by pointing to the repeated or conditional lines. The two-way rule here assumes only red and blue. Ask what goes wrong for unknown. Later activities add explicit rejection. Run python exercises/01_python.py. Students need no ROS or hardware access.")
+
+    s = diagram("What can go wrong?", "safety-layout.png")
+    notes(s, "3 minutes. Ask for one camera problem, one wrong-position problem and one unexpected-movement problem. Keep hands outside moving equipment. Only the instructor enables physical motion. Stop and ask when behavior is unexpected. Hardware fallback is the simulator. Source: repository original teaching schematic, not a certified physical layout.")
+
+    s = slide("Your challenge")
+    image(s, "five-results.png", x=.7, y=1.9, w=8.1, h=4.85)
+    txt(s,9.0,2.25,3.6,2.3,"Change a rule.\nTest five objects.\nReject unknown.\nExplain your result.",24,NAVY,True)
+    txt(s,9.0,5.05,3.6,1.2,"Work in pairs.\nOne predicts, one types.\nThen swap roles.",19,TEAL)
+    notes(s, "2 minutes. Explain success: correct routes and counts for a known five-object sequence, with unknown rejected. Start exercises/01_python.py, then03_vision.py, supervised rotations,04_sort.py and05_visual_sort.py. For visual results open sorting-result.html after running the script. First two independent challenges are reverse rules and counting. Later options: third color, missing readings, new sequences, reliability improvement. Source: repository original diagram.")
     dest=DOCS/"workshop-slides.pptx"
     prs.save(dest)
     return dest
 
 
 def main():
-    make_docx("instructor-guide.docx", "CPS Candy Factory", "T17(1) · Instructor guide · 4 hours · 6 students", "factory-overview.png", [
-        ("Learning objective", ["Students explore sensing → decision → action → verification using a safe Python simulation and optional supervised hardware stations.", "All students must be able to change an if rule and explain why the belt must stop before sorting."]),
-        ("Four-hour schedule", [("Time", "Block", "Outcome"),("00:00–00:45", "CPS, Python, safety & demo", "Understand"),("00:45–01:45", "3 × 20 min stations", "Try hardware/simulation"),("01:45–01:55", "Break", ""),("01:55–02:20", "Make a sorting rule", "Write if / else"),("02:20–03:05", "Five-cycle sorter", "Test"),("03:05–03:35", "Team challenges", "Improve"),("03:35–04:00", "Demos & reflection", "Explain CPS")]),
-        ("Group rotation", ["Team 1: A → B → C; Team 2: B → C → A; Team 3: C → A → B. Two students per team; rotate operator and observer every 10 minutes."]),
-        ("__PAGE_BREAK__", []),
-        ("Instructor preflight", ["1. Install Python and run python -m workshop on each student laptop; instructor runs pytest before class.","2. Test all camera, EV3 and robot hardware before enabling motion. See docs/acceptance.md.","3. Secure table, enforce exclusion zone, confirm accessible power disconnect.","4. Prepare 20–30 mm colored blocks, a stop guide, and fixed lighting.","5. Keep paper copies and offline simulation available for every team."]),
-        ("Safe sorting cycle", ["FIGURE:safe-sort-cycle.png","Missing images, unknown detections, or obstructions never trigger an unvalidated motion."]),
-        ("Minimal reliable demo", ["CODE:python -m workshop\npython exercises/01_python.py\npython exercises/02_robot.py\npython exercises/03_vision.py\npython exercises/04_sort.py"]),
-        ("Not yet demonstrated physically", ["HERO10 transport, EV3 movement, SO-ARM101 teleoperation and autonomous gripping must be bench-validated. The PowerPoint shows schematics, not photos of a completed sorter."])
-    ])
-    make_docx("student-worksheet.docx", "Unsere Smart Factory", "T17(1) · Student worksheet · Team: __________ · Names: _______________________", "cps-loop.png", [
-        ("Your mission", ["Sensor → Python → actuator → feedback. Sort red and blue tokens; unknown results must not be guessed."]),
-        ("1 · Hello robot", ["CODE:python exercises/01_python.py","Change range(3) to range(5). Write down the output: ___________________________"]),
-        ("2 · Plan robot actions", ["CODE:python exercises/02_robot.py","Swap left and right. What changed? ________________________________________"]),
-        ("3 · Camera decision", ["CODE:python exercises/03_vision.py","Try red / blue / unknown. What must happen with unknown? ____________________"]),
-        ("__PAGE_BREAK__", []),
-        ("4 · The five-object challenge", ["FIGURE:five-results.png","CODE:python exercises/04_sort.py","Swap red and blue destinations. Predict the counts before running.","Left: ______ Right: ______ Reject: ______", "Bonus: use a real webcam only after the instructor has tested and enabled it."]),
-        ("What is cyber-physical here?", ["Sensor: _____________________  Decision: _____________________", "Actuator: __________________  Safety rule: ___________________"]),
-        ("Safety", ["Hands away from the moving robot and belt. If motion, camera, or an object behaves unexpectedly, stop and ask the instructor."]),
-    ])
-    dest=make_slides()
-    print("Built:", DOCS/"instructor-guide.docx", DOCS/"student-worksheet.docx", dest,sep="\n")
+    make_docx("instructor-guide.docx", "instructor.md")
+    make_docx("student-worksheet.docx", "student-worksheet.md", worksheet=True)
+    dest = make_slides()
+    print("Built:", DOCS / "instructor-guide.docx", DOCS / "student-worksheet.docx", dest, sep="\n")
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()

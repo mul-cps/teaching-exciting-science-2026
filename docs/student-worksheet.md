@@ -1,52 +1,48 @@
-# Student worksheet | CPS Candy Factory
+# Autonomous Robot Sorting
 
-**Team:** _________    **Participants:** ______________________
+**Team:** __________  **Names:** ____________________  **22 October 2026**
 
-## Mission
+**Mission:** Observe, decide, act, check. Sort red and blue objects. Reject unknown or missing readings. Work in pairs: one types, one predicts; swap roles after each activity.
 
-![CPS feedback loop](assets/cps-loop.png)
+## A. First Python experiments (25 min)
 
-Make a small factory sort red and blue objects. A sensor reports information, Python decides where to send the object, and an actuator moves it. Unknown objects must be rejected rather than guessed.
+Run `python exercises/01_python.py`. Predict first: how many greeting lines? ____
+Change the greeting and make it repeat five times. Actual greeting lines: ____
+Change the color decision so red goes right and blue goes left. Explain your `if`: ____________________
 
-### Station 1 — Your first Python program
+## B. Sensors and decisions (35 min)
 
-1. Run `python exercises/01_python.py`.
-2. Make it print your team's name, five times.
-3. Explain what `range(3)` does. **Our answer:** ____________________
+Run `python exercises/03_vision.py`. Predict what red / blue / unknown produce.
+Try an unfamiliar color and a missing reading. What should happen? ____________________
+Compare the image examples or live camera. One recognition problem: ____________________
 
-### Station 2 — Robot
+## C. Robot, conveyor and camera (3 × 15 min)
 
-1. Follow the safety instructions before anyone touches the leader or follower.
-2. Watch the instructor demonstrate a grasp and placement.
-3. Run `python exercises/02_robot.py`, change the destination order and explain the log.
+Follow your assigned rotation. Keep hands clear of moving equipment. The instructor enables physical motion. Offline: `python exercises/02_robot.py` and `python -m workshop`.
+One observation: ____________________  One improvement: ____________________
 
-### Station 3 — Vision
+## D. Build your sorter (45 min)
 
-![Simulated red/blue detection preview](assets/vision-demo.png)
+Run `python exercises/04_sort.py`. Use the five-object sequence shown in the file.
+Predict: left ____ right ____ reject ____  Actual: left ____ right ____ reject ____
+Reverse red and blue destinations; run again. Does unknown stay rejected? ____
+Run `python exercises/05_visual_sort.py`; open `sorting-result.html` in a browser.
+Change a Python rule and run again. Which block moved differently? ____________________
 
-1. Run `python exercises/03_vision.py`.
-2. Change the order of colors in the sample data.
-3. What should happen if the camera cannot classify an object? _____________
+## E. Challenge board (40 min)
 
-### Factory challenge
+Finish 1 and 2 first, then choose. Tick a box after you can explain your result.
 
-![Red / blue / unknown decision diagram](assets/sorting-rules.png)
+- [ ] 1 Easy: Reverse the destinations and verify the result.
+- [ ] 2 Easy: Count left, right and reject. Do they sum to the number of objects?
+- [ ] 3 Medium: Add green and choose a destination. Test it.
+- [ ] 4 Medium: Reject missing (`None`) and invalid color readings.
+- [ ] 5 Medium: Create two sequences. Predict counts before running each one.
+- [ ] 6 Advanced: Improve reliability. Demonstrate your idea in simulation.
 
-1. Run `python exercises/04_sort.py`.
-2. Change the rule so **blue goes left** and **red goes right**.
-3. Run five cycles. **Left:** ____ **Right:** ____ **Rejected:** ____
-4. Test one unknown object. Does it reach a sorting bin? ______
+## Show your result (2–3 min per pair)
 
-### Bonus (only if instructor confirms camera is ready)
+Our rule: ____________________  Test result: ____________________
+Sensor: __________  Actuator: __________  Failure and response: ____________________
 
-Try `python -m workshop --camera 0 --cycles 3` after the instructor checks the camera number. Compare simulated vs physical visual information. Arm and belt remain simulated in this command.
-
-### CPS reflection
-
-- **Sensor:** __________________
-- **Decision:** __________________
-- **Actuator:** __________________
-- **Possible failure:** __________________
-- **How to handle it:** __________________
-
-**Key point:** the robot can only act reliably when we know what we sensed, where it is, and what to do if information is missing.
+**Stop and ask the instructor if equipment behaves unexpectedly.** No installation or ROS commands are needed for these activities.
