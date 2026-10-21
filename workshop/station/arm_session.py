@@ -150,6 +150,31 @@ class ArmPlanPreflightError(ValueError):
     """A move plan rejected before any profile, goal, or torque write."""
 
 
+def _teleop_slew_step(position, velocity, target, limits, dt):
+    """Advance six raw-count targets under existing speed/acceleration bounds.
+
+    Braking distance to each admitted endpoint keeps the acceleration-limited
+    state inside that endpoint even when the requested leader pose reverses.
+    Servo goals are rounded only after this continuous state update.
+    """
+    if not 0 < dt <= PERIOD_S:
+        return dict(position), dict(velocity)
+    result, speeds = {}, {}
+    for joint in JOINTS:
+        low, high, vmax, amax = limits[joint]
+        error = target[joint] - position[joint]
+        desired = math.copysign(min(vmax, math.sqrt(2 * amax * abs(error))), error) if error else 0.0
+        speed = max(velocity[joint] - amax * dt, min(velocity[joint] + amax * dt, desired))
+        # Semi-implicit integration plus continuous braking reserve is
+        # conservative for the following acceleration-limited discrete steps.
+        positive = math.sqrt((amax * dt) ** 2 + 2 * amax * max(0., high - position[joint])) - amax * dt
+        negative = math.sqrt((amax * dt) ** 2 + 2 * amax * max(0., position[joint] - low)) - amax * dt
+        speed = max(-negative, min(positive, speed))
+        result[joint] = max(low, min(high, position[joint] + speed * dt))
+        speeds[joint] = speed
+    return result, speeds
+
+
 class ArmSession(NativeDampingMixin):
     """One serialized owner of a connected follower bus.
 
@@ -1749,16 +1774,32 @@ class ArmSession(NativeDampingMixin):
         return actual, position_stamp
 
     def _teleop_start(self, command):
-        if set(command) != {"command", "session_id"} or not isinstance(command["session_id"], str) or not command["session_id"]:
+        if (set(command) - {"command", "session_id", "mode"} or
+                not isinstance(command.get("session_id"), str) or not command["session_id"]):
             raise ArmPlanPreflightError("teleop_start requires a nonempty session_id")
+        mode = command.get("mode", "relative")
+        if mode not in ("relative", "absolute"):
+            raise ArmPlanPreflightError("teleop mode must be relative or absolute")
         if self._teleop is not None or self._motion_busy:
             raise ArmPlanPreflightError("arm session already has active motion")
         self._require_initialized()
-        if not self._home_completed_this_session:
-            raise ArmPlanPreflightError("teleop_start requires completed measured home in this owner session")
         self._calibration_guard()
         if owner_source_sha256(Path(__file__).parent) != self._owner_source_sha256:
             raise ArmPlanPreflightError("teleop_start owner source changed")
+        slew_limits = {}
+        if mode == "absolute":
+            for joint in JOINTS:
+                configured = self.arm.settings["limits"][joint]
+                scale = ((self.arm.calibration[joint]["range_max"] - self.arm.calibration[joint]["range_min"]) / 100
+                         if joint == "gripper" else 4095 / 360)
+                speed, acceleration = float(configured["speed"]), float(configured["acceleration"])
+                if joint != "gripper":
+                    speed = min(speed, math.degrees(self._ros_motion_profile.max_velocity))
+                    acceleration = min(acceleration, math.degrees(self._ros_motion_profile.max_acceleration))
+                if not all(math.isfinite(value) and value > 0 for value in (speed, acceleration)):
+                    raise ArmPlanPreflightError("absolute teleop requires positive configured speed and acceleration")
+                slew_limits[joint] = (self.admitted_min[joint], self.admitted_max[joint],
+                                      speed * scale, acceleration * scale)
         self._teleop_current_baseline()  # Refuse unsafe state before profile writes.
         self._ensure_profile(teleop=True)
         # Profile readback can take time: reacquire the exact current hold target
@@ -1766,7 +1807,9 @@ class ArmSession(NativeDampingMixin):
         actual, position_stamp = self._teleop_current_baseline()
         torque = self._enable_current_goal(actual, position_stamp, "teleop_start")
         torque_monotonic, torque_utc = self.clock(), self.wall_clock()
-        self._teleop = {"session_id": command["session_id"], "sequence": -1,
+        self._teleop = {"session_id": command["session_id"], "sequence": -1, "mode": mode,
+                        "slew_position": dict(actual), "slew_velocity": dict.fromkeys(JOINTS, 0.),
+                        "slew_limits": slew_limits,
                         "start": dict(actual), "previous": dict(actual),
                         "last": self.clock(), "last_valid": self.clock(),
                         "last_verify": self.clock(), "torque": torque,
@@ -1810,6 +1853,11 @@ class ArmSession(NativeDampingMixin):
             low, high = self.admitted_min[joint], self.admitted_max[joint]
             bounded = max(low, min(high, requested))
             target[joint] = int(round(bounded))
+        if active["mode"] == "absolute":
+            position, velocity = _teleop_slew_step(active["slew_position"], active["slew_velocity"],
+                target, active["slew_limits"], min(PERIOD_S, max(0., now - active["last"])))
+            active.update(slew_position=position, slew_velocity=velocity)
+            target = {joint: int(round(position[joint])) for joint in JOINTS}
         target = self._validate_target(target, "teleop_step")
         self.bus.sync_write("Goal_Position", target, normalize=False, num_retry=0)
         actual = self._read("Present_Position")

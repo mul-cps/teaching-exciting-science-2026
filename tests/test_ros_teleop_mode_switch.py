@@ -19,7 +19,7 @@ def bridge_class():
     tree = ast.parse(SOURCE.read_text())
     cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == 'TrajectoryBridge')
     wanted = {'_active_goal_is', '_prepare_owner_state', '_teleop_start_error',
-              '_set_teleop_enabled', '_clear_teleop', '_teleop_tick'}
+              '_set_teleop_enabled', '_set_teleop_absolute_mode', '_clear_teleop', '_teleop_tick'}
     body = [node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name in wanted]
     for node in body:
         node.decorator_list = []
@@ -63,6 +63,7 @@ def bridge():
     node._teleop_condition = threading.Condition()
     node._teleop_acknowledgements = {}
     node._teleop_state = 'disabled'
+    node._teleop_mode = 'relative'
     node._teleop_stop_reason = None
     node._teleop_step_done = threading.Event()
     node._teleop_step_done.set()
@@ -88,17 +89,19 @@ def enable(node):
     return node._set_teleop_enabled(SimpleNamespace(data=True), SimpleNamespace(success=False, message=''))
 
 
-def test_first_owner_session_requires_real_home_completion(bridge):
+def test_first_owner_session_uses_fresh_current_pose_without_home_completion(bridge):
     bridge._home_completed_owner_started = None
     result = enable(bridge)
-    assert not result.success and 'home must complete once' in result.message
-    assert not bridge.commands
+    assert result.success
+    assert bridge.commands[0]['command'] == 'teleop_start'
+    assert bridge._home_completed_owner_started is None
 
 
-def test_new_owner_generation_cannot_inherit_completed_home(bridge):
+def test_new_owner_generation_can_teleop_but_never_inherits_home_proof(bridge):
     bridge._owner_started += .2
-    assert not enable(bridge).success
-    assert not bridge.commands
+    previous = bridge._home_completed_owner_started
+    assert enable(bridge).success
+    assert bridge._home_completed_owner_started == previous != bridge._owner_started
 
 
 @pytest.mark.parametrize('torque', [0, 1])

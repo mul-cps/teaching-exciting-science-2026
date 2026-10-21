@@ -1312,18 +1312,18 @@ def test_resident_teleop_refuses_configured_overshoot_without_clamping(tmp_path)
     session.close_log()
 
 
-def test_resident_teleop_start_rejects_measured_pose_outside_saved_home_tolerance(tmp_path):
+def test_resident_teleop_start_holds_nonhome_current_pose_without_home_motion(tmp_path):
     session, arm, _clock = make_session(tmp_path)
     session.initialize()
     actual = dict(arm.bus.data["Present_Position"])
     actual["elbow_flex"] += 60
     arm.bus.data["Present_Position"] = actual
     arm.bus.goal_history.clear()
-    with pytest.raises(ValueError, match="completed measured home"):
-        session.handle({"command": "teleop_start", "session_id": "away-from-home"})
-    assert not arm.bus.goal_history
-    assert arm.bus.data["Torque_Enable"] == dict.fromkeys(JOINTS, 0)
-    assert session._teleop is None
+    session.handle({"command": "teleop_start", "session_id": "away-from-home"})
+    assert arm.bus.goal_history == [actual]
+    assert arm.bus.data["Torque_Enable"] == dict.fromkeys(JOINTS, 1)
+    assert session._teleop is not None
+    assert session._home_completed_this_session is False
     session.shutdown(reason="test_cleanup")
     session.close_log()
 
