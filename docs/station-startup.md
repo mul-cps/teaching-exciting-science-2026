@@ -116,7 +116,7 @@ ros2/conda/so101-conda.sh camera-preflight
 station_ros ros2 launch so101_station_bringup station_live.launch.py --show-args
 ```
 
-The launch argument list must match this checkout, including the workflow and operator API options. A build/preflight validates software, not connected devices. The desktop **Instructor robot and RViz** runs `python3 tools/prepare_workshop_pc.py station`; its source checks saved calibration/home/USB identities, but at this revision its generated command omits the fresh contract used here. Use the explicit recipe above for the full manual startup. [Prepared machine notes](fwmini4-workshop.md) cover notebooks and desktop launchers.
+The launch argument list must match this checkout, including the workflow and operator API options. A build/preflight validates software, not connected devices. The desktop **Instructor robot and RViz** runs `python3 tools/prepare_workshop_pc.py station`; it checks saved calibration/home/USB identities and requires the fresh contract, with the same explicit state/lock/log paths used here. For combined launch, EV3 connection and bounded shutdown, use the scripts above. [Prepared machine notes](fwmini4-workshop.md) cover notebooks and desktop launchers.
 
 ## Terminal order and what starts
 

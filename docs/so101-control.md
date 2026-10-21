@@ -12,7 +12,7 @@ but are not used directly: planner output may contain discontinuous
 accelerations. The owner builds a C2 quintic through the requested positions
 and timestamps, with zero velocity and acceleration at the endpoints. Before
 any owner command, the bridge asks MoveIt's `/follower/check_state_validity`
-service to validate every effective 20 Hz command state and a bounded
+service to validate every effective sampled command state and a bounded
 interpolation with no adjacent joint step above 0.01 rad. It saves the checked
 path and original goal before sending anything. The owner independently
 rebuilds the spline from fresh measured state and requires its SHA-256 to match

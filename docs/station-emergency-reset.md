@@ -32,15 +32,15 @@ The 2026-10-21 station deployment uses this concrete recipe (deployment must pre
 | --- | --- |
 | camera and depth | `so101-rocm-rgbd-recovery-20261020.service` |
 | tags | `so101-marker-provisional-body-20261020.service` |
-| MoveGroup | `so101-movegroup-limit-v2-20261021.service` |
+| MoveGroup | `so101-movegroup-restored-20261021.service` |
 | objects | `so101-colored-objects-fastpath-20261021.service` |
-| SceneUpdater | `so101-scene-stable-20261021.service` |
+| SceneUpdater | `so101-scene-restored-20261021.service` |
 | read-only leader | `so101-leader-readonly.service` |
 
 For that deployment, the manual bridge-unavailable fallback is:
 
 ```bash
-systemctl --user restart -- so101-arm-passive-canonical-20261021.service
+systemctl --user restart -- so101-arm-restored-v5-20261021.service
 ```
 
 This command is an explicit manual recovery action; the ROS reset does not invoke it. Verify fresh six-OFF through the restored bridge before proceeding. Service installation and live station qualification are separate from the software tests.
