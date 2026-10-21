@@ -2,8 +2,8 @@
 
 The station is **not physically accepted**. The implementation branch is
 `feat/sorting-station-20261016`; the original dirty checkout is preserved.
-The [plan](superpowers/plans/2026-10-16-ros-sorting-station.md) defines the
-release requirements; the [progress record](superpowers/plans/2026-10-16-ros-sorting-progress.md)
+The [plan](../stale/docs/superpowers/plans/2026-10-16-ros-sorting-station.md) defines the
+release requirements; the [progress record](../stale/docs/superpowers/plans/2026-10-16-ros-sorting-progress.md)
 records commands, limitations and decisions.
 
 ## Overnight checkpoint — 2026-10-20, 00:20 UTC

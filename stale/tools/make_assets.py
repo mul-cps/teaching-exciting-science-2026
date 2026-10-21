@@ -1,6 +1,6 @@
 """Generate the workshop's original diagrams (SVG + PNG) for print and slides.
 
-Run: python tools/make_assets.py  (requires optional cairosvg for PNG output).
+Run: python stale/tools/make_assets.py  (requires optional cairosvg for PNG output).
 All illustrations are explanatory schematics, not photos or CAD of the hardware.
 """
 from pathlib import Path

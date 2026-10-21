@@ -46,4 +46,4 @@ All nine images in `tm-samples/` are cropped from `station-current.png` and resi
 | blue | 90 × 90 at 1120,510; 80 × 80 at 1225,470; 77 × 77 at 1133,523 |
 | background | 110 × 110 at 970,760; 90 × 90 at 1300,765; 90 × 90 at 1350,875 |
 
-No video is embedded or downloaded. The verified optional Google video is linked in the speaker notes and resource sheet. The separate `../archive/scene-*.jpg` files are AI-generated concepts and are not used in this deck.
+No video is embedded or downloaded. The verified optional Google video is linked in the speaker notes and resource sheet. The separate `../../../stale/docs/assets/archive/scene-*.jpg` files are AI-generated concepts and are not used in this deck.

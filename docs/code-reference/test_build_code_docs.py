@@ -47,6 +47,20 @@ class Motor:
     def test_embedded_fences_are_escaped(self):
         self.assertTrue(docs.fenced("```python\ntext\n```", "text").startswith("````text"))
 
+    def test_archived_sources_are_static_and_labeled(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = Path("stale/tools/old_generator.py")
+            (root / source).parent.mkdir(parents=True)
+            (root / source).write_text('raise RuntimeError("must never execute")\ndef old(): pass\n')
+            (root / "docs/code-reference").mkdir(parents=True)
+            (root / "docs/code-reference/ros-contracts-intro.txt").write_text("# ROS contracts\n")
+            with patch.object(docs, "ROOT", root), patch.object(docs, "OUTPUT", root / "build"), patch.object(docs, "tracked_files", return_value=[source]), patch.object(docs.subprocess, "check_output", return_value="test-commit\n"):
+                report = docs.generate()
+            self.assertEqual(report["files"][0]["status"], "archived")
+            self.assertIn("Archived historical source", (root / "build/docs" / docs.page_name(source)).read_text())
+            self.assertIn("Historical source retained", (root / "build/docs/inventory.md").read_text())
+
     def test_broken_local_anchor_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

@@ -154,8 +154,8 @@ def generate() -> dict:
         # Every API source link has an HTML anchor, independent of code highlighting.
         anchors = set(map(int, re.findall(r"#source-line-(\d+)", api)))
         lines += "\n" + "\n".join(f'<span id="source-line-{n}"></span>' for n in sorted(anchors))
-        write(page_name(path), f"# `{path}`\n\n[Full inventory]({'../' * (len(Path(page_name(path)).parts) - 1)}inventory.md)\n\nLanguage: {lang}. SHA-256: `{hashlib.sha256(raw).hexdigest()}`.\n\n{api}\n\n## Source\n\nThe complete file is shown with original line numbers.\n\n{lines}\n\n{fenced(source_code, source_lang)}")
-        records.append({"path": str(path), "language": lang, "page": page_name(path), "symbols": symbols, "sha256": hashlib.sha256(raw).hexdigest()})
+        write(page_name(path), f"# `{path}`\n\n" + ("Archived historical source; current workshop builders do not use this file.\n\n" if path.parts[0] == "stale" else "") + f"[Full inventory]({'../' * (len(Path(page_name(path)).parts) - 1)}inventory.md)\n\nLanguage: {lang}. SHA-256: `{hashlib.sha256(raw).hexdigest()}`.\n\n{api}\n\n## Source\n\nThe complete file is shown with original line numbers.\n\n{lines}\n\n{fenced(source_code, source_lang)}")
+        records.append({"status": "archived" if path.parts[0] == "stale" else "active", "path": str(path), "language": lang, "page": page_name(path), "symbols": symbols, "sha256": hashlib.sha256(raw).hexdigest()})
     counts = Counter(r["language"] for r in records)
     report = {"schema": 1, "discovery": "git ls-files; generated/dependency trees excluded", "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(), "files": records, "excluded": skipped, "counts": dict(sorted(counts.items())), "uncovered_code_files": []}
     OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -164,7 +164,7 @@ def generate() -> dict:
         write(path.name, path.read_text())
     inventory = ["# Full source inventory\n", "Every entry links to the complete highlighted source. Python entries include Griffe API signatures and declared docstrings. C++ is also parsed by Doxygen when available.\n"]
     for group in sorted({Path(r["path"]).parts[0] for r in records}):
-        inventory += [f"\n## {group}\n", "| File | Language | Python classes/functions |", "| --- | --- | ---: |"]
+        inventory += [f"\n## {group}\n" + ("\nHistorical source retained for provenance; not a current classroom entry point.\n" if group == "stale" else ""), "| File | Language | Python classes/functions |", "| --- | --- | ---: |"]
         inventory += [f'| [{r["path"]}]({r["page"]}) | {r["language"]} | {r["symbols"]} |' for r in records if Path(r["path"]).parts[0] == group]
     write("inventory.md", "\n".join(inventory))
     coverage = ["# Coverage report\n", f"Source commit: `{report['source_commit']}`. Inventory reads current tracked working-tree contents; file hashes record local edits.\n", f"**{len(records)} source/configuration files; {sum(r['symbols'] for r in records)} Python classes/functions; 0 uncovered classified code files.**\n", "| Language | Files |\n| --- | ---: |", *[f"| {key} | {value} |" for key, value in sorted(counts.items())], "\n## Explicit exclusions\n", "Generated/build/dependency trees are excluded by path. Every other Git file omitted from the API inventory is listed below so classification can be audited. The JSON manifest is `build/code-docs/coverage.json`. No docstring is fabricated where a source lacks one. Static endpoint extraction does not prove runtime reachability, hardware readiness, or physical acceptance.\n", "| File | Reason |\n| --- | --- |", *[f"| `{r['path']}` | {r['reason']} |" for r in skipped]]

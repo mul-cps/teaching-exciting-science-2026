@@ -1,5 +1,7 @@
 # Visual gallery · CPS Candy Factory
 
+Historical record from 12 October 2026, archived on 21 October. Statements about “current” materials below describe that earlier version. See the [archive guide](../README.md) for current replacements.
+
 The current classroom presentation and handouts use a **single consistent graphic language** (navy/teal/blue/red, flat schematic illustrations). They are SVG sources with PNG renditions; the diagram elements are editable in the SVG source. They are conceptual and not hardware validation evidence.
 
 ## Physical layout

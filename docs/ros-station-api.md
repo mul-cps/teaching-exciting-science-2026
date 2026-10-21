@@ -359,7 +359,7 @@ scheduler reserve, to enforce the unchanged50ms actual-acquisition interval and
 sample-age limits. Each poll reads six-position, torque and current Goal
 (up to120 read operations/s; about60 per500ms wait, plus cleanup reads).
 This is additional phase-specific bus work; the observational publication helper
-itself adds no bus reads. See the [reviewed phase contract](superpowers/plans/2026-10-16-stationary-recapture.md).
+itself adds no bus reads. See the [reviewed phase contract](../stale/docs/superpowers/plans/2026-10-16-stationary-recapture.md).
 The full synthetic2993→2973 external ROS fixture also completed with15Hz
 acquisitions and measured80ms transport delay:11 Goals (one initial hold and ten
 certified waypoints), with no writes in ten stationary waits. This verifies the

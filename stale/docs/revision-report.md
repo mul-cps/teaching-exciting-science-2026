@@ -1,5 +1,7 @@
 # Revision log · five-pass design and reliability audit
 
+Historical record from 12 October 2026, archived on 21 October. Statements about “current” materials below describe that earlier version. See the [archive guide](../README.md) for current replacements.
+
 Revision date: 2026-10-12. Scope: classroom PowerPoint, DOCX handouts, included visual assets, and teaching code consistency.
 
 ## Pass 1 — Story and technical correctness
@@ -52,7 +54,7 @@ Revision date: 2026-10-12. Scope: classroom PowerPoint, DOCX handouts, included 
 
 ```bash
 pip install -e '.[materials,test]'
-python tools/make_assets.py
+python stale/tools/make_assets.py
 python tools/build_materials.py
 pytest -q
 ```
