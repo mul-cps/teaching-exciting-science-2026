@@ -45,6 +45,7 @@ def generate_launch_description():
             launch_arguments={
                 "enable_hardware": LaunchConfiguration("enable_hardware"),
                 "external_state_only": "false",
+                "leader": "false",  # This wrapper includes the leader once below.
                 "station_python": station_python,
                 "station_root": station_root,
                 "station_config": LaunchConfiguration("station_config"),

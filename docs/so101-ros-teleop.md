@@ -166,3 +166,22 @@ holds the measured home position before torque is enabled. Home, MoveIt, and
 other planned moves reinstall their original bounded native profile; teleop
 does not change their velocity, acceleration, or jerk checks. Shutdown restores
 the saved RAM registers.
+
+## Automatic read-only leader startup
+
+The normal `moveit_resident.launch.py` now starts the calibrated read-only leader
+publisher by default. Follower teleoperation still needs an explicit operator
+enable request after leader/follower readiness; reconnecting a leader never
+enables or resumes follower motion. For stations without a leader, use
+`leader:=false`. Use the same option when a persistent external leader publisher
+already owns the serial device, so there is exactly one reader.
+
+The resident launch accepts `leader_port` (default exact Rig01 by-id identity
+ending `5AB9068765-if00`) and `leader_calibration_dir`. The reader retains the
+existing saved/device calibration comparison, torque-off prerequisite, disabled
+calibration handshake and read-only disconnect. A missing device or reader error
+keeps the publisher alive and retries with 0.5, 1, 2, 4, then at most 8 seconds
+between attempts. A fresh validated stream resets that delay. Each replacement
+discards the previous reader's cached pose; stale data never becomes fresh just
+because a process restarted. Inspect follower status `teleop_leader_ready` and
+its reason before enabling teleoperation.

@@ -42,13 +42,19 @@ class LeaderTeleopPublisher(Node):
         self._joint_pub = self.create_publisher(
             JointState, str(self.get_parameter("joint_states_topic").value), joint_state_qos)
         self._latest = queue.Queue(maxsize=1)
-        self._reader_fault_reported = False
         self._leader_ready_reported = False
-        self._reader = self._start_reader()
+        self._process = None
+        self._reader = None
+        self._reader_closed = False
+        self._reader_retry_at = 0.0
+        self._reader_retry_delay = 0.5
+        self._supervise_reader()
+        self._reader_timer = self.create_timer(0.25, self._supervise_reader)
         self._timer = self.create_timer(1.0 / 125.0, self._publish_latest)
 
     def _start_reader(self):
-        station_python = str(self.get_parameter("station_python").value)
+        station_python = (str(self.get_parameter("station_python").value).strip() or
+                          str(Path.home() / ".local/share/exciting-science/station/venv/bin/python"))
         station_root = Path(str(self.get_parameter("station_root").value)).resolve()
         reader_script = Path(__file__).with_name("leader_reader.py")
         command = [station_python, str(reader_script),
@@ -75,6 +81,8 @@ class LeaderTeleopPublisher(Node):
                     packet = json.loads(line)
                     pose = validate_pose_packet(
                         packet, time.monotonic(), float(self.get_parameter("pose_stale_s").value))
+                    if self._reader_closed or self._process is not process:
+                        return
                     packet["pose"] = pose
                     state_positions = joint_state_positions(pose)
                     packet["joint_positions_rad"] = state_positions
@@ -93,6 +101,38 @@ class LeaderTeleopPublisher(Node):
                          name="leader-reader-stderr", daemon=True).start()
         return thread
 
+    def _supervise_reader(self):
+        """Retry a missing/disconnected reader with bounded backoff; never enable teleop."""
+        if self._reader_closed:
+            return
+        now = time.monotonic()
+        process = self._process
+        if process is not None:
+            if process.poll() is None:
+                return
+            self.get_logger().warning(
+                f"Leader reader exited with status {process.returncode}; retrying in {self._reader_retry_delay:g}s")
+            self._process = None
+            self._reader_retry_at = now + self._reader_retry_delay
+            self._reader_retry_delay = min(8.0, self._reader_retry_delay * 2)
+        if now < self._reader_retry_at:
+            return
+        # A new generation may restart its sequence, but must supply a newly
+        # validated packet; never republish the previous reader's cached pose.
+        while True:
+            try:
+                self._latest.get_nowait()
+            except queue.Empty:
+                break
+        self._leader_ready_reported = False
+        try:
+            self._reader = self._start_reader()
+        except OSError as error:
+            self.get_logger().warning(f"Leader reader unavailable: {error}; retrying in {self._reader_retry_delay:g}s")
+            self._process = None
+            self._reader_retry_at = now + self._reader_retry_delay
+            self._reader_retry_delay = min(8.0, self._reader_retry_delay * 2)
+
     def _read_errors(self, process):
         assert process.stderr is not None
         for line in process.stderr:
@@ -102,9 +142,6 @@ class LeaderTeleopPublisher(Node):
         try:
             packet = self._latest.get_nowait()
         except queue.Empty:
-            if self._process.poll() is not None and not self._reader_fault_reported:
-                self.get_logger().error(f"Leader reader exited with status {self._process.returncode}")
-                self._reader_fault_reported = True
             return
         age = time.monotonic() - float(packet["stamp_s"])
         if age < -0.02 or age > float(self.get_parameter("pose_stale_s").value):
@@ -113,6 +150,7 @@ class LeaderTeleopPublisher(Node):
             self.get_logger().info(
                 f"Leader ready: fresh calibrated pose stream from {self.get_parameter('leader_port').value}")
             self._leader_ready_reported = True
+            self._reader_retry_delay = 0.5
         # The JSON stamp is the reader's monotonic acquisition time; bridge freshness checks
         # use this shared host clock and reject data older than 150 ms.
         packet["stamp_s"] = float(packet["stamp_s"])
@@ -127,6 +165,10 @@ class LeaderTeleopPublisher(Node):
         self._joint_pub.publish(joint_state)
 
     def destroy_node(self):
+        self._reader_closed = True
+        timer = getattr(self, "_reader_timer", None)
+        if timer is not None:
+            timer.cancel()
         process = getattr(self, "_process", None)
         if process is not None and process.poll() is None:
             process.terminate()
