@@ -329,7 +329,7 @@ def _control_callback(callback):
             if self._stop_latched and not resolving_maintenance:
                 if callback.__name__ in {"_goal_request", "_gripper_goal_request", "_moveit_gripper_goal_request"}:
                     return GoalResponse.REJECT
-                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_acknowledge_held_jaw", "_gripper_diagnostics", "_joint_diagnostics", "_calibration_ready", "_set_teleop_enabled", "_enable_native_damping", "_native_damping_inventory", "_operator_maintenance", "_rearm_motion_profile"}:
+                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_acknowledge_held_jaw", "_gripper_diagnostics", "_joint_diagnostics", "_calibration_ready", "_set_teleop_enabled", "_set_teleop_absolute_mode", "_enable_native_damping", "_native_damping_inventory", "_operator_maintenance", "_rearm_motion_profile"}:
                     response = args[1]
                     response.success, response.message = False, "owner stop remains latched"
                     if callback.__name__ == "_prepare":
@@ -397,6 +397,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self.declare_parameter("teleop_status_topic", "/follower/teleop_status")
         self.declare_parameter("teleop_enable_service", "/follower/teleop_enable")
         self.declare_parameter("teleop_pose_stale_s", 0.15)
+        self.declare_parameter("teleop_mode", "relative")
         self.declare_parameter("teleop_owner_timeout_s", 2.0)
         self.declare_parameter("stop_service", "/follower/stop")
         self.declare_parameter("stop_timeout_s", 5.0)
@@ -425,6 +426,9 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self._teleop_condition = threading.Condition()
         self._teleop_acknowledgements = {}
         self._teleop_state = "disabled"
+        self._teleop_mode = str(self.get_parameter("teleop_mode").value)
+        if self._teleop_mode not in {"relative", "absolute"}:
+            raise ValueError("teleop_mode must be relative or absolute")
         self._teleop_session = None
         self._teleop_origin = None
         self._teleop_follower_start = None
@@ -545,6 +549,9 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self._teleop_service = self.create_service(
             SetBool, str(self.get_parameter("teleop_enable_service").value),
             self._set_teleop_enabled, callback_group=self._teleop_service_group)
+        self._teleop_mode_service = self.create_service(
+            SetBool, "/follower/teleop_absolute_mode", self._set_teleop_absolute_mode,
+            callback_group=self._teleop_service_group)
         self._stop_group = MutuallyExclusiveCallbackGroup()
         self._reconnect_service = self.create_service(
             Trigger, "/follower/reconnect", self._reconnect, callback_group=self._stop_group)
@@ -1472,7 +1479,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
 
     def _publish_teleop_status(self, state, reason, **details):
         status = {"schema": 1, "stamp_s": time.monotonic(),
-                  "state": str(state), "reason": str(reason)}
+                  "state": str(state), "reason": str(reason),
+                  "teleop_mode": getattr(self, "_teleop_mode", "relative")}
         status.update(details)
         message = String()
         message.data = json.dumps(status, separators=(",", ":"))
@@ -1555,9 +1563,7 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                                    "sequence": int(packet["sequence"]), "pose": pose}
 
     def _teleop_start_error(self, state, process, generation, *, after=None, torque=None):
-        """First home is session provenance; later starts anchor the current pose."""
-        if self._home_completed_owner_started is None or self._home_completed_owner_started != generation:
-            return "measured home must complete once in this owner session before teleoperation"
+        """Admit a fresh normal current pose independently of sorting home proof."""
         try:
             classification = self._prepare_owner_state(state, process, generation, after=after, torque=torque)
             if classification != "normal":
@@ -1576,6 +1582,30 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         except (RuntimeError, ValueError, KeyError, TypeError) as error:
             return str(error)
         return None
+
+    @_control_callback
+    def _set_teleop_absolute_mode(self, request, response):
+        """Select mapping only while disabled; never send a joint command."""
+        response.success = False
+        if type(request.data) is not bool:
+            response.message = "absolute mode selection requires a boolean"
+            return response
+        process, generation = self._process, self._owner_started
+        state = self._read_state()
+        with self._active_lock:
+            if self._teleop_state != "disabled" or self._active_goal is not None:
+                response.message = "disable teleoperation before changing mode; the arm will hold its measured pose"
+                return response
+            error = self._teleop_start_error(state, process, generation)
+            if error:
+                response.message = error
+                return response
+            self._teleop_mode = "absolute" if request.data else "relative"
+            self._teleop_origin = None
+            self._teleop_follower_start = None
+        response.success = True
+        response.message = "teleop mode selected: " + self._teleop_mode + "; enable captures a fresh current pose"
+        return response
 
     @_control_callback
     def _set_teleop_enabled(self, request, response):
@@ -1622,7 +1652,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             acknowledged = False
             try:
                 requested = time.monotonic()
-                self._send({"command": "teleop_start", "session_id": session_id})
+                self._send({"command": "teleop_start", "session_id": session_id,
+                            "mode": self._teleop_mode})
                 command_sent = True
                 acknowledgement = self._wait_teleop_ack("teleop_start")
                 acknowledged = True
@@ -2601,9 +2632,10 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             "recovery_action": "explicit_reconnect_then_stop" if owner_fault is not None else None,
             "stop_latched": bool(barrier), "home_completed_this_session": home,
             "active_operation": active if isinstance(active, str) else "trajectory" if active else None,
-            "teleop_state": teleop_state, "owner_started_monotonic": generation if generation_valid else None,
+            "teleop_state": teleop_state, "teleop_mode": getattr(self, "_teleop_mode", "relative"),
+            "owner_started_monotonic": generation if generation_valid else None,
             "teleop_start_ready": teleop_start_error is None,
-            "teleop_start_reason": teleop_start_error or "fresh_current_pose_after_session_home",
+            "teleop_start_reason": teleop_start_error or "fresh_current_pose",
             "teleop_leader_ready": leader_ready, "teleop_leader_reason": leader_reason,
             "teleop_leader_age_s": leader_age,
             "native_damping": state.get("native_damping") if trusted else None,
@@ -3367,7 +3399,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
     @_control_callback
     def _teleop_tick(self, *, wait_for_ack=False):
         with self._active_lock:
-            if getattr(self, "_closed", False) or self._teleop_state != "active":
+            if (getattr(self, "_closed", False) or self._teleop_state != "active" or
+                    self._owner_faulted or self._stop_latched):
                 return
             if self._teleop_inflight:
                 # Only a blocked periodic timer requests an ACK wakeup. A queued
@@ -3411,7 +3444,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             return
         if latest["sequence"] <= self._teleop_last_source_sequence:
             return
-        mapped = matched_pose(latest["pose"], origin, follower_start)
+        mapped = (dict(latest["pose"]) if self._teleop_mode == "absolute" else
+                  matched_pose(latest["pose"], origin, follower_start))
         # ArmSession clamps body targets to its exact calibrated raw bounds. Its gripper
         # input is normalized percent, so clamp that station-unit target here.
         mapped["gripper"] = max(0.0, min(100.0, mapped["gripper"]))

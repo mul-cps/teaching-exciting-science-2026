@@ -13,18 +13,35 @@ The launch starts the follower bus owner only once, through `trajectory_server`,
 and the leader publisher only reads the calibrated leader. The combined launch
 defaults `enable_hardware` to `false`; pass `true` explicitly to start the
 follower hardware owner. It does not enable teleoperation on startup. Wait for
-the follower owner and leader reader readiness messages. Complete one successful
-measured `/follower/home` operation for each new follower owner, then explicitly
-arm teleoperation:
+the follower owner and leader reader readiness messages, then explicitly
+arm teleoperation from its measured current pose:
 
 ```bash
 ros2 service call /follower/teleop_enable std_srvs/srv/SetBool "{data: true}"
 ```
 
-The bridge captures fresh leader and follower references when that service
-acknowledges. Consequently the first mapped command equals the follower's
-measured starting pose, and subsequent commands apply only the leader's change
-from its captured reference. If the stream becomes stale, the resident owner
+The default mode is `relative`: the bridge captures fresh leader and follower
+references when enable acknowledges. The first owner command holds the exact
+measured current pose; later commands apply the leader delta from that reference.
+Select absolute mode while teleoperation is disabled and the owner is idle:
+
+```bash
+ros2 service call /follower/teleop_absolute_mode std_srvs/srv/SetBool "{data: true}"
+```
+
+`absolute` tracks the calibrated leader joint angles and gripper opening. Enable
+still holds the current follower pose first; subsequent targets approach the
+leader with speed and acceleration limits from the station configuration (body
+limits also respect the selected ROS motion profile). Target slew includes
+braking at admitted bounds, and preserves the native RAM profile and cadence.
+To return to relative mode, disable teleoperation, select `{data: false}`, then
+enable again. Each enable captures a fresh current reference. Mode selection
+never commands a joint and rejects changes while a session is active. Both
+follower status and `/follower/teleop_status` report `teleop_mode`. The optional
+node parameter `teleop_mode` accepts only `relative` or `absolute`, defaulting to
+`relative`.
+
+If the stream becomes stale, the resident owner
 holds the measured position and the bridge disables the session; inspect the
 status stream and issue a new explicit enable request to rearm:
 
@@ -45,14 +62,13 @@ disable first and then stop the ROS launch with Ctrl-C:
 ros2 service call /follower/teleop_enable std_srvs/srv/SetBool "{data: false}"
 ```
 
-Teleoperation enable requires successful measured-home completion once per owner,
-a fresh validated current six-joint pose, matching owner/calibration/source
-identity, a fresh calibrated leader and a matched starting reference. After that
-home completion, subsequent MoveIt ↔ Leader switches capture the current measured
-pose and leader reference without returning to home. Restarting the follower
-owner requires a new successful measured-home operation; manual alignment alone
-does not establish that provenance. Home remains a separate explicit request;
-enabling teleoperation never initiates a home move.
+Teleoperation enable requires a fresh validated current six-joint pose, matching
+owner/calibration/source identity, uniform verified torque state, normal admitted
+bounds, a fresh calibrated leader, and no fault/STOP/other-operation barrier.
+Measured home is a separate explicit operation and is not required for either
+teleoperation mode. Enabling teleoperation never sets home-completion provenance;
+automatic sorting retains its home and readiness requirements. A follower outside
+admitted or firmware bounds remains blocked even when the leader is aligned.
 
 For a publisher-only start, use `leader_teleop.launch.py`; it never opens or
 starts the follower owner. The same four leader arguments and station Python
@@ -97,10 +113,10 @@ with independent monotonic clocks are unsupported. Body values use calibrated
 physical degrees; gripper uses calibrated opening percent. The follower bridge
 rejects malformed or older than 150 ms samples, captures fresh matched
 references when teleoperation is enabled, and sends mapped follower poses
-through its existing ArmSession owner. The mapping is
-`follower_start + leader - leader_start`, using the per-joint calibrated
-convention above. ArmSession applies the calibrated follower bounds and rate
-limits. The bridge provides `std_srvs/SetBool` at `/follower/teleop_enable`;
+through its existing ArmSession owner. Relative mapping is
+`follower_start + leader - leader_start`; absolute mapping uses the calibrated
+leader pose directly, with the bounded owner slew described above. Both use the
+per-joint convention above and the same admitted follower position bounds. The bridge provides `std_srvs/SetBool` at `/follower/teleop_enable`;
 enable fails while a trajectory action is active and reports the owner start
 acknowledgement before returning success. Disable stops the session and holds
 the measured pose. Do not publish a synthetic enable request at startup.
@@ -160,8 +176,10 @@ failure. The mode does not change trajectory tolerances or motion profiles.
 
 ## Direct teleop response
 
-Teleop sends each fresh mapped position directly, clamped to the admitted joint
-position bounds. It has no software velocity slew cap. The teleop-only native
+Relative teleop sends each fresh mapped position directly, clamped to the
+admitted joint position bounds, without a software velocity slew cap. Absolute
+teleop additionally limits target speed and acceleration and brakes at those
+bounds. Both modes use the teleop-only native
 profile sets `Goal_Velocity=0` (position-mode hardware maximum), keeps
 `Acceleration=8`, and retains the existing torque limits. The initial goal still
 holds the fresh measured current position before torque is enabled. Home, MoveIt, and

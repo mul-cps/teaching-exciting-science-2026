@@ -27,15 +27,14 @@ def test_completed_home_allows_normal_current_pose_and_installs_exact_hold(tmp_p
     session.shutdown(reason='test_cleanup');session.close_log()
 
 
-def test_saved_home_file_and_current_home_pose_do_not_prove_session_completion(tmp_path):
+def test_current_pose_can_enable_teleop_without_granting_home_completion(tmp_path):
     session,arm,_=make_session(tmp_path)
     session.initialize()
     assert arm.bus.data['Present_Position']==session.home_raw
-    before=len(arm.bus.writes)
-    with pytest.raises(ValueError,match='completed measured home in this owner session'):
-        session.handle({'command':'teleop_start','session_id':'not-homed'})
-    assert len(arm.bus.writes)==before
-    session.close_log()
+    session.handle({'command':'teleop_start','session_id':'not-homed'})
+    assert arm.bus.goal_history == [session.home_raw]
+    assert session._home_completed_this_session is False
+    session.shutdown(reason='test_cleanup');session.close_log()
 
 
 def test_home_provenance_does_not_survive_new_owner_or_failed_home(tmp_path,monkeypatch):
