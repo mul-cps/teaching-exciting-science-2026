@@ -60,6 +60,8 @@ class OperatorAPI(Node):
         self.service_clients = {
             key: self.create_client(Trigger, "/follower/" + endpoint, callback_group=self.group)
             for key, endpoint in {"status": "status", "stop": "stop", "home": "home", "reconnect": "reconnect", "damping": "damping_enable", "rearm": "rearm_motion_profile"}.items()}
+        self.service_clients["recovery_start"] = self.create_client(Trigger, "/so101_perception_recovery/start_recovery", callback_group=self.group)
+        self.service_clients["recovery_status"] = self.create_client(Trigger, "/so101_perception_recovery/recovery_status", callback_group=self.group)
         self.service_clients["teleop"] = self.create_client(SetBool, "/follower/teleop_enable", callback_group=self.group)
         self.service_clients["maintenance"] = self.create_client(OperatorMaintenance, "/follower/operator_maintenance_enable", callback_group=self.group)
         self.publisher = self.create_publisher(String, "/station/operator/status", 1)
@@ -165,9 +167,67 @@ class OperatorAPI(Node):
             return self.snapshot()
         return data
 
+    def maintenance_state(self, token):
+        state = self.snapshot()
+        if (state.get("fresh") is not True or not self.all_off(state) or
+                state.get("active_operation") != "operator_maintenance" or
+                state.get("operator_maintenance_token") != token):
+            raise RuntimeError("operator maintenance reservation revoked or measured all-OFF state unavailable")
+        return state
+
+    def recovery_reply(self, endpoint, timeout):
+        raw = self.rpc(endpoint, timeout=timeout)
+        try:
+            value = json.loads(raw)
+            if not isinstance(value, dict):
+                raise ValueError("object required")
+            return value
+        except (ValueError, TypeError) as error:
+            self.uncertain = self.uncertain_motion = True
+            raise RuntimeError("malformed perception recovery acknowledgement; outcome unknown") from error
+
+    def recover_perception(self, token, deadline):
+        # The existing coordinator owns capture, exact source adoption and checked
+        # resets for marker/objects. Its job has an absolute 40-second budget.
+        self.maintenance_state(token)
+        if deadline-time.monotonic() < 40.:
+            raise RuntimeError("insufficient maintenance budget for bounded perception recovery; no recovery dispatched")
+        accepted = self.recovery_reply("recovery_start", 2.)
+        job_id = accepted.get("job_id")
+        if accepted.get("accepted") is not True or not isinstance(job_id, str) or not re.fullmatch(r"[0-9a-f]{32}", job_id):
+            self.uncertain = self.uncertain_motion = True
+            raise RuntimeError("perception recovery did not acknowledge an exact job")
+        completed = False
+        while True:
+            self.maintenance_state(token)
+            remaining = deadline-time.monotonic()
+            if remaining <= 0:
+                if completed:
+                    raise RuntimeError("perception recovery completed but fresh source admission remained unavailable until deadline")
+                self.uncertain = self.uncertain_motion = True
+                raise RuntimeError("perception recovery deadline elapsed; completion unknown; no automatic retry")
+            state = self.recovery_reply("recovery_status", min(2., remaining))
+            self.maintenance_state(token)
+            if state.get("job_id") != job_id:
+                self.uncertain = self.uncertain_motion = True
+                raise RuntimeError("perception recovery status job_id does not match accepted job")
+            if state.get("state") == "failed":
+                raise RuntimeError("perception recovery failed: " + str(state.get("reason")))
+            if state.get("state") == "completed":
+                if state.get("operation_success") is not True:
+                    raise RuntimeError("perception recovery completed without successful source adoption")
+                completed = True
+                if state.get("ready_now") is True:
+                    return job_id
+                # Completion and current receipt leases are separate. Keep polling
+                # this job through transient lease races; never dispatch another reset.
+            time.sleep(.1)
+
     def restart(self, key):
         if self.get_parameter("enable_service_restarts").value is not True:
             raise RuntimeError("service restarts disabled; configure exact station user units first")
+        if any(not self.service_clients[name].service_is_ready() for name in ("recovery_start", "recovery_status")):
+            raise RuntimeError("perception recovery coordinator services unavailable; no unit restart dispatched")
         keys = ("camera", "depth", "tags") if key == "all" else (key,)
         units = [self.units[k] for k in keys]
         if not all(units):
@@ -218,7 +278,9 @@ class OperatorAPI(Node):
                     time.sleep(.1)
                 completed_units.add(unit)
                 results.append(name + ": unit active")
-            # Require observations after all manager job completion proofs, not messages
+            recovery_job = self.recover_perception(token, deadline)
+            results.append("source recovery: " + recovery_job)
+            # Require observations after recovery and manager completion proofs, not messages
             # received before restart while an old invocation was still publishing.
             initial_stamps = dict(self.stream_stamps)
             required_streams = {"camera": "rgb", "depth": "depth", "tags": "tags"}
@@ -235,7 +297,8 @@ class OperatorAPI(Node):
                 time.sleep(.1)
         finally:
             state = self.snapshot()
-            if state.get("operator_maintenance_token") == token and state.get("operator_external_job") is None:
+            if (state.get("operator_maintenance_token") == token and state.get("operator_external_job") is None
+                    and not self.uncertain_motion and state.get("fresh") is True and self.all_off(state)):
                 self.rpc("maintenance", OperatorMaintenance.Request(enable=False, token=token))
         return "; ".join(results) + "; fresh advancing metadata observed; image contents/registration not qualified"
 
@@ -358,7 +421,7 @@ class OperatorAPI(Node):
         result = {}
         for command in COMMANDS:
             reason = ""
-            required = dependencies.get(command, ("status", "maintenance"))
+            required = dependencies.get(command, ("status", "maintenance", "recovery_start", "recovery_status"))
             if command.startswith("restart_"):
                 keys = ("camera", "depth", "tags") if command == "restart_all" else (command.removeprefix("restart_"),)
                 allowed = data.get("operator_restart_units", [])
@@ -413,6 +476,8 @@ class OperatorAPI(Node):
         external = data.get("operator_external_job")
         restart_summary = ("\nRestart unresolved: " + str(external.get("unit", "invalid pending evidence")) + "; use Verify restart"
                            if isinstance(external, dict) else "")
+        measured_label = "Measured" if fresh else "STALE / LAST KNOWN; current torque/stop/fault UNKNOWN"
+        stale_label = "" if fresh else " (STALE last known)"
         payload = {"schema": 1, "fresh": fresh, "mode": mode, "pending": self.pending,
                    "outcome_unknown": self.uncertain, "manual_start_confirmed": self.manual_confirmed,
                    "follower": data, "streams": streams, "last_result": self.last_result,
@@ -420,7 +485,7 @@ class OperatorAPI(Node):
                    "restart_units": self.units, "damping_supported": data.get("native_damping_supported") is True,
                    "damping_lease_remaining_s": lease,
                    "summary": f"Mode: {mode}" + (f" | Damping expires OFF in {lease:.1f} s" if lease is not None else "") +
-                       f"\nTorque: {data.get('torque')}\nStop latch: {data.get('stop_latched')} | Fault: {data.get('owner_faulted')}\nRGB info: {'fresh' if streams['rgb']['fresh'] else 'stale'} | Depth info: {'fresh' if streams['depth']['fresh'] else 'stale'} | Tags: {'fresh' if streams['tags']['fresh'] else 'stale'}" + restart_summary +
+                       f"\n{measured_label}\nTorque{stale_label}: {data.get('torque')}\nStop latch{stale_label}: {data.get('stop_latched')} | Fault{stale_label}: {data.get('owner_faulted')}\nRGB info: {'fresh' if streams['rgb']['fresh'] else 'stale'} | Depth info: {'fresh' if streams['depth']['fresh'] else 'stale'} | Tags: {'fresh' if streams['tags']['fresh'] else 'stale'}" + restart_summary +
                        (f"\nTags: {streams['tags']['publishers']} publisher(s); {streams['tags']['reason']}" if not streams['tags']['fresh'] else "") +
                        ("\nLeader teleop unavailable: " + str(data.get("teleop_leader_reason") or "no fresh calibrated leader pose is available") if data.get("teleop_leader_ready") is not True else "") +
                        ("\nPlanning blocked: " + str(data["planning_joint_limits_error"]) if data.get("planning_joint_limits_error") else "")}

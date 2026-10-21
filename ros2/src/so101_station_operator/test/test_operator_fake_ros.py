@@ -37,6 +37,9 @@ class FakeOwner(Node):
         self.calls = []
         self.delay = 0.
         self.fail_restart = False
+        self.recovery_mode = "ready"
+        self.recovery_started = 0
+        self.recovery_polls = 0
         self.state = dict(kind="follower_status", fresh=True, connected=True, observe_only=False,
                           owner_faulted=False, stop_latched=False, active_operation=None,
                           teleop_state="disabled", teleop_leader_ready=True, motion_profile_rearm_required=True,
@@ -55,6 +58,9 @@ class FakeOwner(Node):
         self.rgb = self.create_publisher(CameraInfo, "/camera/color/camera_info", 1)
         self.depth = self.create_publisher(CameraInfo, "/so101_perception/rocm/aligned_camera_info", 1)
         self.tags = self.create_publisher(String, "/so101_perception/tag_detections", 1)
+        self.services_owned += [self.create_service(Trigger, "/so101_perception_recovery/" + endpoint,
+            lambda req, res, endpoint=endpoint: self.recovery(endpoint, res), callback_group=self.group)
+            for endpoint in ("start_recovery", "recovery_status")]
         self.publish_streams = True
         self.create_timer(.05, self.stream)
 
@@ -76,7 +82,7 @@ class FakeOwner(Node):
         self.calls.append(name)
         if name == "stop":
             self.state.update(torque={j: 0 for j in JOINTS}, active_operation=None,
-                              motion_profile_rearm_required=True, teleop_state="disabled")
+                              motion_profile_rearm_required=True, teleop_state="disabled", operator_maintenance_token=None)
         elif name == "reconnect":
             self.state["connected"] = True
         elif name == "rearm_motion_profile":
@@ -118,6 +124,22 @@ class FakeOwner(Node):
         res.success = True
         return res
 
+    def recovery(self, endpoint, res):
+        if endpoint == "start_recovery":
+            self.recovery_started += 1
+            self.recovery_polls = 0
+            res.success = self.recovery_mode != "busy"
+            res.message = json.dumps(dict(accepted=res.success, job_id="f"*32, reason="one recovery job already active"))
+        else:
+            self.recovery_polls += 1
+            ready = self.recovery_mode == "ready" or (self.recovery_mode == "stale" and self.recovery_polls >= 3)
+            res.success = True
+            res.message = json.dumps(dict(job_id="a"*32 if self.recovery_mode == "mismatch" else "f"*32,
+                state="failed" if self.recovery_mode == "failed" else "wait_consumer_admissions" if self.recovery_mode == "waiting" else "completed",
+                operation_success=self.recovery_mode in {"ready", "stale"}, ready_now=ready,
+                reason="fake admission failure"))
+        return res
+
 
 class OperatorFakeROS(unittest.TestCase):
     @classmethod
@@ -128,6 +150,9 @@ class OperatorFakeROS(unittest.TestCase):
         cls.executor = MultiThreadedExecutor(num_threads=10)
         for node in (cls.owner, cls.api, cls.client):
             cls.executor.add_node(node)
+        cls.received_status = {}
+        cls.status_subscription = cls.client.create_subscription(String, "/station/operator/status",
+            lambda msg: cls.received_status.update(json.loads(msg.data)), 1)
         cls.thread = threading.Thread(target=cls.executor.spin, daemon=True)
         cls.thread.start()
         cls.routes = {command: cls.client.create_client(Trigger, "/station/operator/" + command)
@@ -187,9 +212,37 @@ class OperatorFakeROS(unittest.TestCase):
         self.call("reset")
         for command in ("restart_camera", "restart_depth", "restart_tags", "restart_all"):
             before = self.owner.calls.count("maintenance:restart")
+            recovery_before = self.owner.recovery_started
             self.call(command)
+            self.assertEqual(self.owner.recovery_started, recovery_before+1)
             self.assertEqual(self.owner.calls.count("maintenance:restart"), before+1)  # aliases once
         self.call("verify_restart")
+        for mode, reason in (("failed", "fake admission failure"), ("busy", "already active")):
+            self.owner.recovery_mode = mode
+            self.assertIn(reason, self.call("restart_camera", False).message)
+            self.assertTrue(self.api.all_off(self.owner.state))
+        self.owner.recovery_mode = "stale"
+        self.call("restart_camera")
+        self.assertGreaterEqual(self.owner.recovery_polls, 3)  # same job, no second recovery dispatch
+        self.owner.recovery_mode = "mismatch"
+        self.assertIn("job_id", self.call("restart_camera", False).message)
+        self.assertTrue(self.api.uncertain)
+        self.assertEqual(self.owner.state["active_operation"], "operator_maintenance")
+        self.call("verify_restart", False)
+        self.call("zero_torque")
+        self.api.uncertain = self.api.uncertain_motion = False  # isolated fake explicit inspection/recovery
+        self.owner.recovery_mode = "waiting"
+        before = self.owner.recovery_started
+        pending_restart = self.routes["restart_all"].call_async(Trigger.Request())
+        deadline = time.monotonic()+3.
+        while self.owner.recovery_started == before and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertGreater(self.owner.recovery_started, before)
+        self.call("zero_torque")
+        time.sleep(.2)
+        self.assertTrue(pending_restart.done())
+        self.assertFalse(pending_restart.result().success)
+        self.owner.recovery_mode = "ready"
         self.owner.fail_restart = True
         self.call("restart_camera", False)
         self.assertTrue(self.api.uncertain)
@@ -233,8 +286,15 @@ class OperatorFakeROS(unittest.TestCase):
         time.sleep(1.05)
         self.assertGreater(time.monotonic()-self.api.streams["tags"], 1.)
         self.assertTrue(self.owner.calls.count("rearm_motion_profile") >= 3)
+        self.owner.state.update(fresh=False, torque={j: 1 for j in JOINTS})
+        deadline = time.monotonic()+3.
+        while "STALE / LAST KNOWN" not in self.received_status.get("summary", "") and time.monotonic() < deadline:
+            time.sleep(.05)
+        self.assertIn("STALE / LAST KNOWN", self.received_status["summary"])
+        self.assertIn("current torque/stop/fault UNKNOWN", self.received_status["summary"])
         print("FAKE DOMAIN87: all 13 button routes, reset/rearm/home, teleop/MoveIt, manual reference, "
-              "damping unavailable, restart aliases/failure/barrier, delayed reply/STOP, advancing/stale streams passed")
+              "damping unavailable, restart aliases/recovery correlation/transient readiness/failure/busy/STOP, "
+              "unknown barriers, delayed reply/STOP, advancing/stale streams and stale torque labels passed")
 
 
 if __name__ == "__main__":
