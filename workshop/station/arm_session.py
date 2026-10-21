@@ -197,6 +197,7 @@ class ArmSession(NativeDampingMixin):
         self._failed_jaw_ack_context = None
         self._last_held_jaw_ack = None
         self._initialized = False
+        self._home_completed_this_session = False
         self._motion_busy = False
         self._cancel_requested = False
         self._cancel_reason = None
@@ -1677,56 +1678,53 @@ class ArmSession(NativeDampingMixin):
             self._check_failed_hold_snapshot(state, hold_started)
         return state
 
+    def _teleop_current_baseline(self):
+        """Read an actual normal six-joint baseline; never clamp measured feedback."""
+        actual = self._read("Present_Position")
+        position_stamp = self.clock()
+        torque = self._read("Torque_Enable")
+        torque_stamp = self.clock()
+        try:
+            actual = self._validate_target(actual, "teleop_start measured pose")
+        except (ValueError, TypeError, KeyError) as error:
+            raise ArmPlanPreflightError(str(error)) from error
+        if self._arm_bounds_observation(actual, position_stamp)["classification"] != "normal":
+            raise ArmPlanPreflightError("teleop_start requires normal admitted bounds")
+        if (not isinstance(torque, dict) or set(torque) != set(JOINTS) or
+                any(type(value) is not int or value not in (0, 1) for value in torque.values()) or
+                len(set(torque.values())) != 1):
+            raise ArmPlanPreflightError("teleop_start requires uniform six-joint torque off or on")
+        now = self.clock()
+        if not all(0 <= now-stamp <= .1 for stamp in (position_stamp, torque_stamp)):
+            raise ArmPlanPreflightError("teleop_start measured baseline is stale")
+        return actual, position_stamp
+
     def _teleop_start(self, command):
         if set(command) != {"command", "session_id"} or not isinstance(command["session_id"], str) or not command["session_id"]:
             raise ArmPlanPreflightError("teleop_start requires a nonempty session_id")
         if self._teleop is not None or self._motion_busy:
             raise ArmPlanPreflightError("arm session already has active motion")
         self._require_initialized()
-        actual = self._read("Present_Position")
-        actual = self._six_ints(actual, "teleop_start")
-        actual_pose = {}
-        limiter_start = {}
-        tolerance = float(self.arm.settings["tolerance"])
-        for joint in JOINTS:
-            value = actual[joint]
-            calibration = self.arm.calibration[joint]
-            if (not 0 <= value <= 4095 or
-                    not self.firmware_min[joint] <= value <= self.firmware_max[joint] or
-                    not calibration["range_min"] <= value <= calibration["range_max"]):
-                raise ArmPlanPreflightError(
-                    "teleop_start measured pose is outside firmware or calibration limits: " + joint)
-            if joint == "gripper":
-                actual_pose[joint] = ((value - calibration["range_min"]) * 100 /
-                                      (calibration["range_max"] - calibration["range_min"]))
-            else:
-                actual_pose[joint] = ((value - (calibration["range_min"] +
-                                                   calibration["range_max"]) / 2) * 360 / 4095)
-            limiter_start[joint] = max(self.admitted_min[joint],
-                                       min(self.admitted_max[joint], value))
-        outside_home = {joint: abs(actual_pose[joint] - self.home_pose[joint])
-                        for joint in JOINTS
-                        if abs(actual_pose[joint] - self.home_pose[joint]) > tolerance}
-        if outside_home:
-            joints = ", ".join(sorted(outside_home))
-            raise ArmPlanPreflightError(
-                f"teleop_start requires measured follower at saved home within {tolerance:g} "
-                f"degrees/percent; outside on {joints}")
-        # Install the exact measured pose as a hold target. A small configured
-        # limit overshoot at saved home is permitted only for this initial hold;
-        # the first commanded step starts from the admitted boundary so every
-        # subsequent Goal_Position remains inside the unchanged limits.
-        target = actual
+        if not self._home_completed_this_session:
+            raise ArmPlanPreflightError("teleop_start requires completed measured home in this owner session")
+        self._calibration_guard()
+        if owner_source_sha256(Path(__file__).parent) != self._owner_source_sha256:
+            raise ArmPlanPreflightError("teleop_start owner source changed")
+        self._teleop_current_baseline()  # Refuse unsafe state before profile writes.
         self._ensure_profile(teleop=True)
-        torque = self._enable_current_goal(target, self.clock(), "teleop_start")
+        # Profile readback can take time: reacquire the exact current hold target
+        # immediately before dispatch instead of commanding a previous home pose.
+        actual, position_stamp = self._teleop_current_baseline()
+        torque = self._enable_current_goal(actual, position_stamp, "teleop_start")
         torque_monotonic, torque_utc = self.clock(), self.wall_clock()
         self._teleop = {"session_id": command["session_id"], "sequence": -1,
-                        "start": dict(actual), "previous": limiter_start,
+                        "start": dict(actual), "previous": dict(actual),
                         "last": self.clock(), "last_valid": self.clock(),
                         "last_verify": self.clock(), "torque": torque,
                         "torque_monotonic": torque_monotonic,
                         "torque_utc": torque_utc}
         state = self.publish_state(event="teleop_started", raw=actual, torque=torque,
+                                   position_monotonic=position_stamp, position_utc=self.wall_clock(),
                                    torque_monotonic=torque_monotonic,
                                    torque_utc=torque_utc)
         if self._input_fd is not None:
@@ -2266,6 +2264,7 @@ class ArmSession(NativeDampingMixin):
     def home(self):
         """Reach measured home through validated raw sublegs of at most 100 counts."""
         self._require_initialized()
+        self._home_completed_this_session = False
         # Explicit home requests adopt a newly measured, same-identity HOME.
         # Compute and validate both caches before replacing either old value.
         home_pose = self.arm._pose(load_home(self.arm.settings["home_file"],
@@ -2325,6 +2324,19 @@ class ArmSession(NativeDampingMixin):
             self._sag_recovery_available = False
             state = self.publish_state(event="home_complete", phase="home",
                                        label=points[-1][0] if points else "home_already_there")
+            self._validate_target(state["raw"], "home_complete measured pose")
+            now = self.clock()
+            if (state["arm_bounds"]["classification"] != "normal" or
+                    set(state["torque"]) != set(JOINTS) or
+                    any(type(value) is not int or value != 1 for value in state["torque"].values()) or
+                    not all(0 <= now-state[key] <= .1 for key in ("monotonic", "torque_monotonic")) or
+                    any(abs(state["pose"][joint]-self.home_pose[joint]) > float(self.arm.settings["tolerance"])
+                        for joint in JOINTS)):
+                raise RuntimeError("home completion lacks fresh normal measured home and six-joint torque-on proof")
+            self._calibration_guard()
+            if owner_source_sha256(Path(__file__).parent) != self._owner_source_sha256:
+                raise RuntimeError("home completion owner source changed")
+            self._home_completed_this_session = True
             state["completed_legs"] = [label for label, _target, _recovery in points]
             return state
         except BaseException as error:
