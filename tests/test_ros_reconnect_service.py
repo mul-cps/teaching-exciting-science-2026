@@ -64,7 +64,7 @@ def test_reconnect_never_replaces_live_or_busy_owner(bridge, case):
         if case=='locked': node._stop_lock.release()
 
 
-@pytest.mark.parametrize('case', ['identity', 'calibration', 'source', 'raw', 'torque', 'future', 'stale', 'torque_stale', 'mode'])
+@pytest.mark.parametrize('case', ['identity', 'calibration', 'source', 'raw', 'torque', 'future', 'stale', 'torque_stale', 'missing_mode'])
 def test_passive_generation_requires_exact_fresh_provenance(bridge, case):
     node, process = bridge
     install(node, process)
@@ -78,7 +78,7 @@ def test_passive_generation_requires_exact_fresh_provenance(bridge, case):
     if case=='future': state['monotonic']+=1
     if case=='stale': state['monotonic']-=1
     if case=='torque_stale': state['torque_monotonic']-=1
-    if case=='mode': state['observe_only']=False
+    if case=='missing_mode': state.pop('observe_only')
     node._owner_source_expected={'arm':'a'*64,'arm_session':'b'*64}
     assert _observe_owner_error(state,arm_id=node._expected_arm_id,calibration_sha256=node._expected_calibration_sha256,
         owner_started=node._owner_started,source_sha256=node._owner_source_expected,now=time.monotonic())
@@ -330,3 +330,49 @@ def test_explicit_reset_owner_requires_fresh_idle_alloff_proof(bridge, failure):
     node._read_state = lambda **kwargs: state
     assert not node._reset_owner(Trigger.Request(), Trigger.Response()).success
     assert not calls and not process.commands
+
+
+@pytest.mark.parametrize('fault', [False, True])
+def test_explicit_stop_recovers_already_disarmed_passive_generation(bridge, fault):
+    """A STOP arriving before reconnect observes startup must not strand STOP."""
+    node, process = bridge
+    install(node, process)
+    node._owner_started = time.monotonic() - .02
+    node._owner_source_expected = {'arm': 'a' * 64, 'arm_session': 'b' * 64}
+    node._reconnect_observe = True
+    node._owner_faulted = True
+    node._stop_latched = True
+    process.alive = True
+    def current():
+        state = fault_observed(node) if fault else observed(node)
+        state['observe_only'] = False
+        return state
+    node._read_state = lambda **kwargs: current()
+    def reply(value):
+        value['state'] = dict(current(), event='torque_off')
+        return value
+    process.transform = reply
+    result = stop(node)
+    assert result.success, result.message
+    assert [command['command'] for command in process.commands] == ['stop']
+    assert node._owner_faulted is fault
+    assert not node._reconnect_observe
+    assert node._home_completed_owner_started is None
+
+
+def test_passive_startup_fails_promptly_after_separately_delivered_stop(bridge, monkeypatch):
+    node, process = bridge
+    install(node, process)
+    process.alive = True
+    node._owner_started = time.monotonic() - .02
+    node._owner_source_expected = {'arm': 'a' * 64, 'arm_session': 'b' * 64}
+    state = observed(node)
+    state['observe_only'] = False
+    node._read_state = lambda **kwargs: state
+    def forbidden_sleep(*args):
+        raise AssertionError('already disarmed passive startup must not wait twenty seconds')
+    monkeypatch.setattr('so101_station_control.trajectory_server.time.sleep', forbidden_sleep)
+    with pytest.raises(RuntimeError, match='explicit stop verification required'):
+        node._wait_for_owner_state(node._expected_arm_id, node._expected_calibration_sha256,
+                                   observe_only=True)
+    assert process.alive and not process.commands

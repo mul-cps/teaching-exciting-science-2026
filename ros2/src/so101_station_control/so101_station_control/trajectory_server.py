@@ -814,6 +814,11 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                                for callback in (self._read_responses, self._read_stderr)]
         for reader in self._owner_readers:
             reader.start()
+        return self._wait_for_owner_state(expected_arm_id, expected_calibration_sha256,
+                                          observe_only=observe_only)
+
+    def _wait_for_owner_state(self, expected_arm_id, expected_calibration_sha256, *, observe_only):
+        """Wait for this generation without masking a separately delivered STOP."""
         deadline = time.monotonic() + 20.0
         while time.monotonic() < deadline:
             if self._closed:
@@ -822,6 +827,12 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 raise RuntimeError(f"ArmSession exited during startup ({self._process.returncode})")
             state = self._read_state()
             if observe_only:
+                if (isinstance(state, dict) and state.get("observe_only") is False and
+                        _observe_owner_error(dict(state, observe_only=True), arm_id=expected_arm_id,
+                            calibration_sha256=expected_calibration_sha256,
+                            owner_started=self._owner_started, source_sha256=self._owner_source_expected,
+                            now=time.monotonic()) is None):
+                    raise RuntimeError("passive owner received STOP during startup; explicit stop verification required")
                 if _observe_owner_error(state, arm_id=expected_arm_id,
                         calibration_sha256=expected_calibration_sha256,
                         owner_started=self._owner_started, source_sha256=self._owner_source_expected,
@@ -902,6 +913,11 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         pending = (json.dumps(command, allow_nan=False) + "\n").encode("utf-8")
         if len(pending) > 1_048_576:
             raise RuntimeError("owner JSON command exceeds 1 MiB")
+        if command.get("command") in {"stop", "exit"}:
+            self.get_logger().info(
+                f"Owner safety command: {command['command']} "
+                f"request_id={command.get('request_id')} generation={self._owner_started} "
+                f"caller={sys._getframe(2).f_code.co_name}")
         stream = self._process.stdin
         if not hasattr(stream, "fileno"):
             raise RuntimeError("owner commands require a writable stdin file descriptor")
@@ -1045,7 +1061,13 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             if self._external_state_only or self._process is None or self._process.poll() is not None:
                 raise RuntimeError("resident ArmSession owner is unavailable or read only")
             if self._reconnect_observe:
-                error = _observe_owner_error(self._read_state(), arm_id=self._expected_arm_id,
+                state = self._read_state()
+                # A separately delivered STOP can already have promoted this
+                # passive generation to normal/disarmed. Explicit STOP must
+                # still be able to verify it; motion admission remains latched.
+                if isinstance(state, dict) and type(state.get("observe_only")) is bool:
+                    state = dict(state, observe_only=True)
+                error = _observe_owner_error(state, arm_id=self._expected_arm_id,
                     calibration_sha256=self._expected_calibration_sha256,
                     owner_started=self._owner_started, source_sha256=self._owner_source_expected,
                     now=time.monotonic())
