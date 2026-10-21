@@ -15,3 +15,9 @@ The main student factory notebook activities are simulation only. The photograph
 The robot and twin station uses Robot_Candy_Factory_Live_SO101.ipynb. In the learner ZIP it runs invented DEMO data without ROS. This is a separate 15-minute station task, not an extra lesson. LIVE requires the full prepared station checkout and the instructor launcher described in docs/instructor.md. No cell commands an actuator; only the instructor controls hardware through RViz.
 
 The exact lesson route is introduction 00–25, Blockly 25–35, Python 35–65, perception 65–85, break 85–95, stations 95–140, factory 140–190, challenges 190–225, demos 225–240 minutes.
+
+During the 35-minute challenge you can also build a factory with blocks. Run
+`python3 tools/run_blockly_station.py` and open `http://127.0.0.1:8877`.
+Everything needed is in the extracted ZIP. Follow `docs/blockly-student.md`.
+This learner version runs in simulation; live robot teaching uses the full
+instructor station and separate setup.

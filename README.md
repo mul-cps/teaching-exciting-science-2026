@@ -14,6 +14,7 @@ Students predict, change one value, run and check. Red goes left, blue right, ev
 - [Student worksheet](docs/student-worksheet.pdf) and [complete handbook](docs/student-handbook.pdf)
 - [External activities and offline alternatives](docs/workshop-resources.md)
 - [Class slides](docs/workshop-slides.pptx) and [PDF](docs/workshop-slides.pdf)
+- [Blockly factory challenge for students](docs/blockly-student.md) and [instructor setup, recording and ROS interfaces](docs/blockly-workshop.md)
 - [Manual full station startup: RViz, MoveIt and LEGO EV3](docs/station-startup.md)
 - [Prepared fwmini4 launchers and checks](docs/fwmini4-workshop.md)
 - [Automated developer code reference](docs/code-reference/index.md)

@@ -41,7 +41,8 @@ def test_portable_bundle_all_entries(tmp_path):
     subprocess.run([sys.executable, str(ROOT / "exercises/make_student_bundle.py"), "--output", str(bundle)], check=True)
     extracted = tmp_path / "extracted"
     with zipfile.ZipFile(bundle) as archive:
-        assert not any("station/" in name or name == "workshop/vision.py" for name in archive.namelist())
+        assert not any(name.startswith("workshop/station/") or name in ("workshop/vision.py", "workshop/blockly_ros.py") for name in archive.namelist())
+        assert 'web/blockly-station/vendor/blockly_compressed.js' in archive.namelist()
         archive.extractall(extracted)
     for name in ("check_setup.py", "01_python.py", "02_robot.py", "03_vision.py", "04_sort.py"):
         subprocess.run([sys.executable, "-S", str(extracted / "exercises" / name)], cwd=tmp_path, check=True)
@@ -51,6 +52,21 @@ def test_portable_bundle_all_entries(tmp_path):
     assert "left: 2" in html and "right: 2" in html and "reject: 1" in html
     assert "http://" not in html and "https://" not in html
     assert html.count('class="object"') == 5
+    simulation = '''import runpy,sys,time
+from pathlib import Path
+module=runpy.run_path(sys.argv[1])
+app=module['Application'](Path(sys.argv[2]))
+assert not app.backend.physical
+app.run([{'op':'repeat','count':2,'body':[{'op':'ev3','command':'eject'}]}])
+deadline=time.monotonic()+3
+while app.thread.is_alive() and time.monotonic()<deadline: time.sleep(.01)
+assert app.status()['job']['state']=='complete'
+assert app.backend.events==['ev3:eject','ev3:eject']
+app.close()
+'''
+    subprocess.run([sys.executable, '-S', '-c', simulation,
+                    str(extracted/'tools/run_blockly_station.py'), str(tmp_path/'recordings')],
+                   cwd=tmp_path, check=True, timeout=10)
 
 
 def test_first_exercise_greeting_and_decision(tmp_path):
