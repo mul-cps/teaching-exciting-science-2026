@@ -55,9 +55,10 @@ def lifecycle(owner):
         command='home', error='deadline', error_type='TimeoutError',
         entered_monotonic=node._owner_started + .001)
     state['pose'] = dict.fromkeys(JOINTS, 0.)
-    process = SimpleNamespace(alive=True, commands=[])
+    process = SimpleNamespace(alive=True, commands=[], wait_timeouts=[])
     process.poll = lambda: None if process.alive else 0
     def wait(**kwargs):
+        process.wait_timeouts.append(kwargs['timeout'])
         if process.alive: raise subprocess.TimeoutExpired('owner', kwargs['timeout'])
         return 0
     process.wait = wait
@@ -96,6 +97,7 @@ def test_explicit_fault_reconnect_exits_once_and_spawns_passive_generation(lifec
     assert result.success, result.message
     assert process.commands == [{'command': 'exit'}]
     assert spawns == [{'observe_only': True}]
+    assert process.wait_timeouts == [8.]
     assert node._owner_faulted and node._reconnect_observe
     assert node._home_completed_owner_started is None
 
