@@ -79,7 +79,7 @@ def request_station_stop(workflow, stop_state, ev3, follower_stop, record, trigg
     if errors:
         raise RuntimeError('; '.join(errors))
     return dict(cancel_requested=True, arm_stop_ack_pending=not stop_state['arm_disarmed'],
-                job_id=workflow.job_id)
+                job_id=workflow.job_id, request_id=request_id)
 
 
 def main():

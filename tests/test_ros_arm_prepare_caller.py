@@ -186,6 +186,7 @@ def test_station_stop_announces_correlation_then_dispatches_arm_before_ev3_wait(
         lambda event:None,Trigger)
     assert events==['cancel','arm','ev3']
     assert not state['pending'] and result['job_id']=='same-job'
+    assert result['request_id']==state['request_id'] and result['request_id']!='old'
 
 
 def test_private_stop_ack_cannot_verify_new_external_station_correlation():
