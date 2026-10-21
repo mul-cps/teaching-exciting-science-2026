@@ -95,14 +95,14 @@ Up to 64 recordings, 600 samples and 60 seconds per recording are retained under
 the server is stopped. Files are never overwritten silently.
 
 A complete detected-object dispense/pick/place program additionally needs the
-scene ownership transaction. Current Blockly blocks do **not** implement target
+scene ownership transaction. Taught-stroke and jaw-position blocks do **not** implement target
 locking, bounded finger-contact allowance, contact inference, attach/lift
 verification or detach/release ownership. The jaw-gap block requires a reached
 position and rejects inferred contact; it is not a grasp-contact block. A detected
 world brick can therefore make jaw closing or lifting fail collision preflight.
 Do not remove the brick from the scene or publish arbitrary attachment messages
-to bypass that check. Physical tracked-object picking needs a guarded high-level
-adapter to the existing ownership protocol first. Free-space taught motion and
+to bypass that check. Use the separate **Run one commissioned sorting cycle** block for the native
+object transaction described below; it requires an already commissioned station. Free-space taught motion and
 EV3 sequencing are the currently exposed physical activities. These capabilities do not establish that a
 physical autonomous sorting cycle has passed. The instructor must qualify the
 exact strokes, object, jaw gap and environment before students run that cycle.
@@ -298,3 +298,38 @@ per replay; it adds no work to the control/feedback callback. Run:
 python -m pytest tests/test_blockly_station.py tests/test_blockly_recording_timing.py -q
 python tests/blockly_timing_benchmark.py
 ```
+
+## Run one commissioned sorting cycle
+
+The distinct **Run one commissioned sorting cycle** block invokes the existing
+`/station/run_cycles` service (`so101_station_workflow/srv/RunCycles`) with
+`cycles = 1`. Its strict JSON command is exactly `{"op":"sort_cycle"}`. Students
+cannot supply a configuration path, ROS endpoint, coordinates or a cycle count.
+A Repeat block may request another independent cycle after the previous verified
+cycle completes, within the existing 180-second Blockly program deadline.
+
+Let this block own dispensing: it performs the native readiness checks, dispense,
+object detection, commissioned destination selection, planned grasp/scene
+ownership transaction, independently verified pickup/lift/release and final clear
+check. It reuses the existing station configuration and calibration. Missing or
+invalid commissioning remains a native rejection; exposing the API does not mean
+a physical sorting cycle has passed.
+
+Service acceptance is not completion. The adapter requires a bounded, exact
+workflow job ID, polls `/station/status` for that same job, rejects a fault, and
+requires a terminal result with integer `completed = 1` plus known-color integer
+counts summing to one. A timeout, cancellation, changed job ID or incomplete
+result follows the existing STOP and unknown-delivery barrier; no mutation is
+retried. Successful results appear in `job.result.sort_cycles`.
+
+Simulation returns an explicitly simulated one-object event and color count; it
+opens no hardware connection. The Python learning preview calls the same guarded
+adapter operation and is never executed by the web application.
+
+This high-level block is separate from teaching free-space strokes. Composing a
+stroke replay with a generic jaw-gap block does not acquire object ownership or
+infer a successful grasp. No arbitrary attachment publisher is exposed.
+
+Recovery also requires the **native workflow** to be idle and fault-free. Inspect
+the station and use RViz **Reset inspected fault** when a native workflow fault is
+latched; Blockly never resets that fault automatically.

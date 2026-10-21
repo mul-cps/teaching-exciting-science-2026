@@ -149,7 +149,7 @@ def test_recovery_requires_six_real_torque_off_values():
     backend=ROSBackend.__new__(ROSBackend);backend.lock=threading.Lock();backend.pending_mutations=set();backend.action_lock=threading.Lock();backend.active_handle=None
     backend.stop=lambda:None;backend._identity=lambda _:{}
     state={'owner_faulted':False,'stop_latched':False,'active_operation':None,'teleop_state':'disabled'}
-    backend.trigger=lambda endpoint: state if endpoint=='/follower/status' else {'stop':{'pending':False,'ev3_stopped':True,'arm_disarmed':True}}
+    backend.trigger=lambda endpoint: state if endpoint=='/follower/status' else {'workflow':{'state':'idle','fault':None},'stop':{'pending':False,'ev3_stopped':True,'arm_disarmed':True}}
     for torque in (None,{},dict.fromkeys(('shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll','gripper'),1)):
         state['torque']=torque
         with pytest.raises(RuntimeError): backend.recover()

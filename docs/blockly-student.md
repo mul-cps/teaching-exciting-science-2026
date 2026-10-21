@@ -59,7 +59,16 @@ the robot controller may stretch it or reject the motion. If the optional timing
 check rejects a stroke, keep original timing or teach a shorter stroke.
 
 
-Detected-brick picking is not connected to Blockly object ownership yet. Jaw-gap
+Taught-stroke replay does not manage detected-brick object ownership. Jaw-gap
 blocks position the fingers; they do not declare an object grasped or attached.
 Use the physical station for supervised free-space taught motion and EV3
 sequences until the instructor has qualified the complete grasp/ownership flow.
+
+### One complete commissioned cycle
+
+The separate **Run one commissioned sorting cycle** block lets the native station
+own dispensing, detection, grasp ownership and verified placement. Try it first
+in simulation and inspect the completed count. The instructor can enable a
+physical attempt only after commissioning the whole station. Taught free-space
+strokes and jaw-position blocks remain separate activities; they do not declare
+an object grasped or attached.

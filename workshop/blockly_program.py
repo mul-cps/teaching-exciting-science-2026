@@ -32,7 +32,7 @@ def validate_program(program):
             op = row.get('op')
             fields = {'wait':{'seconds'}, 'ev3':{'command'}, 'replay':{'name','speed'},
                       'jaw':{'gap_mm'}, 'repeat':{'count','body'},
-                      'if_color':{'color','then','else'}, 'stop':set(), 'log':{'message'}}
+                      'if_color':{'color','then','else'}, 'stop':set(), 'sort_cycle':set(), 'log':{'message'}}
             if not isinstance(op,str) or op not in fields or (set(row) != fields[op] | {'op'} and not (op=='replay' and set(row)==fields[op] | {'op','timing'})):
                 raise ValueError('unknown command or unsupported fields')
             count += 1
@@ -64,6 +64,7 @@ class ProgramRunner:
     def execute(self, program, cancel):
         validate_program(program)
         deadline = self.clock()+180
+        sort_results=[]
         def check():
             if cancel.is_set(): raise InterruptedError('program cancelled')
             if self.clock() >= deadline: raise TimeoutError('180 second program deadline')
@@ -80,11 +81,14 @@ class ProgramRunner:
                 elif op == 'stop':
                     self.backend.stop(); raise InterruptedError('STOP block completed; program ended')
                 elif op == 'log': self.backend.log(row['message'])
+                elif op == 'sort_cycle': sort_results.append(self.backend.command(row,cancel,deadline))
                 else: self.backend.command(row, cancel, deadline)
                 check()
         try:
             run(program)
-            return {'complete':True}
+            result={'complete':True}
+            if sort_results: result['sort_cycles']=sort_results
+            return result
         except BaseException:
             try: self.backend.stop()
             except Exception as error: raise RuntimeError(f'program failed; STOP acknowledgement missing: {error}')
@@ -100,6 +104,12 @@ class SimulationBackend:
     def log(self,message): self.events.append(message); self.events=self.events[-100:]
     def command(self,row,cancel,deadline):
         if row['op']=='replay' and row['name'] not in self.recordings: raise RuntimeError('recording not found')
+        if row['op']=='sort_cycle':
+            color=self.color()
+            if color not in {'red','blue','green','yellow'}: raise RuntimeError('simulation has no commissioned destination for unknown color')
+            result={'completed':1,'colors':{color:1}}
+            self.log('sort_cycle: '+color+' → commissioned destination (simulation)')
+            return result
         self.log(row['op']+':'+str(row.get('command',row.get('name',row.get('gap_mm')))))
     def stop(self): self.log('STOP'); return {'acknowledged':True,'simulation':True}
     def status(self): return {'physical':False,'color':self.color(),'events':self.events[-20:]}

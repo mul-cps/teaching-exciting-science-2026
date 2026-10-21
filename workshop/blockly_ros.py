@@ -16,10 +16,22 @@ EV3_SERVICES={key:'/station/'+value for key,value in {
 
 def terminal_job(snapshot, job_id):
     """Service acceptance is not completion; require the exact workflow job."""
-    workflow=snapshot.get('workflow',{})
+    workflow=snapshot.get('workflow') if isinstance(snapshot,dict) else None
+    if not isinstance(workflow,dict): raise RuntimeError('native workflow status is unavailable')
     if workflow.get('job_id') != job_id: raise RuntimeError('station job identity changed or is unavailable')
-    if workflow.get('state')=='fault': raise RuntimeError('station job failed: '+str(workflow.get('fault')))
+    if workflow.get('state')=='fault' or workflow.get('fault') is not None: raise RuntimeError('station job failed: '+str(workflow.get('fault')))
     return workflow.get('state')=='idle' and workflow.get('result') is not None
+
+
+def validate_sort_result(result):
+    """Native run_sorting counts only independently verified complete cycles."""
+    if not isinstance(result,dict) or len(result)!=2 or set(result)!={'completed','colors'} or type(result.get('completed')) is not int or result['completed']!=1:
+        raise RuntimeError('sorting workflow did not verify exactly one completed cycle')
+    colors=result.get('colors')
+    if (not isinstance(colors,dict) or not 1<=len(colors)<=4 or set(colors)-{'red','blue','green','yellow'}
+            or any(type(value) is not int or value<0 for value in colors.values()) or sum(colors.values())!=1):
+        raise RuntimeError('sorting workflow returned invalid one-cycle color counts')
+    return {'completed':1,'colors':dict(colors)}
 
 
 class ROSBackend:
@@ -160,11 +172,14 @@ class ROSBackend:
         return future
 
     def trigger(self,endpoint,cancel=None,deadline=None):
+        return self._service(endpoint,self.Trigger,self.Trigger.Request(),cancel,deadline)
+
+    def _service(self,endpoint,service_type,request,cancel=None,deadline=None):
         cancel=cancel or threading.Event(); deadline=deadline or time.monotonic()+5
         with self.lock:
             client=self.clients.get(endpoint)
             if client is None:
-                client=self.node.create_client(self.Trigger,endpoint); self.clients[endpoint]=client
+                client=self.node.create_client(service_type,endpoint); self.clients[endpoint]=client
         while not client.service_is_ready():
             if cancel.is_set() or time.monotonic()>=deadline: raise RuntimeError(endpoint+' unavailable')
             cancel.wait(.02)
@@ -173,7 +188,7 @@ class ROSBackend:
             with self.lock:
                 if mutation and self.pending_mutations: raise RuntimeError('previous mutating request/goal is unresolved')
             if cancel.is_set() or time.monotonic()>=deadline: raise InterruptedError('call cancelled before dispatch')
-            future=client.call_async(self.Trigger.Request())
+            future=client.call_async(request)
         if mutation: self._track(future)
         try: result=self._wait(future,cancel,deadline)
         except BaseException:
@@ -267,7 +282,22 @@ class ROSBackend:
                 if not pending[1].done(): pending[1].cancel()
                 self.pending_cancel=None
 
+    def _wait_job(self,job,cancel,deadline):
+        if not isinstance(job,str) or not 1<=len(job)<=128: raise RuntimeError('native workflow acknowledgement lacks exact job ID')
+        while True:
+            if cancel.is_set(): raise InterruptedError('cancelled during native workflow')
+            if time.monotonic()>=deadline: raise TimeoutError('native workflow deadline expired')
+            snapshot=self.trigger('/station/status',cancel,min(deadline,time.monotonic()+3))
+            if terminal_job(snapshot,job): return snapshot['workflow']['result']
+            if cancel.wait(.1): raise InterruptedError('cancelled during native workflow')
+
     def command(self,row,cancel,deadline):
+        if row['op']=='sort_cycle':
+            from so101_station_workflow.srv import RunCycles
+            request=RunCycles.Request(); request.cycles=1
+            reply=self._service('/station/run_cycles',RunCycles,request,cancel,min(deadline,time.monotonic()+8))
+            if not isinstance(reply,dict): raise RuntimeError('invalid sorting workflow acknowledgement')
+            return validate_sort_result(self._wait_job(reply.get('job_id'),cancel,deadline))
         if row['op']=='ev3':
             reply=self.trigger(EV3_SERVICES[row['command']],cancel,min(deadline,time.monotonic()+8))
             job=reply.get('job_id')
@@ -275,10 +305,7 @@ class ROSBackend:
                 raise RuntimeError('EV3 motion acknowledgement lacks exact workflow job ID')
             if job:
                 if not isinstance(job,str) or len(job)>128: raise RuntimeError('invalid EV3 workflow job ID')
-                while True:
-                    snapshot=self.trigger('/station/status',cancel,min(deadline,time.monotonic()+3))
-                    if terminal_job(snapshot,job): break
-                    if cancel.wait(.1): raise InterruptedError('cancelled during EV3 job')
+                self._wait_job(job,cancel,deadline)
             return
         if row['op']=='jaw':
             status=self.trigger('/follower/gripper_calibration_status',cancel,min(deadline,time.monotonic()+3))
@@ -341,7 +368,11 @@ class ROSBackend:
         self.stop()
         status=self.trigger('/follower/status')
         self._identity(status)
-        stop=self.trigger('/station/status').get('stop',{})
+        station=self.trigger('/station/status')
+        workflow=station.get('workflow')
+        if not isinstance(workflow,dict) or workflow.get('state')!='idle' or workflow.get('fault') is not None:
+            raise RuntimeError('native workflow is active/faulted; inspect and use RViz Reset inspected fault before recovery')
+        stop=station.get('stop',{})
         torque=status.get('torque')
         if (not isinstance(torque,dict) or set(torque)!=set(JOINTS+('gripper',))
                 or any(type(value) is not int or value!=0 for value in torque.values())):
