@@ -1,5 +1,6 @@
 """Real planning stack plus the ArmSession action bridge; no ros2_control mock."""
 import os
+import xml.etree.ElementTree as ET
 import yaml
 
 from so101_station_control.model_offsets import apply_model_offsets
@@ -37,6 +38,16 @@ def generate_launch_description():
         )
         .to_moveit_configs()
     )
+    # Anchor the marker at the configured TCP to avoid a rotating 98 mm offset.
+    semantic = ET.fromstring(
+        moveit_config.robot_description_semantic["robot_description_semantic"])
+    end_effector = semantic.find("end_effector[@name='ee']")
+    if (end_effector is None or
+            end_effector.get("parent_link") not in {"gripper_link", "gripper_frame_link"}):
+        raise RuntimeError("Expected end effector ee on gripper_link or gripper_frame_link")
+    end_effector.set("parent_link", "gripper_frame_link")
+    moveit_config.robot_description_semantic["robot_description_semantic"] = ET.tostring(
+        semantic, encoding="unicode")
     offset_path = os.path.join(get_package_share_directory("so101_station_control"),
                                "config", "model_offsets.yaml")
     with open(offset_path, encoding="utf-8") as stream:
@@ -143,7 +154,13 @@ def generate_launch_description():
                          moveit_config.robot_description_semantic,
                          moveit_config.robot_description_kinematics,
                          moveit_config.joint_limits,
-                         {"default_planning_pipeline": "ompl"}],
+                         # 5DOF RViz position-drag mode; set orientation via joint
+                         # controls. MoveGroup keeps strict kinematics.
+                         {"default_planning_pipeline": "ompl",
+                          "robot_description_kinematics.manipulator.rotation_scale": 0.0,
+                          "robot_description_kinematics.manipulator.approximate_solution_position_threshold": 0.002,
+                          "robot_description_planning.default_velocity_scaling_factor": 0.4,
+                          "robot_description_planning.default_acceleration_scaling_factor": 0.4}],
              remappings=[("joint_states", "/follower/joint_states")], output="screen"),
         Node(package="so101_station_control", executable="trajectory_server",
              namespace="follower", name="trajectory_server",
