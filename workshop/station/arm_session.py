@@ -1851,6 +1851,7 @@ class ArmSession:
         feedback_samples = []
         # Numeric buffers only in the control loop; summarize/flush once at termination.
         tick_durations, write_durations, dispatch_lateness, feedback_gaps = [], [], [], []
+        write_start_times, write_start_intervals = [], []
         timing_receipt = {}
         timing_outcome = "failed"
         motion_started = False
@@ -1894,10 +1895,14 @@ class ArmSession:
                 if period < PERIOD_S and lateness > period:
                     raise _ControlDeadlineMissed("control_deadline_missed: obsolete trajectory knot not sent")
                 write_ended = None
+                write_started = self.clock()
+                if write_start_times:
+                    write_start_intervals.append(write_started - write_start_times[-1])
+                write_start_times.append(write_started)
                 try:
                     self.bus.sync_write("Goal_Position", target_raw, normalize=False, num_retry=0)
                     write_ended = self.clock()
-                    write_durations.append(max(0.0, write_ended - tick_started))
+                    write_durations.append(max(0.0, write_ended - write_started))
                     goal_read_started = self.clock()
                     goals = self._read("Goal_Position")
                     if any(abs(goals[joint] - target_raw[joint]) > 1 for joint in JOINTS):
@@ -1937,7 +1942,7 @@ class ArmSession:
                     tick_ended = self.clock()
                     tick_durations.append(max(0.0, tick_ended - tick_started))
                     if write_ended is None:
-                        write_durations.append(max(0.0, tick_ended - tick_started))
+                        write_durations.append(max(0.0, tick_ended - write_started))
 
             # Keep commanding the terminal pose until measured state is within
             # tolerance for three consecutive observations or deadline expires.
@@ -2164,17 +2169,28 @@ class ArmSession:
                             "max_s": ordered[-1] if count else None,
                             "over_period_count": sum(value > period for value in ordered),
                             "over_10ms_count": sum(value > 0.01 for value in ordered)}
-                timing_receipt.update(schema="trajectory-timing-v1", period_s=period,
+                interval_summary = summarize(write_start_intervals)
+                interval_summary.update(
+                    under_period_tolerance_s=FEEDBACK_GAP_EPSILON_S,
+                    under_period_count=sum(value < period - FEEDBACK_GAP_EPSILON_S
+                                           for value in write_start_intervals),
+                    under_period_without_tolerance_count=sum(value < period for value in write_start_intervals))
+                timing_receipt.update(schema="trajectory-timing-v2", period_s=period,
                     outcome=timing_outcome, full_tick=summarize(tick_durations),
                     goal_write=summarize(write_durations),
                     dispatch_lateness=summarize(dispatch_lateness),
                     position_feedback_gap=summarize(feedback_gaps),
+                    write_start_interval=interval_summary,
+                    write_start_monotonic_s=write_start_times,
+                    write_start_interval_s=write_start_intervals,
+                    dispatch_policy="refuse more than one period late; shorter dispatch intervals remain possible and are measured",
                     full_tick_scope="before Goal_Position write through feedback publication and busy-input poll; interrupted ticks included",
                     percentile="nearest rank; measured wall-clock durations, not a hard-real-time guarantee")
                 self._record({"event": "trajectory_timing", "goal_id": goal_id,
                               "timing": timing_receipt})
-            except BaseException as timing_error:
-                # Timing evidence must never replace a motion/cancellation/cleanup exception.
+            except Exception as timing_error:
+                # Ordinary receipt errors must not replace motion/cleanup exceptions;
+                # KeyboardInterrupt/SystemExit propagate to outer shutdown handling.
                 if active_error is not None:
                     active_error.add_note("trajectory timing receipt failed: " + str(timing_error))
                 else:

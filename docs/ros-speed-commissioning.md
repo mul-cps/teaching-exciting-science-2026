@@ -131,12 +131,18 @@ label is restored to `native-8-320-220-torque-700-250`, matching c6 native
 acceleration 8 for all six joints. The P24 suffix remains when applicable. A sub-50 ms trajectory refuses a
 command before writing when it is more than one requested period late, using
 the existing measured-pose cancel/hold path after fresh normal/all-on checks,
-returning failure instead of catching up obsolete knots. Failure to verify that
-hold retains the existing shutdown cleanup.
+returning failure when dispatch lateness exceeds one period. This guard does
+not enforce a minimum dispatch interval: shorter intervals can still occur
+within that lateness window. Failure to verify the measured hold retains the
+existing shutdown cleanup.
 
 The scheduled motion loop stores numeric timing samples in memory until one terminal `trajectory_timing`
 receipt reports tick/write duration, dispatch lateness and encoder gaps with
-counts, min/mean/p99/max and overruns. A tick covers the goal write through
+counts, min/mean/p99/max and overruns. Raw write-start monotonic timestamps
+and intervals are retained in that terminal receipt. Interval summaries count
+values shorter than the requested period minus an explicitly reported 1 ms
+jitter tolerance, and also report the untoleranced count; the raw intervals let
+the no-motion qualification gate inspect actual compression. A tick covers the goal write through
 critical reads, feedback publication and busy-input polling. No extra USB reads
 or per-tick log flushes are added. These measurements do not establish hard
 real-time behavior: existing serial TX/flush can still block. Qualification
