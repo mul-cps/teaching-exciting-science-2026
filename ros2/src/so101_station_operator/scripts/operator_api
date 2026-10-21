@@ -385,8 +385,8 @@ class OperatorAPI(Node):
                     self.idle(self.rearm_if_required(self.snapshot()))
                     message += "; resident owner idle, MoveIt requests permitted by existing admission"
                 else:
-                    if command == "teleop" and data.get("teleop_leader_ready") is not True:
-                        raise RuntimeError(data.get("teleop_leader_reason") or "no fresh calibrated leader pose is available")
+                    if command == "teleop" and self.teleop_unavailable(data):
+                        raise RuntimeError(self.teleop_unavailable(data))
                     if data.get("native_damping") is not None:
                         self.rpc("stop")
                         data = self.snapshot()
@@ -413,6 +413,12 @@ class OperatorAPI(Node):
             lock.release()
         return response
 
+    @staticmethod
+    def teleop_unavailable(data):
+        if "teleop_start_ready" in data:
+            return "" if data["teleop_start_ready"] is True else (data.get("teleop_start_reason") or "resident teleop start admission unavailable")
+        return "" if data.get("teleop_leader_ready") is True else (data.get("teleop_leader_reason") or "no fresh calibrated leader pose is available")
+
     def capabilities(self, data):
         dependencies = {"reset": ("status", "stop", "rearm"), "start": ("status", "home", "rearm"),
                         "base_release": ("status", "stop"), "base_confirm": ("status",),
@@ -431,8 +437,8 @@ class OperatorAPI(Node):
                     reason = "Restart disabled: exact unit missing from API or bridge allowlist"
             elif command == "damping" and data.get("native_damping_supported") is not True:
                 reason = "Native torque value 2 needs exact firmware support and physical backdrive qualification"
-            elif command == "teleop" and data.get("teleop_leader_ready") is not True:
-                reason = data.get("teleop_leader_reason") or "no fresh calibrated leader pose is available"
+            elif command == "teleop":
+                reason = self.teleop_unavailable(data)
             elif command == "base_confirm" and self.manual_reference is None:
                 reason = "Release for manual setup first; this records an observation, not a motion target"
             if command != "zero_torque":
@@ -487,7 +493,7 @@ class OperatorAPI(Node):
                    "summary": f"Mode: {mode}" + (f" | Damping expires OFF in {lease:.1f} s" if lease is not None else "") +
                        f"\n{measured_label}\nTorque{stale_label}: {data.get('torque')}\nStop latch{stale_label}: {data.get('stop_latched')} | Fault{stale_label}: {data.get('owner_faulted')}\nRGB info: {'fresh' if streams['rgb']['fresh'] else 'stale'} | Depth info: {'fresh' if streams['depth']['fresh'] else 'stale'} | Tags: {'fresh' if streams['tags']['fresh'] else 'stale'}" + restart_summary +
                        (f"\nTags: {streams['tags']['publishers']} publisher(s); {streams['tags']['reason']}" if not streams['tags']['fresh'] else "") +
-                       ("\nLeader teleop unavailable: " + str(data.get("teleop_leader_reason") or "no fresh calibrated leader pose is available") if data.get("teleop_leader_ready") is not True else "") +
+                       ("\nLeader teleop unavailable: " + self.teleop_unavailable(data) if fresh and self.teleop_unavailable(data) else "") +
                        ("\nPlanning blocked: " + str(data["planning_joint_limits_error"]) if data.get("planning_joint_limits_error") else "")}
         self.publisher.publish(String(data=json.dumps(payload, allow_nan=False)))
 
