@@ -1,0 +1,59 @@
+{
+  "schema": "so101-jaw-measurement-session-v1",
+  "date": "2026-10-21",
+  "source_commit": "cefe640b7e0e33ce81178b803e509a1d059e0f15",
+  "qualified": false,
+  "physical_grasp_tested": false,
+  "pose_preparation": {
+    "staged_MoveIt_paths": [
+      "executed_successfully",
+      "executed_successfully"
+    ],
+    "measured_body_degrees": {
+      "elbow_flex": 40.747252747252745,
+      "shoulder_lift": -92.79120879120879,
+      "shoulder_pan": 80.92307692307692,
+      "wrist_flex": 91.91208791208791,
+      "wrist_roll": 27.824175824175825
+    },
+    "camera_view": "wrist pose chosen to improve jaw-plane view; actual physical face-on angle not independently calibrated"
+  },
+  "capture": {
+    "camera_serial": "243322071783",
+    "both_camera_and_owner_inputs_bound": true,
+    "before_jaw_raw": 1953,
+    "after_jaw_raw": 1958,
+    "body_delta_counts": {
+      "elbow_flex": 0,
+      "shoulder_lift": 0,
+      "shoulder_pan": 0,
+      "wrist_flex": 0,
+      "wrist_roll": 0
+    },
+    "before_sha256": "065abfcb5055af72afba491d13757a8b3a0f63ff37187ee2ba93dc4aee089d74",
+    "after_sha256": "1a888ef4df8911a64b744ebe2154d15a51c945c3be901f5528255a193f016cc9"
+  },
+  "jaw_trial": {
+    "requested_delta_counts": 8,
+    "measured_delta_counts": 5,
+    "requested_target_raw": 1961,
+    "terminal": "failed_held_jaw",
+    "target_reached": false,
+    "error": "jaw step did not arrive; measured jaw held",
+    "collision_samples_checked": 9,
+    "endpoint_tolerance_counts": 2,
+    "native_profile_restored": true
+  },
+  "cleanup": {
+    "calibration_endpoint_mode_restored_false": true,
+    "explicit_stop_success": true,
+    "six_torque_off_reported": "owner stopped; all six servos verified torque off (disarmed)"
+  },
+  "still_required": [
+    "Independent physical gap measurements at declared finger-tip cross-section",
+    "Wider measured interval and intermediate/reverse observations",
+    "Physical moving-jaw angle and URDF-zero reference",
+    "Review before marking SI or angle mappings qualified"
+  ],
+  "evidence_directory": "2026-10-21-sorting/pick-place-resume/restored-station/deploy-v7-start-retry/jaw-orient"
+}
