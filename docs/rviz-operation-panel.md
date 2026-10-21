@@ -10,28 +10,30 @@ ros2 launch so101_station_operator operator.launch.py \
   station_root:=/absolute/path/to/repo
 ```
 
-Use the station wrapper so ROS domain 76 and the station environment are retained. `station_live.launch.py` starts the adapter by default; `use_operator_panel_api:=false` disables it. The adapter never opens serial, changes encoder offsets, starts a second follower owner or changes the MoveIt velocity settings. UI requests are asynchronous and serialize conflicting operations. Status reports cached measured owner mode, all six torque states, stop latch, fault and metadata freshness. Camera/depth health uses **advancing CameraInfo stamps** and tags use detection JSON receipt; it does not subscribe to or copy full-resolution images. These indicators do not prove image contents or registration accuracy. A successful request is acknowledged by the resident service; unavailable and timed-out requests are not shown as success. An unknown command outcome blocks further commands except STOP until the adapter is explicitly restarted after inspection.
+Use the station wrapper so ROS domain 76 and the station environment are retained. `station_live.launch.py` starts the adapter by default; `use_operator_panel_api:=false` disables it. The adapter never opens serial, changes encoder offsets, starts a second follower owner or changes the MoveIt velocity settings. UI requests are asynchronous and serialize conflicting operations. Status reports cached measured owner mode, all six torque states, stop latch, fault and metadata freshness. Camera/depth health uses **advancing CameraInfo stamps** and tags use the exact `so101-tag-detections-v1` schema and **advancing JSON source stamps** (including valid empty observation lists); it does not subscribe to or copy full-resolution images. These indicators do not prove image contents or registration accuracy. A successful request is acknowledged by the resident service; unavailable and timed-out requests are not shown as success. An unknown command outcome blocks further commands except STOP and external-job verification. A timed-out motion acknowledgement requires owner inspection before adapter recovery; Verify restart cannot clear an unknown motion outcome. Unsupported buttons are disabled with a tooltip naming the missing service, leader readiness or exact restart configuration. STOP is always available, including during another pending request, without a confirmation dialog. Each outstanding panel RPC retains its own future, so a STOP cannot discard a delayed home/restart reply.
 
-| Panel / `/station/operator/` Trigger service | Resident operation |
-| --- | --- |
-| Reset, torque OFF (`reset`) | Dead-owner reconnect if needed, verified STOP, then named-profile rearm if required; remains torque OFF |
-| Start position (`start`) | `/follower/home`, existing measured-home admission |
-| Manual base: release (`base_release`) | `/follower/stop`, then verifies fresh six-joint torque OFF |
-| Manual base: confirm (`base_confirm`) | Read-only comparison to identity-bound measured-home file and configured tolerance |
-| Leader teleop (`teleop`) | `/follower/teleop_enable` true; existing leader/home/owner checks |
-| MoveIt mode (`moveit`) | `/follower/teleop_enable` false, then fresh idle confirmation |
-| Zero torque (`zero_torque`) | Priority `/follower/stop`; fresh all-six OFF acknowledgement required |
-| Gentle damping / renew 60 s (`damping`) | `/follower/damping_enable`; default disabled until exact firmware capability configured |
-| Restart camera/depth/tags/all (`restart_camera`, etc.) | Explicit configured user-unit allowlist; disabled by default |
-| Verify restart / recover (`verify_restart`) | Read-only manager job and actual unit-transition proof, then explicit STOP; never retries a restart |
+| Panel / Trigger service | Prerequisite and exact resident path | Expected state / domain87 fake result | Remaining live check |
+| --- | --- | --- | --- |
+| Reset (`reset`) | `/follower/status`, `/stop`, `/rearm_motion_profile`; `/reconnect` only if disconnected | Fresh all-six OFF, profile rearmed; passed | Repeated same-owner P24 Reset cycles |
+| Saved home position (`start`) | Fresh idle owner, rearm if required, `/follower/home` | Fresh `home_completed_this_session=true`; passed after Reset | Checked saved-home motion after Reset |
+| Release for manual setup (`base_release`) | Priority `/follower/stop` + fresh owner | All six OFF; passed | Supported arm release |
+| Record manual reference (`base_confirm`) | Released same owner/calibration/source; `/follower/status` | In-memory six-joint raw/pose observation, all OFF; passed away from old home | Observe manual pose and source identity |
+| Leader teleop (`teleop`) | `teleop_leader_ready=true`; `/follower/teleop_enable` true | Fresh active teleop; stale/absent calibrated leader disables button; both passed | Real calibrated leader stream and motion |
+| MoveIt mode (`moveit`) | `/follower/teleop_enable` false, rearm if required | Fresh idle owner; passed including after STOP | Plan/execute under calibrated-limit admission |
+| ZERO TORQUE / STOP (`zero_torque`) | `/follower/stop`; independent priority path | Fresh all-six OFF; passed during delayed home and unknown ACK | Physical prompt disarm |
+| Gentle damping (`damping`) | Exact native torque value 2 firmware capability and physical qualification; `/follower/damping_enable` | Disabled with reason when unsupported; passed, no damping RPC dispatched | Exact firmware and physical backdrive qualification remain open |
+| Restart camera/depth/tags/all (`restart_camera`, etc.) | Exact units configured on API and bridge; all OFF; `/follower/operator_maintenance_enable` | Correlated manager job terminal success plus fresh advancing requested streams; passed; duplicate unit aliases once | Real user-unit restart and stream recovery |
+| Verify restart (`verify_restart`) | Fresh all OFF; exact pending token via `/follower/operator_maintenance_enable`, then `/follower/stop` | Unknown/failed-job barrier resolves only after explicit verification; passed | Actual durable job completion proof |
 
-## Manual base alignment
+## Manual setup reference and fixed home
 
-Support the arm, choose **Manual base: release**, manually place the arm at the saved measured start, then choose **Manual base: confirm**. Confirmation checks all six joints, current owner generation, arm/calibration identity, file schema and tolerance. It leaves torque OFF and does not rewrite encoder zeros, model offsets, camera extrinsics or the saved home. A confirmation outside tolerance fails with measured joint errors. Stopping invalidates the resident home provenance; successful correlated STOP clears the resident barrier/fault through its existing logic. Confirmation itself changes no resident admission state. Reconnect never kills a live owner or silently clears its fault.
+Support the arm, choose **Release for manual setup**, move it manually, then choose **Record manual reference**. Recording accepts any complete fresh measured pose within the resident owner's admitted state; it does not demand that every joint match the old measured home. The observation includes all six raw encoder positions and body/gripper pose, current owner generation, arm ID, calibration hash and owner source hashes. It remains in adapter memory and the status payload, and is cleared by the next release/STOP. A changed owner/source/calibration cannot confirm an earlier release.
+
+This is an observation for manual setup, not a new trajectory destination. **Saved home position** always uses the existing `/follower/home` checked measured-home path. Returning to a newly recorded observation would require an explicit checked backend motion API and is not advertised by this panel. Neither recording nor release rewrites encoder zeros, model offsets, base TF, camera extrinsics or saved home. Confirmation changes no resident admission state. Reconnect never kills a live owner or silently clears its fault.
 
 ## Restart configuration
 
-Configure exact camera, depth and tag **user** units through launch arguments `camera_unit`, `depth_unit`, `tags_unit`, then explicitly enable `enable_service_restarts:=true`. Defaults are empty; no guessed unit names are invoked. Names must match `so101-*.service`; requests carry no shell, executable, unit or arbitrary argument. Only the three configured slots can be selected. **Restart perception** means these three units, in camera → depth → tags order; it never restarts the arm bridge, MoveIt, RViz or the EV3.
+Configure exact camera, depth and tag **user** units through launch arguments `camera_unit`, `depth_unit`, `tags_unit`, then explicitly enable `enable_service_restarts:=true`. Defaults are empty; no guessed unit names are invoked. Names must match `so101-*.service`; requests carry no shell, executable, unit or arbitrary argument. Only the three configured slots can be selected. **Restart perception** means the configured units, in camera → depth → tags order, with the same exact unit restarted only once; it never restarts the arm bridge, MoveIt, RViz or the EV3.
 
 The bridge independently needs the same exact `operator_service_units` allowlist. The integrated launch forwards `operator_camera_unit`, `operator_depth_unit`, `operator_tags_unit` to both bridge and adapter; `operator_service_restarts:=true` enables public restart commands. Units whose names contain arm/bridge/MoveIt/RViz/teleop/EV3 are rejected. The backend accepts no arbitrary shell or executable. Its only mutating OS command is `systemctl --user restart -- <allowlisted-unit>`.
 
@@ -39,7 +41,7 @@ Every device/service reset requires fresh idle owner state and verified all-six 
 
 **Unknown external jobs override the ordinary lease.** Before submitting any OS restart, the bridge durably writes a token/unit/source/calibration/owner-generation/request-time journal. The OS work runs outside the hardware callback so STOP can disarm promptly. Success requires actual systemd `Job=0`, a terminal `ActiveState`/`SubState`, and a new invocation plus state-transition timestamp after the request for an active unit. An inactive/failed terminal state is recorded as failure, not success. A CLI timeout does not prove that the manager job stopped: unresolved outcomes retain the journal and admission barrier across lease expiry, adapter crashes and bridge restarts. STOP still disables and verifies all six joints, but does not clear an unresolved external-job barrier.
 
-Choose **Verify restart / recover** after an unknown result. It performs read-only systemd queries and resolves only the exact pending token/unit/cohort after actual completion proof. It does not cancel jobs or resubmit a restart as proof. Its final explicit STOP clears the now-resolved motion barrier and leaves torque OFF. A manager job still running, an unchanged old active invocation, invalid pending evidence or a changed allowlist/source cohort remains blocked. The durable default journal is `~/.local/share/exciting-science/station/operator-maintenance-pending.json`; `operator_maintenance_journal` changes it. Do not delete pending evidence. Unit activity remains distinct from camera/depth metadata freshness and registration qualification.
+Choose **Verify restart / recover** after an unknown result. It performs read-only systemd queries and resolves only the exact pending token/unit/cohort after actual completion proof. It does not cancel jobs or resubmit a restart as proof. Its final explicit STOP clears the now-resolved motion barrier and leaves torque OFF. A manager job still running, an unchanged old active invocation, invalid pending evidence or a changed allowlist/source cohort remains blocked. The durable default journal is `~/.local/share/exciting-science/station/operator-maintenance-pending.json`; `operator_maintenance_journal` changes it. Do not delete pending evidence. Unit activity remains distinct from camera/depth metadata freshness and registration qualification. A successful restart button additionally requires new advancing source metadata for every requested slot within the bounded sequence. Missing streams report failure even if the unit is active. The status `streams` object includes publisher counts, source age and parse/stamp failure reasons; receipt of malformed or repeated tag JSON does not refresh health.
 
 When there is no external job, an abandoned healthy all-OFF maintenance lease can expire normally. After a known terminal job, the adapter releases only its own token. No failed or partially completed restart is automatically retried.
 
@@ -75,3 +77,17 @@ A pending `.native-damping-pending.json` beside the calibration file blocks ordi
 ## Qualification boundary
 
 Offline compilation does not qualify physical mode switching, restart health or damping. The existing owner remains the final authority for motion and stop admission. Manual panel commands do not qualify picking, placement or registration accuracy.
+
+## Focused fake verification (no hardware)
+
+Build this package into a private prefix and source it. These checks require domain 87 and use only fake ROS services; they import no arm owner, open no devices and invoke no systemd operations:
+
+```sh
+ROS_DOMAIN_ID=87 ROS_LOCALHOST_ONLY=1 ros2/conda/so101-conda.sh run bash -c '
+  source /tmp/so101-operator-e2e-install/local_setup.bash
+  python ros2/src/so101_station_operator/test/test_operator_fake_ros.py
+  QT_QPA_PLATFORM=offscreen /tmp/so101-operator-e2e-build/so101_station_operator/operator_panel_load_check
+'
+```
+
+The Python check constructs the actual API node (including ROS entity property names), calls every public command through real ROS RPC, tests Reset/home/rearm, leader readiness, MoveIt, manual observation, restart aliases and failure barrier, delayed replies with concurrent STOP, unknown motion ACK retention, and fresh/repeated/malformed/stale tag metadata. The C++ check loads the actual plugin through pluginlib and constructs all 13 buttons with Qt offscreen. These are software qualification; every live check in the matrix remains separate.

@@ -6,7 +6,6 @@ import math
 import re
 import threading
 import time
-from pathlib import Path
 
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -42,11 +41,14 @@ class OperatorAPI(Node):
         self.status_sent = 0.
         self.pending = None
         self.uncertain = False
+        self.uncertain_motion = False
         self.last_result = None
         self.manual_reference = None
         self.manual_confirmed = False
+        self.manual_record = None
         self.streams = {"rgb": None, "depth": None, "tags": None}
-        self.stream_stamps = {"rgb": -1, "depth": -1}
+        self.stream_stamps = {"rgb": -1, "depth": -1, "tags": -1}
+        self.stream_errors = {}
         self.units = {}
         for key in ("camera", "depth", "tags"):
             unit = self.get_parameter(key + "_unit").value
@@ -72,12 +74,27 @@ class OperatorAPI(Node):
         self.create_timer(.5, self.tick, callback_group=self.group)
 
     def stream(self, key, _message):
-        if key in self.stream_stamps:
-            stamp = _message.header.stamp.sec*1_000_000_000 + _message.header.stamp.nanosec
+        try:
+            if key == "tags":
+                data = json.loads(_message.data)
+                if data.get("schema") != "so101-tag-detections-v1":
+                    raise ValueError("unsupported tag detections schema")
+                if not isinstance(data.get("observations"), list):
+                    raise ValueError("tag observations must be a list")
+                sec, nanosec = data["stamp"]["sec"], data["stamp"]["nanosec"]
+            else:
+                sec, nanosec = _message.header.stamp.sec, _message.header.stamp.nanosec
+            if type(sec) is not int or sec < 0 or type(nanosec) is not int or not 0 <= nanosec < 1_000_000_000:
+                raise ValueError("invalid source stamp")
+            stamp = sec*1_000_000_000 + nanosec
             if stamp <= self.stream_stamps[key]:
+                self.stream_errors[key] = "source stamp is not advancing"
                 return
             self.stream_stamps[key] = stamp
-        self.streams[key] = time.monotonic()
+            self.stream_errors.pop(key, None)
+            self.streams[key] = time.monotonic()
+        except (ValueError, KeyError, TypeError, AttributeError) as error:
+            self.stream_errors[key] = str(error)
 
     def rpc(self, key, request=None, timeout=8.):
         client = self.service_clients[key]
@@ -88,6 +105,7 @@ class OperatorAPI(Node):
         future.add_done_callback(lambda _: done.set())
         if not done.wait(timeout):
             self.uncertain = True
+            self.uncertain_motion = self.uncertain_motion or key != "maintenance"
             raise RuntimeError(key + " acknowledgement timed out; outcome unknown; no automatic retry")
         result = future.result()
         if result is None or not result.success:
@@ -117,38 +135,26 @@ class OperatorAPI(Node):
 
     def confirm_base(self, data):
         self.idle(data, allow_fault=True)
-        identity = (data.get("arm_id"), data.get("calibration_sha256"), data.get("owner_started_monotonic"))
+        identity = (data.get("arm_id"), data.get("calibration_sha256"), data.get("owner_started_monotonic"),
+                    json.dumps(data.get("owner_source_sha256"), sort_keys=True))
         if self.manual_reference != identity or not self.all_off(data):
             raise RuntimeError("release arm through manual base mode first; same owner and verified all-off required")
-        config_path = Path(self.get_parameter("station_config").value)
-        if not config_path.is_absolute():
-            raise RuntimeError("manual confirmation requires configured absolute station_config")
-        config = json.loads(config_path.read_text())
-        home_path = Path(config["arm"]["home_file"])
-        if not home_path.is_absolute():
-            root = Path(self.get_parameter("station_root").value)
-            if not root.is_absolute():
-                raise RuntimeError("relative home file requires absolute station_root")
-            home_path = root / home_path
-        home = json.loads(home_path.read_text())
-        tolerance = config["arm"]["tolerance"]
-        if (home.get("schema") != 1 or home.get("kind") != "measured-home" or
-                home.get("units") != "body degrees; gripper percent" or
-                home.get("arm_id") != identity[0] or home.get("calibration_sha256") != identity[1] or
-                type(tolerance) not in (int, float) or not math.isfinite(tolerance) or tolerance <= 0):
-            raise RuntimeError("measured home identity, units or tolerance invalid")
-        pose, target = data.get("pose"), home.get("position")
-        if not isinstance(pose, dict) or not isinstance(target, dict) or set(pose) != JOINTS or set(target) != JOINTS:
-            raise RuntimeError("complete measured six-joint home required")
-        errors = {}
-        for joint in JOINTS:
-            if any(type(v) not in (int, float) or not math.isfinite(v) for v in (pose[joint], target[joint])):
-                raise RuntimeError("nonfinite home position")
-            errors[joint] = abs(pose[joint] - target[joint])
-        if max(errors.values()) > tolerance:
-            raise RuntimeError("manual alignment differs from saved measured home: " + json.dumps(errors, sort_keys=True))
+        pose, raw = data.get("pose"), data.get("raw")
+        sources = data.get("owner_source_sha256")
+        if (not all(identity) or not isinstance(sources, dict) or not sources or
+                not isinstance(pose, dict) or set(pose) != JOINTS or
+                not isinstance(raw, dict) or set(raw) != JOINTS):
+            raise RuntimeError("complete measured pose/raw and owner calibration/source identity required")
+        if any(type(v) not in (int, float) or not math.isfinite(v) for v in pose.values()):
+            raise RuntimeError("nonfinite manual reference pose")
+        if any(type(v) is not int or not 0 <= v <= 4095 for v in raw.values()):
+            raise RuntimeError("invalid manual reference raw position")
         self.manual_confirmed = True
-        return "manual measured-start alignment confirmed; torque remains off; encoder zeros and saved home unchanged"
+        self.manual_record = {"kind": "manual-start-observation", "arm_id": identity[0],
+                              "calibration_sha256": identity[1], "owner_started_monotonic": identity[2],
+                              "owner_source_sha256": dict(sources), "raw": dict(raw), "pose": dict(pose),
+                              "position_monotonic": data.get("position_monotonic")}
+        return "manual reference recorded for this owner; torque OFF; observation only. Saved home motion and fixed base calibration unchanged"
 
     def rearm_if_required(self, data):
         if data.get("motion_profile_rearm_required") is True:
@@ -177,7 +183,10 @@ class OperatorAPI(Node):
             raise RuntimeError("maintenance response lacks exact ownership token")
         deadline = time.monotonic()+50.
         try:
+            completed_units = set()
             for name, unit in zip(keys, units):
+                if unit in completed_units:
+                    continue
                 # Exact token proves STOP or another client has not replaced this reservation.
                 state = self.snapshot()
                 if (state.get("fresh") is not True or not self.all_off(state) or
@@ -207,12 +216,28 @@ class OperatorAPI(Node):
                         self.uncertain = True
                         raise RuntimeError("external restart deadline elapsed; no reservation release until verified")
                     time.sleep(.1)
+                completed_units.add(unit)
                 results.append(name + ": unit active")
+            # Require observations after all manager job completion proofs, not messages
+            # received before restart while an old invocation was still publishing.
+            initial_stamps = dict(self.stream_stamps)
+            required_streams = {"camera": "rgb", "depth": "depth", "tags": "tags"}
+            while any(self.stream_stamps[required_streams[k]] <= initial_stamps[required_streams[k]] or
+                      self.streams[required_streams[k]] is None or
+                      time.monotonic()-self.streams[required_streams[k]] >= 1. for k in keys):
+                state = self.snapshot()
+                if (state.get("fresh") is not True or not self.all_off(state) or
+                        state.get("active_operation") != "operator_maintenance" or
+                        state.get("operator_maintenance_token") != token):
+                    raise RuntimeError("operator maintenance reservation revoked while awaiting streams")
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("unit jobs completed, but requested fresh advancing streams not observed")
+                time.sleep(.1)
         finally:
             state = self.snapshot()
             if state.get("operator_maintenance_token") == token and state.get("operator_external_job") is None:
                 self.rpc("maintenance", OperatorMaintenance.Request(enable=False, token=token))
-        return "; ".join(results) + "; image freshness is reported separately; registration not qualified"
+        return "; ".join(results) + "; fresh advancing metadata observed; image contents/registration not qualified"
 
     def command(self, command, _request, response):
         # STOP has its own lock so a slow home/restart request cannot suppress disarm.
@@ -234,10 +259,12 @@ class OperatorAPI(Node):
                     self.idle(data, allow_fault=True)
                 if not self.all_off(data):
                     raise RuntimeError("fresh six-joint torque-off not confirmed")
-                self.manual_reference = ((data.get("arm_id"), data.get("calibration_sha256"), data.get("owner_started_monotonic"))
+                self.manual_reference = ((data.get("arm_id"), data.get("calibration_sha256"), data.get("owner_started_monotonic"),
+                                           json.dumps(data.get("owner_source_sha256"), sort_keys=True))
                                          if command == "base_release" else None)
                 self.manual_confirmed = False
-                message = "all six joints measured torque OFF; support arm" + ("; manually align to saved start, then confirm" if command == "base_release" else "")
+                self.manual_record = None
+                message = "all six joints measured torque OFF; support arm" + ("; manually position, then Record manual reference" if command == "base_release" else "")
                 if data.get("operator_external_job") is not None:
                     message += "; unresolved external restart barrier remains; use Verify restart"
             elif command == "reset":
@@ -254,6 +281,8 @@ class OperatorAPI(Node):
                 data = self.snapshot()
                 if data.get("fresh") is not True or not self.all_off(data):
                     raise RuntimeError("restart verification requires fresh all-six torque OFF")
+                if self.uncertain_motion:
+                    raise RuntimeError("unknown motion acknowledgement needs owner inspection and adapter recovery; restart verification cannot clear it")
                 job = data.get("operator_external_job")
                 if job is not None:
                     if not isinstance(job, dict) or not isinstance(job.get("token"), str):
@@ -261,6 +290,8 @@ class OperatorAPI(Node):
                     message = self.rpc("maintenance", OperatorMaintenance.Request(
                         token=job["token"], operation="verify"))
                 else:
+                    if self.uncertain and not isinstance(data.get("operator_restart_result"), dict):
+                        raise RuntimeError("no external restart result to verify; inspect owner before adapter recovery")
                     message = json.dumps(data.get("operator_restart_result"))
                 self.rpc("stop")
                 self.uncertain = False
@@ -273,6 +304,8 @@ class OperatorAPI(Node):
                     self.idle(data, allow_fault=True)
                     message = self.restart(command.removeprefix("restart_"))
                 elif command == "damping":
+                    if data.get("native_damping_supported") is not True:
+                        raise RuntimeError("native torque value 2 requires exact firmware support and physical backdrive qualification")
                     if data.get("native_damping") is None:
                         self.idle(data)
                         if not self.all_off(data):
@@ -289,12 +322,25 @@ class OperatorAPI(Node):
                     self.idle(self.rearm_if_required(self.snapshot()))
                     message += "; resident owner idle, MoveIt requests permitted by existing admission"
                 else:
+                    if command == "teleop" and data.get("teleop_leader_ready") is not True:
+                        raise RuntimeError(data.get("teleop_leader_reason") or "no fresh calibrated leader pose is available")
                     if data.get("native_damping") is not None:
                         self.rpc("stop")
                         data = self.snapshot()
                     self.idle(data)
                     data = self.rearm_if_required(data)
                     message = self.rpc("home", timeout=100.) if command == "start" else self.rpc("teleop", SetBool.Request(data=True))
+                    final = self.snapshot()
+                    if final.get("fresh") is not True:
+                        raise RuntimeError("command acknowledged but fresh measured final state unavailable")
+                    if command == "start" and final.get("home_completed_this_session") is not True:
+                        raise RuntimeError("home acknowledged without measured home completion provenance")
+                    if command == "teleop" and final.get("teleop_state") != "active":
+                        raise RuntimeError("teleop acknowledged without active measured owner mode")
+            if command in {"reset", "start", "teleop", "moveit", "damping"}:
+                self.manual_reference = None
+                self.manual_confirmed = False
+                self.manual_record = None
             response.success, response.message = True, message
         except (RuntimeError, ValueError, KeyError, TypeError, OSError) as error:
             response.success, response.message = False, str(error)
@@ -303,6 +349,35 @@ class OperatorAPI(Node):
             self.pending = None
             lock.release()
         return response
+
+    def capabilities(self, data):
+        dependencies = {"reset": ("status", "stop", "rearm"), "start": ("status", "home", "rearm"),
+                        "base_release": ("status", "stop"), "base_confirm": ("status",),
+                        "teleop": ("status", "teleop", "rearm"), "moveit": ("status", "teleop", "rearm"),
+                        "damping": ("status", "damping"), "verify_restart": ("status", "maintenance", "stop")}
+        result = {}
+        for command in COMMANDS:
+            reason = ""
+            required = dependencies.get(command, ("status", "maintenance"))
+            if command.startswith("restart_"):
+                keys = ("camera", "depth", "tags") if command == "restart_all" else (command.removeprefix("restart_"),)
+                allowed = data.get("operator_restart_units", [])
+                if self.get_parameter("enable_service_restarts").value is not True:
+                    reason = "Restart disabled: configure exact running perception user units on API and bridge"
+                elif any(not self.units[k] or self.units[k] not in allowed for k in keys):
+                    reason = "Restart disabled: exact unit missing from API or bridge allowlist"
+            elif command == "damping" and data.get("native_damping_supported") is not True:
+                reason = "Native torque value 2 needs exact firmware support and physical backdrive qualification"
+            elif command == "teleop" and data.get("teleop_leader_ready") is not True:
+                reason = data.get("teleop_leader_reason") or "no fresh calibrated leader pose is available"
+            elif command == "base_confirm" and self.manual_reference is None:
+                reason = "Release for manual setup first; this records an observation, not a motion target"
+            if command != "zero_torque":
+                missing = [key for key in required if not self.service_clients[key].service_is_ready()]
+                if missing:
+                    reason = "Backend service unavailable: " + ", ".join(missing)
+            result[command] = {"enabled": not reason, "reason": reason}
+        return result
 
     def tick(self):
         now = time.monotonic()
@@ -330,7 +405,9 @@ class OperatorAPI(Node):
                     "leader teleop" if data.get("teleop_state") == "active" else
                     "owner active" if data.get("active_operation") else "position hold / MoveIt idle")
         streams = {key: {"age_s": None if stamp is None else now - stamp,
-                         "fresh": stamp is not None and now - stamp < 1.} for key, stamp in self.streams.items()}
+                         "fresh": stamp is not None and now - stamp < 1.,
+                         "publishers": self.count_publishers(self.get_parameter(key + "_topic").value),
+                         "reason": self.stream_errors.get(key, "advancing source metadata" if stamp is not None and now-stamp < 1. else "no recent advancing source message")} for key, stamp in self.streams.items()}
         damping = data.get("native_damping")
         lease = max(0., damping["deadline_monotonic"]-now) if isinstance(damping, dict) else None
         external = data.get("operator_external_job")
@@ -339,10 +416,13 @@ class OperatorAPI(Node):
         payload = {"schema": 1, "fresh": fresh, "mode": mode, "pending": self.pending,
                    "outcome_unknown": self.uncertain, "manual_start_confirmed": self.manual_confirmed,
                    "follower": data, "streams": streams, "last_result": self.last_result,
+                   "manual_reference": self.manual_record, "capabilities": self.capabilities(data),
                    "restart_units": self.units, "damping_supported": data.get("native_damping_supported") is True,
                    "damping_lease_remaining_s": lease,
                    "summary": f"Mode: {mode}" + (f" | Damping expires OFF in {lease:.1f} s" if lease is not None else "") +
                        f"\nTorque: {data.get('torque')}\nStop latch: {data.get('stop_latched')} | Fault: {data.get('owner_faulted')}\nRGB info: {'fresh' if streams['rgb']['fresh'] else 'stale'} | Depth info: {'fresh' if streams['depth']['fresh'] else 'stale'} | Tags: {'fresh' if streams['tags']['fresh'] else 'stale'}" + restart_summary +
+                       (f"\nTags: {streams['tags']['publishers']} publisher(s); {streams['tags']['reason']}" if not streams['tags']['fresh'] else "") +
+                       ("\nLeader teleop unavailable: " + str(data.get("teleop_leader_reason") or "no fresh calibrated leader pose is available") if data.get("teleop_leader_ready") is not True else "") +
                        ("\nPlanning blocked: " + str(data["planning_joint_limits_error"]) if data.get("planning_joint_limits_error") else "")}
         self.publisher.publish(String(data=json.dumps(payload, allow_nan=False)))
 

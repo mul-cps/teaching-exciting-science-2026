@@ -19,4 +19,11 @@ pluginlib_export_plugin_description_file(rviz_common plugins.xml)
 install(TARGETS operator_panel LIBRARY DESTINATION lib)
 install(PROGRAMS scripts/operator_api DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
+
+if(BUILD_TESTING)
+  add_executable(operator_panel_load_check test/panel_load.cpp)
+  ament_target_dependencies(operator_panel_load_check rviz_common pluginlib rclcpp)
+  target_link_libraries(operator_panel_load_check Qt5::Widgets)
+endif()
+
 ament_package()
