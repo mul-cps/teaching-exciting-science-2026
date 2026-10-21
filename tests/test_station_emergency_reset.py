@@ -47,6 +47,8 @@ def harness(state=None):
     api.reset_progress, api.pending, api.last_result = None, None, None
     api.uncertain = api.uncertain_motion = False
     api.alignment_status = None
+    api.recovery_binding = None
+    api.reset_measured_joints = None
     api.reset_alignment = lambda *args: None
     api.activate_reset_images = lambda: None
     api.retire_reset_images = lambda: None
@@ -302,7 +304,8 @@ def test_async_scene_apply_keeps_exact_request_source_stamp():
     assert statuses[1][1]['source_stamp'] == 11
 
 
-def test_fresh_proofs_reject_old_metadata_and_accept_advancing_empty_workspace(monkeypatch):
+@pytest.mark.parametrize("bad_scene", [None, "mismatch", "stale", "missing", "nan", "delayed"])
+def test_fresh_proofs_reject_old_metadata_and_accept_advancing_empty_workspace(monkeypatch, bad_scene):
     api = harness()
     api.state.update(active_operation='operator_maintenance', operator_maintenance_token='a'*32)
     api.reset_scene_started = 0.
@@ -322,19 +325,36 @@ def test_fresh_proofs_reject_old_metadata_and_accept_advancing_empty_workspace(m
     clock.value = 0.
     def advancing(_):
         clock.value += .1
-        api.reset_samples = {key: (10.1, clock.value, 3) for key in keys}
+        api.reset_samples = {key: (10.1+clock.value, clock.value, int(clock.value*10)+3) for key in keys}
+        if bad_scene != "stale" or api.reset_measured_joints is None:
+            api.reset_measured_joints = (10.1+clock.value, clock.value, int(clock.value*10)+3, dict.fromkeys(NS["JOINTS"], 0.))
         api.stream_stamps['tags'] = 11
         api.streams['tags'] = clock.value
     NS['time'].sleep = advancing
     monkeypatch.setitem(NS, 'GetPlanningScene', SimpleNamespace(Request=lambda: SimpleNamespace(components=SimpleNamespace())))
     monkeypatch.setitem(NS, 'PlanningSceneComponents', SimpleNamespace(ROBOT_STATE=1, WORLD_OBJECT_NAMES=2))
+    api.fresh_source_admissions = lambda *args: None
     joints = SimpleNamespace(name=list(NS['JOINTS']), position=[0.]*6,
-                             header=SimpleNamespace(stamp=SimpleNamespace(sec=10, nanosec=0)))
+                             header=SimpleNamespace(stamp=SimpleNamespace(sec=0, nanosec=0)))
+    if bad_scene == "mismatch":
+        joints.position[0] = .011
+    if bad_scene == "missing":
+        joints.name.pop(); joints.position.pop()
+    if bad_scene == "nan":
+        joints.position[0] = float("nan")
     result = SimpleNamespace(scene=SimpleNamespace(robot_state=SimpleNamespace(joint_state=joints), world=SimpleNamespace(collision_objects=[])))
     future = SimpleNamespace(add_done_callback=lambda callback: callback(None), result=lambda: result)
     api.scene_client = SimpleNamespace(service_is_ready=lambda: True, call_async=lambda request: future)
-    api.get_clock = lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_100_000_000))
-    api.reset_fresh_proofs('a'*32, 1.)
+    api.get_clock = lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_350_000_000 if bad_scene == "delayed" else 10_100_000_000))
+    if bad_scene in (None, "delayed"):
+        api.reset_fresh_proofs('a'*32, 1.)
+        if bad_scene == "delayed":
+            # The 10.3 source sample arrives after dispatch but predates its ROS floor.
+            assert clock.value == pytest.approx(.3)
+            assert api.reset_measured_joints[0] > 10.35
+    else:
+        with pytest.raises(RuntimeError, match="disagree|deadline|complete finite"):
+            api.reset_fresh_proofs('a'*32, 1.)
 
 
 def test_incomplete_recipe_stops_before_reporting_configuration_failure():
@@ -713,3 +733,107 @@ def test_normal_commands_do_not_allocate_image_subscriptions(monkeypatch):
     init = next(node for node in ast.parse(source).body if isinstance(node, ast.ClassDef))
     init = next(node for node in init.body if isinstance(node, ast.FunctionDef) and node.name == '__init__')
     assert not any(isinstance(node, ast.Name) and node.id == 'Image' for node in ast.walk(init))
+
+
+def adopted_binding():
+    return dict(producer_generation='c'*32, source_pin_sha256='b'*64,
+                consumer_epochs={k: 'a'*32 for k in ('/so101_charuco_world', '/so101_colored_objects')})
+
+
+def completed_recovery(**updates):
+    binding = adopted_binding()
+    state = dict(job_id='e'*32, state='completed', operation_success=True, ready_now=False,
+                 producer_generation=binding['producer_generation'], source_pin_sha256=binding['source_pin_sha256'],
+                 consumers={k: dict(latest=dict(consumer_epoch=v, producer_generation=binding['producer_generation'],
+                     source_pin_sha256=binding['source_pin_sha256'])) for k, v in binding['consumer_epochs'].items()})
+    state.update(updates)
+    return state
+
+
+@pytest.mark.parametrize('failure', [None, 'failed', 'wrong_job', 'no_identity', 'unknown'])
+def test_recovery_adopts_historical_completion_without_renewing_original_lease(monkeypatch, failure):
+    api = harness()
+    api.state.update(active_operation='operator_maintenance', operator_maintenance_token='a'*32)
+    state = completed_recovery()
+    if failure == 'failed': state.update(state='failed', operation_success=False)
+    if failure == 'wrong_job': state['job_id'] = 'f'*32
+    if failure == 'no_identity': state.pop('source_pin_sha256')
+    if failure == 'unknown': state.update(state='unknown', operation_success=False)
+    replies = []
+    def reply(key, timeout):
+        replies.append(key)
+        if len(replies) > 3: raise RuntimeError('test bounded unresolved job')
+        return dict(accepted=True, job_id='e'*32) if key == 'recovery_start' else state
+    api.recovery_reply = reply
+    if failure:
+        with pytest.raises(RuntimeError):
+            api.recover_perception('a'*32, time.monotonic()+50.)
+        assert api.recovery_binding is None
+    else:
+        assert api.recover_perception('a'*32, time.monotonic()+50.) == 'e'*32
+        assert api.recovery_binding == adopted_binding()
+        assert replies == ['recovery_start', 'recovery_status']
+
+
+@pytest.mark.parametrize('failure', [None, 'generation', 'pin', 'epoch', 'expired', 'old_header', 'tags'])
+def test_current_checked_admissions_must_match_historical_recovery(failure):
+    api = harness()
+    api.state.update(active_operation='operator_maintenance', operator_maintenance_token='a'*32)
+    api.recovery_binding = adopted_binding()
+    api.tag_source_context = dict(consumer_epoch='a'*32, producer_generation='c'*32, source_pin_sha256='b'*64)
+    api.get_clock = lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_000_000_000))
+    proof = dict(schema='so101-derived-admission-status-v1', state='ready', qualified=False, execution_enabled=False,
+                 consumer_epoch='a'*32, producer_generation='c'*32, source_pin_sha256='b'*64,
+                 original_receipt_expiry_monotonic=time.monotonic()+1., original_header_expiry_ros_ns=10_200_000_000,
+                 checked_ros_ns=9_999_999_999)
+    if failure == 'generation': proof['producer_generation'] = 'f'*32
+    if failure == 'pin': proof['source_pin_sha256'] = 'f'*64
+    if failure == 'epoch': proof['consumer_epoch'] = 'f'*32
+    if failure == 'expired': proof['original_receipt_expiry_monotonic'] = time.monotonic()-1.
+    if failure == 'old_header': proof['original_header_expiry_ros_ns'] = 9_000_000_000
+    if failure == 'tags': api.tag_source_context['source_pin_sha256'] = 'f'*64
+    api.recovery_reply = lambda *args: proof
+    if failure:
+        with pytest.raises(RuntimeError, match='admission|context'):
+            api.fresh_source_admissions('a'*32, time.monotonic()+2.)
+    else:
+        api.fresh_source_admissions('a'*32, time.monotonic()+2.)
+
+
+def test_reset_joint_payload_retains_only_bounded_admitted_advancing_measurement():
+    api = harness()
+    api.reset_samples = {}
+    api.get_clock = lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_100_000_000))
+    message = SimpleNamespace(header=SimpleNamespace(stamp=SimpleNamespace(sec=10, nanosec=0)),
+                              name=list(NS['JOINTS']), position=[.1]*6)
+    api.reset_stream('joint_states', message)
+    first = api.reset_measured_joints
+    message.position[0] = .2
+    api.reset_stream('joint_states', message)
+    assert api.reset_measured_joints == first
+    message.header.stamp.nanosec = 1
+    api.reset_stream('joint_states', message)
+    assert api.reset_measured_joints[2] == first[2]+1
+    assert api.reset_measured_joints[3][message.name[0]] == .2
+
+
+def test_current_checked_admissions_expire_during_final_owner_observation(monkeypatch):
+    api = harness()
+    api.recovery_binding = adopted_binding()
+    api.tag_source_context = dict(consumer_epoch='a'*32, producer_generation='c'*32, source_pin_sha256='b'*64)
+    clock = SimpleNamespace(value=10., owners=0)
+    monkeypatch.setitem(NS, 'time', SimpleNamespace(monotonic=lambda: clock.value))
+    api.get_clock = lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=int(clock.value*1e9)))
+    proof = dict(schema='so101-derived-admission-status-v1', state='ready', qualified=False, execution_enabled=False,
+                 consumer_epoch='a'*32, producer_generation='c'*32, source_pin_sha256='b'*64,
+                 original_receipt_expiry_monotonic=10.1, original_header_expiry_ros_ns=10_100_000_000,
+                 checked_ros_ns=10_000_000_000)
+    api.recovery_reply = lambda *args: proof
+    def owner_observation(token):
+        clock.owners += 1
+        if clock.owners == 3:
+            clock.value = 10.2
+    api.maintenance_state = owner_observation
+    with pytest.raises(RuntimeError, match='admission expired'):
+        api.fresh_source_admissions('a'*32, 12.)
+    assert clock.owners == 3
