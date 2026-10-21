@@ -251,7 +251,7 @@ def test_sync_read_retry_success_past_deadline_is_rejected(tmp_path):
     arm.bus.sync_read_failure_latency_s = 0.011
     arm.bus.sync_read_success_latency_s = 0.011
 
-    with pytest.raises(TimeoutError, match="retry deadline"):
+    with pytest.raises(TimeoutError, match="sync read Torque_Enable exceeded 20 ms deadline"):
         session._read("Torque_Enable")
 
     diagnostic = session._read_diagnostics["Torque_Enable"]
@@ -814,7 +814,7 @@ def test_near_empty_gripper_closure_does_not_infer_contact_from_transient_excess
 def test_feedback_timestamps_follow_driver_reads_and_sleep_is_rate_limited(tmp_path):
     session, arm, clock = make_session(tmp_path)
     session.initialize()
-    arm.bus.delay_after_goal = 0.02
+    arm.bus.delay_after_goal = 0.019
     result = session.move_plan([{"label": "timed", "target_raw": target(shoulder_pan=2050)}])
     assert result["legs"][0]["label"] == "timed"
     records = [json.loads(line) for line in session.log_path.read_text().splitlines()]
@@ -829,9 +829,17 @@ def test_feedback_timestamps_follow_driver_reads_and_sleep_is_rate_limited(tmp_p
 
 
 def test_single_210ms_feedback_gap_resynchronizes_with_three_missed_ticks(tmp_path):
-    session, arm, _ = make_session(tmp_path)
+    session, arm, clock = make_session(tmp_path)
     session.initialize()
-    arm.bus.delay_after_goal = 0.21
+    delayed = False
+    def sleep(duration):
+        nonlocal delayed
+        clock.sleep(duration)
+        if not delayed:
+            # Scheduling delay occurs outside the bounded serial read.
+            clock.value += .16
+            delayed = True
+    session.sleep = sleep
     result = session.move_plan([{"label": "one-late-read",
                                  "target_raw": target(shoulder_pan=2050)}])
     assert result["completed_legs"] == ["one-late-read"]
@@ -853,8 +861,8 @@ def test_single_210ms_feedback_gap_resynchronizes_with_three_missed_ticks(tmp_pa
 
 
 @pytest.mark.parametrize(("delay", "message"), [
-    (0.30, "feedback freshness exceeded bounded period budget"),
-    (6.0, "leg 6 second deadline expired"),
+    (0.30, "sync read Present_Position exceeded 20 ms deadline"),
+    (6.0, "sync read Present_Position exceeded 20 ms deadline"),
 ])
 def test_delayed_driver_reads_abort_with_torque_off_and_ram_restore(tmp_path, delay, message):
     session, arm, _ = make_session(tmp_path)
@@ -865,20 +873,47 @@ def test_delayed_driver_reads_abort_with_torque_off_and_ram_restore(tmp_path, de
     assert set(arm.bus.sync_read("Torque_Enable").values()) == {0}
     assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)
     assert arm.bus.eeprom_writes == []
-    if delay == 0.30:
+    # A stalled individual driver read is rejected before the leg/cadence
+    # checks; all-off cleanup and RAM restoration remain mandatory.
+    assert len(arm.bus.goal_history) == 1
+    session.close_log()
+
+
+@pytest.mark.parametrize(("gap", "message"), [
+    (.30, "feedback freshness exceeded bounded period budget"),
+    (6., "leg 6 second deadline expired"),
+])
+def test_delayed_scheduler_preserves_feedback_and_leg_deadlines(tmp_path, gap, message):
+    session, arm, clock = make_session(tmp_path)
+    session.initialize()
+    def sleep(duration):
+        # The native move-plan feedback interval is 50 ms. Delay its next
+        # iteration while keeping every serial call within the 20 ms bound.
+        clock.sleep(duration)
+        clock.value += gap - .05
+    session.sleep = sleep
+    with pytest.raises((RuntimeError, TimeoutError), match=message):
+        session.move_plan([{"label": "delayed-scheduler", "target_raw": target(shoulder_pan=2050)}])
+    if gap == .30:
         records = [json.loads(line) for line in session.log_path.read_text().splitlines()]
         fault = next(row for row in records if row.get("event") == "feedback_cadence_fault")
-        assert fault["feedback_gap_s"] == pytest.approx(delay)
-        assert fault["position_read_duration_s"] == pytest.approx(delay)
+        assert fault["feedback_gap_s"] == pytest.approx(gap)
+        assert fault["position_read_duration_s"] == 0
         assert fault["missed_ticks"] == 5
-        assert fault["previous_tick_timing"] is None
+    assert arm.bus.sync_read("Torque_Enable") == dict.fromkeys(JOINTS, 0)
+    assert arm.bus.sync_read("Acceleration") == dict.fromkeys(JOINTS, 2)
+    assert len(arm.bus.goal_history) == 1
+    assert arm.bus.eeprom_writes == []
     session.close_log()
 
 
 def test_repeated_subquarter_second_gaps_exhaust_per_leg_miss_budget(tmp_path):
-    session, arm, _ = make_session(tmp_path)
+    session, arm, clock = make_session(tmp_path)
     session.initialize()
-    arm.bus.present_read_delays = [0.10] * 4
+    def sleep(duration):
+        clock.sleep(duration)
+        clock.value += .10  # Scheduler lateness, not a stalled serial call.
+    session.sleep = sleep
     with pytest.raises(RuntimeError, match="feedback freshness exceeded bounded period budget"):
         session.move_plan([{"label": "repeated-late-read",
                             "target_raw": target(shoulder_pan=2050)}])
@@ -894,15 +929,22 @@ def test_repeated_subquarter_second_gaps_exhaust_per_leg_miss_budget(tmp_path):
 
 
 def test_stop_while_feedback_read_is_late_is_serviced_before_gap_fault(tmp_path):
-    session, arm, _ = make_session(tmp_path)
+    session, arm, clock = make_session(tmp_path)
     session.initialize()
     read_fd, write_fd = os.pipe()
     plan = {"command": "move_plan", "legs": [
         {"label": "late-stop", "target_raw": target(shoulder_pan=2050)}]}
     os.write(write_fd, (json.dumps(plan) + "\n").encode())
-    arm.bus.delay_after_goal = 0.21
+    delayed = False
+    def sleep(duration):
+        nonlocal delayed
+        clock.sleep(duration)
+        if not delayed:
+            clock.value += .16
+            delayed = True
+    session.sleep = sleep
     def stop_after_motion_read():
-        if session._motion_busy and arm.bus.goal_history:
+        if delayed and session._motion_busy and arm.bus.goal_history:
             arm.bus.on_present_read = None
             os.write(write_fd, b'{"command":"stop"}\n')
     arm.bus.on_present_read = stop_after_motion_read
@@ -1190,7 +1232,8 @@ def test_calibration_endpoint_ipc_flag_requires_exact_boolean(tmp_path):
     session.initialize()
     command = {"command": "execute_trajectory", "goal_id": "bad-calibration-flag",
                "joint_names": [], "points": [], "path_sha256": "0" * 64,
-               "calibration_endpoint": 1}
+               "calibration_endpoint": 1,
+               "ros_motion_profile": session._ros_motion_profile.name}
     with pytest.raises(ValueError, match="must be a boolean"):
         session.handle(command)
     assert arm.bus.writes == []

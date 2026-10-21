@@ -2,7 +2,8 @@
 import math
 import pytest
 from test_ros_elbow_bounds import owner_at_actual_elbow
-from workshop.station.ros_trajectory import ARM_JOINTS, prepare_trajectory, path_digest
+from workshop.station.ros_trajectory import (ARM_JOINTS, ROS_TRAJECTORY_PERIOD_S,
+                                             prepare_trajectory, path_digest)
 
 
 def plateau(tmp_path):
@@ -24,6 +25,7 @@ def plateau(tmp_path):
         max_velocity=.125,max_acceleration=.2,max_jerk=2.)
     command=dict(command='execute_trajectory',goal_id='hardware-plateau',
         joint_names=list(ARM_JOINTS),points=points,
+        ros_motion_profile=session._ros_motion_profile.name,
         path_sha256=path_digest(prepared,held_gripper_raw=2000))
     return session,arm,clock,command
 
@@ -156,23 +158,43 @@ def test_rejected_queue_flood_cannot_refresh_health_clock(tmp_path):
     import os,json
     session,arm,clock,command=plateau(tmp_path);read_fd,write_fd=os.pipe()
     os.write(write_fd,(json.dumps(command)+'\n').encode())
+    fault_replies=[];rejections=[];held_goals=[];write_open=True
     def emit(value):
+        nonlocal write_open
         if value.get('status')=='failed_endpoint_held':
+            held_goals.append(len(arm.bus.goal_history))
             os.write(write_fd,b'{"command":"home"}\n'*40)
-        elif value.get('error_type')=='ArmPlanPreflightError':clock.sleep(.04)
+        elif value.get('error_type')=='ArmPlanPreflightError':
+            rejections.append(value);clock.sleep(.04)
+        elif value.get('error_type')=='RuntimeError':
+            fault_replies.append(value)
+            # Verified cleanup now leaves an observable resident fault. EOF
+            # ends this fixture after checking that queued motion never ran.
+            os.close(write_fd);write_open=False
     try:
-        with pytest.raises(RuntimeError,match='health deadline'):
-            session.serve(fd=read_fd,emit=emit)
-    finally:os.close(read_fd);os.close(write_fd)
+        assert session.serve(fd=read_fd,emit=emit)==0
+    finally:
+        os.close(read_fd)
+        if write_open:os.close(write_fd)
+    assert len(fault_replies)==1
+    assert fault_replies[0]['error']=='failed endpoint hold buffered command health deadline expired'
+    assert rejections and len(rejections)<40
+    assert held_goals==[len(arm.bus.goal_history)]
+    assert session._fault_observation is not None
+    assert session._fault_observation['error']==fault_replies[0]['error']
     assert set(arm.bus.data['Torque_Enable'].values())=={0}
+    assert session.saved_ram is None
 
 
 def test_two_in_tolerance_final_samples_still_failed_held(tmp_path):
     session,arm,clock,command=plateau(tmp_path)
     original=arm.bus.on_present_read
+    late_sample_time=command['points'][-1]['time']+3.-1.5*ROS_TRAJECTORY_PERIOD_S
     def late_convergence():
         original()
-        if clock.value>=11.69:arm.bus.data['Present_Position']['elbow_flex']=2515
+        # The 50 Hz endpoint loop ends after its unchanged three-second
+        # settling budget. Enter tolerance for only its final two reads.
+        if clock.value>=late_sample_time:arm.bus.data['Present_Position']['elbow_flex']=2515
     arm.bus.on_present_read=late_convergence
     reply=session.handle(command)
     assert reply['ok'] is False and reply['status']=='failed_endpoint_held'
