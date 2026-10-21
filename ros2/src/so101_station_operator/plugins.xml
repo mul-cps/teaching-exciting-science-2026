@@ -1,0 +1,5 @@
+<library path="operator_panel">
+  <class name="so101_station_operator/Operations" type="so101_station_operator::OperatorPanel" base_class_type="rviz_common::Panel">
+    <description>Station modes, measured torque, manual reference and bounded service restarts.</description>
+  </class>
+</library>

@@ -52,6 +52,12 @@ def generate_launch_description():
         'use_map': 'true',
         'use_planning_scene': 'true',
         'use_station_api': 'true',
+        'use_operator_panel_api': 'true',
+        'operator_camera_unit': '',
+        'operator_depth_unit': '',
+        'operator_tags_unit': '',
+        'operator_service_restarts': 'false',
+        'operator_maintenance_journal': str(station / 'operator-maintenance-pending.json'),
         'sorting_config': str(station / 'sorting.json'),
         'sorting_evidence_dir': str(station / 'evidence/sorting'),
         'ev3_api_port': '18766',
@@ -96,7 +102,8 @@ def generate_launch_description():
                   'station_python', 'station_config', 'state_file', 'log_dir',
                   'station_lock', 'rviz', 'trajectory_log_dir',
                   'gripper_action_name', 'gripper_jaw_calibration',
-                  'recovery_depth_topic', 'recovery_camera_info_topic']
+                  'recovery_depth_topic', 'recovery_camera_info_topic',
+                  'operator_camera_unit', 'operator_depth_unit', 'operator_tags_unit', 'operator_maintenance_journal']
     robot = include('so101_station_control', 'moveit_resident.launch.py',
                     {k: LaunchConfiguration(k) for k in robot_keys})
     perception = include('so101_station_perception', 'perception.launch.py', {
@@ -124,6 +131,14 @@ def generate_launch_description():
         # Camera repair preparation must fail before constructing owner actions.
         # This orders launch validation; it does not assert camera stream readiness.
         perception, robot, leader,
+        include('so101_station_operator', 'operator.launch.py', {
+                    'station_config': LaunchConfiguration('station_config'),
+                    'station_root': LaunchConfiguration('station_root'),
+                    'camera_unit': LaunchConfiguration('operator_camera_unit'),
+                    'depth_unit': LaunchConfiguration('operator_depth_unit'),
+                    'tags_unit': LaunchConfiguration('operator_tags_unit'),
+                    'enable_service_restarts': LaunchConfiguration('operator_service_restarts'),
+                }, condition=IfCondition(LaunchConfiguration('use_operator_panel_api'))),
         ExecuteProcess(cmd=['ssh', '-N', '-T', '-o', 'ExitOnForwardFailure=yes',
                             '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
                             '-o', 'IdentitiesOnly=yes', '-i', LaunchConfiguration('ev3_ssh_key'),

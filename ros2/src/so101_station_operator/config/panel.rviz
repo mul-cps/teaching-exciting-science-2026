@@ -1,0 +1,5 @@
+# Merge this Panels entry into the station's existing GPU-guarded RViz config.
+# Do not replace its displays or MoveIt settings with this fragment.
+Panels:
+  - Class: so101_station_operator/Operations
+    Name: Station operations

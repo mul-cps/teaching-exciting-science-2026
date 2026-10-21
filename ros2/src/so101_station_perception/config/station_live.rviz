@@ -1,4 +1,6 @@
 Panels:
+  - Class: so101_station_operator/Operations
+    Name: Station operations
   - Class: rviz_common/Displays
     Name: Displays
   - Class: rviz_common/Selection

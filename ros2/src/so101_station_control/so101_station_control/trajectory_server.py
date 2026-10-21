@@ -32,6 +32,8 @@ from sensor_msgs.msg import CameraInfo, Image, JointState
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
 from so101_station_workflow.srv import CommissionGripperStep
+from so101_station_operator.srv import OperatorMaintenance
+from so101_station_control.operator_restart import OperatorRestartMixin
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 from .leader_reader import JOINTS as TELEOP_JOINTS, matched_pose, validate_pose_packet
@@ -269,10 +271,12 @@ def _control_callback(callback):
         if condition is None:  # lightweight offline harnesses
             return callback(self, *args, **kwargs)
         with condition:
-            if self._stop_latched:
+            resolving_maintenance = (callback.__name__ == "_operator_maintenance" and
+                                     args and getattr(args[0], "operation", "") == "verify")
+            if self._stop_latched and not resolving_maintenance:
                 if callback.__name__ in {"_goal_request", "_gripper_goal_request"}:
                     return GoalResponse.REJECT
-                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_acknowledge_held_jaw", "_gripper_diagnostics", "_joint_diagnostics", "_calibration_ready", "_set_teleop_enabled"}:
+                if callback.__name__ in {"_home", "_recover_camera", "_prepare", "_commission_gripper_step", "_commission_gripper_held_step", "_acknowledge_held_jaw", "_gripper_diagnostics", "_joint_diagnostics", "_calibration_ready", "_set_teleop_enabled", "_enable_native_damping", "_native_damping_inventory", "_operator_maintenance", "_rearm_motion_profile"}:
                     response = args[1]
                     response.success, response.message = False, "owner stop remains latched"
                     if callback.__name__ == "_prepare":
@@ -301,7 +305,7 @@ def _control_callback(callback):
     return tracked
 
 
-class TrajectoryBridge(Node):
+class TrajectoryBridge(OperatorRestartMixin, Node):
     def __init__(self, *, parameter_overrides=None):
         super().__init__("so101_trajectory_bridge", parameter_overrides=parameter_overrides)
         self.declare_parameter("enable_hardware", False)
@@ -314,6 +318,8 @@ class TrajectoryBridge(Node):
         self.declare_parameter("log_dir", "")
         self.declare_parameter("trajectory_log_dir", "")
         self.declare_parameter("station_lock", "")
+        self.declare_parameter("operator_service_units", [""])
+        self.declare_parameter("operator_maintenance_journal", str(Path.home()/".local/share/exciting-science/station/operator-maintenance-pending.json"))
         self.declare_parameter("owner_idle_timeout_s", 3600.0)
         self.declare_parameter("recover_sag", False)
         self.declare_parameter("startup_observe_only", False)
@@ -342,6 +348,8 @@ class TrajectoryBridge(Node):
         self.declare_parameter("calibration_ready_timeout_s", 90.0)
         self._active_lock = threading.Lock()
         self._active_goal = None
+        self._operator_maintenance_token = None
+        self._operator_maintenance_deadline = None
         self._cancel_before_start = False
         self._write_lock = threading.Lock()
         self._stop_condition = threading.Condition()
@@ -416,6 +424,7 @@ class TrajectoryBridge(Node):
         self._trajectory_helper = None
         self._ros_motion_profile = None
         self._state_validity = None
+        self._operator_restart_init()
         # Tail a separately owned resident without starting, locking, or commanding another owner.
         if not self._external_state_only:
             self._reconnect_observe = self.get_parameter("startup_observe_only").value is True
@@ -424,6 +433,8 @@ class TrajectoryBridge(Node):
             else:
                 self._clear_owner_fault("startup_active")
             self._start_owner(observe_only=self._reconnect_observe)
+        if not self._external_state_only:
+            self._operator_restart_load_pending()
         self._action = ActionServer(
             self, FollowJointTrajectory,
             str(self.get_parameter("action_name").value),
@@ -465,6 +476,18 @@ class TrajectoryBridge(Node):
         self._stop_service = self.create_service(
             Trigger, str(self.get_parameter("stop_service").value),
             self._stop, callback_group=self._stop_group)
+        self._damping_service = self.create_service(
+            Trigger, "/follower/damping_enable", self._enable_native_damping,
+            callback_group=self._teleop_service_group)
+        self._maintenance_service = self.create_service(
+            OperatorMaintenance, "/follower/operator_maintenance_enable", self._operator_maintenance,
+            callback_group=self._teleop_service_group)
+        self._damping_inventory_service = self.create_service(
+            Trigger, "/follower/damping_inventory", self._native_damping_inventory,
+            callback_group=self._teleop_service_group)
+        self._rearm_service = self.create_service(
+            Trigger, "/follower/rearm_motion_profile", self._rearm_motion_profile,
+            callback_group=self._teleop_service_group)
         self._home_service = self.create_service(
             Trigger, str(self.get_parameter("home_service").value),
             self._home, callback_group=self._teleop_service_group)
@@ -506,6 +529,7 @@ class TrajectoryBridge(Node):
             1.0 / 125.0, self._teleop_timer_tick,
             callback_group=self._teleop_control_group)
         self.create_timer(1.0, self._publish_teleop_monitor)
+        self.create_timer(.5, self._expire_operator_modes)
         if not self._external_state_only:
             if self._trajectory_helper is None:
                 self._trajectory_helper = self._load_trajectory_helper()
@@ -708,11 +732,11 @@ class TrajectoryBridge(Node):
                 if isinstance(response, dict) and response.get("command") != "teleop_step":
                     self._cache_owner_state(response.get("state", response.get("final_state")),
                                             generation=generation, process=process)
-                if isinstance(response, dict) and response.get("command") == "joint_diagnostics":
+                if isinstance(response, dict) and response.get("command") in {"joint_diagnostics", "native_damping_inventory", "rearm_motion_profile"}:
                     with self._active_lock:
-                        expected = self._active_goal == "joint_diagnostics"
+                        expected = self._active_goal == response["command"]
                     if not expected:
-                        self._mark_owner_fault("unexpected_joint_diagnostics_reply")
+                        self._mark_owner_fault("unexpected_" + response["command"] + "_reply")
                         continue
                 if self._route_stop_response(response):
                     continue
@@ -796,6 +820,16 @@ class TrajectoryBridge(Node):
                 raise RuntimeError("owner is alive; reconnect never kills or retries a live owner")
             with self._stop_condition:
                 with self._active_lock:
+                    if (self._active_goal in ("native_damping", "operator_maintenance", "operator_maintenance_unknown", "native_damping_inventory") and
+                            not self._control_callbacks and self._process is not None and self._process.poll() is not None):
+                        # Explicit reconnect retires only quiesced modes of this already-dead generation.
+                        self._active_goal = None
+                        if self._operator_external_job is None:
+                            self._operator_maintenance_token = None
+                        self._operator_maintenance_deadline = None
+                        old_barrier = True
+                        self._stop_latched = True
+                        self._mark_owner_fault("dead_operator_generation_retired")
                     if self._active_goal is not None or self._control_callbacks:
                         raise RuntimeError("owner operation or callback has not quiesced")
                     self._stop_latched = True
@@ -882,6 +916,11 @@ class TrajectoryBridge(Node):
                 self._cancel_before_start = True
                 self._gripper_goal_cancelled = True
                 self._home_completed_owner_started = None
+                if self._active_goal in {"native_damping", "operator_maintenance", "operator_maintenance_unknown"}:
+                    self._active_goal = "operator_maintenance_unknown" if self._operator_external_job is not None else None
+                    if self._operator_external_job is None:
+                        self._operator_maintenance_token = None
+                    self._operator_maintenance_deadline = None
             self._clear_teleop()
             self._teleop_step_done.set()
             with self._teleop_condition:
@@ -896,7 +935,7 @@ class TrajectoryBridge(Node):
                     self._stop_condition.wait(min(.02, remaining))
                 ack = self._stop_ack
             with self._active_lock:
-                if self._active_goal is not None:
+                if self._active_goal is not None and not (self._active_goal == "operator_maintenance_unknown" and self._operator_external_job is not None):
                     raise RuntimeError("pending owner operation has not quiesced; stop remains latched")
             state = ack.get("state", ack.get("final_state"))
             if not ack.get("ok") or ack.get("stopped") is not True or not isinstance(state, dict):
@@ -915,8 +954,9 @@ class TrajectoryBridge(Node):
                     self._process.poll() is not None):
                 raise RuntimeError("stop lacks fresh identity-bound six-joint torque-off readback")
             with self._write_lock:
-                self._stop_latched = False
-                self._clear_owner_fault("_stop")
+                self._stop_latched = self._operator_external_job is not None
+                if self._operator_external_job is None:
+                    self._clear_owner_fault("_stop")
                 self._reconnect_observe = False
                 self._cancel_before_start = False
             self._cache_owner_state(state)
@@ -929,6 +969,229 @@ class TrajectoryBridge(Node):
                 self._stop_pending = None
                 self._stop_requested = None
             self._stop_lock.release()
+        return response
+
+    @_control_callback
+    def _operator_maintenance(self, request, response):
+        """Reserve an already-disarmed owner while camera services are restarted."""
+        response.success = False
+        try:
+            state = self._read_state()
+            process, generation = self._process, self._owner_started
+            if request.operation == "verify":
+                # Resolve only OS state; a later explicit verified STOP clears the fault barrier.
+                if (not isinstance(state, dict) or state.get("arm_id") != self._expected_arm_id or
+                        state.get("calibration_sha256") != self._expected_calibration_sha256 or
+                        state.get("owner_source_sha256") != self._owner_source_expected or
+                        state.get("torque") != {j: 0 for j in TELEOP_JOINTS} or
+                        type(state.get("torque_monotonic")) not in (int, float) or
+                        not 0 <= time.monotonic()-state["torque_monotonic"] <= .25):
+                    raise RuntimeError("external job verification requires original fresh all-six OFF owner proof")
+                proof = self._operator_restart_verify(request.token)
+                response.success = True
+                response.token = request.token
+                response.message = json.dumps(proof)
+                return response
+            if request.operation == "restart":
+                self._assert_owner_reservation("operator_maintenance", process, generation)
+                if self._prepare_owner_state(state, process, generation, torque=0) != "normal":
+                    raise RuntimeError("restart submission requires fresh normal all-six OFF")
+                job_id = self._operator_restart_begin(request.token, request.unit)
+                response.success = True
+                response.token = request.token
+                response.message = json.dumps({"job_id": job_id, "state": "pending"})
+                return response
+            if request.operation:
+                raise RuntimeError("unknown operator maintenance operation")
+            with self._active_lock:
+                if request.enable:
+                    if request.token:
+                        raise RuntimeError("new maintenance reservation must not supply a token")
+                    if self._active_goal is not None or self._teleop_state != "disabled":
+                        raise RuntimeError("owner must be idle before maintenance")
+                    if self._prepare_owner_state(state, process, generation, torque=0) != "normal":
+                        raise RuntimeError("maintenance requires fresh normal six-joint torque OFF")
+                    self._operator_maintenance_token = uuid.uuid4().hex
+                    self._operator_maintenance_deadline = time.monotonic()+60.
+                    self._active_goal = "operator_maintenance"
+                else:
+                    if self._operator_external_job is not None:
+                        raise RuntimeError("external systemd job outcome is unresolved; reservation cannot release")
+                    if (self._active_goal != "operator_maintenance" or not request.token or
+                            request.token != self._operator_maintenance_token):
+                        raise RuntimeError("operator maintenance token does not own the reservation")
+                    if self._prepare_owner_state(state, process, generation, torque=0) != "normal":
+                        raise RuntimeError("maintenance release requires fresh normal six-joint torque OFF")
+                    self._active_goal = None
+                response.token = self._operator_maintenance_token
+                if not request.enable:
+                    self._operator_maintenance_token = None
+                    self._operator_maintenance_deadline = None
+            response.success = True
+            response.message = json.dumps({"state": "reserved" if request.enable else "released", "token": response.token})
+        except (RuntimeError, ValueError, TypeError, OSError) as error:
+            response.message = str(error)
+        return response
+
+    def _expire_operator_modes(self):
+        with self._state_cache_lock:
+            state = self._cached_owner_state
+            generation = self._cached_owner_generation
+        now = time.monotonic()
+        fresh_off = (isinstance(state, dict) and generation == self._owner_started and
+                     self._process is not None and self._process.poll() is None and
+                     state.get("arm_id") == self._expected_arm_id and
+                     state.get("calibration_sha256") == self._expected_calibration_sha256 and
+                     state.get("owner_source_sha256") == self._owner_source_expected and
+                     state.get("observe_only") is False and
+                     type(state.get("monotonic")) in (int, float) and 0 <= now-state["monotonic"] <= .25 and
+                     type(state.get("torque_monotonic")) in (int, float) and 0 <= now-state["torque_monotonic"] <= .25 and
+                     state.get("torque") == {j: 0 for j in TELEOP_JOINTS} and
+                     state.get("native_damping_restore_pending") is False)
+        with self._active_lock:
+            if fresh_off and self._active_goal == "native_damping" and state.get("native_damping") is None:
+                self._active_goal = None
+            if (self._active_goal == "operator_maintenance" and self._operator_maintenance_deadline is not None and
+                    now >= self._operator_maintenance_deadline):
+                if self._operator_external_job is not None:
+                    self._active_goal = "operator_maintenance_unknown"
+                    self._stop_latched = True
+                    self._mark_owner_fault("external_restart_lease_expired")
+                elif fresh_off:
+                    self._active_goal = None
+                    self._operator_maintenance_token = None
+                    self._operator_maintenance_deadline = None
+
+    @_control_callback
+    def _rearm_motion_profile(self, _request, response):
+        response.success = False
+        reservation = "rearm_motion_profile"
+        process, generation = self._process, self._owner_started
+        reserved = delivery_possible = False
+        try:
+            state = self._read_state()
+            if self._prepare_owner_state(state, process, generation, torque=0) != "normal" or state.get("native_damping_restore_pending") is not False:
+                raise RuntimeError("profile rearm requires clean fresh normal all-six OFF")
+            with self._active_lock:
+                if self._active_goal is not None or self._teleop_state != "disabled":
+                    raise RuntimeError("profile rearm requires an idle owner")
+                self._active_goal = reservation
+                reserved = True
+            request_id = uuid.uuid4().hex
+            delivery_possible = True
+            reply = self._reserved_owner_reply({"command": reservation, "request_id": request_id},
+                                               process, generation, time.monotonic()+5., reservation)
+            if reply.get("ok") is not True or reply.get("command") != reservation or reply.get("request_id") != request_id:
+                raise RuntimeError("profile rearm acknowledgement is not correlated")
+            final = reply.get("state")
+            if self._prepare_owner_state(final, process, generation, torque=0) != "normal" or final.get("motion_profile_rearm_required") is not False:
+                raise RuntimeError("profile rearm did not confirm armed profile and all-six OFF")
+            response.success = True
+            response.message = "configured motion profile armed; all six joints remain torque OFF"
+        except (RuntimeError, ValueError, TypeError, OSError, TimeoutError) as error:
+            response.message = str(error)
+            if delivery_possible:
+                self._mark_owner_fault("profile_rearm_result_unknown")
+        finally:
+            if reserved:
+                with self._active_lock:
+                    if self._active_goal == reservation:
+                        self._active_goal = None
+        return response
+
+    @_control_callback
+    def _native_damping_inventory(self, _request, response):
+        response.success = False
+        reservation = "native_damping_inventory"
+        process, generation = self._process, self._owner_started
+        reserved = delivery_possible = False
+        try:
+            state = self._read_state()
+            self._prepare_owner_state(state, process, generation)
+            with self._active_lock:
+                if self._active_goal is not None or self._teleop_state != "disabled":
+                    raise RuntimeError("firmware inventory requires an idle owner")
+                self._active_goal = reservation
+                reserved = True
+            delivery_possible = True
+            result = self._reserved_owner_reply("native_damping_inventory", process, generation,
+                                                time.monotonic()+2., reservation)
+            if result.get("ok") is not True or result.get("command") != "native_damping_inventory":
+                raise RuntimeError("native damping inventory was not acknowledged")
+            final = result.get("state")
+            self._prepare_owner_state(final, process, generation)
+            if final.get("torque") != state.get("torque"):
+                raise RuntimeError("torque changed during passive firmware inventory")
+            response.success = True
+            response.message = json.dumps({k: result[k] for k in ("firmware", "capability_enabled", "firmware_allowed", "physically_qualified")})
+        except (RuntimeError, ValueError, TypeError, KeyError, OSError, TimeoutError) as error:
+            response.message = str(error)
+            if delivery_possible:
+                self._mark_owner_fault("native_damping_inventory_result_unknown")
+        finally:
+            if reserved:
+                with self._active_lock:
+                    if self._active_goal == reservation:
+                        self._active_goal = None
+        return response
+
+    @_control_callback
+    def _enable_native_damping(self, _request, response):
+        """Explicit manual 60-second native damping lease, or explicit renewal."""
+        response.success = False
+        process, generation = self._process, self._owner_started
+        reserved = False
+        try:
+            state = self._read_state()
+            if not isinstance(state, dict) or state.get("native_damping_supported") is not True:
+                raise RuntimeError("native damping capability/firmware allowlist is not enabled")
+            phase = state.get("native_damping")
+            if phase is None and self._prepare_owner_state(state, process, generation, torque=0) != "normal":
+                raise RuntimeError("native damping requires fresh normal six-joint torque OFF")
+            with self._active_lock:
+                renewing = self._active_goal == "native_damping" and isinstance(phase, dict)
+                if self._active_goal is not None and not renewing:
+                    raise RuntimeError("another owner operation is active")
+                if self._teleop_state != "disabled":
+                    raise RuntimeError("teleoperation must be disabled before damping")
+                self._active_goal = "native_damping"
+                reserved = True
+            self._assert_owner_reservation("native_damping", process, generation)
+            if not renewing and self._prepare_owner_state(state, process, generation, torque=0) != "normal":
+                raise RuntimeError("native damping requires fresh normal six-joint torque OFF")
+            request_id = uuid.uuid4().hex
+            command = "native_damping_renew" if renewing else "native_damping"
+            reply = self._reserved_owner_reply({"command": command, "request_id": request_id},
+                                               process, generation, time.monotonic()+3., "native_damping")
+            final = reply.get("state") if isinstance(reply, dict) else None
+            final_phase = final.get("native_damping") if isinstance(final, dict) else None
+            now = time.monotonic()
+            if (not isinstance(reply, dict) or reply.get("ok") is not True or reply.get("command") != command or
+                    reply.get("request_id") != request_id or not isinstance(final_phase, dict) or
+                    final_phase.get("phase") != "active" or final_phase.get("request_id") != request_id or
+                    final.get("torque") != {j: 2 for j in TELEOP_JOINTS} or
+                    final.get("arm_id") != self._expected_arm_id or
+                    final.get("calibration_sha256") != self._expected_calibration_sha256 or
+                    final.get("owner_source_sha256") != self._owner_source_expected or
+                    type(final.get("monotonic")) not in (int, float) or not generation <= final["monotonic"] <= now or
+                    now-final["monotonic"] > .25 or
+                    type(final_phase.get("deadline_monotonic")) not in (int, float) or
+                    not now < final_phase["deadline_monotonic"] <= now+60.):
+                raise RuntimeError("native damping acknowledgement not correlated to fresh measured owner state")
+            self._assert_owner_reservation("native_damping", process, generation)
+            self._cache_owner_state(final)
+            response.success = True
+            response.message = json.dumps({"request_id": request_id, "lease_remaining_s": final_phase["deadline_monotonic"]-now,
+                                           "torque": final["torque"], "native_damping": final_phase,
+                                           "physically_qualified": False})
+        except (RuntimeError, ValueError, TypeError, OSError, TimeoutError) as error:
+            response.message = str(error)
+            if reserved:
+                self._mark_owner_fault("native_damping_result_unknown")
+                try:
+                    self._send({"command": "stop", "request_id": uuid.uuid4().hex})
+                except (RuntimeError, OSError, TimeoutError):
+                    pass
         return response
 
     def _route_teleop_response(self, response):
@@ -1857,6 +2120,17 @@ class TrajectoryBridge(Node):
                         observe_only=state.get("observe_only") if
                         type(state.get("observe_only")) is bool else None,
                         camera_recovery_runtime_started_monotonic=runtime_started)
+        damping = state.get("native_damping")
+        valid_damping = (isinstance(damping, dict) and set(damping) == {"phase", "request_id", "deadline_monotonic", "entered_monotonic", "torque_limit"} and
+            damping.get("phase") == "active" and isinstance(damping.get("request_id"), str) and len(damping["request_id"]) == 32 and
+            all(c in "0123456789abcdef" for c in damping["request_id"]) and
+            all(type(damping.get(k)) in (int, float) and math.isfinite(damping[k]) for k in ("deadline_monotonic", "entered_monotonic")) and
+            damping["entered_monotonic"] <= damping["deadline_monotonic"] <= damping["entered_monotonic"]+60. and
+            type(damping.get("torque_limit")) is int and 1 <= damping["torque_limit"] <= 50)
+        retained["native_damping"] = dict(damping) if valid_damping else None
+        retained["native_damping_restore_pending"] = state.get("native_damping_restore_pending") is True
+        retained["native_damping_supported"] = state.get("native_damping_supported") is True
+        retained["motion_profile_rearm_required"] = state.get("motion_profile_rearm_required") is True
         nonce = state.get("camera_recovery_cache_generation")
         retained["camera_recovery_cache_generation"] = (nonce if isinstance(nonce, str) and
             len(nonce) == 32 and all(char in "0123456789abcdef" for char in nonce) else None)
@@ -1867,7 +2141,7 @@ class TrajectoryBridge(Node):
                 valid = all(type(value) in (int, float) and math.isfinite(value)
                             for value in values.values())
             elif valid:
-                upper = 4095 if key == "raw" else 1
+                upper = 4095 if key == "raw" else 2 if valid_damping else 1
                 valid = all(type(value) is int and 0 <= value <= upper for value in values.values())
             retained[key] = dict(values) if valid else None
         phase_keys = ("camera_recovery_phase", "camera_recovery_held_raw",
@@ -2099,7 +2373,7 @@ class TrajectoryBridge(Node):
         measurements_valid = (isinstance(raw, dict) and set(raw) == set(TELEOP_JOINTS) and
             all(type(value) is int and 0 <= value <= 4095 for value in raw.values()) and
             isinstance(torque, dict) and set(torque) == set(TELEOP_JOINTS) and
-            all(type(value) is int and value in (0, 1) for value in torque.values()))
+            all(type(value) is int and value in ((0, 1, 2) if state.get("native_damping") is not None else (0, 1)) for value in torque.values()))
         if not measurements_valid:
             reasons.append("six_joint_measurements_unconfirmed")
         freshness = float(self.get_parameter("state_freshness_s").value)
@@ -2130,6 +2404,15 @@ class TrajectoryBridge(Node):
             "stop_latched": bool(barrier), "home_completed_this_session": home,
             "active_operation": active if isinstance(active, str) else "trajectory" if active else None,
             "teleop_state": teleop_state, "owner_started_monotonic": generation if generation_valid else None,
+            "native_damping": state.get("native_damping") if trusted else None,
+            "native_damping_supported": state.get("native_damping_supported") is True and trusted,
+            "native_damping_restore_pending": state.get("native_damping_restore_pending") is True,
+            "motion_profile_rearm_required": state.get("motion_profile_rearm_required") is True,
+            "operator_maintenance_token": self._operator_maintenance_token,
+            "operator_maintenance_deadline_monotonic": self._operator_maintenance_deadline,
+            "operator_external_job": self._operator_external_job,
+            "operator_restart_result": self._operator_restart_result,
+            "operator_restart_units": sorted(self._operator_restart_units),
             "position_age_s": position_age, "torque_age_s": torque_age,
             "position_monotonic": state.get("monotonic") if position_age is not None else None,
             "torque_monotonic": state.get("torque_monotonic") if torque_age is not None else None,
@@ -3394,14 +3677,20 @@ class TrajectoryBridge(Node):
         with self._active_lock:
             if self._active_goal is None:
                 return CancelResponse.REJECT
+            if isinstance(self._active_goal, str) and self._active_goal in {
+                    "native_damping", "operator_maintenance", "operator_maintenance_unknown", "native_damping_inventory", "rearm_motion_profile"}:
+                return CancelResponse.REJECT
             if isinstance(self._active_goal, str) and self._active_goal in ("pending", "validating"):
                 self._cancel_before_start = True
                 return CancelResponse.ACCEPT
-        try:
-            self._send({"command": "cancel_hold"})
-            return CancelResponse.ACCEPT
-        except (BrokenPipeError, OSError, RuntimeError):
-            return CancelResponse.REJECT
+            if self._active_goal is not goal_handle:
+                return CancelResponse.REJECT
+            try:
+                # Admission and dispatch share the lock with operator-mode reservation.
+                self._send({"command": "cancel_hold"})
+                return CancelResponse.ACCEPT
+            except (BrokenPipeError, OSError, RuntimeError):
+                return CancelResponse.REJECT
 
     def _result(self, code, message):
         result = FollowJointTrajectory.Result()

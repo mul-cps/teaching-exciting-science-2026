@@ -1,0 +1,8 @@
+bool enable
+string token
+string operation
+string unit
+---
+bool success
+string message
+string token

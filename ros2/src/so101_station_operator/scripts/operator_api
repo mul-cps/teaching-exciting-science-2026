@@ -1,0 +1,363 @@
+#!/usr/bin/env python3
+"""ROS-only operator routing. Never opens the servo bus or resets encoder zeros."""
+import functools
+import json
+import math
+import re
+import threading
+import time
+from pathlib import Path
+
+import rclpy
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import CameraInfo
+from std_msgs.msg import String
+from std_srvs.srv import SetBool, Trigger
+from so101_station_operator.srv import OperatorMaintenance
+
+JOINTS = {"shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"}
+COMMANDS = ("reset", "start", "base_release", "base_confirm", "teleop", "moveit",
+            "damping", "zero_torque", "restart_camera", "restart_depth", "restart_tags", "restart_all", "verify_restart")
+
+
+class OperatorAPI(Node):
+    def __init__(self):
+        super().__init__("so101_operator_api")
+        for name, default in {"station_config": "", "station_root": "", "enable_service_restarts": False,
+                              "camera_unit": "", "depth_unit": "", "tags_unit": "",
+                              "rgb_topic": "/camera/color/camera_info",
+                              "tags_topic": "/so101_perception/tag_detections",
+                              "depth_topic": "/so101_perception/rocm/aligned_camera_info"}.items():
+            self.declare_parameter(name, default)
+        self.group = ReentrantCallbackGroup()
+        self.command_lock = threading.Lock()
+        self.stop_lock = threading.Lock()
+        self.status_lock = threading.Lock()
+        self.cached = {}
+        self.status_stamp = 0.
+        self.status_pending = None
+        self.status_sent = 0.
+        self.pending = None
+        self.uncertain = False
+        self.last_result = None
+        self.manual_reference = None
+        self.manual_confirmed = False
+        self.streams = {"rgb": None, "depth": None, "tags": None}
+        self.stream_stamps = {"rgb": -1, "depth": -1}
+        self.units = {}
+        for key in ("camera", "depth", "tags"):
+            unit = self.get_parameter(key + "_unit").value
+            if unit and not re.fullmatch(r"so101-[A-Za-z0-9_.@-]+\.service", unit):
+                raise ValueError(key + "_unit must be an exact so101-*.service user unit")
+            if unit and re.search(r"arm|bridge|move.group|rviz|teleop|ev3", unit, re.IGNORECASE):
+                raise ValueError("restart slots cannot select arm, bridge, MoveIt, RViz, teleop or EV3 units")
+            self.units[key] = unit
+        self.clients = {
+            key: self.create_client(Trigger, "/follower/" + endpoint, callback_group=self.group)
+            for key, endpoint in {"status": "status", "stop": "stop", "home": "home", "reconnect": "reconnect", "damping": "damping_enable", "rearm": "rearm_motion_profile"}.items()}
+        self.clients["teleop"] = self.create_client(SetBool, "/follower/teleop_enable", callback_group=self.group)
+        self.clients["maintenance"] = self.create_client(OperatorMaintenance, "/follower/operator_maintenance_enable", callback_group=self.group)
+        self.publisher = self.create_publisher(String, "/station/operator/status", 1)
+        self.services = [self.create_service(Trigger, "/station/operator/" + command,
+                         functools.partial(self.command, command), callback_group=self.group)
+                         for command in COMMANDS]
+        self.subscriptions = [self.create_subscription(CameraInfo, self.get_parameter(key + "_topic").value,
+                              functools.partial(self.stream, key), qos_profile_sensor_data)
+                              for key in ("rgb", "depth")]
+        self.subscriptions.append(self.create_subscription(String, self.get_parameter("tags_topic").value,
+                                  functools.partial(self.stream, "tags"), 1))
+        self.create_timer(.5, self.tick, callback_group=self.group)
+
+    def stream(self, key, _message):
+        if key in self.stream_stamps:
+            stamp = _message.header.stamp.sec*1_000_000_000 + _message.header.stamp.nanosec
+            if stamp <= self.stream_stamps[key]:
+                return
+            self.stream_stamps[key] = stamp
+        self.streams[key] = time.monotonic()
+
+    def rpc(self, key, request=None, timeout=8.):
+        client = self.clients[key]
+        if not client.service_is_ready():
+            raise RuntimeError(key + " service unavailable")
+        future = client.call_async(request or Trigger.Request())
+        done = threading.Event()
+        future.add_done_callback(lambda _: done.set())
+        if not done.wait(timeout):
+            self.uncertain = True
+            raise RuntimeError(key + " acknowledgement timed out; outcome unknown; no automatic retry")
+        result = future.result()
+        if result is None or not result.success:
+            raise RuntimeError(key + ": " + (result.message if result else "no response"))
+        return result.message
+
+    def snapshot(self):
+        data = json.loads(self.rpc("status", timeout=2.))
+        if not isinstance(data, dict) or data.get("kind") != "follower_status":
+            raise RuntimeError("malformed follower status")
+        return data
+
+    @staticmethod
+    def idle(data, *, allow_teleop=False, allow_fault=False):
+        if data.get("fresh") is not True:
+            raise RuntimeError("fresh, identity-confirmed six-joint owner status required")
+        active = data.get("active_operation")
+        if active and not (allow_teleop and data.get("teleop_state") == "active" and str(active).startswith("teleop")):
+            raise RuntimeError("owner operation is active: " + str(active))
+        if not allow_fault and (data.get("stop_latched") or data.get("owner_faulted") or data.get("observe_only") is not False):
+            raise RuntimeError("owner is stopped, faulted or observe-only; resident admission must be restored explicitly")
+
+    @staticmethod
+    def all_off(data):
+        torque = data.get("torque")
+        return isinstance(torque, dict) and set(torque) == JOINTS and all(type(v) is int and v == 0 for v in torque.values())
+
+    def confirm_base(self, data):
+        self.idle(data, allow_fault=True)
+        identity = (data.get("arm_id"), data.get("calibration_sha256"), data.get("owner_started_monotonic"))
+        if self.manual_reference != identity or not self.all_off(data):
+            raise RuntimeError("release arm through manual base mode first; same owner and verified all-off required")
+        config_path = Path(self.get_parameter("station_config").value)
+        if not config_path.is_absolute():
+            raise RuntimeError("manual confirmation requires configured absolute station_config")
+        config = json.loads(config_path.read_text())
+        home_path = Path(config["arm"]["home_file"])
+        if not home_path.is_absolute():
+            root = Path(self.get_parameter("station_root").value)
+            if not root.is_absolute():
+                raise RuntimeError("relative home file requires absolute station_root")
+            home_path = root / home_path
+        home = json.loads(home_path.read_text())
+        tolerance = config["arm"]["tolerance"]
+        if (home.get("schema") != 1 or home.get("kind") != "measured-home" or
+                home.get("units") != "body degrees; gripper percent" or
+                home.get("arm_id") != identity[0] or home.get("calibration_sha256") != identity[1] or
+                type(tolerance) not in (int, float) or not math.isfinite(tolerance) or tolerance <= 0):
+            raise RuntimeError("measured home identity, units or tolerance invalid")
+        pose, target = data.get("pose"), home.get("position")
+        if not isinstance(pose, dict) or not isinstance(target, dict) or set(pose) != JOINTS or set(target) != JOINTS:
+            raise RuntimeError("complete measured six-joint home required")
+        errors = {}
+        for joint in JOINTS:
+            if any(type(v) not in (int, float) or not math.isfinite(v) for v in (pose[joint], target[joint])):
+                raise RuntimeError("nonfinite home position")
+            errors[joint] = abs(pose[joint] - target[joint])
+        if max(errors.values()) > tolerance:
+            raise RuntimeError("manual alignment differs from saved measured home: " + json.dumps(errors, sort_keys=True))
+        self.manual_confirmed = True
+        return "manual measured-start alignment confirmed; torque remains off; encoder zeros and saved home unchanged"
+
+    def rearm_if_required(self, data):
+        if data.get("motion_profile_rearm_required") is True:
+            self.idle(data)
+            if not self.all_off(data):
+                raise RuntimeError("profile rearm requires verified all-six torque OFF")
+            self.rpc("rearm", timeout=8.)
+            return self.snapshot()
+        return data
+
+    def restart(self, key):
+        if self.get_parameter("enable_service_restarts").value is not True:
+            raise RuntimeError("service restarts disabled; configure exact station user units first")
+        keys = ("camera", "depth", "tags") if key == "all" else (key,)
+        units = [self.units[k] for k in keys]
+        if not all(units):
+            raise RuntimeError("every requested restart requires a configured exact unit")
+        results = []
+        state = self.snapshot()
+        self.idle(state)
+        if not self.all_off(state):
+            raise RuntimeError("service restart requires ZERO TORQUE / STOP first")
+        reservation = json.loads(self.rpc("maintenance", OperatorMaintenance.Request(enable=True, token="")))
+        token = reservation["token"]
+        if not isinstance(token, str) or len(token) != 32:
+            raise RuntimeError("maintenance response lacks exact ownership token")
+        deadline = time.monotonic()+50.
+        try:
+            for name, unit in zip(keys, units):
+                # Exact token proves STOP or another client has not replaced this reservation.
+                state = self.snapshot()
+                if (state.get("fresh") is not True or not self.all_off(state) or
+                        state.get("active_operation") != "operator_maintenance" or
+                        state.get("operator_maintenance_token") != token):
+                    raise RuntimeError("operator maintenance reservation revoked; restart sequence aborted")
+                if deadline-time.monotonic() <= 5.:
+                    raise RuntimeError("restart sequence exceeded bounded maintenance budget")
+                accepted = json.loads(self.rpc("maintenance", OperatorMaintenance.Request(
+                    enable=True, token=token, operation="restart", unit=unit)))
+                job_id = accepted["job_id"]
+                while True:
+                    state = self.snapshot()
+                    result = state.get("operator_restart_result")
+                    if isinstance(result, dict) and result.get("job_id") == job_id:
+                        if result.get("kind") == "restart_outcome_unknown":
+                            self.uncertain = True
+                            raise RuntimeError("external restart outcome unknown; use Verify restart; torque remains OFF")
+                        if result.get("kind") == "restart_unit_terminal" and result.get("success") is False:
+                            self.uncertain = True
+                            raise RuntimeError(name + " restart reached a known failed state; Verify restart explicitly before releasing the barrier")
+                        if state.get("operator_external_job") is None:
+                            if result.get("success") is not True:
+                                raise RuntimeError(name + " restart reached a known failed terminal unit state")
+                            break
+                    if time.monotonic() >= deadline:
+                        self.uncertain = True
+                        raise RuntimeError("external restart deadline elapsed; no reservation release until verified")
+                    time.sleep(.1)
+                results.append(name + ": unit active")
+        finally:
+            state = self.snapshot()
+            if state.get("operator_maintenance_token") == token and state.get("operator_external_job") is None:
+                self.rpc("maintenance", OperatorMaintenance.Request(enable=False, token=token))
+        return "; ".join(results) + "; image freshness is reported separately; registration not qualified"
+
+    def command(self, command, _request, response):
+        # STOP has its own lock so a slow home/restart request cannot suppress disarm.
+        lock = self.stop_lock if command == "zero_torque" else self.command_lock
+        if not lock.acquire(blocking=False):
+            response.success, response.message = False, "another operator request is pending"
+            return response
+        self.pending = command
+        try:
+            if self.uncertain and command not in {"zero_torque", "verify_restart"}:
+                raise RuntimeError("previous acknowledgement unknown; inspect owner and restart adapter explicitly")
+            if command in ("zero_torque", "base_release"):
+                self.rpc("stop")
+                data = self.snapshot()
+                if command == "zero_torque" and data.get("active_operation") == "operator_maintenance_unknown":
+                    if data.get("fresh") is not True:
+                        raise RuntimeError("zero torque requires fresh measured owner acknowledgement")
+                else:
+                    self.idle(data, allow_fault=True)
+                if not self.all_off(data):
+                    raise RuntimeError("fresh six-joint torque-off not confirmed")
+                self.manual_reference = ((data.get("arm_id"), data.get("calibration_sha256"), data.get("owner_started_monotonic"))
+                                         if command == "base_release" else None)
+                self.manual_confirmed = False
+                message = "all six joints measured torque OFF; support arm" + ("; manually align to saved start, then confirm" if command == "base_release" else "")
+                if data.get("operator_external_job") is not None:
+                    message += "; unresolved external restart barrier remains; use Verify restart"
+            elif command == "reset":
+                data = self.snapshot()
+                if data.get("connected") is False:
+                    self.rpc("reconnect", timeout=20.)
+                self.rpc("stop")
+                data = self.rearm_if_required(self.snapshot())
+                self.idle(data)
+                if not self.all_off(data):
+                    raise RuntimeError("reset did not confirm all six joints OFF")
+                message = "resident reset complete; named profile ready, all six joints remain torque OFF"
+            elif command == "verify_restart":
+                data = self.snapshot()
+                if data.get("fresh") is not True or not self.all_off(data):
+                    raise RuntimeError("restart verification requires fresh all-six torque OFF")
+                job = data.get("operator_external_job")
+                if job is not None:
+                    if not isinstance(job, dict) or not isinstance(job.get("token"), str):
+                        raise RuntimeError("pending restart journal is invalid; frozen-cohort recovery required")
+                    message = self.rpc("maintenance", OperatorMaintenance.Request(
+                        token=job["token"], operation="verify"))
+                else:
+                    message = json.dumps(data.get("operator_restart_result"))
+                self.rpc("stop")
+                self.uncertain = False
+                message += "; external manager outcome verified; all six joints remain OFF"
+            else:
+                data = self.snapshot()
+                if command == "base_confirm":
+                    message = self.confirm_base(data)
+                elif command.startswith("restart_"):
+                    self.idle(data, allow_fault=True)
+                    message = self.restart(command.removeprefix("restart_"))
+                elif command == "damping":
+                    if data.get("native_damping") is None:
+                        self.idle(data)
+                        if not self.all_off(data):
+                            raise RuntimeError("support arm and request ZERO TORQUE before native damping")
+                    elif data.get("fresh") is not True or data.get("active_operation") != "native_damping":
+                        raise RuntimeError("native damping renewal requires fresh active manual mode")
+                    message = self.rpc("damping")
+                elif command == "moveit":
+                    if data.get("native_damping") is not None:
+                        self.rpc("stop")
+                        data = self.snapshot()
+                    self.idle(data, allow_teleop=True)
+                    message = self.rpc("teleop", SetBool.Request(data=False))
+                    self.idle(self.rearm_if_required(self.snapshot()))
+                    message += "; resident owner idle, MoveIt requests permitted by existing admission"
+                else:
+                    if data.get("native_damping") is not None:
+                        self.rpc("stop")
+                        data = self.snapshot()
+                    self.idle(data)
+                    data = self.rearm_if_required(data)
+                    message = self.rpc("home", timeout=100.) if command == "start" else self.rpc("teleop", SetBool.Request(data=True))
+            response.success, response.message = True, message
+        except (RuntimeError, ValueError, KeyError, TypeError, OSError) as error:
+            response.success, response.message = False, str(error)
+        finally:
+            self.last_result = {"command": command, "success": response.success, "message": response.message}
+            self.pending = None
+            lock.release()
+        return response
+
+    def tick(self):
+        now = time.monotonic()
+        if self.status_pending is not None and self.status_pending.done():
+            try:
+                result = self.status_pending.result()
+                data = json.loads(result.message) if result and result.success else {}
+                if data.get("kind") == "follower_status":
+                    self.cached, self.status_stamp = data, now
+            except (ValueError, TypeError, AttributeError):
+                pass
+            self.status_pending = None
+        if self.status_pending is None and self.clients["status"].service_is_ready():
+            self.status_pending = self.clients["status"].call_async(Trigger.Request())
+            self.status_sent = now
+        elif self.status_pending is not None and now - self.status_sent > 2.:
+            self.clients["status"].remove_pending_request(self.status_pending)
+            self.status_pending = None
+        data = self.cached
+        fresh = bool(now - self.status_stamp < 1.5 and data.get("fresh") is True)
+        mode = "unknown"
+        if fresh:
+            mode = ("zero torque" if self.all_off(data) else
+                    "manual native damping" if data.get("native_damping") is not None else
+                    "leader teleop" if data.get("teleop_state") == "active" else
+                    "owner active" if data.get("active_operation") else "position hold / MoveIt idle")
+        streams = {key: {"age_s": None if stamp is None else now - stamp,
+                         "fresh": stamp is not None and now - stamp < 1.} for key, stamp in self.streams.items()}
+        damping = data.get("native_damping")
+        lease = max(0., damping["deadline_monotonic"]-now) if isinstance(damping, dict) else None
+        external = data.get("operator_external_job")
+        restart_summary = ("\nRestart unresolved: " + str(external.get("unit", "invalid pending evidence")) + "; use Verify restart"
+                           if isinstance(external, dict) else "")
+        payload = {"schema": 1, "fresh": fresh, "mode": mode, "pending": self.pending,
+                   "outcome_unknown": self.uncertain, "manual_start_confirmed": self.manual_confirmed,
+                   "follower": data, "streams": streams, "last_result": self.last_result,
+                   "restart_units": self.units, "damping_supported": data.get("native_damping_supported") is True,
+                   "damping_lease_remaining_s": lease,
+                   "summary": f"Mode: {mode}" + (f" | Damping expires OFF in {lease:.1f} s" if lease is not None else "") +
+                       f"\nTorque: {data.get('torque')}\nStop latch: {data.get('stop_latched')} | Fault: {data.get('owner_faulted')}\nRGB info: {'fresh' if streams['rgb']['fresh'] else 'stale'} | Depth info: {'fresh' if streams['depth']['fresh'] else 'stale'} | Tags: {'fresh' if streams['tags']['fresh'] else 'stale'}" + restart_summary}
+        self.publisher.publish(String(data=json.dumps(payload, allow_nan=False)))
+
+
+def main():
+    rclpy.init()
+    node = OperatorAPI()
+    executor = MultiThreadedExecutor(num_threads=6)
+    executor.add_node(node)
+    try:
+        executor.spin()
+    finally:
+        executor.shutdown()
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

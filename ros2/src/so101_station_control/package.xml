@@ -32,6 +32,7 @@
   <exec_depend>so101_moveit_config</exec_depend>
   <exec_depend>so101_station_perception</exec_depend>
   <exec_depend>so101_station_gpu</exec_depend>
+  <exec_depend>so101_station_operator</exec_depend>
   <test_depend>ament_pytest</test_depend>
   <export><build_type>ament_python</build_type></export>
 </package>
