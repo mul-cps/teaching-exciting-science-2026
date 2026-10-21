@@ -18,6 +18,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from moveit_configs_utils import MoveItConfigsBuilder
 
 
@@ -147,6 +148,8 @@ def _launch_nodes(context):
         "operator_maintenance_journal": LaunchConfiguration("operator_maintenance_journal"),
         "enable_hardware": LaunchConfiguration("enable_hardware"),
         "external_state_only": LaunchConfiguration("external_state_only"),
+        "startup_observe_only": ParameterValue(
+            LaunchConfiguration("startup_observe_only"), value_type=bool),
         "station_python": LaunchConfiguration("station_python"),
         "station_root": LaunchConfiguration("station_root"),
         "station_config": LaunchConfiguration("station_config"),
@@ -207,6 +210,8 @@ def generate_launch_description():
         DeclareLaunchArgument("leader_calibration_dir", default_value="/home/bjoern/git/soarm101-highschool-demos/.calibration"),
         DeclareLaunchArgument("enable_hardware", default_value="false",
                               description="Explicitly enable the station Python bus owner"),
+        DeclareLaunchArgument("startup_observe_only", default_value="true",
+                              description="Start with read-only measured encoders; explicit Reset and Start restore motion admission"),
         DeclareLaunchArgument("external_state_only", default_value="false",
                               description="Read-only mirror of an existing owner state JSON; no station child and no accepted trajectory goals"),
         DeclareLaunchArgument("rviz", default_value="false",

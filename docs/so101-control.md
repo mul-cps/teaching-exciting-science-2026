@@ -55,8 +55,22 @@ ROS_DOMAIN_ID=42 ros2 launch so101_station_control moveit_resident.launch.py \
 The launch includes `robot_state_publisher`, `move_group`, RViz, and the
 ArmSession action bridge. It starts no `ros2_control` or mock hardware
 controller. Hardware remains disabled unless `enable_hardware:=true` is
-passed. The bridge requires verified torque-off startup; a startup failure
-does not qualify the station for execution.
+passed. The resident launch defaults to `startup_observe_only:=true`: the owner
+reads measured encoders and torque without writing goals, torque, profiles, or
+calibration registers. Fresh joint states and bridge APIs remain available when
+the measured pose is outside the motion bounds. Genuine bus or serial startup
+errors still fail visibly; observation does not authorize execution.
+
+Support the arm and manually align it if the measured pose is outside the bounds.
+Then use the operator panel's **Reset**: it explicitly stops the owner, confirms
+fresh all-six torque OFF, and rearms the configured profile only with a fresh
+normal pose. Use **Start** next to perform the measured home sequence. After home
+completion, use ordinary MoveIt planning and execution. **Verify restart / recover**
+also performs an explicit verified STOP; a subsequent **Start** applies any
+required profile rearm before homing. Start alone rejects observation mode.
+Neither launching nor recovering observation automatically enables torque or
+motion. Direct bridge users retain the internal `startup_observe_only=false`
+default; the observation-first default belongs to this resident launch.
 
 The live state JSON and ArmSession log default to `XDG_RUNTIME_DIR` or
 `/dev/shm`; persistent paths are rejected for these high-rate runtime files.
