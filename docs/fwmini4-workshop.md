@@ -7,19 +7,20 @@ The deployed checkout is `/home/bjoern/git/teaching-exciting-science-2026-curren
 ## Latest verified preparation — 22 October 2026
 
 The native component recipe remains installed **disabled** on fwmini4. The latest
-verified build source was `a88acb870acb5115acc2d78c5c274b504f3206af`: all 21 ROS
-packages built successfully in 16.3 seconds (19.05 seconds wall time), without new
+verified build source was `940f17d596037d98a686a3cd67f859ab9bab7ca9`: all 21 ROS
+packages built successfully in 16.3 seconds (19.13 seconds wall time), without new
 dependencies. All twelve manifest source pins and the manifest hash were unchanged.
 All eight `so101-fwmini4-{owner,camera,tags,movegroup,objects,scene,leader,apis}`
 units and their states were unchanged: loaded, inactive and static, with MainPID 0
 and no pending jobs. The manifest selects native ROS, domain177, Vulkan masks,
 and candidate 640×480×30 RGB/depth profiles.
 
-During the earlier 21 October preparation, the classroom Blockly launcher was
-reopened after its source update. Its served editor and learner ZIP hashes
-matched the published files, and a repeated conditional program completed two
-simulated sorting cycles. It remains in **simulation mode**. The separate physical
-controller remains on the local PC.
+The current Blockly/student bundle checks passed all 73 tests in 1.92 seconds.
+All six offline exercise entrypoints also exited successfully with `python3 -S`.
+The classroom Blockly launcher remains in **simulation mode**. These checks do
+not qualify the physical station; the separate physical controller remains on
+the local PC. Earlier browser screenshots and simulated sorting cycles remain
+historical preparation evidence.
 
 This build prepares the software for later native recovery commissioning.
 No remote component unit was started, restarted or enabled, no fresh hardware
@@ -27,9 +28,10 @@ contract was created, and no ROS graph, remote device, actuator or GUI was
 accessed during the build. Connected-device startup, restart/reset, physical STOP,
 camera throughput and pick/place are still open. The last observed graphical
 session belonged to cpsadmin; bjoern's display has not been rehearsed.
-Latest build evidence (`before.json`, `build.log`, `build-result.json` and
-`after.json`) is in
-`~/.local/share/exciting-science/workshop-20261022/evidence/final-ros-build-a88-20261022-engineer/`.
+Latest build and offline check evidence (`before.json`, `build.log`,
+`build-result.json`, `after.json`, `student-blockly.log`, `student-results.json`
+and `final-state.json`) is in
+`~/.local/share/exciting-science/workshop-20261022/evidence/final-ros-build-940f17d-20261022-engineer/`.
 Earlier preparation evidence is in `native-disabled-install/` and
 `blockly-cycle-refresh.json` under the same evidence directory.
 
