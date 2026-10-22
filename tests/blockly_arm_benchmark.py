@@ -79,6 +79,72 @@ def cached_recording_operation(modules):
     return process
 
 
+def owner_refresh_operation(modules, *, pending):
+    """100 local callbacks with fake transport; ready path includes reply parsing.
+
+    The pending fixture has one unresolved request younger than 500 ms.
+    The ready fixture completes immediately to bound the local 20 Hz dispatch
+    and parse path. Neither fixture measures native status generation or DDS.
+    """
+    ros = modules['blockly_ros']
+    ros.time = types.SimpleNamespace(monotonic=lambda: 1000000.)
+    payload = json.dumps({
+        'schema': 1, 'kind': 'follower_status', 'sampled_monotonic': 1000000.,
+        'fresh': True, 'position_age_s': .2, 'torque_age_s': .2,
+        'owner_source_sha256': {'owner': 'b' * 64}, 'owner_started_monotonic': 123.,
+        'arm_id': 'benchmark', 'calibration_sha256': 'a' * 64})
+    response = types.SimpleNamespace(success=True, message=payload)
+
+    class Future:
+        def done(self):
+            return not pending
+
+        def result(self):
+            return response
+
+        def add_done_callback(self, callback):
+            callback(self)
+
+    future = Future()
+
+    class Client:
+        def service_is_ready(self):
+            if pending:
+                raise AssertionError('pending request must suppress dispatch')
+            return True
+
+        def call_async(self, request):
+            if pending:
+                raise AssertionError('second request while one is pending')
+            return future
+
+        def remove_pending_request(self, request):
+            raise AssertionError('fresh pending request must not be removed')
+
+    backend = ros.ROSBackend.__new__(ros.ROSBackend)
+    backend.lock = threading.Lock()
+    backend.Trigger = types.SimpleNamespace(Request=object)
+    backend.identity_client = Client()
+    backend.identity_pending = future if pending else None
+    backend.identity_pending_at = 1000000.
+    backend.owner_cache = None
+
+    def process():
+        for _ in range(100):
+            backend._refresh_owner()
+        if not pending:
+            assert backend.owner_cache is not None
+    return process
+
+
+def owner_timer_period(source):
+    timers = [node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Call)
+              and isinstance(node.func, ast.Attribute) and node.func.attr == 'create_timer'
+              and len(node.args) > 1 and ast.unparse(node.args[1]) == 'self._refresh_owner']
+    assert len(timers) == 1
+    return ast.literal_eval(timers[0].args[0])
+
+
 def benchmark(iterations=100, batches=7):
     source_sets = {'baseline': sources(BASELINE), 'current': sources()}
     modules = {label: load_modules(source, '_arm_bench_' + label)
@@ -100,6 +166,8 @@ def benchmark(iterations=100, batches=7):
 
         operations[label + '_preflight_100'] = preflight
         operations[label + '_cached_samples_100'] = cached_recording_operation(loaded)
+        operations[label + '_owner_pending_callbacks_100'] = owner_refresh_operation(loaded, pending=True)
+        operations[label + '_owner_ready_callbacks_100'] = owner_refresh_operation(loaded, pending=False)
     # New ARM operation has no baseline equivalent; report it without inventing a delta.
     arm_program = [{'op': 'arm', 'command': 'teleop_relative'} for _ in range(100)]
     current = modules['current']
@@ -133,8 +201,16 @@ def benchmark(iterations=100, batches=7):
                                     for path, source in files.items()}
                               for label, files in source_sets.items()},
             'results': timings,
-            'scope': '100-command local validation/admission; 100 cached ROSBackend.sample + identity comparison + Recorder.add operations',
-            'limitations': 'CPU-only synthetic fixtures; excludes Application construction/run, ROS initialization, RPCs, recording waits, finish/save, callbacks and hardware; no physical latency or timing pass threshold'}
+            'owner_timer_projection': {
+                label: {'period_s': owner_timer_period(files['workshop/blockly_ros.py']),
+                        'scheduled_hz': 1 / owner_timer_period(files['workshop/blockly_ros.py']),
+                        'pending_cpu_us_per_second': timings[label + '_owner_pending_callbacks_100']['median_us_per_item']
+                            / owner_timer_period(files['workshop/blockly_ros.py']),
+                        'ready_cpu_us_per_second': timings[label + '_owner_ready_callbacks_100']['median_us_per_item']
+                            / owner_timer_period(files['workshop/blockly_ros.py'])}
+                for label, files in source_sets.items()},
+            'scope': '100-command local validation/admission; 100 cached sample/add operations; 100 fake-transport owner timer callbacks',
+            'limitations': 'CPU-only synthetic fixtures; excludes Application construction/run, ROS initialization, DDS/RPC transport, native status generation, recording waits, finish/save, joint callbacks and hardware. Timer projection is arithmetic, not observed live utilization; no physical latency or timing pass threshold'}
 
 
 if __name__ == '__main__':

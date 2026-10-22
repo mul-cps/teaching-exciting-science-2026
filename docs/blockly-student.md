@@ -120,6 +120,9 @@ A confirmed **STOP** block ends the sequence normally. If STOP fails or cannot b
 confirmed, ask the instructor to inspect and recover the station before recording
 or running another sequence. The recovery message shows the reported reason.
 
+To use **Saved home**, leave teleoperation first: connect a **MoveIt mode**
+block before the **Saved home** block.
+
 Before every replay, the instructor checks the recorded starting pose. Add a
 **Wait** block for a deliberate process delay; a pause accidentally recorded while
 teaching is part of the stroke timing, not a separate factory instruction.

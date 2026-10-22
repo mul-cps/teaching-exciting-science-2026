@@ -89,7 +89,7 @@ class ROSBackend:
         self.identity_pending=None; self.identity_pending_at=0.; self.owner_cache=None; self.calibration_pending=None; self.calibration_pending_at=0.
         self.calibration_client=self.node.create_client(Trigger,'/follower/gripper_calibration_status',callback_group=group)
         self.node.create_timer(1.,self._refresh_calibration,callback_group=group)
-        self.node.create_timer(.2,self._refresh_owner,callback_group=group)
+        self.node.create_timer(.05,self._refresh_owner,callback_group=group)
         self.thread.start()
 
     def _spin(self):

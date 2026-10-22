@@ -65,11 +65,13 @@ def test_exception_is_one_readonly_endpoint_and_other_backend_code_unchanged():
                               if value is new_age else value for value in node.values]
     methods['_refresh_calibration'].body = [ast.Pass()]
     # Reviewed 2026-10-22: baseline b5d2a06 plus cold ARM allowlist dispatch
-    # and explicit record_stroke rejection; every other backend method is unchanged.
+    # and explicit record_stroke rejection. Later the same day, reviewed only
+    # the owner refresh timer .2 -> .05; single-inflight refresh, identity
+    # thresholds, cached sample and every other backend method stay unchanged.
     # Baseline25dfc5e with only refresh body removed. All action admission,
     # metric conversion, generic success rejection, joint callback, timers,
     # clients/publishers, cancellation, STOP and recovery code stays pinned.
-    assert digest(cls) == '44f1ce7bc44412d3c8e55233fc39f5ceca7e9bf252a693a3a297beaa5de15a94'
+    assert digest(cls) == '52cf02416c999d3c2f57a8341af5be3ff6cd152576081d03837dab01893a78d0'
 
 
 @pytest.mark.parametrize('name,expected', [

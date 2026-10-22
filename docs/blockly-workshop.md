@@ -224,6 +224,8 @@ relative/absolute RPC, then enable teleop through the existing guarded service.
 STOP, stopping EV3 as well as disarming the arm. No new controller or arbitrary
 joint-target interface is introduced. All physical arm commands require instructor
 mode and retain native admission and recovery gates.
+Saved home requires leaving active teleoperation: connect a **MoveIt mode**
+block before **Saved home**.
 
 Instructor allowlist: `emergency_reset`, `reset`, `start`, `base_release`,
 `base_confirm`, `teleop`, `teleop_relative`, `teleop_absolute`, `moveit`, `damping`,

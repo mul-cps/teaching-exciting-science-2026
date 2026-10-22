@@ -37,6 +37,7 @@ def digest(node):
     ('_joints', 'af6b3fe819c9c71a7fcc6408f3ad53bf0250faac3631c95369b261fa860df2cc'),
     ('_refresh_calibration', '5e94d384dc1c932daef76477953a54a9e99fba472cc3869c3b6125755a0eddd3'),
     ('_refresh_owner', 'fb65cbe035d513f853731986eace45093a8ca7f8b95140fac3f94ef97620ffcc'),
+    ('_identity', '043c8a03e5a43ceaf1894873dfb237e46016ab4f949c0f49f750a18b5b5c2527'),
     ('sample', 'e5e1fb45c134ec1592410593ab59c2c98b2648b8b9dc29020db4439d221ccda3'),
 ])
 def test_callbacks_and_cached_sampler_remain_baseline(method, expected):
