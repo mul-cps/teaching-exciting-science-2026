@@ -1,0 +1,32 @@
+{
+  "schema": "so101-jaw-gap-observations-v1",
+  "mapping_qualified": false,
+  "reason": "One measured aperture is recorded; at least another distinct opening and independent validation are required for the working interval.",
+  "observations": [
+    {
+      "recorded_utc": "2026-10-22T05:36:04.599766+00:00",
+      "measurement_source": "operator-reported",
+      "operator_statement": "jaw gap is 9mm",
+      "requested_measurement_section": "inner jaw faces at gripping tips",
+      "gap_mm": 9.0,
+      "gap_m": 0.009,
+      "arm_id": "hs_rig01_follower",
+      "owner_session_id": "arm-session-a6897f9277334239a45700114b6b1314",
+      "calibration_sha256": "bc688147848f386899f8f34eb09cdb285fcdb0fc8de576b78a50a8efaf7f424c",
+      "raw_gripper": 1958,
+      "gripper_percent": 5.756358768406961,
+      "raw_all": {
+        "shoulder_pan": 3028,
+        "shoulder_lift": 1096,
+        "elbow_flex": 2415,
+        "wrist_flex": 3041,
+        "wrist_roll": 2364,
+        "gripper": 1958
+      },
+      "six_torque_off": true,
+      "owner_timestamp_utc": "2026-10-22T05:36:04.568068+00:00",
+      "owner_snapshot_sha256": "0c6ba4b5c281b791ce2c0cad18ba674358ac3f610fa9df35e110fa94363f8a8b",
+      "motion_commanded_for_this_observation": false
+    }
+  ]
+}
