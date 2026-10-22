@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from workshop.blockly_program import ProgramRunner, SimulationBackend, name, validate_program
+from workshop.blockly_program import ProgramRunner, SimulationBackend, RECOVERY_STATION, name, validate_program
 from workshop.blockly_recording import Recorder, recording_timing
 
 
@@ -80,12 +80,19 @@ class Application:
         if missing: raise ValueError('recording not found: '+', '.join(sorted(missing)))
 
     def _preflight_program(self,rows):
-        names=set(); replay=False; arm=False
+        if self.recovery_required:
+            if any(row['op'] not in {'log','wait','stop'} and
+                   (row['op']!='station' or row['command'] not in RECOVERY_STATION) for row in rows):
+                raise RuntimeError('recovery requires a flat program of safe station controls, log, wait and STOP')
+            if not any(row['op']=='station' for row in rows):
+                raise RuntimeError('recovery program requires at least one safe station control')
+        names=set(); replay=False; arm=False; station=False
         def walk(commands,repeated=False):
-            nonlocal replay,arm
+            nonlocal replay,arm,station
             for row in commands:
                 op=row['op']
-                if op=='arm': arm=True
+                if op=='station': station=True
+                elif op=='arm': arm=True
                 elif op=='replay': replay=True
                 elif op=='record_stroke':
                     if repeated: raise ValueError('recording cannot run in repeat count >1')
@@ -96,6 +103,8 @@ class Application:
                 elif op=='if_color':
                     walk(row['then'],repeated); walk(row['else'],repeated)
         walk(rows)
+        if station and self.backend.physical and not self.instructor:
+            raise RuntimeError('station programs require instructor physical mode')
         if arm and self.backend.physical and not self.instructor:
             raise RuntimeError('arm programs require instructor physical mode')
         if names and replay: raise ValueError('teach and playback require separate program runs')
@@ -121,10 +130,19 @@ class Application:
         return {'name':result['name'],'samples':len(result['points'])}
 
     def _program_command(self,row,cancel,deadline):
-        if row['op']!='record_stroke': return self.backend.command(row,cancel,deadline)
         def check():
-            if cancel.is_set(): raise InterruptedError('program recording cancelled')
-            if time.monotonic()>=deadline: raise TimeoutError('program recording deadline expired')
+            if cancel.is_set(): raise InterruptedError('program cancelled')
+            if time.monotonic()>=deadline: raise TimeoutError('program deadline expired')
+        if row['op']=='station' and row['command'] in {'reinitialize','verify_recovery'}:
+            check()
+            result=self.backend.command(row,cancel,deadline)
+            if not isinstance(result,dict) or result.get('recovered') is not True:
+                raise RuntimeError('station recovery was not verified')
+            with self.lock:
+                check()
+                self.recovery_required=False; self.record_error=None
+            return result
+        if row['op']!='record_stroke': return self.backend.command(row,cancel,deadline)
         check()
         sample=self.backend.sample(); identity=sample['identity']
         recorder=Recorder(row['name'],identity)
@@ -156,7 +174,7 @@ class Application:
     def run(self,program):
         validate_program(program)
         with self.lock:
-            self.idle()
+            self.idle(recovery=True)
             self._preflight_program(program)
             self._check_recordings(program)
             self.cancel=threading.Event(); job=secrets.token_hex(8)

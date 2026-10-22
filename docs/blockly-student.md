@@ -17,7 +17,7 @@ are needed. Keep the terminal open; Ctrl+C closes the simulator.
 
 ![The example completed twice in simulation](assets/blockly/simulation-complete.png)
 
-The **Starter** menu gives you four saved programs. Choose one and press
+The **Starter** menu gives you five saved programs. Choose one and press
 **Load starter**; **Download starter** keeps a copy you can reopen with **Open
 blocks**. Loading replaces the blocks on screen, so save your work first.
 
@@ -28,8 +28,13 @@ blocks**. Loading replaces the blocks on screen, so save your work first.
 | [3 · Color factory](../web/blockly-station/examples/03_color_factory.json) | Compare red, blue and unknown. Dispensing requires a commissioned feeder in live mode. |
 | [4 · SO-ARM101 teach a stroke](../web/blockly-station/examples/04_arm_teach.json) | Try in simulation first. At the supervised physical station, capture a short manual leader demonstration with the jaw fixed. |
 
+| [5 · Reset and reinitialize](../web/blockly-station/examples/05_reset_station.json) | Instructor: restart the station and verify recovery, then use a separate program for mode changes or movement. |
+
 ## Find your blocks
 
+- **Station controls:** restart the entire station and verify recovery, reset with
+  torque off, verify recovery, change modes and restart individual services.
+  The instructor supervises physical control. Reset does not move the arm home.
 - **SO-ARM101:** saved home, MoveIt mode, leader teleop relative, leader teleop
   absolute and torque OFF, plus the existing metric jaw-gap block. Saved home
   moves the arm; ask the instructor before physical mode changes.
@@ -62,6 +67,26 @@ Loading a starter only changes the workspace. Press **Run sequence** when ready.
 | --- | --- | --- |
 | Changed repeat count | | |
 | Unknown sensor reading | | |
+
+## If the station needs recovery
+
+Ask the instructor to inspect the station and support the arm before restarting.
+Save your current blocks. Choose **5 · Reset and reinitialize**, click **Load
+starter**, then **Run sequence**. This calls the existing station restart and
+checks recovery; it does not automatically enable teleoperation or move home.
+Read the result. If verification fails, its actual reason remains visible; do not
+repeat motion commands to clear it.
+
+After recovery succeeds, load or build a **separate** program using **SO-ARM101 →
+MoveIt mode** before **Saved home**, or **leader teleop relative/absolute** before
+teaching. The arm's teleop blocks both select the mapping and enable following.
+The Station controls mapping selectors only choose relative/absolute mapping;
+**Enable leader teleop** is a separate command there.
+
+While recovery is pending, use only a flat sequence of recovery controls, messages,
+waits and STOP. Put motion and mode changes in the next run, after verification.
+**Run sequence** stays available for these recovery programs; **STOP station**
+remains available independently.
 
 ## Supervised physical automation challenge
 

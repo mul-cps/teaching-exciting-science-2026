@@ -1,0 +1,33 @@
+{
+  "schema": "so101-blockly-workspace-v1",
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "station_control",
+          "x": 35,
+          "y": 35,
+          "fields": {
+            "COMMAND": "reinitialize"
+          },
+          "next": {
+            "block": {
+              "type": "node_logging_info",
+              "inputs": {
+                "MESSAGE": {
+                  "shadow": {
+                    "type": "node_logging_text",
+                    "fields": {
+                      "TEXT": "Restart and recovery verified. Run MoveIt mode or leader teleop in a separate sequence."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

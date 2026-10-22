@@ -1,6 +1,16 @@
 /* Offline Blockly station extension. Only strict JSON opcodes are executable. */
 registerRosBlocky(Blockly,python.pythonGenerator);
+const stationCommandOptions=[
+ ['Restart entire station + verify','reinitialize'],['Verify recovery / unlock','verify_recovery'],
+ ['Restart entire station','emergency_reset'],['Reset (torque OFF)','reset'],
+ ['Saved home position','start'],['Release for manual setup','base_release'],['Record manual reference','base_confirm'],
+ ['Enable leader teleop','teleop'],['Select relative teleop mapping','teleop_relative'],['Select absolute teleop mapping','teleop_absolute'],
+ ['MoveIt mode','moveit'],['Gentle damping','damping'],['ZERO TORQUE / STOP','zero_torque'],
+ ['Restart MoveIt','restart_moveit'],['Restart camera','restart_camera'],['Restart depth','restart_depth'],
+ ['Restart tags','restart_tags'],['Restart perception','restart_all'],['Verify restart / recover','verify_restart']
+];
 const definitions=[
+ {type:'station_control',message0:'Station %1',args0:[{type:'field_dropdown',name:'COMMAND',options:stationCommandOptions}],previousStatement:null,nextStatement:null,colour:0,tooltip:'Instructor station controls. Restart entire station + verify resets services then checks recovery. Run recovery controls in their own flat sequence; switch arm mode or move in a separate run after verification succeeds. Reset leaves torque off; it does not move to home.'},
  {type:'station_sort_cycle',message0:'Run one commissioned sorting cycle',previousStatement:null,nextStatement:null,colour:180,tooltip:'Requires the commissioned station sorting configuration, calibrated robot, live scene and destinations. Uses the native verified pickup/lift/release transaction; not a taught-stroke shortcut.'},
  {type:'station_ev3',message0:'EV3 %1',args0:[{type:'field_dropdown',name:'COMMAND',options:[['dispense one brick','eject'],['conveyor home','home'],['conveyor left','left_end'],['conveyor right','right_end'],['wake','wake'],['sleep','sleep'],['connect','connect']]}],previousStatement:null,nextStatement:null,colour:180},
  {type:'station_wait',message0:'wait %1 seconds',args0:[{type:'field_number',name:'SECONDS',value:1,min:0,max:10,precision:.1}],previousStatement:null,nextStatement:null,colour:210},
@@ -16,6 +26,7 @@ Blockly.defineBlocksWithJsonArray(definitions);
 python.pythonGenerator.forBlock.station_sort_cycle=()=> '# Commissioned station only; native RunCycles.cycles is fixed to 1.\nresult = station.command({"op": "sort_cycle"}, cancel, deadline)\n';
 const blocks=types=>types.map(type=>({kind:'block',type}));
 const toolbox={kind:'categoryToolbox',contents:[
+ {kind:'category',name:'Station controls',colour:'0',contents:blocks(['station_control'])},
  {kind:'category',name:'SO-ARM101',colour:'30',contents:blocks(['station_arm','station_jaw'])},
  {kind:'category',name:'Recordings',colour:'45',contents:blocks(['station_record_stroke','station_replay'])},
  {kind:'category',name:'EV3 conveyor',colour:'180',contents:blocks(['station_ev3'])},
@@ -29,6 +40,7 @@ function compileChain(block,depth=0){
   const f=n=>block.getFieldValue(n); let row;
   switch(block.type){
    case'station_sort_cycle':row={op:'sort_cycle'};break;
+   case'station_control':row={op:'station',command:f('COMMAND')};break;
    case'station_arm':row={op:'arm',command:f('COMMAND')};break;
    case'station_record_stroke':row={op:'record_stroke',name:f('NAME'),seconds:Number(f('SECONDS'))};break;
    case'station_ev3':row={op:'ev3',command:f('COMMAND')};break;
@@ -69,7 +81,7 @@ async function api(path,body){const base=path==='program/stop'?'http://127.0.0.1
 function show(data){$('result').textContent=typeof data==='string'?data:JSON.stringify(data,null,2);}
 function clicked(id,fn){$(id).onclick=async()=>{try{await fn();}catch(error){show(error.message);}};}
 let knownMode=null;let startupModeResolved=false;let startupWorkspaceSnapshot=null;
-const starterFiles={ev3:'01_ev3.json',teach:'02_teach_replay.json',factory:'03_color_factory.json',armteach:'04_arm_teach.json'};
+const starterFiles={ev3:'01_ev3.json',teach:'02_teach_replay.json',factory:'03_color_factory.json',armteach:'04_arm_teach.json',reset:'05_reset_station.json'};
 function loadWorkspace(state){
  Blockly.Events.disable();
  try{workspace.clear();Blockly.serialization.workspaces.load(state,workspace);}
@@ -136,5 +148,5 @@ function updateInstructor(status){
  }
 }
 $('sim-color').onchange=async()=>{try{await api('simulation/color',{color:$('sim-color').value});}catch(error){show(error.message);}};
-let jawEnabled=true;let lastJob='';async function refresh(){try{const status=await api('status');if(typeof status.physical!=='boolean')throw Error('Station mode is unavailable');if(typeof status.physical==='boolean'){knownMode=status.physical;if(!startupModeResolved){startupModeResolved=true;if(knownMode===false&&JSON.stringify(Blockly.serialization.workspaces.save(workspace))===startupWorkspaceSnapshot)example();}}recordingInfo=status.recording_info||{};updateReplayDurations();const nextJaw=!status.physical||Boolean(status.capabilities?.jaw);if(nextJaw!==jawEnabled){jawEnabled=nextJaw;toolbox.contents.flatMap(category=>category.contents||[]).find(b=>b.type==='station_jaw').disabled=!nextJaw;workspace.updateToolbox(toolbox);}$('mode').textContent=status.physical?'PHYSICAL · instructor supervised':'SIMULATION · no robot motion';$('mode').style.background=status.physical?'#a54529':'#24566b';$('recordings').textContent='Available strokes: '+status.recordings.join(', ')+(status.recording?' · recording '+status.recording:'');updateInstructor(status);$('record-start').disabled=status.recovery_required===true||status.job?.state==='running'||Boolean(status.recording);$('record-start').title=status.recovery_required===true?'Inspect and recover the station, then Verify recovery / unlock Blockly before recording':'';$('record-stop').disabled=status.job?.state==='running'||!status.recording;const encoded=JSON.stringify(status.job);if(encoded!==lastJob){show(status.job);lastJob=encoded;}if(status.record_error)show(status.record_error);if(status.recovery_required){const reason=status.job?.error||status.record_error;show('Recovery required'+(reason?': '+reason:'.')+'\nInspect station, use instructor recovery controls, then Verify recovery / unlock Blockly.');}$('sim-color-label').hidden=status.physical;$('readiness').textContent=status.physical?JSON.stringify(status.streams,null,2):'Simulation: no physical camera, perception or arm connection';const events=status.events||[];$('trace').textContent=events.length?events.join(' → '):'Run a sequence to see its actions.';if(events.length)$('brick').style.transform='translateX('+((events.length%3)-1)*35+'px)';window.stationStatus=status;}catch(error){knownMode=null;updateInstructor({});$('record-start').disabled=true;$('record-stop').disabled=true;$('mode').textContent='DISCONNECTED';show(error.message);}setTimeout(refresh,700);}
+let jawEnabled=true;let lastJob='';async function refresh(){try{const status=await api('status');if(typeof status.physical!=='boolean')throw Error('Station mode is unavailable');if(typeof status.physical==='boolean'){knownMode=status.physical;if(!startupModeResolved){startupModeResolved=true;if(knownMode===false&&JSON.stringify(Blockly.serialization.workspaces.save(workspace))===startupWorkspaceSnapshot)example();}}recordingInfo=status.recording_info||{};updateReplayDurations();const nextJaw=!status.physical||Boolean(status.capabilities?.jaw);if(nextJaw!==jawEnabled){jawEnabled=nextJaw;toolbox.contents.flatMap(category=>category.contents||[]).find(b=>b.type==='station_jaw').disabled=!nextJaw;workspace.updateToolbox(toolbox);}$('mode').textContent=status.physical?'PHYSICAL · instructor supervised':'SIMULATION · no robot motion';$('mode').style.background=status.physical?'#a54529':'#24566b';$('recordings').textContent='Available strokes: '+status.recordings.join(', ')+(status.recording?' · recording '+status.recording:'');updateInstructor(status);$('record-start').disabled=status.recovery_required===true||status.job?.state==='running'||Boolean(status.recording);$('record-start').title=status.recovery_required===true?'Inspect and recover the station, then Verify recovery / unlock Blockly before recording':'';$('record-stop').disabled=status.job?.state==='running'||!status.recording;const encoded=JSON.stringify(status.job);if(encoded!==lastJob){show(status.job);lastJob=encoded;}if(status.record_error)show(status.record_error);if(status.recovery_required){const reason=status.job?.error||status.record_error;show('Recovery required'+(reason?': '+reason:'.')+'\nInstructor: inspect station, then load Starter 5 · Reset and reinitialize and run it. After verification succeeds, run arm mode or movement separately.');}$('sim-color-label').hidden=status.physical;$('readiness').textContent=status.physical?JSON.stringify(status.streams,null,2):'Simulation: no physical camera, perception or arm connection';const events=status.events||[];$('trace').textContent=events.length?events.join(' → '):'Run a sequence to see its actions.';if(events.length)$('brick').style.transform='translateX('+((events.length%3)-1)*35+'px)';window.stationStatus=status;}catch(error){knownMode=null;updateInstructor({});$('record-start').disabled=true;$('record-stop').disabled=true;$('mode').textContent='DISCONNECTED';show(error.message);}setTimeout(refresh,700);}
 example();startupWorkspaceSnapshot=JSON.stringify(Blockly.serialization.workspaces.save(workspace));refresh();

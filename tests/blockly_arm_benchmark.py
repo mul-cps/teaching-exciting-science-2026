@@ -45,7 +45,7 @@ def load_modules(source, label):
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'Application')
     methods = [n for n in cls.body if isinstance(n, ast.FunctionDef)
                and n.name in {'_check_recordings', '_preflight_program'}]
-    namespace = {}
+    namespace = {'RECOVERY_STATION': getattr(result['blockly_program'], 'RECOVERY_STATION', frozenset())}
     exec(compile(ast.Module(body=methods, type_ignores=[]), '<admission>', 'exec'), namespace)
     result['admission'] = namespace
     return result
@@ -155,7 +155,8 @@ def benchmark(iterations=100, batches=7):
     operations = {}
     for label, loaded in modules.items():
         application = types.SimpleNamespace(recordings=recordings, directory=ROOT,
-                                            backend=types.SimpleNamespace(physical=False), instructor=False)
+                                            backend=types.SimpleNamespace(physical=False), instructor=False,
+                                            recovery_required=False)
         admission = loaded['admission']
 
         def preflight(loaded=loaded, application=application, admission=admission):
@@ -172,13 +173,25 @@ def benchmark(iterations=100, batches=7):
     arm_program = [{'op': 'arm', 'command': 'teleop_relative'} for _ in range(100)]
     current = modules['current']
     app = types.SimpleNamespace(recordings=recordings, directory=ROOT,
-                                backend=types.SimpleNamespace(physical=True), instructor=True)
+                                backend=types.SimpleNamespace(physical=True), instructor=True,
+                                recovery_required=False)
 
     def arm_preflight():
         current['blockly_program'].validate_program(arm_program)
         current['admission']['_preflight_program'](app, arm_program)
         current['admission']['_check_recordings'](app, arm_program)
     operations['current_arm_preflight_100'] = arm_preflight
+    station_program = [{'op': 'station', 'command': 'zero_torque'} for _ in range(100)]
+    recovery_app = types.SimpleNamespace(recordings=recordings, directory=ROOT,
+                                         backend=types.SimpleNamespace(physical=True), instructor=True,
+                                         recovery_required=True)
+
+    def station_preflight(application):
+        current['blockly_program'].validate_program(station_program)
+        current['admission']['_preflight_program'](application, station_program)
+        current['admission']['_check_recordings'](application, station_program)
+    operations['current_station_preflight_100'] = lambda: station_preflight(app)
+    operations['current_latched_station_preflight_100'] = lambda: station_preflight(recovery_app)
     samples = {name: [] for name in operations}
     for operation in operations.values():
         for _ in range(5):

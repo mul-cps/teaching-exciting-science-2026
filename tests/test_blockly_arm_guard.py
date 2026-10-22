@@ -9,8 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from workshop.blockly_program import ARM, validate_program
-from workshop.blockly_ros import ARM_SERVICES, ROSBackend
+from workshop.blockly_program import ARM, STATION, RECOVERY_STATION, validate_program
+from workshop.blockly_ros import ARM_SERVICES, OPERATOR_COMMANDS, ROSBackend
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -92,7 +92,8 @@ def test_recording_loop_is_cached_ten_hz_processing_only():
     assert {ast.unparse(n.func) for n in ast.walk(command) if isinstance(n, ast.Call)} == {
         'self.backend.command', 'cancel.is_set', 'InterruptedError', 'time.monotonic',
         'TimeoutError', 'check', 'self.backend.sample', 'Recorder', 'RuntimeError',
-        'recorder.add', 'cancel.wait', 'min', 'recorder.finish', 'self._save_recording', 'str', 'abs'}
+        'recorder.add', 'cancel.wait', 'min', 'recorder.finish', 'self._save_recording', 'str', 'abs',
+        'isinstance', 'result.get'}
     assert not any(isinstance(n, (ast.Import, ast.ImportFrom, ast.Await, ast.Yield))
                    for n in ast.walk(command))
     loop, = [n for n in ast.walk(command) if isinstance(n, ast.While)]
@@ -134,10 +135,11 @@ def test_preflight_uses_names_without_library_payload_or_iteration():
     app.recordings = NamesOnly(known=object())
     app.backend = SimpleNamespace(physical=True)
     app.instructor = True
+    app.recovery_required = False
     app._preflight_program([{'op': 'replay', 'name': 'known', 'speed': .5}] * 100)
     helper = methods('tools/run_blockly_station.py', 'Application')['_preflight_program']
     assert {ast.unparse(n.func) for n in ast.walk(helper) if isinstance(n, ast.Call)} == {
-        'set', 'walk', 'ValueError', 'names.add', 'RuntimeError', 'len',
+        'any', 'set', 'walk', 'ValueError', 'names.add', 'RuntimeError', 'len',
         "(self.directory / (row['name'] + '.json')).exists"}
     for node in ast.walk(helper):
         if isinstance(node, ast.For):
@@ -221,3 +223,111 @@ def test_stopped_job_is_separate_from_failure_and_never_clears_recovery():
     assert ast.unparse(writes[0].value) == 'self.backend.physical'
     assert not any(isinstance(node, ast.ExceptHandler) and node.type is not None
                    and ast.unparse(node.type) == 'InterruptedError' for node in ast.walk(run))
+
+
+def test_latched_admission_is_flat_safe_and_requires_station_control():
+    assert STATION == set(OPERATOR_COMMANDS) | {'reinitialize', 'verify_recovery'}
+    assert RECOVERY_STATION == {'reinitialize', 'verify_recovery', 'emergency_reset', 'reset',
+                                'zero_torque', 'restart_moveit', 'restart_camera', 'restart_depth',
+                                'restart_tags', 'restart_all', 'verify_restart'}
+    preflight = methods('tools/run_blockly_station.py', 'Application')['_preflight_program']
+    expected = ast.parse('''
+if self.recovery_required:
+    if any(row['op'] not in {'log','wait','stop'} and
+           (row['op'] != 'station' or row['command'] not in RECOVERY_STATION) for row in rows):
+        raise RuntimeError('recovery requires a flat program of safe station controls, log, wait and STOP')
+    if not any(row['op'] == 'station' for row in rows):
+        raise RuntimeError('recovery program requires at least one safe station control')
+''').body[0]
+    assert ast.dump(preflight.body[0], include_attributes=False) == ast.dump(expected, include_attributes=False)
+    # Validation and both admission checks precede all event/thread allocation.
+    run = methods('tools/run_blockly_station.py', 'Application')['run']
+    locked = next(node for node in run.body if isinstance(node, ast.With))
+    assert [ast.unparse(node) for node in locked.body[:3]] == [
+        'self.idle(recovery=True)', 'self._preflight_program(program)', 'self._check_recordings(program)']
+
+
+def test_program_recovery_is_the_only_checked_program_latch_clear():
+    command = methods('tools/run_blockly_station.py', 'Application')['_program_command']
+    branch = next(node for node in command.body if isinstance(node, ast.If)
+                  and "'reinitialize'" in ast.unparse(node.test))
+    expected = ast.parse('''
+if row['op'] == 'station' and row['command'] in {'reinitialize','verify_recovery'}:
+    check()
+    result = self.backend.command(row, cancel, deadline)
+    if not isinstance(result, dict) or result.get('recovered') is not True:
+        raise RuntimeError('station recovery was not verified')
+    with self.lock:
+        check()
+        self.recovery_required = False
+        self.record_error = None
+    return result
+''').body[0]
+    assert ast.dump(branch, include_attributes=False) == ast.dump(expected, include_attributes=False)
+    writes = [node for node in ast.walk(command) if isinstance(node, ast.Assign)
+              and any(isinstance(target, ast.Attribute) and target.attr == 'recovery_required'
+                      for target in node.targets)]
+    assert len(writes) == 1 and writes[0] in list(ast.walk(branch))
+    # Physical recovery reaches the native verification method with the exact
+    # runner context; reinitialize first invokes the existing emergency reset.
+    backend = methods('workshop/blockly_ros.py', 'ROSBackend')['command']
+    station = next(node for node in backend.body if isinstance(node, ast.If)
+                   and ast.unparse(node.test) == "row['op'] == 'station'")
+    assert {ast.unparse(node.func) for node in ast.walk(station) if isinstance(node, ast.Call)} == {
+        'isinstance', 'ValueError', 'cancel.is_set', 'InterruptedError', 'time.monotonic',
+        'TimeoutError', 'self.recover', 'self.trigger'}
+    calls = [node for node in ast.walk(station) if isinstance(node, ast.Call)
+             and ast.unparse(node.func) == 'self.recover']
+    assert len(calls) == 2
+    assert all(ast.unparse(node) == 'self.recover(cancel=cancel, deadline=deadline)' for node in calls)
+
+
+def test_recovery_native_predicates_and_unknown_delivery_barrier_stay_baseline():
+    recover = methods('workshop/blockly_ros.py', 'ROSBackend')['recover']
+    check = recover.body[0]
+    assert isinstance(check, ast.FunctionDef) and check.name == 'check'
+    assert [ast.unparse(node) for node in check.body] == [
+        "if cancel is not None and cancel.is_set():\n    raise InterruptedError('program recovery cancelled')",
+        "if deadline is not None and time.monotonic() >= deadline:\n    raise TimeoutError('program recovery deadline expired')"]
+    assert [arg.arg for arg in recover.args.kwonlyargs] == ['cancel', 'deadline']
+    assert all(isinstance(value, ast.Constant) and value.value is None for value in recover.args.kw_defaults)
+    assert ast.unparse(recover.body[1]) == 'check()'
+    assert ast.unparse(recover.body[-2]) == 'check()'
+    stop_index = next(index for index, node in enumerate(recover.body)
+                      if ast.unparse(node) == 'self.stop()')
+    assert ast.unparse(recover.body[stop_index + 1]) == 'check()'
+    assert ast.unparse(recover.body[2]) == "context = {'cancel': cancel, 'deadline': deadline} if cancel is not None or deadline is not None else {}"
+    # Normalize only the reviewed optional context/check additions. The entire
+    # remaining method must retain the frozen pre-feature safety predicates.
+    recover.args.kwonlyargs = []
+    recover.args.kw_defaults = []
+    recover.body = [node for node in recover.body[3:]
+                    if not (isinstance(node, ast.Expr) and ast.unparse(node) == 'check()')]
+    for node in ast.walk(recover):
+        if isinstance(node, ast.Call) and ast.unparse(node.func) == 'self.trigger':
+            assert len(node.keywords) == 1 and node.keywords[0].arg is None
+            assert ast.unparse(node.keywords[0].value) == 'context'
+            node.keywords = []
+    assert digest(recover) == '650776a9a35bc1168b96fd32aa5e12bed1b321838154c31db34b26b83901c422'
+
+
+def test_service_terminal_cleanup_is_exact_future_after_successful_wait_only():
+    service = methods('workshop/blockly_ros.py', 'ROSBackend')['_service']
+    wait = next(node for node in service.body if isinstance(node, ast.Try)
+                and any(isinstance(item, ast.Call) and ast.unparse(item.func) == 'self._wait'
+                        for item in ast.walk(node)))
+    cleanup = service.body[service.body.index(wait) + 1]
+    expected = ast.parse('''
+if mutation:
+    with self.lock:
+        self.pending_mutations.discard(future)
+''').body[0]
+    assert ast.dump(cleanup, include_attributes=False) == ast.dump(expected, include_attributes=False)
+    assert ast.unparse(wait.body[0]) == 'result = self._wait(future, cancel, deadline)'
+    assert len(wait.handlers) == 1 and ast.unparse(wait.handlers[0].type) == 'BaseException'
+    assert [ast.unparse(node) for node in wait.handlers[0].body] == [
+        'if not mutation:\n    client.remove_pending_request(future)', 'raise']
+    removals = [node for node in ast.walk(service) if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and ast.unparse(node.func.value) == 'self.pending_mutations']
+    assert len(removals) == 1 and ast.unparse(removals[0]) == 'self.pending_mutations.discard(future)'

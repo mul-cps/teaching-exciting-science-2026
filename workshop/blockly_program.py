@@ -5,6 +5,13 @@ import threading
 import time
 
 NAME = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,39}$')
+STATION = frozenset({'emergency_reset','reset','start','base_release','base_confirm','teleop',
+                     'teleop_relative','teleop_absolute','moveit','damping','zero_torque',
+                     'restart_moveit','restart_camera','restart_depth','restart_tags','restart_all',
+                     'verify_restart','reinitialize','verify_recovery'})
+RECOVERY_STATION = frozenset({'reinitialize','verify_recovery','emergency_reset','reset','zero_torque',
+                             'restart_moveit','restart_camera','restart_depth','restart_tags',
+                             'restart_all','verify_restart'})
 ARM = frozenset({'home', 'moveit', 'teleop_relative', 'teleop_absolute', 'torque_off'})
 EV3 = {'home', 'left_end', 'right_end', 'eject', 'wake', 'sleep', 'connect'}
 COLORS = {'red', 'blue', 'green', 'yellow', 'unknown'}
@@ -32,7 +39,7 @@ def validate_program(program):
             if not isinstance(row, dict): raise ValueError('command must be an object')
             op = row.get('op')
             fields = {'wait':{'seconds'}, 'ev3':{'command'}, 'replay':{'name','speed'},
-                      'arm':{'command'}, 'record_stroke':{'name','seconds'}, 'jaw':{'gap_mm'}, 'repeat':{'count','body'},
+                      'station':{'command'}, 'arm':{'command'}, 'record_stroke':{'name','seconds'}, 'jaw':{'gap_mm'}, 'repeat':{'count','body'},
                       'if_color':{'color','then','else'}, 'stop':set(), 'sort_cycle':set(), 'log':{'message'}}
             if not isinstance(op,str) or op not in fields or (set(row) != fields[op] | {'op'} and not (op=='replay' and set(row)==fields[op] | {'op','timing'})):
                 raise ValueError('unknown command or unsupported fields')
@@ -40,6 +47,8 @@ def validate_program(program):
             if op == 'wait': number(row['seconds'],0,10)
             elif op == 'ev3':
                 if not isinstance(row['command'],str) or row['command'] not in EV3: raise ValueError('unknown EV3 command')
+            elif op == 'station':
+                if not isinstance(row['command'],str) or row['command'] not in STATION: raise ValueError('unknown station command')
             elif op == 'arm':
                 if not isinstance(row['command'],str) or row['command'] not in ARM: raise ValueError('unknown arm command')
             elif op == 'record_stroke':
@@ -128,6 +137,10 @@ class SimulationBackend:
         return {'identity':self.identity(),'positions':[0.]*5,'jaw':0.,'stamp':time.monotonic()}
     def command(self,row,cancel,deadline):
         if row['op']=='record_stroke': raise ValueError('record_stroke requires Application dispatch')
+        if row['op']=='station':
+            self.log('station:'+row['command']+' (simulation)')
+            if row['command'] in {'reinitialize','verify_recovery'}: return self.recover(cancel=cancel,deadline=deadline)
+            return {'acknowledged':True,'simulation':True}
         if row['op']=='replay' and row['name'] not in self.recordings: raise RuntimeError('recording not found')
         if row['op']=='sort_cycle':
             color=self.color()
@@ -136,6 +149,10 @@ class SimulationBackend:
             self.log('sort_cycle: '+color+' → commissioned destination (simulation)')
             return result
         self.log(row['op']+':'+str(row.get('command',row.get('name',row.get('gap_mm')))))
+    def recover(self,*,cancel=None,deadline=None):
+        if cancel is not None and cancel.is_set(): raise InterruptedError('simulation recovery cancelled')
+        if deadline is not None and time.monotonic()>=deadline: raise TimeoutError('simulation recovery deadline expired')
+        self.log('station recovery verified (simulation)'); return {'recovered':True,'simulation':True}
     def stop(self): self.log('STOP'); return {'acknowledged':True,'simulation':True}
     def status(self): return {'physical':False,'color':self.color(),'events':self.events[-20:]}
     def close(self): pass

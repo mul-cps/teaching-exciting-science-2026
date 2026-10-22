@@ -68,10 +68,14 @@ def test_exception_is_one_readonly_endpoint_and_other_backend_code_unchanged():
     # and explicit record_stroke rejection. Later the same day, reviewed only
     # the owner refresh timer .2 -> .05; single-inflight refresh, identity
     # thresholds, cached sample and every other backend method stay unchanged.
+    # Later station-block review adds only cold station routing plus optional
+    # cancel/deadline context in recover; native recovery predicates stay pinned.
+    # The service race fix discards only its exact successfully returned future;
+    # timeout/cancel/unknown-delivery paths and unrelated mutations stay tracked.
     # Baseline25dfc5e with only refresh body removed. All action admission,
     # metric conversion, generic success rejection, joint callback, timers,
     # clients/publishers, cancellation, STOP and recovery code stays pinned.
-    assert digest(cls) == '52cf02416c999d3c2f57a8341af5be3ff6cd152576081d03837dab01893a78d0'
+    assert digest(cls) == '8a619724c1e9e7082f9e979672264e59b77225f878d50081c3a3fd71addb2189'
 
 
 @pytest.mark.parametrize('name,expected', [

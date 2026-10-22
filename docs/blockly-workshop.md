@@ -100,11 +100,18 @@ copy for **Open blocks**. Save an edited workspace before loading another.
    capture window. Choose a unique name. Load starter 2 for a separate replay run
    after the instructor returns the follower to the recorded start.
 
+5. **Reset and reinitialize:** a flat **Restart entire station + verify** block,
+   followed by a message. It uses existing station recovery, then verifies the
+   result. Save the current workspace before loading this starter. After success,
+   use a separate run for arm modes or motion. Restart does not enable torque or
+   approach a saved pose automatically.
+
 The physical editor initially loads an instructional log, not a dispense/replay
-demonstration. Student instructions link to all four workspaces. Loading a starter never runs it.
-The toolbox groups **SO-ARM101** (arm commands and metric jaw), **Recordings**
+demonstration. Student instructions link to all five workspaces. Loading a starter never runs it.
+The toolbox groups **Station controls** (reset, recovery and services), **SO-ARM101** (arm commands and metric jaw), **Recordings**
 (timed capture and named replay), **EV3 conveyor**, **Flow & decisions** (including
 the commissioned sorting-cycle block), and **ROS Blocky · logging**.
+
 
 ### Recording and replay
 
@@ -201,6 +208,7 @@ limits. The replay speed is a request, not a guaranteed execution duration.
 
 | Blockly function | Existing ROS interface | Completion |
 | --- | --- | --- |
+| Station reset / reinitialize / services | Existing `/station/operator/{command}` and explicit recovery verification | Instructor required; exact acknowledged result; no arbitrary endpoint |
 | Arm commands | Existing guarded operator services; saved-home action; verified station STOP | Physical instructor required; exact completion/STOP checks |
 | Follower recording | `/follower/joint_states`, `/follower/status` | Read only; fresh pinned cohort |
 | Replay stroke | `/follower/arm_trajectory_controller/follow_joint_trajectory` (`FollowJointTrajectory`) | Accepted goal **and** terminal successful result, error code 0 |
@@ -227,6 +235,30 @@ mode and retain native admission and recovery gates.
 Saved home requires leaving active teleoperation: connect a **MoveIt mode**
 block before **Saved home**.
 
+The **Station controls** block compiles to
+`{"op":"station","command":"reinitialize"}`. Its dropdown exposes the existing
+instructor allowlist below plus `reinitialize` and `verify_recovery`.
+**Restart entire station + verify** invokes the existing emergency reset and then
+verifies recovery; **Verify recovery / unlock** checks an already inspected and
+recovered station. A failed verification keeps the Blockly recovery latch.
+The individual restart controls cover MoveIt, camera, depth, tags and perception.
+Physical station controls require instructor mode.
+
+While recovery is latched, only a **flat** program containing at least one
+recovery station command is admitted. Other instructions may only be log, wait or
+STOP. Allowed station commands in that recovery program are `reinitialize`,
+`verify_recovery`, `emergency_reset`, `reset`, `zero_torque`, `restart_moveit`,
+`restart_camera`, `restart_depth`, `restart_tags`, `restart_all`, `verify_restart`.
+No loops, color branches, recording, replay, jaw, arm motion or mode changes can
+be appended to that rescue run. Only confirmed `reinitialize`/`verify_recovery`
+clears the Blockly latch; perform mode changes or motion in a separate run.
+The Run button remains available for rescue programs, with normal backend
+admission enforced. STOP retains its independent listener.
+
+**SO-ARM101** relative/absolute teleop blocks select a mapping and then enable
+teleoperation. **Station controls** exposes the lower-level mapping selector and
+teleop enable separately; selecting a mapping alone does not enable following.
+
 Instructor allowlist: `emergency_reset`, `reset`, `start`, `base_release`,
 `base_confirm`, `teleop`, `teleop_relative`, `teleop_absolute`, `moveit`, `damping`,
 `zero_torque`, `restart_moveit`, `restart_camera`, `restart_depth`, `restart_tags`,
@@ -252,7 +284,7 @@ perception/sorting station; it is not silently substituted for a sensor block.
 - `/api/instructor`: `{"command":"moveit"}`; `/api/recover`: `{}`.
 - `/api/simulation/color`: `{"color":"unknown"}`; simulation only.
 
-Commands are `arm`, `record_stroke`, `ev3`, `wait`, `replay`, `jaw`, `repeat`,
+Commands are `station`, `arm`, `record_stroke`, `ev3`, `wait`, `replay`, `jaw`, `repeat`,
 `if_color`, `log`, `stop`. Timed capture is exactly
 `{"op":"record_stroke","name":"my_short_move","seconds":5}`: an existing-valid
 recording name and a finite duration from 1 through 30 seconds. In physical mode

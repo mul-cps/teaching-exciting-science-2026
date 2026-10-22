@@ -6,6 +6,7 @@ import math
 import threading
 import time
 from .blockly_recording import JOINTS, replay_points
+from .blockly_program import STATION
 
 OPERATOR_COMMANDS=('emergency_reset','reset','start','base_release','base_confirm','teleop',
  'teleop_relative','teleop_absolute','moveit','damping','zero_torque','restart_moveit',
@@ -224,6 +225,8 @@ class ROSBackend:
         except BaseException:
             if not mutation: client.remove_pending_request(future)
             raise
+        if mutation:
+            with self.lock: self.pending_mutations.discard(future)
         if endpoint=='/follower/gripper_calibration_status': return parse_gripper_calibration_status(result)
         if not result.success: raise RuntimeError(endpoint+': '+result.message[:1000])
         try: return json.loads(result.message)
@@ -324,6 +327,15 @@ class ROSBackend:
 
     def command(self,row,cancel,deadline):
         if row['op']=='record_stroke': raise ValueError('record_stroke requires Application dispatch')
+        if row['op']=='station':
+            command=row['command']
+            if not isinstance(command,str) or command not in STATION: raise ValueError('station command not allowed')
+            if cancel.is_set(): raise InterruptedError('program cancelled before station command')
+            if time.monotonic()>=deadline: raise TimeoutError('station command deadline expired')
+            if command=='verify_recovery': return self.recover(cancel=cancel,deadline=deadline)
+            reply=self.trigger('/station/operator/'+('emergency_reset' if command=='reinitialize' else command),cancel,deadline)
+            if command=='reinitialize': return self.recover(cancel=cancel,deadline=deadline)
+            return reply
         if row['op']=='arm':
             if cancel.is_set(): raise InterruptedError('program cancelled before arm command')
             if time.monotonic()>=deadline: raise TimeoutError('arm command deadline expired')
@@ -399,15 +411,21 @@ class ROSBackend:
             if time.monotonic()>=deadline: raise RuntimeError('STOP terminal acknowledgements missing')
             time.sleep(.05)
 
-    def recover(self):
+    def recover(self,*,cancel=None,deadline=None):
+        def check():
+            if cancel is not None and cancel.is_set(): raise InterruptedError('program recovery cancelled')
+            if deadline is not None and time.monotonic()>=deadline: raise TimeoutError('program recovery deadline expired')
+        check()
+        context={'cancel':cancel,'deadline':deadline} if cancel is not None or deadline is not None else {}
         with self.action_lock:
             if self.active_handle is not None: raise RuntimeError('previous action terminal result is unresolved')
         with self.lock:
             if self.pending_mutations: raise RuntimeError('mutating ROS request/goal delivery still unresolved; keep station stopped')
         self.stop()
-        status=self.trigger('/follower/status')
+        check()
+        status=self.trigger('/follower/status',**context)
         self._identity(status)
-        station=self.trigger('/station/status')
+        station=self.trigger('/station/status',**context)
         workflow=station.get('workflow')
         if not isinstance(workflow,dict) or workflow.get('state')!='idle' or workflow.get('fault') is not None:
             raise RuntimeError('native workflow is active/faulted; inspect and use RViz Reset inspected fault before recovery')
@@ -422,6 +440,7 @@ class ROSBackend:
                 or stop.get('pending') is not False or stop.get('ev3_stopped') is not True
                 or stop.get('arm_disarmed') is not True):
             raise RuntimeError('explicit station recovery and fresh STOP acknowledgements required')
+        check()
         return {'recovered':True}
 
     def instructor(self,command):

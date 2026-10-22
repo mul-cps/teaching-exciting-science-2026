@@ -38,7 +38,9 @@ def test_recording_preflight_precedes_job_event_and_thread_creation():
     locked = next(node for node in run.body if isinstance(node, ast.With))
     assert ast.unparse(locked.items[0].context_expr) == 'self.lock'
     assert [ast.unparse(node) for node in locked.body[:3]] == [
-        'self.idle()', 'self._preflight_program(program)', 'self._check_recordings(program)']
+        'self.idle(recovery=True)', 'self._preflight_program(program)', 'self._check_recordings(program)']
+    # Only the recovery latch is deferred to the immediately following preflight;
+    # idle still checks active program, recorder and operator ownership first.
     admission = locked.body[2]
     calls = [node for node in ast.walk(run) if isinstance(node, ast.Call)]
     assert sum(ast.unparse(node.func) == 'self._preflight_program' for node in calls) == 1
@@ -64,3 +66,24 @@ def test_recording_preflight_does_not_read_recording_payload_or_backend():
     replay = {'op': 'replay', 'name': 'known', 'speed': .5}
     application._check_recordings([{'op': 'repeat', 'count': 5, 'body': [
         {'op': 'if_color', 'color': 'red', 'then': [replay], 'else': [replay]}]}])
+
+
+def test_recovery_safe_and_instructor_preflight_runs_before_dispatch():
+    from tempfile import TemporaryDirectory
+    import pytest
+    with TemporaryDirectory() as directory:
+        application=Application(directory)
+        application.backend.physical=True
+        # Both inactive branches and a following unsafe command must be checked
+        # before the leading EV3 command or a job/thread is created.
+        hidden={'op':'if_color','color':'red','then':[],
+                'else':[{'op':'station','command':'restart_camera'}]}
+        with pytest.raises(RuntimeError,match='instructor'):
+            application.run([{'op':'ev3','command':'wake'},hidden])
+        application.instructor=True;application.recovery_required=True
+        with pytest.raises(RuntimeError,match='flat program'):
+            application.run([{'op':'station','command':'verify_recovery'},
+                             {'op':'arm','command':'home'}])
+        assert application.thread is None
+        assert application.backend.events==[]
+        assert application.recovery_required is True

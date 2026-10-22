@@ -24,6 +24,7 @@ from std_msgs.msg import String
 from control_msgs.action import FollowJointTrajectory, GripperCommand
 from so101_station_workflow.srv import RunCycles
 from tools.run_blockly_station import Application
+from workshop.blockly_ros import OPERATOR_COMMANDS
 
 context=Context(); rclpy.init(context=context)
 node=Node('blockly_fake_station',context=context); group=ReentrantCallbackGroup()
@@ -49,9 +50,8 @@ def trigger(endpoint,request,response):
     else: data={'acknowledged':True}
     response.message=json.dumps(data); return response
 services=[]
-for endpoint in ('/follower/status','/station/status','/station/stop','/follower/gripper_calibration_status','/station/ev3/eject','/station/operator/moveit',
-                 '/station/operator/teleop_relative','/station/operator/teleop_absolute',
-                 '/station/operator/teleop','/station/operator/start'):
+for endpoint in ('/follower/status','/station/status','/station/stop','/follower/gripper_calibration_status',
+                 '/station/ev3/eject',*('/station/operator/'+command for command in OPERATOR_COMMANDS)):
     services.append(node.create_service(Trigger,endpoint,lambda request,response,e=endpoint:trigger(e,request,response),callback_group=group))
 
 
@@ -210,6 +210,23 @@ try:
                  {'op':'arm','command':'moveit'}, {'op':'arm','command':'home'}])
         await_program()
         assert operator_calls[operator_begin:]==['teleop_absolute','teleop','moveit','start'],operator_calls
+        operator_begin=len(operator_calls); arm_before=counts['arm']; jaw_before=counts['jaw']
+        app.run([{'op':'station','command':command} for command in OPERATOR_COMMANDS])
+        await_program()
+        assert operator_calls[operator_begin:]==list(OPERATOR_COMMANDS),operator_calls
+        app.recovery_required=True; app.record_error='previous fake recording failed'
+        operator_begin=len(operator_calls)
+        app.run([{'op':'station','command':'reinitialize'}])
+        await_program()
+        assert operator_calls[operator_begin:]==['emergency_reset'],operator_calls
+        assert app.recovery_required is False and app.record_error is None
+        app.recovery_required=True; app.record_error='previous fake recording failed'
+        operator_begin=len(operator_calls)
+        app.run([{'op':'station','command':'verify_recovery'}])
+        await_program()
+        assert len(operator_calls)==operator_begin
+        assert app.recovery_required is False and app.record_error is None
+        assert counts['arm']==arm_before and counts['jaw']==jaw_before,counts
         publishing[0]=False; time.sleep(.4)
         try: app.backend.sample(); raise AssertionError('stale state accepted')
         except RuntimeError: pass
@@ -218,7 +235,7 @@ try:
         deadline=time.monotonic()+3
         while app.status()['job']['state']=='running' and time.monotonic()<deadline: time.sleep(.03)
         assert app.status()['job']['state']=='failed'; assert counts['stop']>=1
-        print(json.dumps({'fake_ros':'passed','recorded_samples':recorded['samples'],'counts':counts,'stale_rejected':True,'cancel_stopped':True,'optional_timing_shortened':True,'native_cycle_exact_terminal':True,'si_only':si_only_outcome,'uncalibrated_si_rejected_without_goal':True,'typed_arm_controls':True,'program_recording':True,'program_recording_replay':True,'program_recorded_samples':block_samples}))
+        print(json.dumps({'fake_ros':'passed','recorded_samples':recorded['samples'],'counts':counts,'stale_rejected':True,'cancel_stopped':True,'optional_timing_shortened':True,'native_cycle_exact_terminal':True,'si_only':si_only_outcome,'uncalibrated_si_rejected_without_goal':True,'typed_arm_controls':True,'program_recording':True,'program_recording_replay':True,'program_recorded_samples':block_samples,'typed_station_controls':True,'station_reinitialize_verified':True,'station_verify_recovery_verified':True}))
 finally:
     if app: app.close()
     for timer in tuple(node.timers): timer.cancel()
