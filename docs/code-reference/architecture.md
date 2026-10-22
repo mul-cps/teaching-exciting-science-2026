@@ -15,7 +15,7 @@ A source file being present does not mean that its backend is qualified.
 The `exercises/` scripts expose the same concepts in small student programs;
 `check_setup.py` checks laptop readiness and `make_student_bundle.py` packages
 the student distribution. Read their API/source pages via the
-[exercises inventory](inventory.md#exercises).
+exercises inventory (`inventory.md#exercises`, generated reference).
 
 The standard simulator runs with the Python standard library. Optional camera
 capture adds OpenCV/NumPy, while arm and conveyor remain simulated in this path.
@@ -39,7 +39,7 @@ private runtime state/commands with it. The bridge does not independently open
 the serial bus. Trajectory checks, effective-path collision validation and
 owner-side path verification are defined in `docs/so101-control.md`.
 
-Use the [station module inventory](inventory.md#workshop) to follow individual
+Use the station module inventory (`inventory.md#workshop`, generated reference) to follow individual
 classes and their methods. Recovery, gripper registration, placement and
 commissioning modules are explicit stateful workflows; inspecting their API
 must not be treated as permission to skip their preconditions.
@@ -92,13 +92,13 @@ additional `test/` sources, and `tools/ev3_native/tests/` tests the EV3 bridge.
 All are indexed, including private fixtures. Generated API signatures show
 declared source types; imported external types are not introspected.
 Diagnostic, benchmark, capture, commissioning and material generation scripts
-are all discoverable in the [tools inventory](inventory.md#tools). Read their
+are all discoverable in the tools inventory (`inventory.md#tools`, generated reference). Read their
 `main` implementation and argument parser before choosing a command: many
 instructor tools can request physical access when explicitly enabled.
 
 ## Managed station process lifecycle
 
-The root `./station` command and `scripts/{start,stop,status,purge}.sh` are the public lifecycle interface. They reuse the prepared desktop helper and [`tools/station_process.py`](source/tools/station_process.py.md). Existing `tools/start_station.sh` and `tools/stop_station.sh` remain compatibility wrappers.
+The root `./station` command and `scripts/{start,stop,status,purge}.sh` are the public lifecycle interface. They reuse the prepared desktop helper and `tools/station_process.py` (`source/tools/station_process.py.md`, generated reference). Existing `tools/start_station.sh` and `tools/stop_station.sh` remain compatibility wrappers.
 That helper validates prerequisites and existing owners, launches one integrated
 station session, and records Linux process identities. Its stop path checks
 saved process identity before ROS STOP calls or signals, attempts station and
@@ -118,8 +118,8 @@ inventory, including `tests/test_arm_trajectory_start_receipt.py`.
 
 ## Blockly editor, program execution and recorded strokes
 
-[`web/blockly-station/app.js`](source/web/blockly-station/app.js.md),
-[`ros-blocky-port.js`](source/web/blockly-station/ros-blocky-port.js.md), HTML and
+`web/blockly-station/app.js` (`source/web/blockly-station/app.js.md`, generated reference),
+`ros-blocky-port.js` (`source/web/blockly-station/ros-blocky-port.js.md`, generated reference), HTML and
 CSS implement the project-owned editor. The port adapts ROS Blocky logging
 blocks; its pinned upstream attribution remains in
 `web/blockly-station/THIRD_PARTY.md`. These application files are included in
@@ -127,14 +127,14 @@ full. The unmodified Blockly 10.4.3 distribution under `vendor/` receives an
 explicit third-party exclusion and upstream reference in the coverage report.
 Its minified APIs are not presented as project-authored code.
 
-[`tools/run_blockly_station.py`](source/tools/run_blockly_station.py.md) hosts
+`tools/run_blockly_station.py` (`source/tools/run_blockly_station.py.md`, generated reference) hosts
 the loopback editor and bounded API; simulation is the default. The browser
 produces a bounded JSON program rather than executable Python.
-[`workshop/blockly_program.py`](source/workshop/blockly_program.py.md) validates
+`workshop/blockly_program.py` (`source/workshop/blockly_program.py.md`, generated reference) validates
 its schema/limits and implements the interpreter and simulation backend.
-[`blockly_recording.py`](source/workshop/blockly_recording.py.md) validates
+`blockly_recording.py` (`source/workshop/blockly_recording.py.md`, generated reference) validates
 recorded measured strokes and replay points.
-[`blockly_ros.py`](source/workshop/blockly_ros.py.md) adapts the program to the
+`blockly_ros.py` (`source/workshop/blockly_ros.py.md`, generated reference) adapts the program to the
 existing ROS action/service contracts when physical mode is explicitly selected.
 The Python preview is a teaching artifact; the server does not execute it.
 

@@ -3,9 +3,9 @@
 This reference covers the offline workshop, exercises, tools, ROS packages,
 Python tests, native backends, launch files, services, shell commands and
 configuration. Start with the [architecture](architecture.md), then use the
-[full source inventory](inventory.md) or search to find a module or symbol.
-[ROS contracts](ros-contracts.md) lists declarations and exact service schemas.
-The [coverage report](coverage.md) lists counts and every excluded Git file.
+full source inventory (`inventory.md`, generated reference) or search to find a module or symbol.
+ROS contracts (`ros-contracts.md`, generated reference) lists declarations and exact service schemas.
+The coverage report (`coverage.md`, generated reference) lists counts and every excluded Git file.
 
 ## Build locally
 
