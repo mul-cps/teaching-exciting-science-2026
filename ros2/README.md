@@ -1,7 +1,30 @@
-# ROS 2 Jazzy SO-ARM101 stack
+# ROS 2 station workspace
 
-From the repository root, run `ros2/scripts/so101.sh build`, then `ros2/scripts/so101.sh rviz` to open the pinned upstream MoveIt/RViz stack with explicit mock `ros2_control`. In a second terminal, `ros2/scripts/so101.sh inspect` shows the live graph and `ros2/scripts/so101.sh plan-smoke` runs near-current PickIK, plans a small five-joint move, and saves its trajectory without executing it.
+The native ROS stack exposes the same resident arm, gripper, EV3, perception and operator APIs to RViz, Blockly and custom clients. Start the prepared physical deployment from the repository root with `./station start`; see [startup and shutdown](../docs/station-startup.md). The source-pinned manifest controls the exact native units, wrapper and domain. No client should create a second serial owner.
 
-`upstream.repos` pins `legalaspro/so101-ros-physical-ai` and its Feetech driver submodule. `config/rig01_joint_map.yaml` is the read-only joint/servo-ID mapping; it is not a Feetech EEPROM configuration file. Source fetches, meshes, and build products remain in ignored caches. See [`docs/so101-ros2.md`](../docs/so101-ros2.md) for host/container setup, calibration provenance, controller names, and safety limitations.
+## Build
 
-Real hardware startup currently fails closed. Fetch/build applies a patched driver with a default no-write state-only mode, but the unqualified station map and physical state-only startup still require review. The `real` wrapper action does not start the device.
+```sh
+ros2/conda/so101-conda.sh build
+ros2/conda/so101-conda.sh realsense-cpu-build
+```
+
+`upstream.repos` pins the upstream MoveIt description and driver sources. `config/rig01_joint_map.yaml` maps joints to servo IDs; it is not an EEPROM configuration. Downloads and build products stay in ignored caches. Private machine configuration and calibration remain outside Git.
+
+## Mock planning
+
+```sh
+ros2/conda/so101-conda.sh rviz
+```
+
+This explicitly selects mock control; it does not start physical hardware. Keep fixture graphs isolated from live domain 76. Domain 177 is reserved for explicitly configured software fixtures. The prepared hardware wrapper uses native ROS and Intel Vulkan; do not infer a hardware route from a mock controller manager.
+
+## Packages and interfaces
+
+- `so101_station_control`: sole resident follower bridge, trajectory/gripper actions and leader teleoperation
+- `so101_station_workflow`: typed EV3 and sorting services
+- `so101_station_operator`: RViz panels, maintenance and reset API
+- `so101_station_perception`, `objects`, `map`, `scene`, `gpu`: camera observations, derived geometry, planning scene and rendering
+- `so101_station_bringup`: compositions for managed hardware and mock planning
+
+See [public ROS API](../docs/ros-station-api.md), [development](../docs/development.md), [environment details](../docs/so101-ros2.md) and [control contract](../docs/so101-control.md). Physical motion remains subject to measured calibration, fresh feedback, collision and commissioning gates.

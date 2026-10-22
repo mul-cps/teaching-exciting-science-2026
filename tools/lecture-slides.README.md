@@ -13,5 +13,3 @@ PPTXGENJS_MODULE=/tmp/workshop-slides-deps/node_modules/pptxgenjs/dist/pptxgen.c
 ```
 
 Set `SOFFICE` to an alternative LibreOffice executable. Set `LECTURE_EVIDENCE_DIR` to choose the private location of 18 full-slide PNGs and the build receipt. Its default is `/tmp/workshop-lecture-preview`. If PptxGenJS is installed in the checkout's Node resolution path, its environment variable is unnecessary.
-
-The preferred artifact-tool runtime was unavailable in the authoring session. The supervising agent selected this isolated JavaScript fallback. The generator removes PptxGenJS 4.0.1's dangling shared-master content-type declarations and preserves the native editable slide objects.

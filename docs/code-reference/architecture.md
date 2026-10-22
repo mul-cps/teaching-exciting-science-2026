@@ -22,8 +22,6 @@ capture adds OpenCV/NumPy, while arm and conveyor remain simulated in this path.
 The exercise and material builders are developer utilities, not station control
 entry points. `tools/build_materials.py` builds handouts and slides;
 `tools/build_lecture_slides.mjs` assembles the current lecture from committed assets.
-Archived illustration generators under `stale/tools/` reproduce historical assets
-and are labeled as archived in the static source inventory.
 
 ## Station and bus ownership
 
@@ -78,11 +76,7 @@ consumers need valid timestamps and registration state. See
 
 `workshop/perception/` contains reusable geometry, registration, camera,
 projection and backend policy code. Native C++ and Slang files implement narrow
-backend kernels/compatibility operations. `tools/intel_grasp_backend/`,
-`tools/recovery_cgal/` and the projection/ROCm tools are separate native build
-and diagnostic entry points. Their presence does not select them for a live
-pipeline. The generated native source pages and Doxygen reference retain these
-boundaries rather than implying one universal backend.
+backend kernels and compatibility operations. The production ROS package builds the required native bridge sources. Unused research prototypes and duplicate native build scripts have been removed. Vulkan/Slang color-mask selection remains explicit in the station profile; a backend being installed does not select it automatically.
 
 `workshop/digital_twin/` builds the MuJoCo/Viser representation and its mirrored
 state, camera and geometry interfaces. `tools/launch_digital_twin.sh` is the
@@ -104,8 +98,7 @@ instructor tools can request physical access when explicitly enabled.
 
 ## Managed station process lifecycle
 
-`tools/start_station.sh` and `tools/stop_station.sh` delegate to
-[`tools/station_process.py`](source/tools/station_process.py.md).
+The root `./station` command and `scripts/{start,stop,status,purge}.sh` are the public lifecycle interface. They reuse the prepared desktop helper and [`tools/station_process.py`](source/tools/station_process.py.md). Existing `tools/start_station.sh` and `tools/stop_station.sh` remain compatibility wrappers.
 That helper validates prerequisites and existing owners, launches one integrated
 station session, and records Linux process identities. Its stop path checks
 saved process identity before ROS STOP calls or signals, attempts station and

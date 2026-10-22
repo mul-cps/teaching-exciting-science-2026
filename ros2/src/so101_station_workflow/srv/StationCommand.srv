@@ -1,0 +1,7 @@
+# Explicit Blockly program operations; JSON objects and results are limited to 64 KiB.
+string operation
+string arguments_json
+---
+bool success
+string result_json
+string message

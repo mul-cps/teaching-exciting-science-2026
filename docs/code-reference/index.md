@@ -58,4 +58,4 @@ The project-owned Blockly editor, HTML/CSS, Python interpreter, recorder and ROS
 adapter are included. The pinned, unmodified Blockly 10.4.3 `vendor/` distribution
 is explicitly listed as third-party in coverage, with upstream, license and
 provenance references. Adapted `ros-blocky-port.js` remains included. Archived
-`stale/` code also remains included and is labeled historical.
+Superseded experiments and generated output are excluded from the active source tree; Git history retains removed implementations.

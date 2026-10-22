@@ -1,28 +1,65 @@
-# CPS Candy Factory workshop
-22 October 2026 · Four hours · First semester · No programming or robotics prerequisites
+# Teaching exciting science: robot candy factory
 
-Start with [the student notebook](notebooks/Robot_Candy_Factory_Student.ipynb), [the instructor edition](notebooks/Robot_Candy_Factory_Instructor.ipynb), or [the robot and twin observation lab](notebooks/Robot_Candy_Factory_Live_SO101.ipynb). Download and extract the complete [student workshop ZIP](docs/student-workshop.zip), which includes local images, helper code and printable handouts. The prepared local Jupyter environment is the main classroom route; use [the launch instructions](notebooks/README.md). No installation is part of class.
+A classroom workshop about programming, perception and robotics. Students build a sorting factory in Python or Blockly; instructors operate the SO-ARM101, leader arm, RealSense D435i and LEGO EV3 station.
 
-The student factory is a simulation. The robot lab defaults to explicitly invented DEMO data and can read existing ROS topics when the instructor launches LIVE mode on the prepared station host. Learner notebooks never command physical actuators. The instructor uses the existing RViz operations panel to enable, select teleoperation mode and stop. Software checks and pictures do not qualify a physical sorting cycle.
+## Student
 
-![The sorting station](notebooks/assets/photo-examples.jpg)
+On the prepared classroom PC, from the repository root:
 
-Students predict, change one value, run and check. Red goes left, blue right, everything else to reject. The exact 240-minute route is introduction 25 min, Blockly 10, Python 30, perception 20, break 10, three stations 45, factory 50, challenges 35 and demos 15. The stations are robot and twin, camera and conveyor, and virtual robot.
+```sh
+./station notebook
+./station sim
+```
 
-- [Four-hour lesson plan](docs/lesson-plan.md)
-- [Instructor preparation and answers](docs/instructor.md)
-- [Student worksheet](docs/student-worksheet.pdf) and [complete handbook](docs/student-handbook.pdf)
-- [External activities and offline alternatives](docs/workshop-resources.md)
-- [Class slides](docs/workshop-slides.pptx) and [PDF](docs/workshop-slides.pdf)
-- [Blockly factory challenge for students](docs/blockly-student.md) and [instructor setup, recording and ROS interfaces](docs/blockly-workshop.md)
-- [Manual full station startup: RViz, MoveIt and LEGO EV3](docs/station-startup.md)
-- [Prepared fwmini4 launchers and checks](docs/fwmini4-workshop.md)
-- [Automated developer code reference](docs/code-reference/index.md)
-- [Live ROS teleoperation contract](docs/so101-ros-teleop.md) and [resident station API](docs/ros-station-api.md)
-- [Current ROS sorting acceptance and remaining gates](docs/ros-sorting-acceptance.md)
-- [Blockly station commissioning evidence (2026-10-21; physical subset)](docs/blockly-station-commissioning-2026-10-21.json), [EV3 panel commissioning](docs/ev3-panel-commissioning-2026-10-21.json) and [gripper measurement](docs/gripper-measurement-2026-10-21.json)
-- [Historical early-project acceptance baseline](docs/acceptance.md)
+The first command opens JupyterLab; open `notebooks/Robot_Candy_Factory_Student.ipynb` and save a team copy. The second opens the local Blockly simulation at <http://127.0.0.1:8877>. These are separate activities; neither starts hardware.
 
-For the standard-library fallback run `python3 exercises/check_setup.py`, then scripts `01_python.py`, `03_vision.py`, `02_robot.py`, `04_sort.py`. Run `python3 exercises/05_visual_sort.py` and open `sorting-result.html` for the visual fallback. The supplied scripts need Python 3.11 or newer and no ROS, GPU or internet. Hardware instructions remain instructor material in the station documentation.
+For a downloaded learner bundle, extract the whole ZIP and follow [notebook instructions](notebooks/README.md). The [student Blockly guide](docs/blockly-student.md), [lesson plan](docs/lesson-plan.md) and [worksheet](docs/student-worksheet.pdf) describe the exercises.
 
-Rebuild notebooks and shared handbook with `python tools/build_notebooks.py`. Rebuild handouts with `SOFFICE=/path/to/prepared/soffice python tools/build_materials.py --handouts-only`, and bundle with `python exercises/make_student_bundle.py --output docs/student-workshop.zip`. Prepared dependencies are listed in notebooks/requirements.txt. See the instructor guide for isolated environment setup and verification.
+Without Jupyter, use the standard-library exercises:
+
+```sh
+python3 exercises/check_setup.py
+python3 exercises/01_python.py
+```
+
+See [all exercise entrypoints](docs/student-exercises.md) for the complete sequence.
+
+## Operator
+
+Use the prepared graphical login and installed deployment manifest. Connect the identified devices and prepare the native EV3 service before starting:
+
+```sh
+./station doctor
+./station start
+./station status
+```
+
+`start` opens the complete prepared native ROS station and RViz. Startup verifies the selected deployment, device identities and fresh passive joint limits. It does not home, enable teleoperation or run sorting. The installed manifest binds services, RViz and physical Blockly to the same checkout and ROS domain. Live operation uses domain **76**; domain **177** is reserved for isolated software fixtures.
+
+To start the full station, RViz and physical Blockly together, use the explicit instructor route:
+
+```sh
+./station start --physical --instructor
+```
+
+Use the RViz panel for arm preparation and explicit relative/absolute teleoperation. Blockly supports continuous calibrated jaw gaps, teaching fixed-jaw strokes and replay. Missing calibration or commissioning data blocks the corresponding operation.
+
+Stop through the managed lifecycle:
+
+```sh
+./station stop
+./station purge              # preview generated files; no changes
+./station purge --yes        # verified STOP, then remove generated files
+```
+
+Read [startup, shutdown and troubleshooting](docs/station-startup.md) before operating hardware. [Prepared PC setup](docs/fwmini4-workshop.md) documents installation. Closing a browser alone does not stop the station.
+
+## Developer
+
+The [development guide](docs/development.md) covers layout, builds and focused checks. The [ROS API](docs/ros-station-api.md) lists the general services, actions and topics used by RViz, Blockly and other clients. [ROS workspace instructions](ros2/README.md) describe the native overlay and mock route.
+
+The station has one follower serial owner, one camera owner and one EV3 session. Clients reuse their APIs. Credentials, measured calibration, homes, configuration and runtime evidence live outside Git. The prepared `station-fwmini4 ros-vulkan` wrapper selects the native ROS environment and Intel Vulkan path.
+
+Physical pickup, release and automatic sorting require their own commissioning and independent evidence. A started GUI, simulation or passing software checks does not establish physical acceptance; see [sorting acceptance](docs/ros-sorting-acceptance.md).
+
+[Documentation index](docs/README.md) · [teaching assets](docs/assets/README.md)

@@ -2,9 +2,11 @@
 
 The station is **not fully physically accepted**. The validated code is
 `935837de735f67726d931e6d39a0d5374963e6b2` (`935837d`).
-The [plan](../stale/docs/superpowers/plans/2026-10-16-ros-sorting-station.md) defines the
-release requirements; the [progress record](../stale/docs/superpowers/plans/2026-10-16-ros-sorting-progress.md)
-records commands, limitations and decisions.
+Release acceptance requires one measured follower owner, fresh camera and registration inputs, collision-validated executable trajectories, confirmed STOP, and observed grasp/lift/place/release of a real object. Software regression checks and simulation do not establish that physical result. Historical development plans were removed from the active tree; their complete versions remain in Git history.
+
+## Repository cleanup checkpoint
+
+The source installed on fwmini4 before this cleanup was `f2efb8e`; its remote setup is owned by the agent on that PC. That update passed 173 selected remote checks and 13 subtests (one optional OpenCL skip). The workstation offline suite passed 3467 checks and 13 subtests, with 151 skips. These are software results, not a fresh remote physical acceptance. Live startup and physical qualification must be repeated after updating interfaces or deployment pins. The dated observations below remain historical evidence.
 
 ## Current checkpoint — 22 October 2026
 

@@ -137,7 +137,7 @@ def station_manifest(config=None):
     return units, manifest
 
 
-def start_station():
+def start_station(before_rviz=None, before_stop=None):
     try:
         launch_id = str(uuid.uuid4())
         command = station_command(launch_id)
@@ -167,6 +167,8 @@ def start_station():
         rviz_code = 0
         stop_code = 0
         try:
+            if before_rviz is not None:
+                before_rviz()
             rviz_env = dict(os.environ, ROS_DOMAIN_ID=str(manifest['domain']), ROS_LOCALHOST_ONLY='1')
             rviz_code = subprocess.run(rviz_command, check=False, env=rviz_env).returncode
         except KeyboardInterrupt:
@@ -175,12 +177,18 @@ def start_station():
             print(f'RViz could not start: {error}', file=sys.stderr)
             rviz_code = 1
         finally:
+            if before_stop is not None:
+                try:
+                    before_stop()
+                except (OSError, ValueError, RuntimeError, KeyError, KeyboardInterrupt) as error:
+                    print(f'Workshop frontend shutdown incomplete: {error}', file=sys.stderr)
+                    stop_code = 1
             # Closing RViz must use the same correlated STOP/owner checks as CLI shutdown.
             stop_command = [sys.executable, str(ROOT / 'tools/station_process.py'), 'stop',
                             '--profile', 'fwmini4', '--deployment', 'user-units',
                             '--domain', str(manifest['domain']), '--expected-launch-id', launch_id]
             try:
-                stop_code = subprocess.run(stop_command, check=False).returncode
+                stop_code = subprocess.run(stop_command, check=False).returncode or stop_code
             except (OSError, KeyboardInterrupt) as error:
                 print(f'Station shutdown could not complete: {error}', file=sys.stderr)
                 stop_code = 1

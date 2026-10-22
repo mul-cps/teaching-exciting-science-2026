@@ -3,6 +3,7 @@
 import argparse
 import hmac
 import json
+import math
 import os
 from pathlib import Path
 import secrets
@@ -241,13 +242,13 @@ class Application:
             with self.lock: self.recovery_required=self.backend.physical
             raise
 
-    def operator(self,command):
+    def operator(self,command,*,cancel=None):
         if not self.instructor or not self.backend.physical: raise RuntimeError('instructor controls require --physical --instructor')
         with self.lock: self.idle(recovery=True); self.operator_busy=True
         try:
             if self.recovery_required and command not in {'zero_torque','emergency_reset','reset','restart_moveit','restart_camera','restart_depth','restart_tags','restart_all','verify_restart'}:
                 raise RuntimeError('motion/mode changes blocked until explicit recovery')
-            return self.backend.instructor(command)
+            return self.backend.instructor(command,**({'cancel':cancel} if cancel is not None else {}))
         except BaseException:
             with self.lock: self.recovery_required=True
             try: self.backend.stop()
@@ -285,7 +286,11 @@ def strict_json(body):
             result[key]=value
         return result
     def invalid(_): raise ValueError('nonfinite JSON value')
-    return json.loads(body,object_pairs_hook=pairs,parse_constant=invalid)
+    def finite(value):
+        result=float(value)
+        if not math.isfinite(result): invalid(value)
+        return result
+    return json.loads(body,object_pairs_hook=pairs,parse_constant=invalid,parse_float=finite)
 
 
 class BoundedServer(ThreadingHTTPServer):
@@ -380,18 +385,31 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--physical',action='store_true'); parser.add_argument('--instructor',action='store_true')
     parser.add_argument('--port',type=int,default=8877)
+    parser.add_argument('--ros-api',action='store_true',help='expose ROS program commands in simulation (automatic with --physical)')
     parser.add_argument('--recordings',type=Path,default=Path.home()/'.local/share/exciting-science/blockly-recordings')
     args=parser.parse_args()
     app=Application(args.recordings,physical=args.physical,instructor=args.instructor)
-    server=make_server(app,args.port)
-    control=make_server(app,args.port+1,control_only=True,frontend_port=server.server_port)
-    control_thread=threading.Thread(target=control.serve_forever,daemon=True); control_thread.start()
-    def stop(*_):
-        threading.Thread(target=server.shutdown,daemon=True).start()
-        threading.Thread(target=control.shutdown,daemon=True).start()
-    signal.signal(signal.SIGINT,stop); signal.signal(signal.SIGTERM,stop)
-    print(f'Blockly {"PHYSICAL" if args.physical else "SIMULATION"}: http://127.0.0.1:{server.server_port}',flush=True)
-    try: server.serve_forever(poll_interval=.1)
-    finally: control.shutdown(); control.server_close(); server.server_close(); app.close()
+    ros_api=server=control=None
+    control_started=False
+    try:
+        if args.physical or args.ros_api:
+            from workshop.blockly_ros_api import ROSProgramAPI
+            ros_api=ROSProgramAPI(app,strict_json)
+        server=make_server(app,args.port)
+        control=make_server(app,args.port+1,control_only=True,frontend_port=server.server_port)
+        control_thread=threading.Thread(target=control.serve_forever,daemon=True); control_thread.start()
+        control_started=True
+        def stop(*_):
+            threading.Thread(target=server.shutdown,daemon=True).start()
+            threading.Thread(target=control.shutdown,daemon=True).start()
+        signal.signal(signal.SIGINT,stop); signal.signal(signal.SIGTERM,stop)
+        print(f'Blockly {"PHYSICAL" if args.physical else "SIMULATION"}: http://127.0.0.1:{server.server_port}',flush=True)
+        server.serve_forever(poll_interval=.1)
+    finally:
+        if control_started: control.shutdown()
+        if control is not None: control.server_close()
+        if server is not None: server.server_close()
+        if ros_api is not None: ros_api.close()
+        app.close()
 
 if __name__=='__main__': main()

@@ -444,9 +444,9 @@ class ROSBackend:
         check()
         return {'recovered':True}
 
-    def instructor(self,command):
+    def instructor(self,command,*,cancel=None):
         if command not in OPERATOR_COMMANDS: raise ValueError('operator command not allowed')
-        return self.trigger('/station/operator/'+command,deadline=time.monotonic()+125)
+        return self.trigger('/station/operator/'+command,deadline=time.monotonic()+125,**({'cancel':cancel} if cancel is not None else {}))
 
     def status(self):
         now=time.monotonic()

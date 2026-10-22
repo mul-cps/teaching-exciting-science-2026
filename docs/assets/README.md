@@ -1,5 +1,5 @@
-# Current workshop images
+# Workshop images
 
-The class deck uses [lecture assets and their attribution](lecture/README.md). Notebook photographs and illustrations are distributed in [notebooks/assets](../../notebooks/assets/README.md). The lecture README distinguishes actual equipment and screen captures from the generated concept hero and records the Blockly license.
+The deck uses [lecture assets and their attribution](lecture/README.md). Notebook photographs and illustrations are distributed in [notebooks/assets](../../notebooks/assets/README.md). The lecture README distinguishes actual equipment and screen captures from the generated concept illustration and records third-party licenses.
 
-Earlier schematic diagrams, AI concept posters, crops and their original provenance are retained in [the historical archive](../../stale/docs/assets/README.md). They are not used by the current deck, handouts or student bundle.
+Keep source images, crop coordinates and licenses beside the maintained assets. A photograph or screenshot does not establish current live connection or physical sorting success.

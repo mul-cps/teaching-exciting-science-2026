@@ -1,7 +1,9 @@
-# Native EV3 physical replay tools
+# Native EV3 component tools
 
-These standalone Pybricks MicroPython 2.0 tools reproduce the bounded physical
-component tests on 2026-10-14. They use medium feeder motor A, large sorter motor
+Daily operation uses [the station CLI](../../docs/station-startup.md) and its serialized [ROS EV3 API](../../docs/ros-station-api.md).
+
+These standalone Pybricks MicroPython 2.0 tools perform bounded physical
+component diagnostics. Stop the managed station and ensure its EV3 session is closed before running a standalone tool. They use medium feeder motor A, large sorter motor
 D, touch sensor S1 and color sensor S3. They do not commission the full station
 or change the production agent's existing 100 ms slice backend.
 

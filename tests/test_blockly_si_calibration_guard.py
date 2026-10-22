@@ -63,6 +63,21 @@ def test_exception_is_one_readonly_endpoint_and_other_backend_code_unchanged():
         if isinstance(node, ast.BoolOp):
             node.values[:] = [ast.parse("jaw.get('age_s',99)<2", mode='eval').body
                               if value is new_age else value for value in node.values]
+    # Reviewed ROS API shutdown addition: only operator waits gain optional
+    # cancellation. Pin the full method before restoring its baseline AST so
+    # the existing class digest still fences all SI/action/STOP/recovery code.
+    instructor = methods['instructor']
+    reviewed = ast.parse("""def instructor(self,command,*,cancel=None):
+    if command not in OPERATOR_COMMANDS: raise ValueError('operator command not allowed')
+    return self.trigger('/station/operator/'+command,deadline=time.monotonic()+125,**({'cancel':cancel} if cancel is not None else {}))
+""").body[0]
+    assert ast.dump(instructor, include_attributes=False) == ast.dump(reviewed, include_attributes=False)
+    baseline = ast.parse("""def instructor(self,command):
+    if command not in OPERATOR_COMMANDS: raise ValueError('operator command not allowed')
+    return self.trigger('/station/operator/'+command,deadline=time.monotonic()+125)
+""").body[0]
+    instructor.args = baseline.args
+    instructor.body = baseline.body
     methods['_refresh_calibration'].body = [ast.Pass()]
     # Reviewed 2026-10-22: baseline b5d2a06 plus cold ARM allowlist dispatch
     # and explicit record_stroke rejection. Later the same day, reviewed only

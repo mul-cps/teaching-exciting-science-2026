@@ -9,3 +9,17 @@ __pycache__/
 
 graft/.cache/
 artifacts/choreography/
+
+# Generated output; source, calibration and classroom assets stay visible.
+/graft/
+/build/
+/dist/
+/ros2/build/
+/ros2/install/
+/ros2/log/
+node_modules/
+.ipynb_checkpoints/
+.mypy_cache/
+.ruff_cache/
+/REMOTE_SETUP_HANDOFF.md
+/sorting-result.html
