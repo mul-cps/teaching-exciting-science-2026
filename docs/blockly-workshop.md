@@ -106,9 +106,10 @@ the separate commissioned sorting-cycle block remain in the station toolbox.
 4. Disable teleoperation in RViz. Return the follower to the recorded starting
    pose under supervision. A replay never makes this approach automatically.
 5. Enter that name in a replay block, initially at speed 0.5.
-6. Separate jaw blocks use the measured gap in millimetres; they are unavailable
-   until the existing SI gap calibration is qualified. Missing angular calibration
-   may also prevent the existing calibration-status endpoint from succeeding.
+6. Separate jaw blocks use the measured gap in millimetres and require qualified
+   metric SI gap calibration. MoveIt gripper Plan & Execute additionally requires
+   joint-angle calibration. The status reports separate flags; a false combined
+   MoveIt-ready flag does not disable a valid SI interface.
 
 Recordings contain five measured arm angles plus the fixed jaw angle and a
 pinned arm/calibration/owner-generation/source identity. They are invalid after an

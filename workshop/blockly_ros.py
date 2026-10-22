@@ -34,6 +34,30 @@ def validate_sort_result(result):
     return {'completed':1,'colors':dict(colors)}
 
 
+def parse_gripper_calibration_status(result):
+    """Validate the bounded read-only native status, including combined success."""
+    if result is None or not isinstance(result.message,str) or len(result.message)>8192:
+        raise RuntimeError('invalid gripper calibration status')
+    def unique_fields(pairs):
+        data={}
+        for key,value in pairs:
+            if key in data: raise ValueError('duplicate calibration status field')
+            data[key]=value
+        return data
+    try: data=json.loads(result.message,object_pairs_hook=unique_fields)
+    except (ValueError,TypeError,RecursionError) as error: raise RuntimeError('invalid gripper calibration JSON') from error
+    if (not isinstance(data,dict) or data.get('schema')!='so101-gripper-calibration-status-v1'
+            or any(type(data.get(key)) is not bool for key in
+                   ('si_gap_calibrated','moveit_joint_calibrated','visual_proxy_only'))
+            or data.get('si_position_units')!='metres' or data.get('moveit_position_units')!='radians'
+            or type(result.success) is not bool
+            or data.get('visual_proxy_only') is not (not data.get('moveit_joint_calibrated'))
+            or result.success is not (data.get('si_gap_calibrated') and data.get('moveit_joint_calibrated'))
+            or ('reason' in data and (not isinstance(data['reason'],str) or len(data['reason'])>1000))):
+        raise RuntimeError('invalid gripper calibration status schema')
+    return data
+
+
 class ROSBackend:
     physical=True
     def __init__(self, recordings):
@@ -97,13 +121,15 @@ class ROSBackend:
             self.calibration_pending=None
         if not self.calibration_client.service_is_ready(): return
         future=self.calibration_client.call_async(self.Trigger.Request()); self.calibration_pending=future; self.calibration_pending_at=time.monotonic()
+        requested_at=self.calibration_pending_at
         def received(reply):
             try:
-                result=reply.result()
-                if result is not None and len(result.message)<=8192:
-                    data=json.loads(result.message)
-                    if isinstance(data,dict):
-                        with self.lock: self.cache['gripper_calibration']=(time.monotonic(),data)
+                if reply is not self.calibration_pending or reply.cancelled(): return
+                if not 0<=time.monotonic()-requested_at<=1.: return
+                data=parse_gripper_calibration_status(reply.result())
+                with self.lock:
+                    if reply is self.calibration_pending and not reply.cancelled() and 0<=time.monotonic()-requested_at<=1.:
+                        self.cache['gripper_calibration']=(time.monotonic(),data)
             except (ValueError,TypeError,RuntimeError,KeyError): return
         future.add_done_callback(received)
 
@@ -194,6 +220,7 @@ class ROSBackend:
         except BaseException:
             if not mutation: client.remove_pending_request(future)
             raise
+        if endpoint=='/follower/gripper_calibration_status': return parse_gripper_calibration_status(result)
         if not result.success: raise RuntimeError(endpoint+': '+result.message[:1000])
         try: return json.loads(result.message)
         except ValueError: return {'message':result.message[:1000]}
@@ -309,7 +336,7 @@ class ROSBackend:
             return
         if row['op']=='jaw':
             status=self.trigger('/follower/gripper_calibration_status',cancel,min(deadline,time.monotonic()+3))
-            if not status.get('si_gap_calibrated'): raise RuntimeError('qualified SI jaw calibration is missing')
+            if status.get('si_gap_calibrated') is not True: raise RuntimeError('qualified SI jaw calibration is missing')
             goal=self.Gripper.Goal(); goal.command.position=row['gap_mm']/1000.; goal.command.max_effort=0.
             result=self._action(self.jaw,goal,cancel,deadline)
             if not result.reached_goal or result.stalled: raise RuntimeError('jaw did not reach requested gap')
@@ -393,7 +420,7 @@ class ROSBackend:
         now=time.monotonic()
         with self.lock: snapshots={topic:{'age_s':now-stamp,'data':data} for topic,(stamp,data) in self.cache.items()}
         jaw=snapshots.get('gripper_calibration',{})
-        return {'physical':True,'streams':snapshots,'capabilities':{'jaw':bool(jaw.get('age_s',99)<2 and jaw.get('data',{}).get('si_gap_calibrated') is True)}}
+        return {'physical':True,'streams':snapshots,'capabilities':{'jaw':bool(0<=jaw.get('age_s',99)<=2 and jaw.get('data',{}).get('si_gap_calibrated') is True)}}
 
     def close(self):
         deadline=time.monotonic()+2

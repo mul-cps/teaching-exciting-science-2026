@@ -30,11 +30,16 @@ state={'workflow':{'state':'idle','job_id':None,'result':None},
        'stop':{'pending':False,'ev3_stopped':True,'arm_disarmed':True},
        'ev3':{'status':{'color':'Color.RED'}}}
 counts={'arm':0,'jaw':0,'stop':0,'sort':0}; points=[]; publishing=[True]; slow=[False]
+calibration={'si':True,'angle':True}; calibration_replies=[]; jaw_positions=[]
 def trigger(endpoint,request,response):
     response.success=True
     if endpoint=='/follower/status': data={'schema':1,'kind':'follower_status','position_age_s':.01,'torque_age_s':.01,'fresh':True,'sampled_monotonic':time.monotonic(),'arm_id':'fake','calibration_sha256':'a'*64,'owner_started_monotonic':123.,'owner_source_sha256':{'owner':'b'*64},'owner_faulted':False,'stop_latched':False,'active_operation':None,'teleop_state':'disabled','torque':dict.fromkeys(['shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll','gripper'],0)}
     elif endpoint=='/station/status': data=state
-    elif endpoint=='/follower/gripper_calibration_status': data={'si_gap_calibrated':True,'moveit_joint_calibrated':True}
+    elif endpoint=='/follower/gripper_calibration_status':
+        si,angle=calibration['si'],calibration['angle']
+        response.success=si and angle
+        data={'schema':'so101-gripper-calibration-status-v1','si_gap_calibrated':si,'moveit_joint_calibrated':angle,'si_position_units':'metres','moveit_position_units':'radians','visual_proxy_only':not angle,'reason':'qualified gap and joint-angle calibration loaded' if si and angle else 'calibration incomplete'}
+        calibration_replies.append((si,angle,response.success))
     elif endpoint=='/station/stop': counts['stop']+=1; state['stop']['request_id']='stop-'+str(counts['stop']); data={'cancel_requested':True,'request_id':state['stop']['request_id']}
     elif endpoint=='/station/ev3/eject':
         state['workflow']={'state':'idle','job_id':'fake-eject','result':{'done':True}}; data={'job_id':'fake-eject'}
@@ -65,7 +70,8 @@ def arm_execute(handle):
         time.sleep(.01)
     handle.succeed(); return FollowJointTrajectory.Result(error_code=0)
 def jaw_execute(handle):
-    counts['jaw']+=1; handle.succeed(); return GripperCommand.Result(position=handle.request.command.position,reached_goal=True,stalled=False)
+    counts['jaw']+=1; jaw_positions.append(handle.request.command.position)
+    handle.succeed(); return GripperCommand.Result(position=handle.request.command.position,reached_goal=True,stalled=False)
 arm=ActionServer(node,FollowJointTrajectory,'/follower/arm_trajectory_controller/follow_joint_trajectory',arm_execute,cancel_callback=lambda _:CancelResponse.ACCEPT,callback_group=group)
 jaw=ActionServer(node,GripperCommand,'/follower/gripper_controller/gripper_cmd',jaw_execute,callback_group=group)
 pub=node.create_publisher(JointState,'/follower/joint_states',10)
@@ -97,6 +103,47 @@ try:
             except RuntimeError:
                 if time.monotonic()>deadline: raise
                 time.sleep(.05)
+        def await_calibration(si,angle):
+            deadline=time.monotonic()+5
+            pause=threading.Event()
+            while True:
+                status=app.backend.status()
+                snapshot=status['streams'].get('gripper_calibration',{})
+                data=snapshot.get('data',{})
+                if (0<=snapshot.get('age_s',99)<=2
+                        and data.get('si_gap_calibrated') is si
+                        and data.get('moveit_joint_calibrated') is angle
+                        and status['capabilities']['jaw'] is si):
+                    return
+                if time.monotonic()>=deadline:
+                    raise AssertionError(('calibration observation deadline',si,angle,status))
+                pause.wait(.02)
+        calibration.update(si=True,angle=False)
+        await_calibration(True,False)
+        app.run([{'op':'jaw','gap_mm':30}])
+        deadline=time.monotonic()+6
+        while app.status()['job']['state']=='running' and time.monotonic()<deadline:
+            threading.Event().wait(.02)
+        assert app.status()['job']['state']=='complete',app.status()
+        app.thread.join(timeout=2)
+        assert not app.thread.is_alive()
+        assert counts['jaw']==1 and len(jaw_positions)==1,(counts,jaw_positions)
+        assert math.isclose(jaw_positions[0],.03,rel_tol=0.,abs_tol=1e-12),jaw_positions
+        assert (True,False,False) in calibration_replies,calibration_replies
+        si_only_outcome={'native_flags':[True,False,False],'jaw_goals':counts['jaw'],'position_metres':jaw_positions[0]}
+        calibration.update(si=False,angle=False)
+        await_calibration(False,False)
+        try:
+            app.backend.command({'op':'jaw','gap_mm':30},threading.Event(),time.monotonic()+5)
+        except RuntimeError as error:
+            assert str(error)=='qualified SI jaw calibration is missing',str(error)
+        else:
+            raise AssertionError('uncalibrated SI jaw accepted')
+        assert counts['jaw']==1 and len(jaw_positions)==1,(counts,jaw_positions)
+        assert (False,False,False) in calibration_replies,calibration_replies
+        calibration.update(si=True,angle=True)
+        await_calibration(True,True)
+        counts['jaw']=0; jaw_positions.clear()
         app.record_start('transfer'); time.sleep(.65); recorded=app.record_stop()
         assert recorded['samples']>=4,recorded
         reply=app.run([{'op':'ev3','command':'eject'},{'op':'replay','name':'transfer','speed':.5},{'op':'jaw','gap_mm':30}])
@@ -131,7 +178,7 @@ try:
         deadline=time.monotonic()+3
         while app.status()['job']['state']=='running' and time.monotonic()<deadline: time.sleep(.03)
         assert app.status()['job']['state']=='failed'; assert counts['stop']>=1
-        print(json.dumps({'fake_ros':'passed','recorded_samples':recorded['samples'],'counts':counts,'stale_rejected':True,'cancel_stopped':True,'optional_timing_shortened':True,'native_cycle_exact_terminal':True}))
+        print(json.dumps({'fake_ros':'passed','recorded_samples':recorded['samples'],'counts':counts,'stale_rejected':True,'cancel_stopped':True,'optional_timing_shortened':True,'native_cycle_exact_terminal':True,'si_only':si_only_outcome,'uncalibrated_si_rejected_without_goal':True}))
 finally:
     if app: app.close()
     for timer in tuple(node.timers): timer.cancel()
