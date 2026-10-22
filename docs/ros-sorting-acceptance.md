@@ -1,8 +1,7 @@
 # ROS sorting station acceptance — 22 October 2026
 
-The station is **not fully physically accepted**. The published code is on
-`main` at `0ee2a732a92be0feadbdc39cfe930e84d7955539`; its code is identical to
-built source `940f17d596037d98a686a3cd67f859ab9bab7ca9`.
+The station is **not fully physically accepted**. The validated code is
+`935837de735f67726d931e6d39a0d5374963e6b2` (`935837d`).
 The [plan](../stale/docs/superpowers/plans/2026-10-16-ros-sorting-station.md) defines the
 release requirements; the [progress record](../stale/docs/superpowers/plans/2026-10-16-ros-sorting-progress.md)
 records commands, limitations and decisions.
@@ -13,24 +12,39 @@ These are scoped observations and checks, not a completed physical sorting quali
 
 | Area | Verified evidence and remaining limits |
 | --- | --- |
-| Software | Offline: 3151 passed, 151 skipped, 13 subtests passed; native: 290 passed, zero skips. These suites overlap and must not be summed. |
-| fwmini4 | Clean checkout at `0ee2a73`; code built at `940f17d`: 21 ROS packages, 73 Blockly/student tests and six offline entrypoints passed. Connected devices and the bjoern display remain unverified; see the [classroom PC guide](fwmini4-workshop.md). |
+| Software | Offline: 3183 passed, 151 skipped, 13 subtests passed (77.61 s); isolated native ROS domain177: 322 passed, zero skips (8.25 s). These suites overlap and must not be summed. |
+| fwmini4 | Clean checkout at `935837d`: 21 ROS packages, 105 focused tests and six offline entrypoints passed. Connected devices and the bjoern display remain unverified; see the [classroom PC guide](fwmini4-workshop.md). |
 | LIVE notebook | All six original code cells ran in a fresh kernel and produced two plots. Each of two three-second observations received 15 samples, with fresh leader/follower data after discovery; disabled teleop status was correctly shown as stale. No invented fallback was used. |
 | Owner and MoveIt scene | The recorded current owner was fresh, all six torque states OFF, fault absent and bounds normal with start readiness reported. The later scene snapshot reported eight applied objects. These are point snapshots, not physical scene calibration. |
 | Earlier physical trials | Blockly record/replay and EV3 endpoint trials prove only their recorded scope; see the [commissioning record](blockly-station-commissioning-2026-10-21.json). No completed physical sort is established. |
 | Object availability | In the C thirty-second capture, object-present dwell was 96.41%, versus recent B2 76.88%. Receipt expiry and registration dropouts remained, with a 1.391-second status gap whose transitions are unknown. This does not prove continuous health or calibration. |
-| Gripper and grasp | The identity-bound current capture reports SI jaw-gap and MoveIt joint-angle calibration both false. TCP, camera-to-arm registration and verified grasp/lift/place/release remain open. |
+| Gripper and grasp | Physical Blockly editor D11 runs source `935837d`; ROOT read-only postproof reports SI jaw-gap calibration false, MoveIt joint-angle calibration false and jaw capability false. The owner and raw positions were unchanged, all six torque states OFF; postproof used GET only. TCP, camera-to-arm registration and verified grasp/lift/place/release remain open. |
 | EV3 feeder | Current feeder reference is null; feeder commissioning and ejection remain open. |
 | Recovery | The optional automatic recovery supervisor is intentionally disabled and retains an old publisher context. Native operator APIs do not depend on it; manual reset uses a separate coordinator. Automatic failure recovery is unqualified. |
 | Classroom acceptance | Remote connected cold starts and physical classroom rehearsal remain open, together with autonomous pick/place and twenty consecutive physical sorts. |
 
 Local evidence is under
 `~/.local/share/exciting-science/station/evidence/2026-10-21-sorting/`:
-`workshop-beginner-rebuild/final-software-check/early-info-final-*`,
+`workshop-beginner-rebuild/final-software-check/blockly-si-final-{offline,native}-20261022.{log,xml}`
+and `blockly-si-final-summary-20261022.json` in that directory,
 `workshop-beginner-rebuild/final-live-notebook-20261022/20261022T001403148552Z/`,
 and `pick-place-resume/` (the `object-latency-recovery-20261022/analysis/C-comparison-report.md`,
 `C/final-scene-status.json` within that trial, and
 `jaw-visibility-current-20261022/{capture,gripper-status,measurement-gates}.json`).
+fwmini4 build evidence is `workshop-beginner-rebuild/final-software-check/fwmini4-935837d-20261022-engineer/`
+(`build-result.json`, `student-results.json`, `student-blockly.log` and
+`final-state.json`); synthetic domain75 evidence is
+`workshop-beginner-rebuild/final-software-check/blockly-si-native75-20261022.log`.
+ROOT deployment evidence is
+`pick-place-resume/restored-station/deploy-v11-blockly-si-jaw-20261022/root-deployment/{result,read-only-postproof}.json`.
+
+The Blockly correction parses structured calibration status even when the native
+combined response has `success=false`. In an isolated synthetic domain75 check,
+SI calibration true with angular calibration false admitted exactly one typed
+`GripperCommand` goal; missing SI calibration rejected without another goal.
+This proves software admission only; no physical jaw calibration or motion is
+established.
+
 Use the [native operator guide](ros-station-api.md) for current operation.
 
 **All sections below are historical checkpoint records.** Their descriptions of

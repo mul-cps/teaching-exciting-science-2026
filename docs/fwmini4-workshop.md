@@ -7,16 +7,19 @@ The deployed checkout is `/home/bjoern/git/teaching-exciting-science-2026-curren
 ## Latest verified preparation — 22 October 2026
 
 The native component recipe remains installed **disabled** on fwmini4. The latest
-verified build source was `940f17d596037d98a686a3cd67f859ab9bab7ca9`: all 21 ROS
-packages built successfully in 16.3 seconds (19.13 seconds wall time), without new
+verified build source was `935837de735f67726d931e6d39a0d5374963e6b2`: all 21 ROS
+packages built successfully in 16.3 seconds (19.12 seconds wall time), without new
 dependencies. All twelve manifest source pins and the manifest hash were unchanged.
 All eight `so101-fwmini4-{owner,camera,tags,movegroup,objects,scene,leader,apis}`
 units and their states were unchanged: loaded, inactive and static, with MainPID 0
 and no pending jobs. The manifest selects native ROS, domain177, Vulkan masks,
 and candidate 640×480×30 RGB/depth profiles.
 
-The current Blockly/student bundle checks passed all 73 tests in 1.92 seconds.
+The current focused Blockly/student checks passed all 105 tests in 2.68 seconds.
 All six offline exercise entrypoints also exited successfully with `python3 -S`.
+An optional CPU-only N100 benchmark using immediate local fake futures measured
+SI metadata processing at about 9.4 microseconds per call (median batch means).
+It excludes DDS/network/action latency and physical calibration.
 The classroom Blockly launcher remains in **simulation mode**. These checks do
 not qualify the physical station; the separate physical controller remains on
 the local PC. Earlier browser screenshots and simulated sorting cycles remain
@@ -29,9 +32,10 @@ accessed during the build. Connected-device startup, restart/reset, physical STO
 camera throughput and pick/place are still open. The last observed graphical
 session belonged to cpsadmin; bjoern's display has not been rehearsed.
 Latest build and offline check evidence (`before.json`, `build.log`,
-`build-result.json`, `after.json`, `student-blockly.log`, `student-results.json`
-and `final-state.json`) is in
-`~/.local/share/exciting-science/workshop-20261022/evidence/final-ros-build-940f17d-20261022-engineer/`.
+`build-result.json`, `after.json`, `student-blockly.log`, `student-results.json`,
+`final-state.json` and `si-cold-metadata-benchmark.json`) is in
+`~/.local/share/exciting-science/workshop-20261022/evidence/final-ros-build-935837d-20261022-engineer/`.
+The permanent local evidence copy is `~/.local/share/exciting-science/station/evidence/2026-10-21-sorting/workshop-beginner-rebuild/final-software-check/fwmini4-935837d-20261022-engineer/`.
 Earlier preparation evidence is in `native-disabled-install/` and
 `blockly-cycle-refresh.json` under the same evidence directory.
 
