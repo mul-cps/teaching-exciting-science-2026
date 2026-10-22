@@ -116,6 +116,10 @@ Else:
   STOP
 ```
 
+A confirmed **STOP** block ends the sequence normally. If STOP fails or cannot be
+confirmed, ask the instructor to inspect and recover the station before recording
+or running another sequence. The recovery message shows the reported reason.
+
 Before every replay, the instructor checks the recorded starting pose. Add a
 **Wait** block for a deliberate process delay; a pause accidentally recorded while
 teaching is part of the stroke timing, not a separate factory instruction.

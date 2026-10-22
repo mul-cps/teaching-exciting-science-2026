@@ -62,6 +62,10 @@ def validate_program(program):
     return program
 
 
+class _ProgramStopped(Exception):
+    """Internal control flow after an intentionally verified STOP."""
+
+
 class ProgramRunner:
     def __init__(self, backend, *, clock=time.monotonic, dispatch=None):
         self.backend, self.clock = backend, clock
@@ -85,7 +89,16 @@ class ProgramRunner:
                     while self.clock()<end:
                         check(); cancel.wait(min(.05,end-self.clock()))
                 elif op == 'stop':
-                    self.backend.stop(); raise InterruptedError('STOP block completed; program ended')
+                    reply=self.backend.stop()
+                    if self.backend.physical:
+                        acknowledged=(isinstance(reply,dict) and isinstance(reply.get('request_id'),str)
+                                      and bool(reply['request_id']) and reply.get('pending') is False
+                                      and reply.get('ev3_stopped') is True and reply.get('arm_disarmed') is True)
+                    else:
+                        acknowledged=isinstance(reply,dict) and reply.get('acknowledged') is True
+                    if not acknowledged: raise RuntimeError('STOP acknowledgement missing')
+                    check()
+                    raise _ProgramStopped()
                 elif op == 'log': self.backend.log(row['message'])
                 elif op == 'sort_cycle': sort_results.append(self.dispatch(row,cancel,deadline))
                 else: self.dispatch(row, cancel, deadline)
@@ -95,6 +108,8 @@ class ProgramRunner:
             result={'complete':True}
             if sort_results: result['sort_cycles']=sort_results
             return result
+        except _ProgramStopped:
+            return {'complete':False,'stopped':True}
         except BaseException:
             try: self.backend.stop()
             except Exception as error: raise RuntimeError(f'program failed; STOP acknowledgement missing: {error}')

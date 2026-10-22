@@ -150,3 +150,73 @@ def test_preflight_uses_names_without_library_payload_or_iteration():
         if isinstance(node, ast.Call) and ast.unparse(node.func) in {
                 'threading.Event', 'threading.Thread', 'secrets.token_hex', 'self.thread.start'}:
             assert node.lineno > admission.end_lineno
+
+
+def test_intentional_stop_sentinel_requires_strict_ack_and_post_ack_check():
+    execute = methods('workshop/blockly_program.py', 'ProgramRunner')['execute']
+    stop, = [node for node in ast.walk(execute) if isinstance(node, ast.If)
+             and ast.unparse(node.test) == "op == 'stop'"]
+    # Pin the reviewed control flow, not source formatting. In particular,
+    # truthy 1/strings cannot acknowledge terminal booleans, simulation's ACK
+    # cannot bypass the physical schema, and cancel/deadline during stop()
+    # must raise before intentional completion can be signalled.
+    expected = ast.parse('''
+reply = self.backend.stop()
+if self.backend.physical:
+    acknowledged = (isinstance(reply, dict) and isinstance(reply.get('request_id'), str)
+                    and bool(reply['request_id']) and reply.get('pending') is False
+                    and reply.get('ev3_stopped') is True and reply.get('arm_disarmed') is True)
+else:
+    acknowledged = isinstance(reply, dict) and reply.get('acknowledged') is True
+if not acknowledged:
+    raise RuntimeError('STOP acknowledgement missing')
+check()
+raise _ProgramStopped()
+''').body
+    assert [ast.dump(node, include_attributes=False) for node in stop.body] == [
+        ast.dump(node, include_attributes=False) for node in expected]
+    signals = [node for node in ast.walk(execute) if isinstance(node, ast.Raise)
+               and isinstance(node.exc, ast.Call)
+               and isinstance(node.exc.func, ast.Name) and node.exc.func.id == '_ProgramStopped']
+    assert len(signals) == 1 and signals[0] is stop.body[-1]
+    boundary = next(node for node in execute.body if isinstance(node, ast.Try))
+    assert [ast.unparse(handler.type) for handler in boundary.handlers] == [
+        '_ProgramStopped', 'BaseException']
+    stopped, failed = boundary.handlers
+    assert len(stopped.body) == 1 and isinstance(stopped.body[0], ast.Return)
+    assert ast.literal_eval(stopped.body[0].value) == {'complete': False, 'stopped': True}
+    # Every other exception retains the original STOP retry and re-raise barrier.
+    assert ast.dump(ast.Module(body=failed.body, type_ignores=[]), include_attributes=False) == ast.dump(
+        ast.parse('''
+try:
+    self.backend.stop()
+except Exception as error:
+    raise RuntimeError(f'program failed; STOP acknowledgement missing: {error}')
+raise
+'''), include_attributes=False)
+
+
+def test_stopped_job_is_separate_from_failure_and_never_clears_recovery():
+    run = methods('tools/run_blockly_station.py', 'Application')['run']
+    work = next(node for node in ast.walk(run)
+                if isinstance(node, ast.FunctionDef) and node.name == 'work')
+    boundary = next(node for node in work.body if isinstance(node, ast.Try))
+    assert len(boundary.handlers) == 1 and ast.unparse(boundary.handlers[0].type) == 'BaseException'
+    terminal = next(node for node in boundary.body if isinstance(node, ast.Assign)
+                    and any(isinstance(target, ast.Name) and target.id == 'terminal'
+                            for target in node.targets))
+    state = dict(zip((ast.literal_eval(key) for key in terminal.value.keys),
+                     terminal.value.values))['state']
+    assert isinstance(state, ast.IfExp)
+    assert ast.unparse(state.test) == "result.get('stopped') is True"
+    assert ast.literal_eval(state.body) == 'stopped'
+    assert ast.literal_eval(state.orelse) == 'complete'
+    writes = [node for node in ast.walk(run) if isinstance(node, ast.Assign)
+              and any(isinstance(target, ast.Attribute) and target.attr == 'recovery_required'
+                      for target in node.targets)]
+    # The sole assignment remains in the failure handler and latches physical
+    # failures. Neither normal completion nor intentional STOP writes False.
+    assert len(writes) == 1 and writes[0] in list(ast.walk(boundary.handlers[0]))
+    assert ast.unparse(writes[0].value) == 'self.backend.physical'
+    assert not any(isinstance(node, ast.ExceptHandler) and node.type is not None
+                   and ast.unparse(node.type) == 'InterruptedError' for node in ast.walk(run))

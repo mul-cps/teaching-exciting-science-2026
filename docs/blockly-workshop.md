@@ -232,6 +232,9 @@ Instructor allowlist: `emergency_reset`, `reset`, `start`, `base_release`,
 and mode changes stay blocked. Inspect/recover through the existing station
 controls, then use **Verify recovery / unlock Blockly**. Unresolved mutating
 requests and late action delivery prevent that unlock. No mutation is retried.
+A verified, acknowledged **STOP** block ends the sequence with state `stopped`
+and does not require recovery. Failed or unconfirmed STOP still requires recovery;
+the editor displays the reported reason and blocks starting a recording.
 
 The color condition currently uses the EV3 color sensor, not a guessed camera
 object. Camera-based object identity/selection remains part of the existing

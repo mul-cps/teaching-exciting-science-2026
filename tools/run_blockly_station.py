@@ -164,7 +164,7 @@ class Application:
             def work():
                 try:
                     result=ProgramRunner(self.backend,dispatch=self._program_command).execute(program,self.cancel)
-                    terminal={'id':job,'state':'complete','result':result}
+                    terminal={'id':job,'state':'stopped' if result.get('stopped') is True else 'complete','result':result}
                 except BaseException as error:
                     terminal={'id':job,'state':'failed','error':str(error)[:2000]}
                     with self.lock: self.recovery_required=self.backend.physical
