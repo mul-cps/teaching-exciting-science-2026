@@ -148,6 +148,18 @@ or running another sequence. The recovery message shows the reported reason.
 To use **Saved home**, leave teleoperation first: connect a **MoveIt mode**
 block before the **Saved home** block.
 
+After station **STOP**, the instructor inspects the mechanism, selects Station
+controls **Verify recovery / unlock**, then EV3 **Reset inspected fault / STOP
+latch**. This does not set the feeder EJECT reference. Dispensing needs a physical
+reference recorded with RViz **Record feeder reference**.
+
+Perception restarts share a **30-second cooldown**. Use **Wait** blocks, separate
+runs, or one **Restart entire station + verify**; do not repeatedly retry restarts.
+
+Replay needs every recorded absolute joint within **2°** of its starting value
+and the jaw fixed at its recorded opening. The instructor uses teleoperation and
+measured feedback to return there. Automatic approach is not implemented.
+
 Before every replay, the instructor checks the recorded starting pose. Add a
 **Wait** block for a deliberate process delay; a pause accidentally recorded while
 teaching is part of the stroke timing, not a separate factory instruction.

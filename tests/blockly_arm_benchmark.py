@@ -19,6 +19,7 @@ import types
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = 'b5d2a06efe2cff688f00f8985c303fb94ff9f78f'
+PRE_EV3_RESET = 'ce2362c54500f185a6c877af7e7136accbc846b6'
 PATHS = ('workshop/blockly_program.py', 'workshop/blockly_recording.py',
          'workshop/blockly_ros.py', 'tools/run_blockly_station.py')
 
@@ -192,6 +193,18 @@ def benchmark(iterations=100, batches=7):
         current['admission']['_check_recordings'](application, station_program)
     operations['current_station_preflight_100'] = lambda: station_preflight(app)
     operations['current_latched_station_preflight_100'] = lambda: station_preflight(recovery_app)
+    previous_source = sources(PRE_EV3_RESET)
+    previous = load_modules(previous_source, '_arm_bench_pre_ev3_reset')
+    common_ev3 = [{'op': 'ev3', 'command': 'wake'} for _ in range(100)]
+    reset_ev3 = [{'op': 'ev3', 'command': 'reset_fault'} for _ in range(100)]
+
+    def ev3_preflight(loaded, program):
+        loaded['blockly_program'].validate_program(program)
+        loaded['admission']['_preflight_program'](app, program)
+        loaded['admission']['_check_recordings'](app, program)
+    operations['pre_reset_flag_ev3_wake_preflight_100'] = lambda: ev3_preflight(previous, common_ev3)
+    operations['current_ev3_wake_preflight_100'] = lambda: ev3_preflight(current, common_ev3)
+    operations['current_ev3_reset_preflight_100'] = lambda: ev3_preflight(current, reset_ev3)
     samples = {name: [] for name in operations}
     for operation in operations.values():
         for _ in range(5):
@@ -207,12 +220,13 @@ def benchmark(iterations=100, batches=7):
                       'max_batch_us': max(values), 'items_per_operation': 100,
                       'median_us_per_item': statistics.median(values) / 100}
                for name, values in samples.items()}
-    return {'baseline_revision': BASELINE, 'python': platform.python_version(),
+    return {'baseline_revision': BASELINE, 'pre_ev3_reset_revision': PRE_EV3_RESET,
+            'python': platform.python_version(),
             'host': platform.node(), 'machine': platform.machine(),
             'timer': 'time.process_time', 'iterations_per_batch': iterations, 'batches': batches,
             'source_sha256': {label: {path: hashlib.sha256(source.encode()).hexdigest()
                                     for path, source in files.items()}
-                              for label, files in source_sets.items()},
+                              for label, files in (source_sets | {'pre_ev3_reset': previous_source}).items()},
             'results': timings,
             'owner_timer_projection': {
                 label: {'period_s': owner_timer_period(files['workshop/blockly_ros.py']),

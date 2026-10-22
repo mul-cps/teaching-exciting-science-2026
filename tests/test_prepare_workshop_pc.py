@@ -53,12 +53,12 @@ class LauncherTests(unittest.TestCase):
                 module.station_command()
             state = home / 'workshop-runtime'
             state.mkdir()
-            with patch.object(Path, 'home', return_value=home), patch.object(module, 'CONTRACT', state / 'joint-limit-contract.json'), patch.object(Path, 'exists', return_value=True), patch.object(Path, 'is_dir', return_value=True), patch.object(module, 'station_manifest') as validate:
+            with patch.object(Path, 'home', return_value=home), patch.object(module, 'CONTRACT', state / 'joint-limit-contract.json'), patch.object(Path, 'exists', return_value=True), patch.object(Path, 'is_dir', return_value=True), patch.object(module, 'station_manifest', return_value=(Mock(), {'domain':76})) as validate:
                 command = module.station_command()
                 self.assertFalse((state / 'joint-limit-contract.json').is_file())
                 self.assertEqual(command, [sys.executable, str(module.ROOT / 'tools/station_process.py'),
                                           'start', '--profile', 'fwmini4', '--deployment', 'user-units',
-                                          '--color-mask-backend', 'vulkan', '--bootstrap-owner'])
+                                          '--color-mask-backend', 'vulkan', '--bootstrap-owner', '--domain', '76'])
                 validate.assert_called_once_with(home / '.local/share/exciting-science/station/station-fwmini4-20261022.json')
                 self.assertEqual(module.station_command('00000000-0000-0000-0000-000000000001')[-2:],
                                  ['--launch-id', '00000000-0000-0000-0000-000000000001'])
@@ -108,7 +108,7 @@ class LauncherTests(unittest.TestCase):
                 return Mock(returncode=0)
             units = Mock()
             units.component_command.return_value = ['rviz-only']
-            with patch.object(module, 'STATE', state), patch.object(module, 'station_command', return_value=['native-start']), patch.object(module, 'station_manifest', return_value=(units, {})), patch.object(module.subprocess, 'run', side_effect=checked_run):
+            with patch.object(module, 'STATE', state), patch.object(module, 'station_command', return_value=['native-start']), patch.object(module, 'station_manifest', return_value=(units, {'domain':76})), patch.object(module.subprocess, 'run', side_effect=checked_run):
                 module.start_station()
             self.assertEqual(len(phases), 3)
 
@@ -136,7 +136,7 @@ class LauncherTests(unittest.TestCase):
     def station_lifecycle(self, outcomes):
         units = Mock()
         units.component_command.return_value = ['reviewed-wrapper', 'component:=rviz']
-        manifest = {'reviewed': True}
+        manifest = {'reviewed': True, 'domain':76}
         with patch.object(module.uuid, 'uuid4', return_value='00000000-0000-0000-0000-000000000001'), tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module, 'station_command', return_value=['native-start']) as start_command, patch.object(module, 'station_manifest', return_value=(units, manifest)), patch.object(module.subprocess, 'run', side_effect=outcomes) as run, patch.object(module.sys.stdin, 'isatty', return_value=False):
             error = None
             try:
@@ -153,7 +153,7 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(commands, [['native-start'], ['reviewed-wrapper', 'component:=rviz'],
                                    [sys.executable, str(module.ROOT / 'tools/station_process.py'), 'stop',
                                     '--profile', 'fwmini4', '--deployment', 'user-units',
-                                    '--expected-launch-id', '00000000-0000-0000-0000-000000000001']])
+                                    '--domain', '76', '--expected-launch-id', '00000000-0000-0000-0000-000000000001']])
 
     def test_failed_start_never_stops_preexisting_station_or_launches_rviz(self):
         code, commands = self.station_lifecycle([Mock(returncode=2)])
@@ -257,14 +257,14 @@ class LauncherTests(unittest.TestCase):
 
     def test_blockly_physical_launch_is_explicit_and_uses_station_domain(self):
         identity = {'pid': 123, 'starttime': '10', 'pgrp': 123, 'session': 123}
-        with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module.socket, 'socket'), patch('tools.station_process.process_identity', return_value=identity), patch.object(module, 'blockly_status', return_value={'physical': True}), patch.object(module.subprocess, 'Popen') as launch, patch.object(module.webbrowser, 'open'):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(module, 'STATE', Path(temporary)), patch.object(module.socket, 'socket'), patch('tools.station_process.process_identity', return_value=identity), patch.object(module, 'blockly_status', return_value={'physical': True}), patch.object(module, 'station_manifest', return_value=(Mock(), {'domain':76})), patch.object(module.subprocess, 'Popen') as launch, patch.object(module.webbrowser, 'open'):
             launch.return_value.poll.return_value = None
             module.blockly('blockly-physical')
             command = launch.call_args.args[0]
             self.assertEqual(command[1:3], ['ros-vulkan', 'python'])
             self.assertIn('--physical', command)
             self.assertIn('--instructor', command)
-            self.assertEqual(launch.call_args.kwargs['env']['ROS_DOMAIN_ID'], '177')
+            self.assertEqual(launch.call_args.kwargs['env']['ROS_DOMAIN_ID'], '76')
             self.assertTrue(launch.call_args.kwargs['start_new_session'])
 
     def test_blockly_probe_has_absolute_deadline_for_slow_drip(self):

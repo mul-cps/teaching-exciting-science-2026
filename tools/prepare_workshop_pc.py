@@ -117,10 +117,10 @@ def station_command(launch_id=None):
     repair = ROOT / 'ros2/.cache/realsense-cpu-texture-bounds/install'
     if not repair.is_dir():
         raise SystemExit('Camera runtime repair is missing; run the documented preparation build.')
-    station_manifest(config)
+    _, manifest = station_manifest(config)
     return [sys.executable, str(ROOT / 'tools/station_process.py'), 'start',
             '--profile', 'fwmini4', '--deployment', 'user-units',
-            '--color-mask-backend', 'vulkan', '--bootstrap-owner',
+            '--color-mask-backend', 'vulkan', '--bootstrap-owner', '--domain', str(manifest['domain']),
             *(['--launch-id', launch_id] if launch_id is not None else [])]
 
 
@@ -167,7 +167,8 @@ def start_station():
         rviz_code = 0
         stop_code = 0
         try:
-            rviz_code = subprocess.run(rviz_command, check=False).returncode
+            rviz_env = dict(os.environ, ROS_DOMAIN_ID=str(manifest['domain']), ROS_LOCALHOST_ONLY='1')
+            rviz_code = subprocess.run(rviz_command, check=False, env=rviz_env).returncode
         except KeyboardInterrupt:
             rviz_code = 130
         except OSError as error:
@@ -177,7 +178,7 @@ def start_station():
             # Closing RViz must use the same correlated STOP/owner checks as CLI shutdown.
             stop_command = [sys.executable, str(ROOT / 'tools/station_process.py'), 'stop',
                             '--profile', 'fwmini4', '--deployment', 'user-units',
-                            '--expected-launch-id', launch_id]
+                            '--domain', str(manifest['domain']), '--expected-launch-id', launch_id]
             try:
                 stop_code = subprocess.run(stop_command, check=False).returncode
             except (OSError, KeyboardInterrupt) as error:
@@ -278,7 +279,8 @@ def blockly(action):
                         raise RuntimeError(f'Blockly port {port} is occupied by an unmanaged server. Inspect it before starting.') from error
             env = clean_env()
             if physical:
-                env.update(ROS_DOMAIN_ID='177', ROS_LOCALHOST_ONLY='1', ROS_AUTOMATIC_DISCOVERY_RANGE='LOCALHOST')
+                _, manifest = station_manifest()
+                env.update(ROS_DOMAIN_ID=str(manifest['domain']), ROS_LOCALHOST_ONLY='1', ROS_AUTOMATIC_DISCOVERY_RANGE='LOCALHOST')
             with (STATE / 'blockly-server.log').open('a') as log:
                 child = subprocess.Popen(blockly_command(physical), cwd=ROOT, env=env,
                                          stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,

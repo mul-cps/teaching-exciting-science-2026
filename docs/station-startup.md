@@ -135,7 +135,7 @@ These five steps are the limited integrated alternative above, not the primary n
 
 ## Choose the machine and environment
 
-On **fwmini4**, use the bjoern graphical login and the checkout above. The prepared `station-fwmini4` wrapper selects the station ROS environment, domain **177**, and localhost discovery; inspect `~/.local/bin/station-fwmini4 --help` for the installed wrapper. Keep the classroom Jupyter venv at `~/.local/share/exciting-science/workshop-20261022/venv` separate from the station hardware venv and ROS Conda environment. The copied calibration JSON and saved home retain their original identities; neither a historical saved home nor old feedback proves today's arm state. No old owner lease or live contract was transferred.
+On **fwmini4**, use the bjoern graphical login and the checkout above. The prepared `station-fwmini4` wrapper selects the station ROS environment, live domain **76**, and localhost discovery; inspect `~/.local/bin/station-fwmini4 --help` for the installed wrapper. Native units, RViz and physical Blockly use the installed manifest's domain. Domain **177** is reserved for explicitly selected isolated software tests; do not run native test launchers on the live station's domain. Keep the classroom Jupyter venv at `~/.local/share/exciting-science/workshop-20261022/venv` separate from the station hardware venv and ROS Conda environment. The copied calibration JSON and saved home retain their original identities; neither a historical saved home nor old feedback proves today's arm state. No old owner lease or live contract was transferred.
 
 On the **local workstation**, use the same numbered sequence with this path block instead:
 

@@ -86,12 +86,13 @@ class Application:
                 raise RuntimeError('recovery requires a flat program of safe station controls, log, wait and STOP')
             if not any(row['op']=='station' for row in rows):
                 raise RuntimeError('recovery program requires at least one safe station control')
-        names=set(); replay=False; arm=False; station=False
+        names=set(); replay=False; arm=False; station=False; ev3_reset=False
         def walk(commands,repeated=False):
-            nonlocal replay,arm,station
+            nonlocal replay,arm,station,ev3_reset
             for row in commands:
                 op=row['op']
-                if op=='station': station=True
+                if op=='ev3' and row['command']=='reset_fault': ev3_reset=True
+                elif op=='station': station=True
                 elif op=='arm': arm=True
                 elif op=='replay': replay=True
                 elif op=='record_stroke':
@@ -103,6 +104,8 @@ class Application:
                 elif op=='if_color':
                     walk(row['then'],repeated); walk(row['else'],repeated)
         walk(rows)
+        if ev3_reset and self.backend.physical and not self.instructor:
+            raise RuntimeError('EV3 fault reset requires instructor physical mode')
         if station and self.backend.physical and not self.instructor:
             raise RuntimeError('station programs require instructor physical mode')
         if arm and self.backend.physical and not self.instructor:

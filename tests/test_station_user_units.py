@@ -50,7 +50,7 @@ def test_render_has_fixed_roles_shared_arguments_disabled_units_and_exact_allowl
     with pytest.raises(ValueError):u.component_command(m,'arbitrary-command')
 
 
-@pytest.mark.parametrize('change',[lambda m:m.update(wrapper='/bin/sh'),lambda m:m.update(domain=76),
+@pytest.mark.parametrize('change',[lambda m:m.update(wrapper='/bin/sh'),lambda m:m.update(domain=75),
     lambda m:m['parameters'].update(component='owner'),lambda m:m['parameters'].update(station_python='/bin/sh'),
     lambda m:m['parameters'].update(operator_scene_unit='so101-fwmini4-owner.service'),
     lambda m:m['parameters'].update(operator_recovery_profile='derived_rocm'),lambda m:m.update(extra='unknown'),
@@ -58,6 +58,25 @@ def test_render_has_fixed_roles_shared_arguments_disabled_units_and_exact_allowl
 def test_malformed_or_unsafe_manifests_are_rejected(tmp_path,change):
     u=units();m=u.build_manifest(args(tmp_path));change(m)
     with pytest.raises((ValueError,RuntimeError)):u.validate_manifest(m)
+
+
+@pytest.mark.parametrize('domain', [None, 76, 177])
+def test_native_unit_domain_is_explicit_and_consistent(tmp_path, domain):
+    u=units();a=args(tmp_path);a.domain=domain
+    m=u.build_manifest(a)
+    expected=76 if domain is None else domain
+    assert m['domain']==expected
+    for role in u.ROLES:
+        text=u.unit_text(m,role)
+        assert f'ROS_DOMAIN_ID={expected}' in text
+        assert f'--domain' not in u.component_command(m,role)
+    u.validate_manifest(json.loads(json.dumps(m)))
+
+
+@pytest.mark.parametrize('domain', [0, 1, 75, 178, 232, 233, True, '76'])
+def test_native_units_reject_unsupported_domains(tmp_path, domain):
+    u=units();a=args(tmp_path);a.domain=domain
+    with pytest.raises(ValueError):u.build_manifest(a)
 
 
 def test_renderer_is_deterministic_and_never_overwrites_unowned_files(tmp_path):
@@ -363,7 +382,8 @@ def test_missing_compact_stop_endpoint_retains_record_and_dispatches_no_unit_sto
 
 def test_manifest_pins_api_delegate_and_implementation(tmp_path):
     u=units();m=u.build_manifest(args(tmp_path))
-    for source in ('tools/ros_station_api.py','ros2/src/so101_station_workflow/scripts/station_api'):
+    for source in ('tools/ros_station_api.py','ros2/src/so101_station_workflow/scripts/station_api',
+                   'workshop/station/ev3_job.py'):
         assert source in m['sources']
         m['sources'][source]='0'*64
         with pytest.raises(ValueError,match='source cohort'):u.validate_manifest(m)
@@ -438,3 +458,36 @@ def test_legacy_native_record_without_launch_id_retains_explicit_cli_stop(fake_m
     station.main(['stop','--profile','fwmini4','--deployment','user-units','--record',str(f.path)])
     assert not f.path.exists()
     assert ('rpc','/station/stop') in f.calls
+
+
+@pytest.mark.parametrize('domain', [76, 177])
+def test_unit_start_and_record_preserve_manifest_domain(fake_manager, monkeypatch, domain):
+    f=fake_manager;f.manifest['domain']=domain;f.args.domain=domain
+    f.args.unit_manifest.write_text(json.dumps(f.manifest))
+    monkeypatch.setenv('ROS_DOMAIN_ID',str(domain))
+    record=station.prepare_unit_start(f.args,[f.manifest['wrapper'],'ros-vulkan'])
+    assert record['environment']=={'ROS_DOMAIN_ID':str(domain),'ROS_LOCALHOST_ONLY':'1'}
+    station.check_unit_record(record)
+    record['environment']['ROS_DOMAIN_ID']=str(177 if domain==76 else 76)
+    with pytest.raises(RuntimeError,match='cohort'):station.check_unit_record(record)
+
+
+def test_unit_start_rejects_environment_manifest_domain_mismatch(fake_manager, monkeypatch):
+    f=fake_manager;monkeypatch.setenv('ROS_DOMAIN_ID','76')
+    with pytest.raises(RuntimeError,match='environment'):station.prepare_unit_start(f.args,[f.manifest['wrapper'],'ros-vulkan'])
+    assert f.calls==[]
+
+
+def test_fwmini4_parser_defaults_live_domain_without_retargeting_explicit_fixture(monkeypatch):
+    monkeypatch.delenv('ROS_DOMAIN_ID',raising=False)
+    station.parse_arguments(['start','--profile','fwmini4'])
+    import os
+    assert os.environ['ROS_DOMAIN_ID']=='76'
+    station.parse_arguments(['start','--profile','fwmini4','--domain','177'])
+    assert os.environ['ROS_DOMAIN_ID']=='177'
+
+
+def test_unit_start_rejects_explicit_domain_manifest_mismatch(fake_manager):
+    f=fake_manager;f.args.domain=76
+    with pytest.raises(RuntimeError,match='environment'):station.prepare_unit_start(f.args,[f.manifest['wrapper'],'ros-vulkan'])
+    assert f.calls==[]

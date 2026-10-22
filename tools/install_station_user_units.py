@@ -9,11 +9,14 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+LIVE_DOMAIN = 76
+UNIT_DOMAINS = (LIVE_DOMAIN, 177)  # Live station and explicitly isolated fixtures only.
 ROLES = ('owner','camera','tags','movegroup','objects','scene','leader','apis')
 UNITS = {role: 'so101-fwmini4-'+role+'.service' for role in ROLES}
 RESTART_ROLES = ('camera','tags','movegroup','objects','scene','leader')
 SOURCES = ('tools/install_station_user_units.py','tools/station_process.py',
            'tools/freeze_ros_joint_limits.py','tools/ros_station_api.py',
+           'workshop/station/ev3_job.py',
            'ros2/src/so101_station_workflow/scripts/station_api',
            'ros2/src/so101_station_bringup/launch/station_live.launch.py',
            'ros2/src/so101_station_control/launch/moveit_resident.launch.py',
@@ -65,9 +68,9 @@ def station_module():
 
 
 def build_manifest(args):
-    if args.profile!='fwmini4' or args.wrapper or args.wrapper_command or args.domain not in (None,177):
-        raise ValueError('native units require fixed fwmini4 wrapper and domain177')
-    result = dict(schema='so101-fwmini4-units-v1',uid=os.getuid(),root=str(ROOT),domain=177,
+    if args.profile!='fwmini4' or args.wrapper or args.wrapper_command or (args.domain is not None and (type(args.domain) is not int or args.domain not in UNIT_DOMAINS)):
+        raise ValueError('native units require fixed fwmini4 wrapper and domain76 (live) or177 (isolated)')
+    result = dict(schema='so101-fwmini4-units-v1',uid=os.getuid(),root=str(ROOT),domain=LIVE_DOMAIN if args.domain is None else args.domain,
                   wrapper=str(Path.home()/'.local/bin/station-fwmini4'),
                   parameters={**station_module().station_launch_parameters(args),**native_parameters()},
                   sources={path:hashlib.sha256((ROOT/path).read_bytes()).hexdigest() for path in SOURCES})
@@ -78,7 +81,7 @@ def build_manifest(args):
 def validate_manifest(value):
     if (not isinstance(value,dict) or set(value)!={'schema','uid','root','domain','wrapper','parameters','sources'} or
             value.get('schema')!='so101-fwmini4-units-v1' or type(value.get('uid')) is not int or value['uid']!=os.getuid() or
-            type(value.get('domain')) is not int or value['domain']!=177 or value.get('root')!=str(ROOT) or
+            type(value.get('domain')) is not int or value['domain'] not in UNIT_DOMAINS or value.get('root')!=str(ROOT) or
             value.get('wrapper')!=str(Path.home()/'.local/bin/station-fwmini4')):
         raise ValueError('native unit manifest identity/schema/wrapper/domain mismatch')
     fixed = native_parameters()
@@ -136,7 +139,7 @@ def unit_text(manifest,role):
         '[Service]','Type=exec','Restart=no','KillMode=control-group','KillSignal=SIGINT',
         'TimeoutStartSec=30','TimeoutStopSec=23','UMask=0077',
         'WorkingDirectory='+str(ROOT).replace('\\','\\\\').replace('%','%%'),
-        'Environment="ROS_DOMAIN_ID=177" "ROS_LOCALHOST_ONLY=1"',
+        f'Environment="ROS_DOMAIN_ID={manifest["domain"]}" "ROS_LOCALHOST_ONLY=1"',
         'ExecStart=:'+ ' '.join(unit_quote(word) for word in command),'',
     ])
 

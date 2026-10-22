@@ -463,3 +463,15 @@ infer a successful grasp. No arbitrary attachment publisher is exposed.
 Recovery also requires the **native workflow** to be idle and fault-free. Inspect
 the station and use RViz **Reset inspected fault** when a native workflow fault is
 latched; Blockly never resets that fault automatically.
+
+After station **STOP**, the instructor inspects the mechanism, selects Station
+controls **Verify recovery / unlock**, then EV3 **Reset inspected fault / STOP
+latch**. This does not set the feeder EJECT reference. Dispensing needs a physical
+reference recorded with RViz **Record feeder reference**.
+
+Perception restarts share a **30-second cooldown**. Use **Wait** blocks, separate
+runs, or one **Restart entire station + verify**; do not repeatedly retry restarts.
+
+Replay needs every recorded absolute joint within **2°** of its starting value
+and the jaw fixed at its recorded opening. The instructor uses teleoperation and
+measured feedback to return there. Automatic approach is not implemented.

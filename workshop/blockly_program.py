@@ -13,7 +13,7 @@ RECOVERY_STATION = frozenset({'reinitialize','verify_recovery','emergency_reset'
                              'restart_moveit','restart_camera','restart_depth','restart_tags',
                              'restart_all','verify_restart'})
 ARM = frozenset({'home', 'moveit', 'teleop_relative', 'teleop_absolute', 'torque_off'})
-EV3 = {'home', 'left_end', 'right_end', 'eject', 'wake', 'sleep', 'connect'}
+EV3 = {'home', 'left_end', 'right_end', 'eject', 'wake', 'sleep', 'connect', 'reset_fault'}
 COLORS = {'red', 'blue', 'green', 'yellow', 'unknown'}
 
 

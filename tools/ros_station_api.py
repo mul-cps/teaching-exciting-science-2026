@@ -321,31 +321,8 @@ def main():
 
     def simple_ev3(operation):
         def work(worker, proxy, cancel):
-            if operation in ('eject', 'home_touch'):
-                proxy.call('wake')
-            if operation == 'eject':
-                from workshop.station.ev3_readiness import require_fresh_stationary
-                require_fresh_stationary(proxy, session=proxy.session,
-                    deadline=time.monotonic()+2., cancel=cancel,
-                    spin=lambda deadline, cancel: time.sleep(.05))
-            result = proxy.call(operation)
-            job = result.get('job', {})
-            if result.get('accepted'):
-                deadline = time.monotonic()+20.
-                while True:
-                    if cancel.is_set() or time.monotonic() >= deadline:
-                        proxy.call('stop')
-                        raise InterruptedError('EV3 job cancelled or timed out')
-                    status = proxy.call('status')
-                    if status.get('session') != proxy.session:
-                        raise RuntimeError('EV3 session changed')
-                    if status.get('busy') is False:
-                        last = status.get('last_job') or {}
-                        if last.get('id') != job.get('id') or last.get('state') != 'complete' or last.get('cleanup_fault') or status.get('last_error'):
-                            raise RuntimeError('EV3 job failed: '+str(status))
-                        return status
-                    time.sleep(.05)
-            return result
+            from workshop.station.ev3_job import run_ev3_operation
+            return run_ev3_operation(proxy, cancel, operation, record, stop_state)
         return worker_task(operation, work)
 
     def sorter_position(request, response):

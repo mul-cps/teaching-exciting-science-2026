@@ -437,7 +437,8 @@ def prepare_unit_start(args,ros):
     tools = unit_tools()
     manifest = tools.load_manifest(args.unit_manifest)
     if (args.profile!='fwmini4' or ros!=[manifest['wrapper'],'ros-vulkan'] or
-            os.environ.get('ROS_DOMAIN_ID')!='177' or os.environ.get('ROS_LOCALHOST_ONLY')!='1' or
+            (args.domain is not None and args.domain!=manifest['domain']) or
+            os.environ.get('ROS_DOMAIN_ID')!=str(manifest['domain']) or os.environ.get('ROS_LOCALHOST_ONLY')!='1' or
             any(manifest['parameters'][key]!=value for key,value in station_launch_parameters(args).items())):
         raise RuntimeError('Unit startup arguments/environment differ from the installed native manifest')
     manager = manager_identity()
@@ -447,7 +448,7 @@ def prepare_unit_start(args,ros):
     return {'deployment':'user-units','launch_id':getattr(args,'launch_id',None) or str(uuid.uuid4()),
             'manifest':manifest,'manifest_sha256':tools.digest(manifest),
             'manager':manager,'before':before,'units':{},'pending':None,'owner_identity':None,
-            'ros':ros,'environment':{'ROS_DOMAIN_ID':'177','ROS_LOCALHOST_ONLY':'1'},'phase':'prepared'}
+            'ros':ros,'environment':{'ROS_DOMAIN_ID':str(manifest['domain']),'ROS_LOCALHOST_ONLY':'1'},'phase':'prepared'}
 
 
 NATIVE_RPC = r'''
@@ -623,7 +624,7 @@ def check_unit_record(record):
     tools.validate_manifest(record['manifest'])
     if (record.get('deployment')!='user-units' or tools.digest(record['manifest'])!=record.get('manifest_sha256') or
             record.get('ros')!=[record['manifest']['wrapper'],'ros-vulkan'] or
-            record.get('environment')!={'ROS_DOMAIN_ID':'177','ROS_LOCALHOST_ONLY':'1'} or
+            record.get('environment')!={'ROS_DOMAIN_ID':str(record['manifest']['domain']),'ROS_LOCALHOST_ONLY':'1'} or
             not set(record['units'])<=set(tools.ROLES) or manager_identity()!=record['manager']):
         raise RuntimeError('Managed unit cohort/manager identity changed; record retained')
 
@@ -848,7 +849,7 @@ def parse_arguments(argv=None):
         if not 1 <= args.domain <= 232:
             parser.error('--domain must be 1..232')
         os.environ['ROS_DOMAIN_ID'] = str(args.domain)
-    os.environ.setdefault('ROS_DOMAIN_ID', '177' if args.profile == 'fwmini4' else '76')
+    os.environ.setdefault('ROS_DOMAIN_ID', '76')
     os.environ.setdefault('ROS_LOCALHOST_ONLY', '1')
     args.config = (args.config or station/('station-fwmini4-20261022.json' if args.profile == 'fwmini4' else 'station.json')).resolve()
     for name in ('python', 'contract', 'state_file', 'station_lock', 'log_dir', 'record', 'calibration_dir', 'camera_sdk', 'unit_manifest'):

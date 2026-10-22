@@ -9,8 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from workshop.blockly_program import ARM, STATION, RECOVERY_STATION, validate_program
-from workshop.blockly_ros import ARM_SERVICES, OPERATOR_COMMANDS, ROSBackend
+from workshop.blockly_program import ARM, EV3, STATION, RECOVERY_STATION, validate_program
+from workshop.blockly_ros import ARM_SERVICES, EV3_SERVICES, OPERATOR_COMMANDS, ROSBackend
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -331,3 +331,25 @@ if mutation:
                 and isinstance(node.func, ast.Attribute)
                 and ast.unparse(node.func.value) == 'self.pending_mutations']
     assert len(removals) == 1 and ast.unparse(removals[0]) == 'self.pending_mutations.discard(future)'
+
+
+def test_ev3_reset_is_one_global_rpc_and_cold_instructor_preflight_only():
+    assert EV3 == {'home', 'left_end', 'right_end', 'eject', 'wake', 'sleep', 'connect', 'reset_fault'}
+    assert dict(EV3_SERVICES) == {'connect': '/station/ev3/connect', 'home': '/station/ev3/home',
+                                  'left_end': '/station/ev3/left_end', 'right_end': '/station/ev3/right_end',
+                                  'eject': '/station/ev3/eject', 'wake': '/station/wake',
+                                  'sleep': '/station/sleep', 'reset_fault': '/station/reset_fault'}
+    preflight = methods('tools/run_blockly_station.py', 'Application')['_preflight_program']
+    walk = next(node for node in preflight.body if isinstance(node, ast.FunctionDef) and node.name == 'walk')
+    flag = next(node for node in ast.walk(walk) if isinstance(node, ast.If)
+                and ast.unparse(node.test) == "op == 'ev3' and row['command'] == 'reset_fault'")
+    assert [ast.unparse(node) for node in flag.body] == ['ev3_reset = True']
+    gate = next(node for node in preflight.body if isinstance(node, ast.If)
+                and ast.unparse(node.test) == 'ev3_reset and self.backend.physical and (not self.instructor)')
+    assert isinstance(gate.body[0], ast.Raise)
+    assert ast.unparse(gate.body[0].exc) == "RuntimeError('EV3 fault reset requires instructor physical mode')"
+    traversal = next(node for node in preflight.body if isinstance(node, ast.Expr)
+                     and ast.unparse(node) == 'walk(rows)')
+    assert traversal.lineno < gate.lineno
+    assert not any(isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store)
+                   for node in ast.walk(preflight))

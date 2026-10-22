@@ -16,7 +16,8 @@ ARM_SERVICES=MappingProxyType({'home':('start',), 'moveit':('moveit',),
  'teleop_absolute':('teleop_absolute','teleop')})
 EV3_SERVICES={key:'/station/'+value for key,value in {
  'connect':'ev3/connect','home':'ev3/home','left_end':'ev3/left_end',
- 'right_end':'ev3/right_end','eject':'ev3/eject','wake':'wake','sleep':'sleep'}.items()}
+ 'right_end':'ev3/right_end','eject':'ev3/eject','wake':'wake','sleep':'sleep',
+ 'reset_fault':'reset_fault'}.items()}
 
 
 def terminal_job(snapshot, job_id):
