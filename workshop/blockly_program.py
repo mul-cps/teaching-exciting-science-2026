@@ -5,6 +5,7 @@ import threading
 import time
 
 NAME = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,39}$')
+ARM = frozenset({'home', 'moveit', 'teleop_relative', 'teleop_absolute', 'torque_off'})
 EV3 = {'home', 'left_end', 'right_end', 'eject', 'wake', 'sleep', 'connect'}
 COLORS = {'red', 'blue', 'green', 'yellow', 'unknown'}
 
@@ -31,7 +32,7 @@ def validate_program(program):
             if not isinstance(row, dict): raise ValueError('command must be an object')
             op = row.get('op')
             fields = {'wait':{'seconds'}, 'ev3':{'command'}, 'replay':{'name','speed'},
-                      'jaw':{'gap_mm'}, 'repeat':{'count','body'},
+                      'arm':{'command'}, 'record_stroke':{'name','seconds'}, 'jaw':{'gap_mm'}, 'repeat':{'count','body'},
                       'if_color':{'color','then','else'}, 'stop':set(), 'sort_cycle':set(), 'log':{'message'}}
             if not isinstance(op,str) or op not in fields or (set(row) != fields[op] | {'op'} and not (op=='replay' and set(row)==fields[op] | {'op','timing'})):
                 raise ValueError('unknown command or unsupported fields')
@@ -39,6 +40,10 @@ def validate_program(program):
             if op == 'wait': number(row['seconds'],0,10)
             elif op == 'ev3':
                 if not isinstance(row['command'],str) or row['command'] not in EV3: raise ValueError('unknown EV3 command')
+            elif op == 'arm':
+                if not isinstance(row['command'],str) or row['command'] not in ARM: raise ValueError('unknown arm command')
+            elif op == 'record_stroke':
+                name(row['name']); number(row['seconds'],1,30)
             elif op == 'replay':
                 name(row['name']); number(row['speed'],.1,1)
                 if row.get('timing','original') not in ('original','skip_stationary_pauses'): raise ValueError('unknown replay timing mode')
@@ -58,8 +63,9 @@ def validate_program(program):
 
 
 class ProgramRunner:
-    def __init__(self, backend, *, clock=time.monotonic):
+    def __init__(self, backend, *, clock=time.monotonic, dispatch=None):
         self.backend, self.clock = backend, clock
+        self.dispatch = dispatch if dispatch is not None else backend.command
 
     def execute(self, program, cancel):
         validate_program(program)
@@ -81,8 +87,8 @@ class ProgramRunner:
                 elif op == 'stop':
                     self.backend.stop(); raise InterruptedError('STOP block completed; program ended')
                 elif op == 'log': self.backend.log(row['message'])
-                elif op == 'sort_cycle': sort_results.append(self.backend.command(row,cancel,deadline))
-                else: self.backend.command(row, cancel, deadline)
+                elif op == 'sort_cycle': sort_results.append(self.dispatch(row,cancel,deadline))
+                else: self.dispatch(row, cancel, deadline)
                 check()
         try:
             run(program)
@@ -102,7 +108,11 @@ class SimulationBackend:
         self.events=[]; self.recordings=recordings if recordings is not None else {}; self.observed_color='red'
     def color(self): return self.observed_color
     def log(self,message): self.events.append(message); self.events=self.events[-100:]
+    def identity(self): return {'arm_id':'simulation','calibration_sha256':'0'*64}
+    def sample(self):
+        return {'identity':self.identity(),'positions':[0.]*5,'jaw':0.,'stamp':time.monotonic()}
     def command(self,row,cancel,deadline):
+        if row['op']=='record_stroke': raise ValueError('record_stroke requires Application dispatch')
         if row['op']=='replay' and row['name'] not in self.recordings: raise RuntimeError('recording not found')
         if row['op']=='sort_cycle':
             color=self.color()

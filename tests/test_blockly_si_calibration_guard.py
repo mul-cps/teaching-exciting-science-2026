@@ -64,10 +64,12 @@ def test_exception_is_one_readonly_endpoint_and_other_backend_code_unchanged():
             node.values[:] = [ast.parse("jaw.get('age_s',99)<2", mode='eval').body
                               if value is new_age else value for value in node.values]
     methods['_refresh_calibration'].body = [ast.Pass()]
+    # Reviewed 2026-10-22: baseline b5d2a06 plus cold ARM allowlist dispatch
+    # and explicit record_stroke rejection; every other backend method is unchanged.
     # Baseline25dfc5e with only refresh body removed. All action admission,
     # metric conversion, generic success rejection, joint callback, timers,
     # clients/publishers, cancellation, STOP and recovery code stays pinned.
-    assert digest(cls) == 'addf2e261ca5363cbf5f39fcf5657a7e132105754bc92457d41422f9416ca607'
+    assert digest(cls) == '44f1ce7bc44412d3c8e55233fc39f5ceca7e9bf252a693a3a297beaa5de15a94'
 
 
 @pytest.mark.parametrize('name,expected', [

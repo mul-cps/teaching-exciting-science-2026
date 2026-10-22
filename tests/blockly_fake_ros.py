@@ -19,6 +19,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.action import ActionServer, CancelResponse
 from std_srvs.srv import Trigger
 from sensor_msgs.msg import JointState
+from trajectory_msgs.msg import JointTrajectoryPoint
 from std_msgs.msg import String
 from control_msgs.action import FollowJointTrajectory, GripperCommand
 from so101_station_workflow.srv import RunCycles
@@ -30,7 +31,7 @@ state={'workflow':{'state':'idle','job_id':None,'result':None},
        'stop':{'pending':False,'ev3_stopped':True,'arm_disarmed':True},
        'ev3':{'status':{'color':'Color.RED'}}}
 counts={'arm':0,'jaw':0,'stop':0,'sort':0}; points=[]; publishing=[True]; slow=[False]
-calibration={'si':True,'angle':True}; calibration_replies=[]; jaw_positions=[]
+calibration={'si':True,'angle':True}; calibration_replies=[]; jaw_positions=[]; operator_calls=[]
 def trigger(endpoint,request,response):
     response.success=True
     if endpoint=='/follower/status': data={'schema':1,'kind':'follower_status','position_age_s':.01,'torque_age_s':.01,'fresh':True,'sampled_monotonic':time.monotonic(),'arm_id':'fake','calibration_sha256':'a'*64,'owner_started_monotonic':123.,'owner_source_sha256':{'owner':'b'*64},'owner_faulted':False,'stop_latched':False,'active_operation':None,'teleop_state':'disabled','torque':dict.fromkeys(['shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll','gripper'],0)}
@@ -41,12 +42,16 @@ def trigger(endpoint,request,response):
         data={'schema':'so101-gripper-calibration-status-v1','si_gap_calibrated':si,'moveit_joint_calibrated':angle,'si_position_units':'metres','moveit_position_units':'radians','visual_proxy_only':not angle,'reason':'qualified gap and joint-angle calibration loaded' if si and angle else 'calibration incomplete'}
         calibration_replies.append((si,angle,response.success))
     elif endpoint=='/station/stop': counts['stop']+=1; state['stop']['request_id']='stop-'+str(counts['stop']); data={'cancel_requested':True,'request_id':state['stop']['request_id']}
+    elif endpoint.startswith('/station/operator/'):
+        operator_calls.append(endpoint.removeprefix('/station/operator/')); data={'acknowledged':True}
     elif endpoint=='/station/ev3/eject':
         state['workflow']={'state':'idle','job_id':'fake-eject','result':{'done':True}}; data={'job_id':'fake-eject'}
     else: data={'acknowledged':True}
     response.message=json.dumps(data); return response
 services=[]
-for endpoint in ('/follower/status','/station/status','/station/stop','/follower/gripper_calibration_status','/station/ev3/eject','/station/operator/moveit'):
+for endpoint in ('/follower/status','/station/status','/station/stop','/follower/gripper_calibration_status','/station/ev3/eject','/station/operator/moveit',
+                 '/station/operator/teleop_relative','/station/operator/teleop_absolute',
+                 '/station/operator/teleop','/station/operator/start'):
     services.append(node.create_service(Trigger,endpoint,lambda request,response,e=endpoint:trigger(e,request,response),callback_group=group))
 
 
@@ -170,6 +175,41 @@ try:
         assert counts['sort']==1
         assert app.backend.color()=='red'
         assert app.operator('moveit')['acknowledged'] is True
+        def await_program():
+            deadline=time.monotonic()+6
+            pause=threading.Event()
+            while app.status()['job']['state']=='running' and time.monotonic()<deadline:
+                pause.wait(.02)
+            assert app.status()['job']['state']=='complete',app.status()
+            app.thread.join(timeout=2)
+            assert not app.thread.is_alive()
+        app.thread.join(timeout=2)
+        operator_begin=len(operator_calls); arm_before=counts['arm']; jaw_before=counts['jaw']
+        app.run([{'op':'arm','command':'teleop_relative'},
+                 {'op':'record_stroke','name':'block_taught','seconds':1},
+                 {'op':'arm','command':'moveit'}])
+        await_program()
+        assert operator_calls[operator_begin:]==['teleop_relative','teleop','moveit'],operator_calls
+        block_recording=app.recordings['block_taught']
+        block_samples=len(block_recording['points'])
+        assert block_samples>=8,block_samples
+        saved_path=Path(directory)/'block_taught.json'
+        assert saved_path.is_file()
+        assert json.loads(saved_path.read_text())==block_recording
+        assert counts['arm']==arm_before and counts['jaw']==jaw_before,counts
+        assert block_recording['jaw_radians']==0.
+        app.run([{'op':'replay','name':'block_taught','speed':.5}])
+        await_program()
+        assert counts['arm']==arm_before+1 and counts['jaw']==jaw_before,counts
+        assert len(points)==counts['arm']
+        assert all(isinstance(point,JointTrajectoryPoint) for point in points[-1])
+        assert len(points[-1])==block_samples
+        assert len(points[-1][0].positions)==5
+        operator_begin=len(operator_calls)
+        app.run([{'op':'arm','command':'teleop_absolute'},
+                 {'op':'arm','command':'moveit'}, {'op':'arm','command':'home'}])
+        await_program()
+        assert operator_calls[operator_begin:]==['teleop_absolute','teleop','moveit','start'],operator_calls
         publishing[0]=False; time.sleep(.4)
         try: app.backend.sample(); raise AssertionError('stale state accepted')
         except RuntimeError: pass
@@ -178,7 +218,7 @@ try:
         deadline=time.monotonic()+3
         while app.status()['job']['state']=='running' and time.monotonic()<deadline: time.sleep(.03)
         assert app.status()['job']['state']=='failed'; assert counts['stop']>=1
-        print(json.dumps({'fake_ros':'passed','recorded_samples':recorded['samples'],'counts':counts,'stale_rejected':True,'cancel_stopped':True,'optional_timing_shortened':True,'native_cycle_exact_terminal':True,'si_only':si_only_outcome,'uncalibrated_si_rejected_without_goal':True}))
+        print(json.dumps({'fake_ros':'passed','recorded_samples':recorded['samples'],'counts':counts,'stale_rejected':True,'cancel_stopped':True,'optional_timing_shortened':True,'native_cycle_exact_terminal':True,'si_only':si_only_outcome,'uncalibrated_si_rejected_without_goal':True,'typed_arm_controls':True,'program_recording':True,'program_recording_replay':True,'program_recorded_samples':block_samples}))
 finally:
     if app: app.close()
     for timer in tuple(node.timers): timer.cancel()

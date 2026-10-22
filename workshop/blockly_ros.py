@@ -1,4 +1,5 @@
 """ROS clients for Blockly. Reuses the sole resident owner and guarded APIs."""
+from types import MappingProxyType
 import hashlib
 import json
 import math
@@ -9,6 +10,9 @@ from .blockly_recording import JOINTS, replay_points
 OPERATOR_COMMANDS=('emergency_reset','reset','start','base_release','base_confirm','teleop',
  'teleop_relative','teleop_absolute','moveit','damping','zero_torque','restart_moveit',
  'restart_camera','restart_depth','restart_tags','restart_all','verify_restart')
+ARM_SERVICES=MappingProxyType({'home':('start',), 'moveit':('moveit',),
+ 'teleop_relative':('teleop_relative','teleop'),
+ 'teleop_absolute':('teleop_absolute','teleop')})
 EV3_SERVICES={key:'/station/'+value for key,value in {
  'connect':'ev3/connect','home':'ev3/home','left_end':'ev3/left_end',
  'right_end':'ev3/right_end','eject':'ev3/eject','wake':'wake','sleep':'sleep'}.items()}
@@ -319,6 +323,14 @@ class ROSBackend:
             if cancel.wait(.1): raise InterruptedError('cancelled during native workflow')
 
     def command(self,row,cancel,deadline):
+        if row['op']=='record_stroke': raise ValueError('record_stroke requires Application dispatch')
+        if row['op']=='arm':
+            if cancel.is_set(): raise InterruptedError('program cancelled before arm command')
+            if time.monotonic()>=deadline: raise TimeoutError('arm command deadline expired')
+            if row['command']=='torque_off': return self.stop()
+            for command in ARM_SERVICES[row['command']]:
+                self.trigger('/station/operator/'+command,cancel,deadline)
+            return
         if row['op']=='sort_cycle':
             from so101_station_workflow.srv import RunCycles
             request=RunCycles.Request(); request.cycles=1

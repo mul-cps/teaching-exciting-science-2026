@@ -1,0 +1,65 @@
+{
+  "schema": "so101-blockly-workspace-v1",
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "node_logging_info",
+          "inputs": {
+            "MESSAGE": {
+              "shadow": {
+                "type": "node_logging_text",
+                "fields": {
+                  "TEXT": "With instructor: move leader during recording; keep jaw fixed. Playback is a separate run after returning to start."
+                }
+              }
+            }
+          },
+          "next": {
+            "block": {
+              "type": "station_arm",
+              "fields": {
+                "COMMAND": "teleop_relative"
+              },
+              "next": {
+                "block": {
+                  "type": "station_record_stroke",
+                  "fields": {
+                    "NAME": "my_short_move",
+                    "SECONDS": 5
+                  },
+                  "next": {
+                    "block": {
+                      "type": "station_arm",
+                      "fields": {
+                        "COMMAND": "moveit"
+                      },
+                      "next": {
+                        "block": {
+                          "type": "node_logging_info",
+                          "inputs": {
+                            "MESSAGE": {
+                              "shadow": {
+                                "type": "node_logging_text",
+                                "fields": {
+                                  "TEXT": "Saved: load Teach and replay, return to recorded start, then run."
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "x": 35,
+          "y": 35
+        }
+      ]
+    }
+  }
+}

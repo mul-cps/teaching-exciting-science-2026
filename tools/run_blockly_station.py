@@ -52,6 +52,7 @@ class Application:
         self.instructor=instructor; self.token=secrets.token_urlsafe(32)
         self.lock=threading.RLock(); self.cancel=threading.Event(); self.job={'state':'idle'}
         self.thread=None; self.recorder=None; self.record_thread=None; self.record_cancel=threading.Event()
+        self.program_recording=False
         self.record_error=None; self.operator_busy=False; self.recovery_required=False
 
     def status(self):
@@ -78,16 +79,91 @@ class Application:
         walk(rows)
         if missing: raise ValueError('recording not found: '+', '.join(sorted(missing)))
 
+    def _preflight_program(self,rows):
+        names=set(); replay=False; arm=False
+        def walk(commands,repeated=False):
+            nonlocal replay,arm
+            for row in commands:
+                op=row['op']
+                if op=='arm': arm=True
+                elif op=='replay': replay=True
+                elif op=='record_stroke':
+                    if repeated: raise ValueError('recording cannot run in repeat count >1')
+                    if row['name'] in names or row['name'] in self.recordings or (self.directory/(row['name']+'.json')).exists():
+                        raise ValueError('choose a new unique recording name; existing strokes are preserved')
+                    names.add(row['name'])
+                elif op=='repeat': walk(row['body'],repeated or row['count']>1)
+                elif op=='if_color':
+                    walk(row['then'],repeated); walk(row['else'],repeated)
+        walk(rows)
+        if arm and self.backend.physical and not self.instructor:
+            raise RuntimeError('arm programs require instructor physical mode')
+        if names and replay: raise ValueError('teach and playback require separate program runs')
+        if names and len(self.recordings)+len(names)>64: raise ValueError('recording library limit 64')
+
+    def _save_recording(self,result,check=lambda:None):
+        info=recording_timing(result)
+        with self.lock:
+            check()
+            if result['name'] in self.recordings: raise ValueError('existing strokes are preserved')
+            if self.backend.physical:
+                path=self.directory/(result['name']+'.json')
+                # Exclusive creation also protects recordings not loaded into the library.
+                with path.open('x') as stream:
+                    try:
+                        json.dump(result,stream,allow_nan=False)
+                        check()
+                    except BaseException:
+                        path.unlink()
+                        raise
+            self.recordings[result['name']]=result
+            self.recording_info[result['name']]=info
+        return {'name':result['name'],'samples':len(result['points'])}
+
+    def _program_command(self,row,cancel,deadline):
+        if row['op']!='record_stroke': return self.backend.command(row,cancel,deadline)
+        def check():
+            if cancel.is_set(): raise InterruptedError('program recording cancelled')
+            if time.monotonic()>=deadline: raise TimeoutError('program recording deadline expired')
+        check()
+        sample=self.backend.sample(); identity=sample['identity']
+        recorder=Recorder(row['name'],identity)
+        with self.lock:
+            if self.recorder is not None: raise RuntimeError('recording already active')
+            self.recorder=recorder; self.program_recording=True; self.record_error=None
+        try:
+            end=time.monotonic()+row['seconds']
+            while True:
+                check()
+                if sample['identity']!=identity: raise RuntimeError('owner generation/source changed during recording')
+                recorder.add(sample['positions'],sample['jaw'],sample['stamp'])
+                remaining=end-time.monotonic()
+                if remaining<=0: break
+                cancel.wait(min(.1,remaining))
+                check(); sample=self.backend.sample()
+            result=recorder.finish()
+            check()
+            final=self.backend.sample()
+            if final['identity']!=identity: raise RuntimeError('follower identity changed during recording')
+            if abs(final['jaw']-result['jaw_radians'])>.015: raise RuntimeError('jaw changed during recording')
+            return self._save_recording(result,check)
+        except BaseException as error:
+            with self.lock: self.record_error=str(error)
+            raise
+        finally:
+            with self.lock: self.recorder=None; self.program_recording=False
+
     def run(self,program):
         validate_program(program)
         with self.lock:
             self.idle()
+            self._preflight_program(program)
             self._check_recordings(program)
             self.cancel=threading.Event(); job=secrets.token_hex(8)
             self.job={'id':job,'state':'running'}
             def work():
                 try:
-                    result=ProgramRunner(self.backend).execute(program,self.cancel)
+                    result=ProgramRunner(self.backend,dispatch=self._program_command).execute(program,self.cancel)
                     terminal={'id':job,'state':'complete','result':result}
                 except BaseException as error:
                     terminal={'id':job,'state':'failed','error':str(error)[:2000]}
@@ -124,6 +200,7 @@ class Application:
 
     def record_stop(self):
         with self.lock:
+            if self.program_recording: raise RuntimeError('recording is managed by the active program')
             if self.recorder is None: raise RuntimeError('no recording active')
             recorder=self.recorder; thread=self.record_thread; self.record_cancel.set()
         thread.join(timeout=2)
@@ -132,12 +209,7 @@ class Application:
         try:
             result=recorder.finish()
             if self.backend.identity()!=result['identity']: raise RuntimeError('follower identity changed during recording')
-            path=self.directory/(result['name']+'.json')
-            with path.open('x') as stream: json.dump(result,stream,allow_nan=False)
-            with self.lock:
-                self.recordings[result['name']]=result
-                self.recording_info[result['name']]=recording_timing(result)
-            return {'name':result['name'],'samples':len(result['points'])}
+            return self._save_recording(result)
         finally:
             with self.lock: self.operator_busy=False
 

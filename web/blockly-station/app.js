@@ -4,7 +4,9 @@ const definitions=[
  {type:'station_sort_cycle',message0:'Run one commissioned sorting cycle',previousStatement:null,nextStatement:null,colour:180,tooltip:'Requires the commissioned station sorting configuration, calibrated robot, live scene and destinations. Uses the native verified pickup/lift/release transaction; not a taught-stroke shortcut.'},
  {type:'station_ev3',message0:'EV3 %1',args0:[{type:'field_dropdown',name:'COMMAND',options:[['dispense one brick','eject'],['conveyor home','home'],['conveyor left','left_end'],['conveyor right','right_end'],['wake','wake'],['sleep','sleep'],['connect','connect']]}],previousStatement:null,nextStatement:null,colour:180},
  {type:'station_wait',message0:'wait %1 seconds',args0:[{type:'field_number',name:'SECONDS',value:1,min:0,max:10,precision:.1}],previousStatement:null,nextStatement:null,colour:210},
- {type:'station_replay',message0:'replay stroke %1 speed %2 %3',args0:[{type:'field_input',name:'NAME',text:'demo'},{type:'field_number',name:'SPEED',value:.5,min:.1,max:1,precision:.1},{type:'field_dropdown',name:'TIMING',options:[['original timing','original'],['skip stationary pauses','skip_stationary_pauses']]}],message1:'%1',args1:[{type:'field_label_serializable',name:'DURATION',text:'duration unavailable; controller may retime'}],previousStatement:null,nextStatement:null,colour:30},
+ {type:'station_arm',message0:'SO-ARM101 %1',args0:[{type:'field_dropdown',name:'COMMAND',options:[['saved home','home'],['MoveIt mode','moveit'],['leader teleop relative','teleop_relative'],['leader teleop absolute','teleop_absolute'],['torque OFF / station STOP','torque_off']]}],previousStatement:null,nextStatement:null,colour:30,tooltip:'Select a SO-ARM101 command. Torque OFF / station STOP also stops EV3 and disarms the arm. Saved home moves the arm; teleop lets the leader guide it. Recording only captures a manual demonstration; replay plays a saved stroke. No automatic approach to a stroke start.'},
+ {type:'station_record_stroke',message0:'record follower stroke %1 for %2 seconds',args0:[{type:'field_input',name:'NAME',text:'demo'},{type:'field_number',name:'SECONDS',value:5,min:1,max:30,precision:.1}],previousStatement:null,nextStatement:null,colour:45,tooltip:'Capture follower positions during a manual leader demonstration. Hold the jaw fixed. Read-only capture applies no force and does not move the arm or approach a start pose. Replay plays the saved recording separately.'},
+ {type:'station_replay',message0:'replay stroke %1 speed %2 %3',args0:[{type:'field_input',name:'NAME',text:'demo'},{type:'field_number',name:'SPEED',value:.5,min:.1,max:1,precision:.1},{type:'field_dropdown',name:'TIMING',options:[['original timing','original'],['skip stationary pauses','skip_stationary_pauses']]}],message1:'%1',args1:[{type:'field_label_serializable',name:'DURATION',text:'duration unavailable; controller may retime'}],previousStatement:null,nextStatement:null,colour:30,tooltip:'Play a previously recorded stroke. This moves the follower; recording captures a manual demonstration. No autonomous approach to the stroke start.'},
  {type:'station_jaw',message0:'jaw gap %1 mm',args0:[{type:'field_number',name:'GAP',value:30,min:0,max:200,precision:1}],previousStatement:null,nextStatement:null,colour:30},
  {type:'station_repeat',message0:'repeat %1 times %2 %3',args0:[{type:'field_number',name:'COUNT',value:2,min:1,max:5,precision:1},{type:'input_dummy'},{type:'input_statement',name:'BODY'}],previousStatement:null,nextStatement:null,colour:120},
  {type:'station_color',message0:'if sensor sees %1 %2 do %3 otherwise %4',args0:[{type:'field_dropdown',name:'COLOR',options:['red','blue','green','yellow','unknown'].map(c=>[c,c])},{type:'input_dummy'},{type:'input_statement',name:'THEN'},{type:'input_statement',name:'ELSE'}],previousStatement:null,nextStatement:null,colour:280},
@@ -12,7 +14,14 @@ const definitions=[
 ];
 Blockly.defineBlocksWithJsonArray(definitions);
 python.pythonGenerator.forBlock.station_sort_cycle=()=> '# Commissioned station only; native RunCycles.cycles is fixed to 1.\nresult = station.command({"op": "sort_cycle"}, cancel, deadline)\n';
-const toolbox={kind:'categoryToolbox',contents:[{kind:'category',name:'Station sequence',colour:'180',contents:definitions.map(d=>({kind:'block',type:d.type}))},{kind:'category',name:'ROS Blocky · logging',colour:'#7f8c8d',contents:[{kind:'block',type:'node_logging_info',inputs:{MESSAGE:{shadow:{type:'node_logging_text'}}}}]}]};
+const blocks=types=>types.map(type=>({kind:'block',type}));
+const toolbox={kind:'categoryToolbox',contents:[
+ {kind:'category',name:'SO-ARM101',colour:'30',contents:blocks(['station_arm','station_jaw'])},
+ {kind:'category',name:'Recordings',colour:'45',contents:blocks(['station_record_stroke','station_replay'])},
+ {kind:'category',name:'EV3 conveyor',colour:'180',contents:blocks(['station_ev3'])},
+ {kind:'category',name:'Flow & decisions',colour:'210',contents:blocks(['station_wait','station_repeat','station_color','station_stop','station_sort_cycle'])},
+ {kind:'category',name:'ROS Blocky · logging',colour:'#7f8c8d',contents:[{kind:'block',type:'node_logging_info',inputs:{MESSAGE:{shadow:{type:'node_logging_text'}}}}]}
+]};
 const workspace=Blockly.inject('workspace',{toolbox,media:'vendor/media/',trashcan:true,scrollbars:true,zoom:{controls:true,wheel:true},sounds:false});
 function compileChain(block,depth=0){
  if(depth>4)throw Error('Maximum nesting is four'); const rows=[];
@@ -20,6 +29,8 @@ function compileChain(block,depth=0){
   const f=n=>block.getFieldValue(n); let row;
   switch(block.type){
    case'station_sort_cycle':row={op:'sort_cycle'};break;
+   case'station_arm':row={op:'arm',command:f('COMMAND')};break;
+   case'station_record_stroke':row={op:'record_stroke',name:f('NAME'),seconds:Number(f('SECONDS'))};break;
    case'station_ev3':row={op:'ev3',command:f('COMMAND')};break;
    case'station_wait':row={op:'wait',seconds:Number(f('SECONDS'))};break;
    case'station_replay':row={op:'replay',name:f('NAME'),speed:Number(f('SPEED')),timing:f('TIMING')||'original'};break;
@@ -58,7 +69,7 @@ async function api(path,body){const base=path==='program/stop'?'http://127.0.0.1
 function show(data){$('result').textContent=typeof data==='string'?data:JSON.stringify(data,null,2);}
 function clicked(id,fn){$(id).onclick=async()=>{try{await fn();}catch(error){show(error.message);}};}
 let knownMode=null;let startupModeResolved=false;let startupWorkspaceSnapshot=null;
-const starterFiles={ev3:'01_ev3.json',teach:'02_teach_replay.json',factory:'03_color_factory.json'};
+const starterFiles={ev3:'01_ev3.json',teach:'02_teach_replay.json',factory:'03_color_factory.json',armteach:'04_arm_teach.json'};
 function loadWorkspace(state){
  Blockly.Events.disable();
  try{workspace.clear();Blockly.serialization.workspaces.load(state,workspace);}
@@ -74,7 +85,7 @@ function example(){
 }
 function updateStarterDownload(){
  const file=starterFiles[$('starter-choice').value];
- if(!file)throw Error('Choose one of the three supplied starters');
+ if(!file)throw Error('Choose a supplied starter');
  $('download-starter').href='examples/'+file;
 }
 $('starter-choice').onchange=updateStarterDownload;
@@ -125,5 +136,5 @@ function updateInstructor(status){
  }
 }
 $('sim-color').onchange=async()=>{try{await api('simulation/color',{color:$('sim-color').value});}catch(error){show(error.message);}};
-let jawEnabled=true;let lastJob='';async function refresh(){try{const status=await api('status');if(typeof status.physical!=='boolean')throw Error('Station mode is unavailable');if(typeof status.physical==='boolean'){knownMode=status.physical;if(!startupModeResolved){startupModeResolved=true;if(knownMode===false&&JSON.stringify(Blockly.serialization.workspaces.save(workspace))===startupWorkspaceSnapshot)example();}}recordingInfo=status.recording_info||{};updateReplayDurations();const nextJaw=!status.physical||Boolean(status.capabilities?.jaw);if(nextJaw!==jawEnabled){jawEnabled=nextJaw;toolbox.contents[0].contents.find(b=>b.type==='station_jaw').disabled=!nextJaw;workspace.updateToolbox(toolbox);}$('mode').textContent=status.physical?'PHYSICAL · instructor supervised':'SIMULATION · no robot motion';$('mode').style.background=status.physical?'#a54529':'#24566b';$('recordings').textContent='Available strokes: '+status.recordings.join(', ')+(status.recording?' · recording '+status.recording:'');updateInstructor(status);const encoded=JSON.stringify(status.job);if(encoded!==lastJob){show(status.job);lastJob=encoded;}if(status.record_error)show(status.record_error);if(status.recovery_required)show('Recovery required: inspect station, use instructor recovery controls, then Verify recovery / unlock Blockly.');$('sim-color-label').hidden=status.physical;$('readiness').textContent=status.physical?JSON.stringify(status.streams,null,2):'Simulation: no physical camera, perception or arm connection';const events=status.events||[];$('trace').textContent=events.length?events.join(' → '):'Run a sequence to see its actions.';if(events.length)$('brick').style.transform='translateX('+((events.length%3)-1)*35+'px)';window.stationStatus=status;}catch(error){knownMode=null;updateInstructor({});$('mode').textContent='DISCONNECTED';show(error.message);}setTimeout(refresh,700);}
+let jawEnabled=true;let lastJob='';async function refresh(){try{const status=await api('status');if(typeof status.physical!=='boolean')throw Error('Station mode is unavailable');if(typeof status.physical==='boolean'){knownMode=status.physical;if(!startupModeResolved){startupModeResolved=true;if(knownMode===false&&JSON.stringify(Blockly.serialization.workspaces.save(workspace))===startupWorkspaceSnapshot)example();}}recordingInfo=status.recording_info||{};updateReplayDurations();const nextJaw=!status.physical||Boolean(status.capabilities?.jaw);if(nextJaw!==jawEnabled){jawEnabled=nextJaw;toolbox.contents.flatMap(category=>category.contents||[]).find(b=>b.type==='station_jaw').disabled=!nextJaw;workspace.updateToolbox(toolbox);}$('mode').textContent=status.physical?'PHYSICAL · instructor supervised':'SIMULATION · no robot motion';$('mode').style.background=status.physical?'#a54529':'#24566b';$('recordings').textContent='Available strokes: '+status.recordings.join(', ')+(status.recording?' · recording '+status.recording:'');updateInstructor(status);$('record-start').disabled=status.job?.state==='running'||Boolean(status.recording);$('record-stop').disabled=status.job?.state==='running'||!status.recording;const encoded=JSON.stringify(status.job);if(encoded!==lastJob){show(status.job);lastJob=encoded;}if(status.record_error)show(status.record_error);if(status.recovery_required)show('Recovery required: inspect station, use instructor recovery controls, then Verify recovery / unlock Blockly.');$('sim-color-label').hidden=status.physical;$('readiness').textContent=status.physical?JSON.stringify(status.streams,null,2):'Simulation: no physical camera, perception or arm connection';const events=status.events||[];$('trace').textContent=events.length?events.join(' → '):'Run a sequence to see its actions.';if(events.length)$('brick').style.transform='translateX('+((events.length%3)-1)*35+'px)';window.stationStatus=status;}catch(error){knownMode=null;updateInstructor({});$('record-start').disabled=true;$('record-stop').disabled=true;$('mode').textContent='DISCONNECTED';show(error.message);}setTimeout(refresh,700);}
 example();startupWorkspaceSnapshot=JSON.stringify(Blockly.serialization.workspaces.save(workspace));refresh();

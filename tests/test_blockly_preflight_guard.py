@@ -37,10 +37,11 @@ def test_recording_preflight_precedes_job_event_and_thread_creation():
     assert ast.unparse(run.body[0]) == 'validate_program(program)'
     locked = next(node for node in run.body if isinstance(node, ast.With))
     assert ast.unparse(locked.items[0].context_expr) == 'self.lock'
-    assert [ast.unparse(node) for node in locked.body[:2]] == [
-        'self.idle()', 'self._check_recordings(program)']
-    admission = locked.body[1]
+    assert [ast.unparse(node) for node in locked.body[:3]] == [
+        'self.idle()', 'self._preflight_program(program)', 'self._check_recordings(program)']
+    admission = locked.body[2]
     calls = [node for node in ast.walk(run) if isinstance(node, ast.Call)]
+    assert sum(ast.unparse(node.func) == 'self._preflight_program' for node in calls) == 1
     assert sum(ast.unparse(node.func) == 'self._check_recordings' for node in calls) == 1
     for node in ast.walk(run):
         if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store):

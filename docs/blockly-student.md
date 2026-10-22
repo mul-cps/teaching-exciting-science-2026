@@ -17,7 +17,7 @@ are needed. Keep the terminal open; Ctrl+C closes the simulator.
 
 ![The example completed twice in simulation](assets/blockly/simulation-complete.png)
 
-The **Starter** menu gives you three saved programs. Choose one and press
+The **Starter** menu gives you four saved programs. Choose one and press
 **Load starter**; **Download starter** keeps a copy you can reopen with **Open
 blocks**. Loading replaces the blocks on screen, so save your work first.
 
@@ -26,6 +26,21 @@ blocks**. Loading replaces the blocks on screen, so save your work first.
 | [1 · EV3 endpoints](../web/blockly-station/examples/01_ev3.json) | Predict connect → home → left → right, then change the order in simulation. |
 | [2 · Teach and replay](../web/blockly-station/examples/02_teach_replay.json) | Record `my_short_move` at the supervised station. In simulation only, change that name to the invented `demo` stroke. |
 | [3 · Color factory](../web/blockly-station/examples/03_color_factory.json) | Compare red, blue and unknown. Dispensing requires a commissioned feeder in live mode. |
+| [4 · SO-ARM101 teach a stroke](../web/blockly-station/examples/04_arm_teach.json) | Try in simulation first. At the supervised physical station, capture a short manual leader demonstration with the jaw fixed. |
+
+## Find your blocks
+
+- **SO-ARM101:** saved home, MoveIt mode, leader teleop relative, leader teleop
+  absolute and torque OFF, plus the existing metric jaw-gap block. Saved home
+  moves the arm; ask the instructor before physical mode changes.
+- **Recordings:** record follower stroke by name for **1–30 seconds**, or replay
+  a named stroke with a speed and timing choice. Recording captures measured
+  positions during manual teaching; replay moves the follower.
+- **EV3 conveyor:** connection, dispensing and conveyor commands.
+- **Flow & decisions:** wait, repeat, color decision, STOP and the commissioned
+  sorting-cycle block. **ROS Blocky · logging** supplies messages.
+
+Loading a starter only changes the workspace. Press **Run sequence** when ready.
 
 ## Predict, build, run, check
 
@@ -55,20 +70,29 @@ challenge slot; it is **not another 35-minute activity**. Complete the simulatio
 challenge first. The instructor opens the live version using the station setup
 and recording guide in the full repository.
 
-1. Ask the instructor to check station readiness and select the desired leader
-   teleoperation mode. Choose a short path clear of objects and name your stroke,
-   for example `my_short_move`. This name is yours to record, not a supplied stroke.
-2. Hold the jaw at one opening. Press **Record follower**, move the human-operated
-   leader through the short path, then press **Finish recording**. The recording
-   contains the measured follower movement. Disable teleoperation with the
-   instructor before replay.
-3. Let the instructor check the path and return the follower to the recorded
-   starting pose. Add your named replay block at **speed 0.5** and replay once.
-   Check the reported completion before adding another action.
+1. Try **4 · SO-ARM101 teach a stroke** in simulation first. For physical use,
+   ask the instructor to check readiness and supervise switching arm modes.
+   Choose a short path clear of objects and a unique recording name, for example
+   `my_short_move` if it has not been recorded before. Physical recordings cannot
+   overwrite an existing name. Do not repeat a record block or put it in a loop.
+2. Load starter 4. It selects relative leader teleoperation, records the follower
+   for **5 seconds**, then returns to **MoveIt mode**. Keep the jaw fixed and move
+   the human-operated leader during that recording window. Capture is read-only
+   and applies no force; it does not automatically approach a starting pose.
+   Cancellation or stale follower data fails the capture without saving a partial
+   stroke. The **Record follower** and **Finish recording** buttons remain an
+   alternative for instructor-supervised manual recording.
+3. After capture, let the instructor inspect the path and supervise returning
+   the follower to its recorded starting pose. Load **2 · Teach and replay**,
+   use the same recorded name (`my_short_move` in the supplied placeholder), and
+   replay once at **speed 0.5** in a separate **Run sequence**. Keep recording and
+   playback in separate programs. Check completion before adding another action.
 4. Add **Connect EV3**, then one instructor-approved conveyor endpoint. Check that
    each action reports completion. Add dispensing only after the instructor has
    commissioned the feeder reference; add jaw instructions only with measured,
-   qualified jaw calibration. Keep the jaw fixed during each recorded stroke.
+   qualified jaw calibration over the requested interval. Only one **9 mm**
+   calibration point is currently recorded; the metric jaw interval is **not
+   qualified**. Keep the jaw fixed during each recorded stroke.
 5. Build red and blue branches, predicting a different message or approved action
    for each. In simulation try red, blue and unknown. The unknown branch must log
    and **STOP before dispensing, gripping or replaying a manipulation**. In live

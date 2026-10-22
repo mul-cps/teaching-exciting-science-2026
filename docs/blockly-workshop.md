@@ -93,23 +93,42 @@ copy for **Open blocks**. Save an edited workspace before loading another.
 3. **Color factory:** connect, repeat, route red/blue through dispensing and the
    corresponding conveyor endpoint; unknown logs and stops before manipulation.
    Its physical use requires a fresh color measurement and a commissioned feeder.
+4. **SO-ARM101 teach a stroke:** try in simulation first. The program logs guidance,
+   selects relative leader teleoperation, captures `my_short_move` for 5 seconds,
+   returns to MoveIt and logs the next step. In physical mode an instructor must
+   supervise mode switching; hold the jaw fixed and move the leader during the
+   capture window. Choose a unique name. Load starter 2 for a separate replay run
+   after the instructor returns the follower to the recorded start.
 
 The physical editor initially loads an instructional log, not a dispense/replay
-demonstration. Student instructions link to all three workspaces. Jaw blocks and
-the separate commissioned sorting-cycle block remain in the station toolbox.
+demonstration. Student instructions link to all four workspaces. Loading a starter never runs it.
+The toolbox groups **SO-ARM101** (arm commands and metric jaw), **Recordings**
+(timed capture and named replay), **EV3 conveyor**, **Flow & decisions** (including
+the commissioned sorting-cycle block), and **ROS Blocky · logging**.
 
 ### Recording and replay
 
-1. Enable the desired teleoperation mode through RViz under supervision.
+1. Enable the desired teleoperation mode under supervision using the SO-ARM101
+   block or RViz. Physical arm mode commands require `--instructor`.
 2. Set the jaw, hold it fixed and choose a new stroke name such as `lift_closed`.
-3. Press **Record follower**, demonstrate a short path, then **Finish recording**.
+3. Use **record follower stroke** for a finite **1–30 seconds**, or press
+   **Record follower**, demonstrate a short path, then **Finish recording**.
+   Timed capture is read-only and reuses the existing fixed-jaw, pinned-owner
+   collector; it sends no joint targets or force commands. A canceled or stale
+   capture saves no partial recording. Simulation recordings are memory-only.
+   Physical names must be new: no overwrite, repeated record block, or recording
+   under any nested repeat whose expanded execution count exceeds one.
 4. Disable teleoperation in RViz. Return the follower to the recorded starting
    pose under supervision. A replay never makes this approach automatically.
-5. Enter that name in a replay block, initially at speed 0.5.
+5. Enter that name in a replay block, initially at speed 0.5. Capture and replay
+   use separate programs and separate **Run sequence** actions; do not combine
+   recording and playback in one program.
 6. Separate jaw blocks use the measured gap in millimetres and require qualified
    metric SI gap calibration. MoveIt gripper Plan & Execute additionally requires
    joint-angle calibration. The status reports separate flags; a false combined
-   MoveIt-ready flag does not disable a valid SI interface.
+   MoveIt-ready flag does not disable a valid SI interface. Qualification may
+   cover a restricted working interval; a full-range calibration is not required.
+   The currently recorded single 9 mm point does not qualify an interval.
 
 Recordings contain five measured arm angles plus the fixed jaw angle and a
 pinned arm/calibration/owner-generation/source identity. They are invalid after an
@@ -182,6 +201,7 @@ limits. The replay speed is a request, not a guaranteed execution duration.
 
 | Blockly function | Existing ROS interface | Completion |
 | --- | --- | --- |
+| Arm commands | Existing guarded operator services; saved-home action; verified station STOP | Physical instructor required; exact completion/STOP checks |
 | Follower recording | `/follower/joint_states`, `/follower/status` | Read only; fresh pinned cohort |
 | Replay stroke | `/follower/arm_trajectory_controller/follow_joint_trajectory` (`FollowJointTrajectory`) | Accepted goal **and** terminal successful result, error code 0 |
 | Jaw gap | `/follower/gripper_controller/gripper_cmd` (`GripperCommand`, metres) | Qualified calibration; reached goal and not stalled |
@@ -194,6 +214,16 @@ limits. The replay speed is a request, not a guaranteed execution duration.
 | Teleoperation readiness | `/follower/teleop_status` | Read-only status viewer |
 | STOP | `/station/stop`, `/station/status` plus active action cancellation | Exact returned STOP request ID, EV3 stopped and arm disarmed |
 | Instructor controls | `/station/operator/{command}` (`Trigger`) | Existing station response; no arbitrary service names |
+
+The strict arm opcode is `{"op":"arm","command":"home"}`. Its only command
+values are `home`, `moveit`, `teleop_relative`, `teleop_absolute` and `torque_off`.
+Home uses the existing saved-home motion; MoveIt uses the guarded MoveIt mode
+service. Relative and absolute modes first select the corresponding existing
+relative/absolute RPC, then enable teleop through the existing guarded service.
+`torque_off` is labeled **torque OFF / station STOP**: it requests verified station
+STOP, stopping EV3 as well as disarming the arm. No new controller or arbitrary
+joint-target interface is introduced. All physical arm commands require instructor
+mode and retain native admission and recovery gates.
 
 Instructor allowlist: `emergency_reset`, `reset`, `start`, `base_release`,
 `base_confirm`, `teleop`, `teleop_relative`, `teleop_absolute`, `moveit`, `damping`,
@@ -217,7 +247,14 @@ perception/sorting station; it is not silently substituted for a sensor block.
 - `/api/instructor`: `{"command":"moveit"}`; `/api/recover`: `{}`.
 - `/api/simulation/color`: `{"color":"unknown"}`; simulation only.
 
-Commands are `ev3`, `wait`, `replay`, `jaw`, `repeat`, `if_color`, `log`, `stop`.
+Commands are `arm`, `record_stroke`, `ev3`, `wait`, `replay`, `jaw`, `repeat`,
+`if_color`, `log`, `stop`. Timed capture is exactly
+`{"op":"record_stroke","name":"my_short_move","seconds":5}`: an existing-valid
+recording name and a finite duration from 1 through 30 seconds. In physical mode
+use a unique name, without repeated capture or a surrounding expanded repeat
+count greater than one. Recording does not acquire detected-object ownership;
+the native grasp, attachment, collision and full-cycle commissioning gates remain
+required.
 Programs reject unknown/extra fields, nonfinite numbers, duplicate JSON keys,
 more than four nesting levels or 100 expanded steps. Repeat is 1–5, wait 0–10 s,
 program deadline 180 s. HTTP bodies are limited to 256 KiB, request sockets to 2 s,
