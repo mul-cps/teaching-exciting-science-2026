@@ -1,0 +1,3565 @@
+{
+  "date": "2026-10-23",
+  "scope": "D435i CPU SDK capture and alignment only",
+  "artifact_fingerprints_original_full_bytes": {
+    "summary.json": {
+      "sha256": "4fe261dd37f97a4e1a971f7c9a6f1a0d48d85ad183e6f84f8dfc2e6600ab7c49",
+      "bytes": 4281
+    },
+    "results.json": {
+      "sha256": "2cb06fc9cb5e653de42308491775b6a4de8980c9f088cd60c6b3dd3b772145a3",
+      "bytes": 2318288
+    },
+    "run-provenance.json": {
+      "sha256": "755c800750804b95de0cef06d32afc494ce26380f64837653a504106d159b739",
+      "bytes": 1192
+    },
+    "preregistered-plan.json": {
+      "sha256": "15048da23b98a13504e98630feddfe1199acf360e3cd72f50738f8a082124ca4",
+      "bytes": 3251
+    },
+    "capture-preflight-refreshed-plan.json": {
+      "sha256": "947d9a5f40cd3738aba642269f340729961d952bf361241ef3c9345cc8c4ccaa",
+      "bytes": 3251
+    },
+    "workshop-d435i-profile-perf-review-20261023.md": {
+      "sha256": "4e7434aefcc6cfa18cbdb8caab20b03c21cf4398c2d3a3dd8fd05d032a37ebec",
+      "bytes": 8324
+    },
+    "workshop-d435i-profile-perf-review-20261023.json": {
+      "sha256": "515c088f8894342277f776eb187f0272761bc57d6f2da06a036d48af711fa230",
+      "bytes": 3188
+    },
+    "workshop-d435i-profiles-20261023.json": {
+      "sha256": "4792fd112010fa8e4e5bb06f141a7417fc80789db89eeec40b45aa852b6c9edf",
+      "bytes": 42684
+    }
+  },
+  "run_provenance": {
+    "head": "fd3768e52168b53bd8ad5de7b77bd60e9697c8af",
+    "branch": "feat/beginner-vulkan-20261022",
+    "files": {
+      "tools/benchmark_realsense_profiles.py": "6943d281fcc4b16643578e1047a6fe35214db99469ef2690e24e406f8d691c71",
+      "tests/test_realsense_profile_benchmark.py": "e8dba4303f005f409b1c6a4b2d318b25a7c1f85688d9912874a75f58a7f7e191",
+      "tests/test_realsense_profile_benchmark_perf.py": "920437ce1b18f9cccb4a18e6779d0dc4699f2cbda9a01dc5aaf7ca2aeb5bd813"
+    },
+    "original_preregistered_plan_sha256": "15048da23b98a13504e98630feddfe1199acf360e3cd72f50738f8a082124ca4",
+    "root_capture_released": true,
+    "artifact_history": {
+      "preregistered_plan_rewritten_at_capture_preflight": true,
+      "difference": "opaque_process_count refreshed only",
+      "refreshed_preflight_preserved_as": "capture-preflight-refreshed-plan.json",
+      "original_plan_restored_after_exact_sha_verification": true,
+      "original_plan_sha256": "15048da23b98a13504e98630feddfe1199acf360e3cd72f50738f8a082124ca4"
+    },
+    "all_18_trials_complete": true,
+    "measured_source_copy": "benchmark_realsense_profiles.measured.py"
+  },
+  "preregistered_plan": {
+    "seed": 20261023,
+    "warmup_s": 2.0,
+    "steady_s": 8.0,
+    "wait_budget_ms": 3000,
+    "trial_timeout_s": 35,
+    "ownership": {
+      "visible_camera_owners": [],
+      "opaque_process_count": 507,
+      "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+    },
+    "profiles": {
+      "baseline": [
+        {
+          "stream": "color",
+          "width": 640,
+          "height": 480,
+          "format": "rgb8",
+          "fps": 30
+        },
+        {
+          "stream": "depth",
+          "width": 640,
+          "height": 480,
+          "format": "z16",
+          "fps": 30
+        }
+      ],
+      "same_grid": [
+        {
+          "stream": "color",
+          "width": 1280,
+          "height": 720,
+          "format": "rgb8",
+          "fps": 30
+        },
+        {
+          "stream": "depth",
+          "width": 1280,
+          "height": 720,
+          "format": "z16",
+          "fps": 30
+        }
+      ],
+      "maximum": [
+        {
+          "stream": "color",
+          "width": 1920,
+          "height": 1080,
+          "format": "rgb8",
+          "fps": 30
+        },
+        {
+          "stream": "depth",
+          "width": 1280,
+          "height": 720,
+          "format": "z16",
+          "fps": 30
+        }
+      ]
+    },
+    "trials": [
+      {
+        "profile": "same_grid",
+        "mode": "sdk_align",
+        "repeat": 2
+      },
+      {
+        "profile": "same_grid",
+        "mode": "sdk_align",
+        "repeat": 1
+      },
+      {
+        "profile": "baseline",
+        "mode": "sdk_align",
+        "repeat": 1
+      },
+      {
+        "profile": "baseline",
+        "mode": "capture",
+        "repeat": 2
+      },
+      {
+        "profile": "same_grid",
+        "mode": "capture",
+        "repeat": 1
+      },
+      {
+        "profile": "maximum",
+        "mode": "capture",
+        "repeat": 0
+      },
+      {
+        "profile": "maximum",
+        "mode": "capture",
+        "repeat": 2
+      },
+      {
+        "profile": "baseline",
+        "mode": "capture",
+        "repeat": 1
+      },
+      {
+        "profile": "maximum",
+        "mode": "sdk_align",
+        "repeat": 0
+      },
+      {
+        "profile": "baseline",
+        "mode": "capture",
+        "repeat": 0
+      },
+      {
+        "profile": "maximum",
+        "mode": "capture",
+        "repeat": 1
+      },
+      {
+        "profile": "same_grid",
+        "mode": "sdk_align",
+        "repeat": 0
+      },
+      {
+        "profile": "baseline",
+        "mode": "sdk_align",
+        "repeat": 0
+      },
+      {
+        "profile": "baseline",
+        "mode": "sdk_align",
+        "repeat": 2
+      },
+      {
+        "profile": "maximum",
+        "mode": "sdk_align",
+        "repeat": 1
+      },
+      {
+        "profile": "same_grid",
+        "mode": "capture",
+        "repeat": 0
+      },
+      {
+        "profile": "maximum",
+        "mode": "sdk_align",
+        "repeat": 2
+      },
+      {
+        "profile": "same_grid",
+        "mode": "capture",
+        "repeat": 2
+      }
+    ],
+    "physical_stream_started": false,
+    "limitations": [
+      "SDK CPU alignment; native GPU profiles above 640x480 unsupported",
+      "no geometry or physical station acceptance",
+      "counter gaps describe observed cohorts, not guaranteed hardware loss",
+      "host times are monotonic; no capture age inferred from device clock",
+      "process CPU includes SDK threads, RGB conversion and metadata instrumentation",
+      "aggregate uses median of per-trial p95, not pooled quantiles"
+    ]
+  },
+  "capture_preflight_refreshed_plan": {
+    "seed": 20261023,
+    "warmup_s": 2.0,
+    "steady_s": 8.0,
+    "wait_budget_ms": 3000,
+    "trial_timeout_s": 35,
+    "ownership": {
+      "visible_camera_owners": [],
+      "opaque_process_count": 527,
+      "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+    },
+    "profiles": {
+      "baseline": [
+        {
+          "stream": "color",
+          "width": 640,
+          "height": 480,
+          "format": "rgb8",
+          "fps": 30
+        },
+        {
+          "stream": "depth",
+          "width": 640,
+          "height": 480,
+          "format": "z16",
+          "fps": 30
+        }
+      ],
+      "same_grid": [
+        {
+          "stream": "color",
+          "width": 1280,
+          "height": 720,
+          "format": "rgb8",
+          "fps": 30
+        },
+        {
+          "stream": "depth",
+          "width": 1280,
+          "height": 720,
+          "format": "z16",
+          "fps": 30
+        }
+      ],
+      "maximum": [
+        {
+          "stream": "color",
+          "width": 1920,
+          "height": 1080,
+          "format": "rgb8",
+          "fps": 30
+        },
+        {
+          "stream": "depth",
+          "width": 1280,
+          "height": 720,
+          "format": "z16",
+          "fps": 30
+        }
+      ]
+    },
+    "trials": [
+      {
+        "profile": "same_grid",
+        "mode": "sdk_align",
+        "repeat": 2
+      },
+      {
+        "profile": "same_grid",
+        "mode": "sdk_align",
+        "repeat": 1
+      },
+      {
+        "profile": "baseline",
+        "mode": "sdk_align",
+        "repeat": 1
+      },
+      {
+        "profile": "baseline",
+        "mode": "capture",
+        "repeat": 2
+      },
+      {
+        "profile": "same_grid",
+        "mode": "capture",
+        "repeat": 1
+      },
+      {
+        "profile": "maximum",
+        "mode": "capture",
+        "repeat": 0
+      },
+      {
+        "profile": "maximum",
+        "mode": "capture",
+        "repeat": 2
+      },
+      {
+        "profile": "baseline",
+        "mode": "capture",
+        "repeat": 1
+      },
+      {
+        "profile": "maximum",
+        "mode": "sdk_align",
+        "repeat": 0
+      },
+      {
+        "profile": "baseline",
+        "mode": "capture",
+        "repeat": 0
+      },
+      {
+        "profile": "maximum",
+        "mode": "capture",
+        "repeat": 1
+      },
+      {
+        "profile": "same_grid",
+        "mode": "sdk_align",
+        "repeat": 0
+      },
+      {
+        "profile": "baseline",
+        "mode": "sdk_align",
+        "repeat": 0
+      },
+      {
+        "profile": "baseline",
+        "mode": "sdk_align",
+        "repeat": 2
+      },
+      {
+        "profile": "maximum",
+        "mode": "sdk_align",
+        "repeat": 1
+      },
+      {
+        "profile": "same_grid",
+        "mode": "capture",
+        "repeat": 0
+      },
+      {
+        "profile": "maximum",
+        "mode": "sdk_align",
+        "repeat": 2
+      },
+      {
+        "profile": "same_grid",
+        "mode": "capture",
+        "repeat": 2
+      }
+    ],
+    "physical_stream_started": false,
+    "limitations": [
+      "SDK CPU alignment; native GPU profiles above 640x480 unsupported",
+      "no geometry or physical station acceptance",
+      "counter gaps describe observed cohorts, not guaranteed hardware loss",
+      "host times are monotonic; no capture age inferred from device clock",
+      "process CPU includes SDK threads, RGB conversion and metadata instrumentation",
+      "aggregate uses median of per-trial p95, not pooled quantiles"
+    ]
+  },
+  "independent_source_review": {
+    "status": "GREEN_INDEPENDENT_CPU_SOURCE_REVIEW",
+    "head": "fd3768e52168b53bd8ad5de7b77bd60e9697c8af",
+    "head_note": "root advanced HEAD from7b08a18 to commit reviewed mathfix during this review; capture source stayed frozen",
+    "camera_access_by_reviewer": false,
+    "capture_executed_by_reviewer": false,
+    "gpu_executed": false,
+    "tests": {
+      "passed": 11,
+      "subtests_passed": 4,
+      "wall_s": 0.23
+    },
+    "instrumentation_microbenchmark": {
+      "checksum": 28919800,
+      "cpu_only": true,
+      "fake_frames": true,
+      "pair_metadata_ns": 346.5748,
+      "repeats": 7,
+      "samples_per_repeat": 20000,
+      "sdk_call_cost_included": false,
+      "statistic": "median",
+      "statistics_240_cohorts_ns": 123617.14
+    },
+    "author_enumeration_provenance": {
+      "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+      "module_name": "__init__.py",
+      "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+      "package_version": "2.58.3",
+      "sdk_version": "2.58.3",
+      "native_libraries": [
+        {
+          "name": "librealsense2.so.2.58.3",
+          "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+        },
+        {
+          "name": "libusb-1.0.so.0.6.0",
+          "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+        },
+        {
+          "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+          "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+        }
+      ],
+      "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+      "logical_cpus": 32,
+      "usb_type": "3.2",
+      "firmware": "5.17.0.10"
+    },
+    "ownership_observation": {
+      "visible_camera_owners": [],
+      "opaque_process_count": 507,
+      "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+    },
+    "limitations": [
+      "fake metadata timing excludes actualSDK pybindcallcost, driver threads and RGBconversion",
+      "all realtrial processCPU includes SDKbackgroundthreads, conversion, instrumentation; percallCPU not purefilterCPU",
+      "counter gaps describe observedcohorts, not totalhardwareloss",
+      "high profiles unsupported by nativeGPU640x480 path; no resize or GPUadmission extension",
+      "source review permits rootcontrolled capture, not hardwareperformance acceptance"
+    ],
+    "reviewed_sha256": {
+      "benchmark_realsense_profiles.py": "6943d281fcc4b16643578e1047a6fe35214db99469ef2690e24e406f8d691c71",
+      "test_realsense_profile_benchmark.py": "e8dba4303f005f409b1c6a4b2d318b25a7c1f85688d9912874a75f58a7f7e191",
+      "test_realsense_profile_benchmark_perf.py": "920437ce1b18f9cccb4a18e6779d0dc4699f2cbda9a01dc5aaf7ca2aeb5bd813",
+      "enumeration.json": "2b7838026c0d91a0dfc1f251066edab3b7c40b8f7b7288c87a243828c3e4e1c4",
+      "preregistered-plan.json": "15048da23b98a13504e98630feddfe1199acf360e3cd72f50738f8a082124ca4"
+    }
+  },
+  "summary": [
+    {
+      "profile": "baseline",
+      "mode": "capture",
+      "trials": 3,
+      "depth_unique_hz": 29.979392444152058,
+      "color_unique_hz": 29.979392444152058,
+      "processing_completions_per_elapsed_s": 29.85457865843703,
+      "median_trial_p95_align_ms": 0.0,
+      "median_process_cpu_ms_per_cohort": 2.503921635983264,
+      "median_logical_cpu_demand": 0.07475505292717426,
+      "total_observed_counter_gaps": {
+        "depth": 0,
+        "color": 0
+      },
+      "total_repeats": {
+        "depth": 0,
+        "color": 0
+      },
+      "completed_after_window": 0,
+      "domains": {
+        "depth": [
+          "timestamp_domain.global_time"
+        ],
+        "color": [
+          "timestamp_domain.global_time"
+        ]
+      }
+    },
+    {
+      "profile": "baseline",
+      "mode": "sdk_align",
+      "trials": 3,
+      "depth_unique_hz": 29.979725315116173,
+      "color_unique_hz": 29.979725315116173,
+      "processing_completions_per_elapsed_s": 29.854066645642703,
+      "median_trial_p95_align_ms": 11.309432028792799,
+      "median_process_cpu_ms_per_cohort": 12.056823744769876,
+      "median_logical_cpu_demand": 0.3599039702935626,
+      "total_observed_counter_gaps": {
+        "depth": 0,
+        "color": 0
+      },
+      "total_repeats": {
+        "depth": 0,
+        "color": 0
+      },
+      "completed_after_window": 0,
+      "domains": {
+        "depth": [
+          "timestamp_domain.global_time"
+        ],
+        "color": [
+          "timestamp_domain.global_time"
+        ]
+      }
+    },
+    {
+      "profile": "same_grid",
+      "mode": "capture",
+      "trials": 3,
+      "depth_unique_hz": 29.97912847799525,
+      "color_unique_hz": 29.97912847799525,
+      "processing_completions_per_elapsed_s": 29.85474970620554,
+      "median_trial_p95_align_ms": 0.0,
+      "median_process_cpu_ms_per_cohort": 4.890913623430962,
+      "median_logical_cpu_demand": 0.14603113796259679,
+      "total_observed_counter_gaps": {
+        "depth": 0,
+        "color": 0
+      },
+      "total_repeats": {
+        "depth": 0,
+        "color": 0
+      },
+      "completed_after_window": 0,
+      "domains": {
+        "depth": [
+          "timestamp_domain.global_time"
+        ],
+        "color": [
+          "timestamp_domain.global_time"
+        ]
+      }
+    },
+    {
+      "profile": "same_grid",
+      "mode": "sdk_align",
+      "trials": 3,
+      "depth_unique_hz": 29.980759239327966,
+      "color_unique_hz": 29.980759239327966,
+      "processing_completions_per_elapsed_s": 29.857397858506793,
+      "median_trial_p95_align_ms": 26.38522540219128,
+      "median_process_cpu_ms_per_cohort": 26.826161146443518,
+      "median_logical_cpu_demand": 0.8009593663657808,
+      "total_observed_counter_gaps": {
+        "depth": 0,
+        "color": 0
+      },
+      "total_repeats": {
+        "depth": 0,
+        "color": 0
+      },
+      "completed_after_window": 0,
+      "domains": {
+        "depth": [
+          "timestamp_domain.global_time"
+        ],
+        "color": [
+          "timestamp_domain.global_time"
+        ]
+      }
+    },
+    {
+      "profile": "maximum",
+      "mode": "capture",
+      "trials": 3,
+      "depth_unique_hz": 29.974220424800656,
+      "color_unique_hz": 29.974220424800656,
+      "processing_completions_per_elapsed_s": 29.855260511574574,
+      "median_trial_p95_align_ms": 0.0,
+      "median_process_cpu_ms_per_cohort": 8.1268489916318,
+      "median_logical_cpu_demand": 0.2426291937833945,
+      "total_observed_counter_gaps": {
+        "depth": 0,
+        "color": 0
+      },
+      "total_repeats": {
+        "depth": 0,
+        "color": 0
+      },
+      "completed_after_window": 0,
+      "domains": {
+        "depth": [
+          "timestamp_domain.global_time"
+        ],
+        "color": [
+          "timestamp_domain.global_time"
+        ]
+      }
+    },
+    {
+      "profile": "maximum",
+      "mode": "sdk_align",
+      "trials": 3,
+      "depth_unique_hz": 29.979022882723033,
+      "color_unique_hz": 29.979022882723033,
+      "processing_completions_per_elapsed_s": 29.855413744089734,
+      "median_trial_p95_align_ms": 27.363785938359797,
+      "median_process_cpu_ms_per_cohort": 32.11311979497908,
+      "median_logical_cpu_demand": 0.9587486290267144,
+      "total_observed_counter_gaps": {
+        "depth": 0,
+        "color": 0
+      },
+      "total_repeats": {
+        "depth": 0,
+        "color": 0
+      },
+      "completed_after_window": 0,
+      "domains": {
+        "depth": [
+          "timestamp_domain.global_time"
+        ],
+        "color": [
+          "timestamp_domain.global_time"
+        ]
+      }
+    }
+  ],
+  "results": {
+    "trials": [
+      {
+        "profile": "same_grid",
+        "mode": "sdk_align",
+        "repeat": 2,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 538,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.004716322990134,
+          "process_cpu_s": 6.4114525140000005,
+          "process_cpu_ms_per_cohort": 26.826161146443518,
+          "logical_cpu_demand": 0.8009593663657808,
+          "observed_cohort_hz": 29.980759239327966,
+          "completed_cohorts_per_steady_elapsed_s": 29.857397858506793,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 22.123266011476517,
+            "p95": 30.62006167601794,
+            "maximum": 34.606347093358636
+          },
+          "unique_stream_hz": {
+            "depth": 29.980759239327966,
+            "color": 29.980759239327966
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 21.99616702273488,
+            "p95": 30.530919949524105,
+            "maximum": 34.248132025823
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 22.573570000000043,
+            "p95": 31.729994299999888,
+            "maximum": 40.41182599999971
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.32785901147872,
+            "p95": 34.46335548651405,
+            "maximum": 35.17031890805811
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.35595703125,
+                "p95": 33.367431640625,
+                "maximum": 33.3681640625
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.35595703125,
+                "p95": 33.36722412109375,
+                "maximum": 33.368408203125
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "same_grid",
+        "mode": "sdk_align",
+        "repeat": 1,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 533,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.004302334040403,
+          "process_cpu_s": 6.387251437000001,
+          "process_cpu_ms_per_cohort": 26.724901410041845,
+          "logical_cpu_demand": 0.797977284020936,
+          "observed_cohort_hz": 29.984373114726225,
+          "completed_cohorts_per_steady_elapsed_s": 29.858942107120264,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 22.35432097222656,
+            "p95": 23.67486871080473,
+            "maximum": 32.84819598775357
+          },
+          "unique_stream_hz": {
+            "depth": 29.984373114726225,
+            "color": 29.984373114726225
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 22.259152960032225,
+            "p95": 23.506657837424427,
+            "maximum": 32.54092705901712
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 22.829280000000285,
+            "p95": 27.336958600000028,
+            "maximum": 41.45707099999996
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.341028494760394,
+            "p95": 34.48751095565967,
+            "maximum": 35.14731605537236
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.35791015625,
+                "p95": 33.36356201171875,
+                "maximum": 33.36474609375
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.35791015625,
+                "p95": 33.36356201171875,
+                "maximum": 33.36474609375
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "baseline",
+        "mode": "sdk_align",
+        "repeat": 1,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 532,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.005609515006654,
+          "process_cpu_s": 2.910694105,
+          "process_cpu_ms_per_cohort": 12.178636422594142,
+          "logical_cpu_demand": 0.3635818234131772,
+          "observed_cohort_hz": 29.979672423182414,
+          "completed_cohorts_per_steady_elapsed_s": 29.854066645642703,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 10.745557956397533,
+            "p95": 11.532400350552052,
+            "maximum": 12.717131059616804
+          },
+          "unique_stream_hz": {
+            "depth": 29.979672423182414,
+            "color": 29.979672423182414
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 10.56152197998017,
+            "p95": 11.309432028792799,
+            "maximum": 12.517014984041452
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 10.837843000000014,
+            "p95": 11.586151599999955,
+            "maximum": 19.209395999999934
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.31986896228045,
+            "p95": 34.33717140578665,
+            "maximum": 35.38873000070453
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3582763671875,
+                "p95": 33.38504638671875,
+                "maximum": 33.390869140625
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3582763671875,
+                "p95": 33.38487548828125,
+                "maximum": 33.390869140625
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "baseline",
+        "mode": "capture",
+        "repeat": 2,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 532,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.006495925947092,
+          "process_cpu_s": 0.6404834860000002,
+          "process_cpu_ms_per_cohort": 2.679847221757323,
+          "logical_cpu_demand": 0.07999548016059685,
+          "observed_cohort_hz": 29.974562822664662,
+          "completed_cohorts_per_steady_elapsed_s": 29.850761458013054,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 0.1008500112220645,
+            "p95": 0.139295170083642,
+            "maximum": 0.25313696824014187
+          },
+          "unique_stream_hz": {
+            "depth": 29.974562822664662,
+            "color": 29.974562822664662
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.33114000270143,
+            "p95": 34.35529340058565,
+            "maximum": 35.12478293851018
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.35546875,
+                "p95": 33.3753173828125,
+                "maximum": 33.37939453125
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.35546875,
+                "p95": 33.3753173828125,
+                "maximum": 33.37939453125
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "same_grid",
+        "mode": "capture",
+        "repeat": 1,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 537,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.005751452990808,
+          "process_cpu_s": 1.0282811170000001,
+          "process_cpu_ms_per_cohort": 4.302431451882846,
+          "logical_cpu_demand": 0.1284427980356363,
+          "observed_cohort_hz": 29.97912847799525,
+          "completed_cohorts_per_steady_elapsed_s": 29.853537347916767,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 0.07175502832978964,
+            "p95": 0.10060302447527647,
+            "maximum": 0.16853702254593372
+          },
+          "unique_stream_hz": {
+            "depth": 29.97912847799525,
+            "color": 29.97912847799525
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.32919196691364,
+            "p95": 34.19692371971905,
+            "maximum": 34.91874493192881
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.355712890625,
+                "p95": 33.40367431640625,
+                "maximum": 33.413330078125
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.355712890625,
+                "p95": 33.40350341796875,
+                "maximum": 33.41357421875
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "maximum",
+        "mode": "capture",
+        "repeat": 0,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 538,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.005272331065498,
+          "process_cpu_s": 1.6486231130000002,
+          "process_cpu_ms_per_cohort": 6.898004656903766,
+          "logical_cpu_demand": 0.20594216471590907,
+          "observed_cohort_hz": 29.971667319563487,
+          "completed_cohorts_per_steady_elapsed_s": 29.85532410590574,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 0.07890898268669844,
+            "p95": 0.11904918355867267,
+            "maximum": 0.20295195281505585
+          },
+          "unique_stream_hz": {
+            "depth": 29.971667319563487,
+            "color": 29.971667319563487
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.35171903017908,
+            "p95": 34.400035737780854,
+            "maximum": 43.94336207769811
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.355224609375,
+                "p95": 33.36474609375,
+                "maximum": 33.365478515625
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.355224609375,
+                "p95": 33.36474609375,
+                "maximum": 33.365478515625
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "maximum",
+        "mode": "capture",
+        "repeat": 2,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 535,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.006359488004819,
+          "process_cpu_s": 2.0343613950000003,
+          "process_cpu_ms_per_cohort": 8.511972364016739,
+          "logical_cpu_demand": 0.2540931865535009,
+          "observed_cohort_hz": 29.974220424800656,
+          "completed_cohorts_per_steady_elapsed_s": 29.85127015069351,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 0.10025908704847097,
+            "p95": 0.12213040608912705,
+            "maximum": 0.2174390247091651
+          },
+          "unique_stream_hz": {
+            "depth": 29.974220424800656,
+            "color": 29.974220424800656
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.340708003379405,
+            "p95": 34.22087101498619,
+            "maximum": 35.62836197670549
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3548583984375,
+                "p95": 33.38414306640625,
+                "maximum": 33.389892578125
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3548583984375,
+                "p95": 33.38431396484375,
+                "maximum": 33.389892578125
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "baseline",
+        "mode": "capture",
+        "repeat": 1,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 536,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.005472216987982,
+          "process_cpu_s": 0.5953577079999999,
+          "process_cpu_ms_per_cohort": 2.491036435146443,
+          "logical_cpu_demand": 0.07436884319411206,
+          "observed_cohort_hz": 29.979392444152058,
+          "completed_cohorts_per_steady_elapsed_s": 29.85457865843703,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 0.09436695836484432,
+            "p95": 0.12683833483606577,
+            "maximum": 0.20456593483686447
+          },
+          "unique_stream_hz": {
+            "depth": 29.979392444152058,
+            "color": 29.979392444152058
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.32674701232463,
+            "p95": 34.01394177344628,
+            "maximum": 34.88563292194158
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.358642578125,
+                "p95": 33.3809326171875,
+                "maximum": 33.386474609375
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.358642578125,
+                "p95": 33.3809326171875,
+                "maximum": 33.386474609375
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "maximum",
+        "mode": "sdk_align",
+        "repeat": 0,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 538,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.00526373507455,
+          "process_cpu_s": 7.675035631,
+          "process_cpu_ms_per_cohort": 32.11311979497908,
+          "logical_cpu_demand": 0.9587486290267144,
+          "observed_cohort_hz": 29.979022882723033,
+          "completed_cohorts_per_steady_elapsed_s": 29.855356164324334,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 25.080065010115504,
+            "p95": 27.642549586016685,
+            "maximum": 29.514277004636824
+          },
+          "unique_stream_hz": {
+            "depth": 29.979022882723033,
+            "color": 29.979022882723033
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 24.941023089922965,
+            "p95": 27.363785938359797,
+            "maximum": 29.324107919819653
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 25.511187000000213,
+            "p95": 28.34310550000021,
+            "maximum": 44.364625000000046
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.30361848929897,
+            "p95": 34.47420403244905,
+            "maximum": 35.898500005714595
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.356201171875,
+                "p95": 33.3699462890625,
+                "maximum": 33.372314453125
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.356201171875,
+                "p95": 33.3701171875,
+                "maximum": 33.37255859375
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "baseline",
+        "mode": "capture",
+        "repeat": 0,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 536,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.0053086389089,
+          "process_cpu_s": 0.5984372710000001,
+          "process_cpu_ms_per_cohort": 2.503921635983264,
+          "logical_cpu_demand": 0.07475505292717426,
+          "observed_cohort_hz": 29.98120596097607,
+          "completed_cohorts_per_steady_elapsed_s": 29.855188697955683,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 0.08061202242970467,
+            "p95": 0.1113060163334012,
+            "maximum": 0.20930403843522072
+          },
+          "unique_stream_hz": {
+            "depth": 29.98120596097607,
+            "color": 29.98120596097607
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.27867144253105,
+            "p95": 34.064967336598784,
+            "maximum": 34.58780201617628
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3548583984375,
+                "p95": 33.37015380859375,
+                "maximum": 33.372802734375
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.35498046875,
+                "p95": 33.37015380859375,
+                "maximum": 33.372802734375
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "maximum",
+        "mode": "capture",
+        "repeat": 1,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 535,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.005289382999763,
+          "process_cpu_s": 1.942316909,
+          "process_cpu_ms_per_cohort": 8.1268489916318,
+          "logical_cpu_demand": 0.2426291937833945,
+          "observed_cohort_hz": 29.981852948204267,
+          "completed_cohorts_per_steady_elapsed_s": 29.855260511574574,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 0.09925698395818472,
+            "p95": 0.11929613538086414,
+            "maximum": 0.22027501836419106
+          },
+          "unique_stream_hz": {
+            "depth": 29.981852948204267,
+            "color": 29.981852948204267
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.31045154482126,
+            "p95": 34.307364450069144,
+            "maximum": 35.166281973943114
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.356201171875,
+                "p95": 33.39000244140625,
+                "maximum": 33.397705078125
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.356201171875,
+                "p95": 33.3899658203125,
+                "maximum": 33.397705078125
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "same_grid",
+        "mode": "sdk_align",
+        "repeat": 0,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 531,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.004910399089567,
+          "process_cpu_s": 6.605232572,
+          "process_cpu_ms_per_cohort": 27.636956368200835,
+          "logical_cpu_demand": 0.8251475959994807,
+          "observed_cohort_hz": 29.979523052726737,
+          "completed_cohorts_per_steady_elapsed_s": 29.856673976910784,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 23.263062932528555,
+            "p95": 26.582563971169293,
+            "maximum": 32.4343959800899
+          },
+          "unique_stream_hz": {
+            "depth": 29.979523052726737,
+            "color": 29.979523052726737
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 23.136985022574663,
+            "p95": 26.38522540219128,
+            "maximum": 32.23641403019428
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 23.663747999999707,
+            "p95": 27.913218200000586,
+            "maximum": 44.656384000000045
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.26573746744543,
+            "p95": 34.310071176150814,
+            "maximum": 35.31917999498546
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.357421875,
+                "p95": 33.35888671875,
+                "maximum": 33.359130859375
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.357421875,
+                "p95": 33.35888671875,
+                "maximum": 33.359130859375
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "baseline",
+        "mode": "sdk_align",
+        "repeat": 0,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 532,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.00536190008279,
+          "process_cpu_s": 2.529261785,
+          "process_cpu_ms_per_cohort": 10.58268529288703,
+          "logical_cpu_demand": 0.3159459642884906,
+          "observed_cohort_hz": 29.980496386046337,
+          "completed_cohorts_per_steady_elapsed_s": 29.854990065786822,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 8.449452929198742,
+            "p95": 10.955125105101615,
+            "maximum": 12.254009023308754
+          },
+          "unique_stream_hz": {
+            "depth": 29.980496386046337,
+            "color": 29.980496386046337
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 8.334065903909504,
+            "p95": 10.819972469471395,
+            "maximum": 11.888971086591482
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 8.460439000000264,
+            "p95": 11.035663700000027,
+            "maximum": 16.45518399999979
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.32104149740189,
+            "p95": 34.03793772449717,
+            "maximum": 34.2141380533576
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.355712890625,
+                "p95": 33.37015380859375,
+                "maximum": 33.373046875
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.355712890625,
+                "p95": 33.37015380859375,
+                "maximum": 33.373046875
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "baseline",
+        "mode": "sdk_align",
+        "repeat": 2,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 534,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.006527054007165,
+          "process_cpu_s": 2.881580875,
+          "process_cpu_ms_per_cohort": 12.056823744769876,
+          "logical_cpu_demand": 0.3599039702935626,
+          "observed_cohort_hz": 29.979725315116173,
+          "completed_cohorts_per_steady_elapsed_s": 29.850645403163103,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 9.998369961977005,
+            "p95": 11.646263976581395,
+            "maximum": 12.744283070787787
+          },
+          "unique_stream_hz": {
+            "depth": 29.979725315116173,
+            "color": 29.979725315116173
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 9.803393040783703,
+            "p95": 11.3901361473836,
+            "maximum": 12.495234026573598
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 10.2111869999999,
+            "p95": 11.92728529999989,
+            "maximum": 22.388590000000043
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.34246657323092,
+            "p95": 34.1400021512527,
+            "maximum": 34.67569802887738
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.359619140625,
+                "p95": 33.36331787109375,
+                "maximum": 33.3642578125
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.359619140625,
+                "p95": 33.36328125,
+                "maximum": 33.3642578125
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "maximum",
+        "mode": "sdk_align",
+        "repeat": 1,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 534,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.005248295958154,
+          "process_cpu_s": 7.531630539000001,
+          "process_cpu_ms_per_cohort": 31.51309848953975,
+          "logical_cpu_demand": 0.9408365937634586,
+          "observed_cohort_hz": 29.987391420638968,
+          "completed_cohorts_per_steady_elapsed_s": 29.855413744089734,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 24.28559900727123,
+            "p95": 26.9892078009434,
+            "maximum": 34.73295597359538
+          },
+          "unique_stream_hz": {
+            "depth": 29.987391420638968,
+            "color": 29.987391420638968
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 24.166744900867343,
+            "p95": 26.874036167282608,
+            "maximum": 34.43775000050664
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 24.726988000000283,
+            "p95": 31.95165509999985,
+            "maximum": 43.88972600000152
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.3441449329257,
+            "p95": 34.71345113939606,
+            "maximum": 35.656415042467415
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3544921875,
+                "p95": 33.3743408203125,
+                "maximum": 33.377685546875
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3544921875,
+                "p95": 33.37454833984375,
+                "maximum": 33.377685546875
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "same_grid",
+        "mode": "capture",
+        "repeat": 0,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 534,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.005426350980997,
+          "process_cpu_s": 1.187480759,
+          "process_cpu_ms_per_cohort": 4.968538740585775,
+          "logical_cpu_demand": 0.14833448050577397,
+          "observed_cohort_hz": 29.979121782240874,
+          "completed_cohorts_per_steady_elapsed_s": 29.85474970620554,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 0.10069902054965496,
+            "p95": 0.11991207720711827,
+            "maximum": 0.20389410201460123
+          },
+          "unique_stream_hz": {
+            "depth": 29.979121782240874,
+            "color": 29.979121782240874
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.32181798759848,
+            "p95": 34.28093310794793,
+            "maximum": 35.2939220611006
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.356201171875,
+                "p95": 33.37161865234375,
+                "maximum": 33.374755859375
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.356201171875,
+                "p95": 33.37161865234375,
+                "maximum": 33.375
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "maximum",
+        "mode": "sdk_align",
+        "repeat": 2,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 534,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.003337415982969,
+          "process_cpu_s": 7.677607279,
+          "process_cpu_ms_per_cohort": 32.123879828451884,
+          "logical_cpu_demand": 0.959300711684044,
+          "observed_cohort_hz": 29.978719387005558,
+          "completed_cohorts_per_steady_elapsed_s": 29.8625420343653,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 25.22109099663794,
+            "p95": 27.56106505403295,
+            "maximum": 35.48452106770128
+          },
+          "unique_stream_hz": {
+            "depth": 29.978719387005558,
+            "color": 29.978719387005558
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 25.10362002067268,
+            "p95": 27.438033488579094,
+            "maximum": 35.17775307409465
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 25.623022999999634,
+            "p95": 33.06427499999989,
+            "maximum": 44.55474500000012
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.23907748563215,
+            "p95": 34.43535132682882,
+            "maximum": 35.563759971410036
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3564453125,
+                "p95": 33.362548828125,
+                "maximum": 33.36328125
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3564453125,
+                "p95": 33.362548828125,
+                "maximum": 33.36328125
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      },
+      {
+        "profile": "same_grid",
+        "mode": "capture",
+        "repeat": 2,
+        "status": "ok",
+        "ownership": {
+          "visible_camera_owners": [],
+          "opaque_process_count": 539,
+          "limitation": "opaque process FDs not inspected; SDK exclusive-open refusal guards remaining ownership"
+        },
+        "queue": "SDK frame_queue capacity=1, no Python callback",
+        "diagnostic_capacity": 458,
+        "startup_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "end_options": [
+          {
+            "sensor": "Stereo Module",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 8500.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "RGB Camera",
+            "options": {
+              "enable_auto_exposure": 1.0,
+              "exposure": 166.0,
+              "frames_queue_size": 16.0
+            }
+          },
+          {
+            "sensor": "Motion Module",
+            "options": {
+              "frames_queue_size": 16.0
+            }
+          }
+        ],
+        "metrics": {
+          "cohorts": 239,
+          "steady_wall_s": 8.004651420982555,
+          "process_cpu_s": 1.168928356,
+          "process_cpu_ms_per_cohort": 4.890913623430962,
+          "logical_cpu_demand": 0.14603113796259679,
+          "observed_cohort_hz": 29.981564642136785,
+          "completed_cohorts_per_steady_elapsed_s": 29.857639943384722,
+          "completed_after_window": 0,
+          "host_receive_to_completion_ms": {
+            "count": 239,
+            "median": 0.09942799806594849,
+            "p95": 0.12195702875033021,
+            "maximum": 0.22758892737329006
+          },
+          "unique_stream_hz": {
+            "depth": 29.981564642136785,
+            "color": 29.981564642136785
+          },
+          "align_wall_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "align_process_cpu_ms": {
+            "count": 239,
+            "median": 0.0,
+            "p95": 0.0,
+            "maximum": 0.0
+          },
+          "host_interarrival_ms": {
+            "count": 238,
+            "median": 33.33024843595922,
+            "p95": 34.14332659449428,
+            "maximum": 35.706558963283896
+          },
+          "streams": {
+            "depth": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3563232421875,
+                "p95": 33.370361328125,
+                "maximum": 33.37255859375
+              }
+            },
+            "color": {
+              "unique_ids": 239,
+              "repeats": 0,
+              "observed_counter_gaps": 0,
+              "counter_resets": 0,
+              "domain_changes": 0,
+              "domains": [
+                "timestamp_domain.global_time"
+              ],
+              "same_domain_positive_timestamp_delta_ms": {
+                "count": 238,
+                "median": 33.3563232421875,
+                "p95": 33.37015380859375,
+                "maximum": 33.372802734375
+              }
+            }
+          },
+          "unique_cohorts": 239,
+          "repeated_cohorts": 0
+        },
+        "provenance": {
+          "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+          "module_name": "__init__.py",
+          "module_sha256": "75f6ce133c0b1daa1ecc9e8d498b81fdf056282f230f7f729006b024331cfc6c",
+          "package_version": "2.58.3",
+          "sdk_version": "2.58.3",
+          "native_libraries": [
+            {
+              "name": "librealsense2.so.2.58.3",
+              "sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+            },
+            {
+              "name": "libusb-1.0.so.0.6.0",
+              "sha256": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373"
+            },
+            {
+              "name": "pyrealsense2.cpython-312-x86_64-linux-gnu.so.2.58.3",
+              "sha256": "718cfb46d172da4af4ea978b1e7aa8e95caf1c4ba51b7b38785417a5b3dd1a4f"
+            }
+          ],
+          "host_cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+          "logical_cpus": 32,
+          "usb_type": "3.2",
+          "firmware": "5.17.0.10"
+        }
+      }
+    ],
+    "aggregate": {
+      "same_grid/sdk_align": {
+        "successful_trials": 3,
+        "median_of_trial_p95_align_wall_ms": 26.38522540219128
+      },
+      "baseline/sdk_align": {
+        "successful_trials": 3,
+        "median_of_trial_p95_align_wall_ms": 11.309432028792799
+      },
+      "baseline/capture": {
+        "successful_trials": 3,
+        "median_of_trial_p95_align_wall_ms": 0.0
+      },
+      "same_grid/capture": {
+        "successful_trials": 3,
+        "median_of_trial_p95_align_wall_ms": 0.0
+      },
+      "maximum/capture": {
+        "successful_trials": 3,
+        "median_of_trial_p95_align_wall_ms": 0.0
+      },
+      "maximum/sdk_align": {
+        "successful_trials": 3,
+        "median_of_trial_p95_align_wall_ms": 27.363785938359797
+      }
+    }
+  },
+  "redactions": [
+    "Per-frame samples including hardware timestamps and frame IDs omitted.",
+    "Private absolute paths, environment, serial identifiers and numeric calibration coefficients excluded; public provenance uses explicit allowed fields."
+  ],
+  "post_run_fix_note": "Measured source 6943d281fcc4b16643578e1047a6fe35214db99469ef2690e24e406f8d691c71 differs from published source 1ab3c6d95f4689d0becb8f8988dafff17fd498a082d64e72ee6b177599e4e70c only in independently reviewed preflight/persistence. Timed trial_run source is byte-identical; no new capture was used to replace any trial.",
+  "post_run_fix_review": {
+    "status": "GREEN",
+    "measured_source_sha256": "6943d281fcc4b16643578e1047a6fe35214db99469ef2690e24e406f8d691c71",
+    "fixed_source_sha256": "1ab3c6d95f4689d0becb8f8988dafff17fd498a082d64e72ee6b177599e4e70c",
+    "trial_run_exact_source_sha256": "7bde9c5b1b2501d2566f8fcb7a071501b94633601f82361de6d2502fb4c8661f",
+    "unchanged_original_functions_ast": 21,
+    "changed_original_functions": [
+      "main"
+    ],
+    "new_functions": [
+      "refuse_existing_capture",
+      "save_plan"
+    ],
+    "new_regression_tests_passed": 2,
+    "sdk_import_line": 352,
+    "artifact_clobber_guard_line": 349,
+    "camera_gpu_access": false,
+    "rebenchmark": false,
+    "updated_fixture_sha256": "0cfe8ca7389e0820741a1ff50bf6c2fff09833464b6e3c58ff51d86c0d02fd61",
+    "original_full_updated_review_sha256": "607d9e19cb693c4efee92f144ffda25189a2bc16ce2641bf151d4965018ee253"
+  },
+  "software_verification": {
+    "cpu_passed": 3803,
+    "expected_skipped": 133,
+    "subtests_passed": 17,
+    "canonical_materials_and_hashes_passed": true,
+    "student_bundle_passed": true
+  }
+}
