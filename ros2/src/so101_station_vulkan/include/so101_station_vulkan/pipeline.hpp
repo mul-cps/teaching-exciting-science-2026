@@ -6,6 +6,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 namespace so101_station_vulkan {
 constexpr unsigned kSlots=3, kMaxComponents=4096;
@@ -46,18 +47,30 @@ struct Slot {
   FrameMetadata metadata; Calibration calibration;
 };
 class FramePool;
+// Weak control-block identity only: reserves no frame slot and keeps no pool alive.
+class FramePoolToken {
+ friend class FramePool;friend class FrameLease;
+ std::weak_ptr<FramePool> pool_;
+ explicit FramePoolToken(std::weak_ptr<FramePool> p):pool_(std::move(p)){}
+public:
+ FramePoolToken()=default;explicit operator bool()const{return !pool_.expired();}
+};
 class FrameLease {
   friend class FramePool; std::shared_ptr<FramePool> pool_; unsigned index_=0;
   FrameLease(std::shared_ptr<FramePool>,unsigned);
 public:
   FrameLease()=default; FrameLease(const FrameLease&); FrameLease(FrameLease&&) noexcept;
   FrameLease& operator=(FrameLease); ~FrameLease(); void swap(FrameLease&) noexcept;
+  bool belongs_to(const FramePoolToken& token)const{
+   return pool_&&!token.pool_.expired()&&!pool_.owner_before(token.pool_)&&!token.pool_.owner_before(pool_);
+  }
   explicit operator bool() const { return bool(pool_); } Slot& slot() const; unsigned index()const{return index_;} std::shared_ptr<Context> context()const;
 };
 class FramePool:public std::enable_shared_from_this<FramePool> {
   friend class FrameLease;
 public:
   std::shared_ptr<Context> context; std::array<Slot,kSlots> slots; unsigned width,height; bool diagnostics;
+  FramePoolToken source_token(){return FramePoolToken(weak_from_this());}
   void release_resources() noexcept; bool owns(const FrameLease& f)const{return f.pool_.get()==this;}
   FramePool(unsigned,unsigned,std::shared_ptr<Context>,bool,bool profile=false); ~FramePool(); FrameLease acquire(); bool ready(const FrameLease&) const;
 };
@@ -77,6 +90,7 @@ public:
   // Copies only RGB from upload; tightly packed Z16 stays device resident.
   // Pixel count must be divisible by four for Vulkan buffer-copy alignment.
   void submit_device_depth(const FrameLease&,const Buffer& packed_z16);
+  FramePoolToken source_token()const{return pool_->source_token();}
   bool owns(const FrameLease& f)const{return pool_->owns(f);}
   void finish(const FrameLease&); const std::string& backend()const{return backend_;} const std::string& fallback_reason()const{return reason_;}
   std::shared_ptr<Context> context()const{return context_;} unsigned width()const{return pool_->width;} unsigned height()const{return pool_->height;}

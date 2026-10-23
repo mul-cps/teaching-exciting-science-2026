@@ -185,6 +185,7 @@ if(BUILD_TESTING)
  add_test(NAME resident_camera_startup_gate COMMAND camera_startup_gate_test)
 endif()
 include(cmake/geometry.cmake)
+include(cmake/parents.cmake)
 # Independent CPU-only command-encoding review. Supplies synthetic Vulkan API.
 add_executable(cc_copyback_host_benchmark test/cc_copyback_host_benchmark.cpp src/gpu_pipeline.cpp src/cpu_pipeline.cpp src/frame_pool.cpp)
 target_compile_features(cc_copyback_host_benchmark PRIVATE cxx_std_17)
