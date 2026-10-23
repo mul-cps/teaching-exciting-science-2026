@@ -76,32 +76,37 @@ template<class F>double measure(F fn){constexpr unsigned n=100000;auto start=std
 int main(int argc,char** argv){
  require(argc==2);Pipeline pipeline(640,480,"vulkan",argv[1],true);auto frame=pipeline.acquire();
  trace=true;pipeline.submit(frame);trace=false;require(pipeline.ready(frame));pipeline.finish(frame);
- unsigned parent_copies=0,dispatches=0,barriers=0;constexpr VkDeviceSize bytes=640*480*4;
+ unsigned parent_copies=0,dispatches=0,barriers=0,order[71]{};
  for(unsigned i=0;i<event_count;i++){
-  const auto& e=events[i];dispatches+=e.kind==3;barriers+=e.kind==2;
+  const auto& e=events[i];barriers+=e.kind==2;
+  if(e.kind==3){require(dispatches<71);order[dispatches++]=e.pipeline;}
   if(e.kind!=1)continue;
-  if(e.src==e.dst){
-   ++parent_copies;require(e.copy.srcOffset==17*bytes&&e.copy.dstOffset==6*bytes&&e.copy.size==bytes);
-   require(e.copy.dstOffset+e.copy.size<=e.copy.srcOffset);
-   require(i>0&&i+1<event_count);auto before=events[i-1],after=events[i+1];
-   require(before.kind==2&&before.source_stage==VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT&&before.dest_stage==VK_PIPELINE_STAGE_TRANSFER_BIT);
-   require((before.source_access&(VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT))==(VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT));
-   require((before.dest_access&(VK_ACCESS_TRANSFER_READ_BIT|VK_ACCESS_TRANSFER_WRITE_BIT))==(VK_ACCESS_TRANSFER_READ_BIT|VK_ACCESS_TRANSFER_WRITE_BIT));
-   require(after.kind==2&&after.source_stage==VK_PIPELINE_STAGE_TRANSFER_BIT&&after.dest_stage==VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-   require(after.source_access&VK_ACCESS_TRANSFER_WRITE_BIT);require((after.dest_access&(VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT))==(VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT));
-   unsigned previous=i,next=i;while(previous&&events[previous].kind!=3)--previous;while(next<event_count&&events[next].kind!=3)++next;
-   require(events[previous].pipeline==3&&next<event_count&&events[next].pipeline==2);
-  }else if(e.copy.size==frame.slot().scratch.size){
-   // Diagnostic dense copy must cover both compute and copied-back A writes.
+  if(e.src==e.dst)++parent_copies;
+  else if(e.copy.size==frame.slot().scratch.size){
+   // Keep the conservative final diagnostic visibility contract.
    unsigned previous=i;while(previous&&events[previous].kind!=2)--previous;const auto& barrier=events[previous];
    require((barrier.source_stage&(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT|VK_PIPELINE_STAGE_TRANSFER_BIT))==(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT|VK_PIPELINE_STAGE_TRANSFER_BIT));
    require((barrier.source_access&(VK_ACCESS_SHADER_WRITE_BIT|VK_ACCESS_TRANSFER_WRITE_BIT))==(VK_ACCESS_SHADER_WRITE_BIT|VK_ACCESS_TRANSFER_WRITE_BIT));
   }
  }
- require(parent_copies==32&&dispatches==71);frame={};
+ require(parent_copies==0&&dispatches==71&&barriers==74);
+ require(order[0]==0&&order[1]==1&&order[2]==7);
+ for(unsigned round=0;round<32;round++)require(order[3+2*round]==3&&order[4+2*round]==2);
+ require(order[67]==3&&order[68]==4&&order[69]==6&&order[70]==5);
+ // Every immutable compress / atomic connect dispatch is followed by the
+ // existing compute-write -> compute-read/write dependency, with no transfer.
+ unsigned seen=0;
+ for(unsigned i=0;i<event_count;i++)if(events[i].kind==3){
+  if(seen>=3&&seen<=67){require(i+1<event_count);const auto& b=events[i+1];
+   require(b.kind==2&&b.source_stage==VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT&&b.dest_stage==VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+   require(b.source_access==VK_ACCESS_SHADER_WRITE_BIT);
+   require(b.dest_access==(VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT));}
+  ++seen;
+ }
+ frame={};
  auto allocations_before=heap_allocations,buffers_before=buffer_allocations,waits_before=wait_calls;
  double ns=measure([&]{auto f=pipeline.acquire();pipeline.submit(f);require(pipeline.ready(f));pipeline.finish(f);});
  auto allocations=heap_allocations-allocations_before,buffers=buffer_allocations-buffers_before,waits=wait_calls-waits_before;
  require(!allocations&&!buffers&&!waits);
- std::cout<<"{\"scope\":\"actual copyback Pipeline submit/finish, synthetic Vulkan only; excludes driver and GPU\",\"iterations\":100000,\"host_cycle_ns\":"<<ns<<",\"parent_copies\":"<<parent_copies<<",\"parent_copy_bytes_per_frame\":"<<32*bytes<<",\"dispatches\":"<<dispatches<<",\"barriers\":"<<barriers<<",\"hot_heap_allocations\":"<<allocations<<",\"hot_buffer_allocations\":"<<buffers<<",\"hot_wait_calls\":"<<waits<<"}\n";
+ std::cout<<"{\"scope\":\"actual atomic-fusion Pipeline submit/finish, synthetic Vulkan only; excludes driver and GPU\",\"iterations\":100000,\"host_cycle_ns\":"<<ns<<",\"parent_copies\":"<<parent_copies<<",\"parent_copy_bytes_per_frame\":"<<0<<",\"dispatches\":"<<dispatches<<",\"barriers\":"<<barriers<<",\"hot_heap_allocations\":"<<allocations<<",\"hot_buffer_allocations\":"<<buffers<<",\"hot_wait_calls\":"<<waits<<"}\n";
 }

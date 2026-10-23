@@ -1,30 +1,23 @@
-"""CPU-only source contract for the transfer copyback candidate; no GPU work."""
+"""CPU-only source contract for fused atomic copyback; no GPU work."""
 import re
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1] / 'ros2/src/so101_station_vulkan'
 
 
-def test_copyback_has_disjoint_full_parent_planes_and_both_memory_dependencies():
+def test_copyback_is_fused_atomic_work_without_bulk_parent_transfers():
     source = (PACKAGE / 'src/gpu_pipeline.cpp').read_text()
-    assert 'auto copy_canonical_parents=' in source
-    start = source.index('auto copy_canonical_parents=')
-    end = source.index('\n };', start)
-    copy = source[start:end]
-    assert 'VkDeviceSize parent_bytes=VkDeviceSize(p.count)*sizeof(uint32_t)' in source
-    assert 'VkBufferCopy parent_copy{17*parent_bytes,6*parent_bytes,parent_bytes}' in source
-    # Same VkBuffer is legal only with disjoint source/destination ranges.
-    for count in (1, 17*19, 640*480):
-        size = count*4
-        assert 6*size+size <= 17*size
-        assert 17*size+size == 18*size == count*72  # scratch_bytes, no diagnostic needed
-    assert re.search(r'barrier\(s.command,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_SHADER_READ_BIT\|VK_ACCESS_SHADER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT\|VK_ACCESS_TRANSFER_WRITE_BIT\)', copy)
-    assert 'vkCmdCopyBuffer(s.command,s.scratch.buffer,s.scratch.buffer,1,&parent_copy)' in copy
-    assert re.search(r'barrier\(s.command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_SHADER_READ_BIT\|VK_ACCESS_SHADER_WRITE_BIT\)', copy)
-    assert copy.index('VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT') < copy.index('vkCmdCopyBuffer') < copy.index('VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT')
-    assert 'for(unsigned i=0;i<32;i++){dispatch(3);copy_canonical_parents();dispatch(2);}dispatch(3)' in source
-    # Copy stays device local. The existing upload/compact/diagnostic paths are separate.
-    assert not re.search(r'Wait|Allocate|Create|MapMemory|readback|diagnostic', copy)
+    assert 'copy_canonical_parents' not in source and 'parent_copy' not in source
+    assert 'vkCmdCopyBuffer(s.command,s.scratch.buffer,s.scratch.buffer' not in source
+    assert 'for(unsigned i=0;i<32;i++){dispatch(3);dispatch(2);}dispatch(3)' in source
+    assert source.count('vkCmdCopyBuffer(') == 3  # upload and bounded/diagnostic outputs
+    shader = (PACKAGE / 'shaders/resident.slang').read_text()
+    start = shader.index('void connect(')
+    end = shader.index('\n[numthreads', start)
+    connect = shader[start:end]
+    assert connect.index('scratch.InterlockedMin(parentOffset(i),a,ignored)') < connect.index('if((x&15u)')
+    assert connect.count('scratch.InterlockedMin(') == 2
+    assert 'forestParent(' not in connect and 'scratch.Store(' not in connect
 
 
 def test_scratch_allows_transfer_destination_only_in_cold_pool_construction():
@@ -37,13 +30,18 @@ def test_scratch_allows_transfer_destination_only_in_cold_pool_construction():
 
 def test_shader_inventory_and_production_fault_thresholds_are_frozen():
     import hashlib
-    shader = (PACKAGE / 'shaders/resident.slang').read_bytes()
-    assert hashlib.sha256(shader).hexdigest() == 'd53bc3fbe1dd1abac0f2e5f387fbb555d4a44b66cbe0af2bbf0bfc9fff1388df'
+    shader = (PACKAGE / 'shaders/resident.slang').read_text()
+    start = shader.index('{', shader.index('void connect(')); end = start+1; level = 1
+    while level:
+        level += (shader[end] == '{') - (shader[end] == '}'); end += 1
+    # All helpers/other stages are byte-frozen; only connect's approved body changes.
+    normalized = shader[:start] + '{CONNECT_BODY}' + shader[end:]
+    assert hashlib.sha256(normalized.encode()).hexdigest() == 'cc1c54770e601f6763221542560fc384fb018fae0088c3b0c21f5c93d3348df5'
     header = (PACKAGE / 'include/so101_station_vulkan/pipeline.hpp').read_text()
     assert 'return size_t(w)*h*72;' in header
     assert 'kMaxComponents = 4096' in header or 'kMaxComponents=4096' in header
 
 
-def test_final_download_dependency_includes_copied_parent_plane_writes():
+def test_final_download_keeps_conservative_compute_transfer_visibility():
     source = (PACKAGE / 'src/gpu_pipeline.cpp').read_text()
     assert 'barrier(s.command,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT|VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_SHADER_WRITE_BIT|VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT)' in source

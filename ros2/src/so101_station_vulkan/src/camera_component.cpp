@@ -1,4 +1,5 @@
 #include "so101_station_vulkan/frame_adapter.hpp"
+#include "so101_station_vulkan/latest_frame_queue.hpp"
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <chrono>
 #include <cstring>
@@ -23,9 +24,8 @@ class CameraComponent : public rclcpp::Node {
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr status_;
   rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr info_;
   rclcpp::TimerBase::SharedPtr timer_;
-  FrameLease active_, pending_;
+  LatestFrameQueue<FrameLease> queue_;
   std::string serial_;
-  uint64_t drops_ = 0, replacements_ = 0, completed_ = 0;
   float scale_ = 0;
   bool running_ = false;
   void publish_status(const std::string &message) {
@@ -34,31 +34,20 @@ class CameraComponent : public rclcpp::Node {
     status_->publish(s);
   }
   void dispatch_pending() {
-    if (!active_ && pending_) {
-      active_ = std::move(pending_);
-      compute_->submit(active_);
-    }
+    queue_.dispatch_pending([this](const FrameLease &frame) { compute_->submit(frame); });
   }
-  void tick() {
-    if (active_ && compute_->ready(active_)) {
-      compute_->finish(active_);
-      frames_->publish(active_);
-      ++completed_;
-      active_ = {};
-      dispatch_pending();
-    }
-    rs2::frameset native;
-    if (!camera_.poll_for_frames(&native))
+  void capture_pending(const rs2::frameset &native, uint64_t received_ros_ns) {
+    auto original_color = native.get_color_frame();
+    auto original_depth = native.get_depth_frame();
+    if (!original_color || !original_depth ||
+        !queue_.accept_source(original_color.get_frame_number(), original_depth.get_frame_number()))
       return;
-    // Replace only unsubmitted pending storage; submitted and published leases
-    // retain their own slots until both fence completion and last consumer.
-    if (pending_) {
-      pending_ = {};
-      ++replacements_;
-    }
+    // Release only the unsubmitted pending lease before acquiring replacement
+    // storage. Submitted and published frames retain their own pool leases.
+    queue_.discard_pending();
     auto lease = compute_->acquire();
     if (!lease) {
-      ++drops_;
+      queue_.no_slot();
       return;
     }
     auto aligned = alignment_.process(native).as<rs2::frameset>();
@@ -81,23 +70,45 @@ class CameraComponent : public rclcpp::Node {
     }
     slot.calibration = {intrinsics.fx,  intrinsics.fy, intrinsics.ppx,
                         intrinsics.ppy, scale_,        1};
-    slot.metadata.frame_number = color.get_frame_number();
-    slot.metadata.timestamp_ns = uint64_t(now().nanoseconds());
-    slot.metadata.hardware_timestamp_ms = color.get_timestamp();
-    slot.metadata.depth_frame_number = depth.get_frame_number();
-    slot.metadata.depth_hardware_timestamp_ms = depth.get_timestamp();
-    slot.metadata.depth_timestamp_domain = int(depth.get_frame_timestamp_domain());
-    slot.metadata.timestamp_domain = int(color.get_frame_timestamp_domain());
+    slot.metadata.frame_number = original_color.get_frame_number();
+    slot.metadata.timestamp_ns = received_ros_ns;
+    slot.metadata.hardware_timestamp_ms = original_color.get_timestamp();
+    slot.metadata.depth_frame_number = original_depth.get_frame_number();
+    slot.metadata.depth_hardware_timestamp_ms = original_depth.get_timestamp();
+    slot.metadata.depth_timestamp_domain = int(original_depth.get_frame_timestamp_domain());
+    slot.metadata.timestamp_domain = int(original_color.get_frame_timestamp_domain());
     slot.metadata.calibration_generation = 1;
     slot.metadata.serial = serial_;
-    pending_ = std::move(lease);
+    queue_.offer(std::move(lease));
+  }
+  void tick() {
+    bool completed = false;
+    if (queue_.active() && compute_->ready(queue_.active())) {
+      compute_->finish(queue_.active());
+      auto frame = queue_.take_completed();
+      frames_->publish(frame);
+      completed = true;
+    }
+    rs2::frameset native;
+    if (camera_.poll_for_frames(&native)) {
+      // Host receipt precedes alignment/copies. Hardware capture clocks remain
+      // separate metadata; they are never relabelled as this ROS clock.
+      const auto received_ros_ns = uint64_t(now().nanoseconds());
+      capture_pending(native, received_ros_ns);
+    }
+    // A new arrival replaces old pending data before it can be submitted.
+    // This also makes progress on ticks with no newly delivered camera frame.
     dispatch_pending();
-    if (completed_ % 30 == 0)
+    if (completed && queue_.counters().completed % 30 == 0) {
+      const auto &counts = queue_.counters();
       publish_status("experimental; backend=" + compute_->backend() +
                      "; alignment=vendor_cpu; distortion_geometry=unqualified; "
-                     "recording=disabled; dropped=" +
-                     std::to_string(drops_) +
-                     "; replaced=" + std::to_string(replacements_));
+                     "recording=disabled; received=" + std::to_string(counts.received) +
+                     "; completed=" + std::to_string(counts.completed) +
+                     "; dropped=" + std::to_string(counts.no_slot) +
+                     "; replaced=" + std::to_string(counts.replaced) +
+                     "; duplicate_or_regressed=" + std::to_string(counts.duplicate_or_regressed));
+    }
   }
 
 public:
@@ -195,22 +206,23 @@ public:
 class ObjectsComponent : public rclcpp::Node {
   rclcpp::Subscription<FrameLease>::SharedPtr subscription_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr measurements_;
+  std_msgs::msg::String measurement_;
 
 public:
   explicit ObjectsComponent(const rclcpp::NodeOptions &options)
       : Node("resident_measurements", options) {
+    measurement_.data.reserve(kMeasurementTextCapacity);
     measurements_ = create_publisher<std_msgs::msg::String>(
         "/station/resident/measurements", rclcpp::QoS(1));
     subscription_ = create_subscription<FrameLease>(
         "/station/resident/frame", rclcpp::QoS(1),
         [this](const FrameLease &frame) {
           const auto &slot = frame.slot();
-          std_msgs::msg::String message;
-          message.data =
-              "source_frame=" + std::to_string(slot.metadata.frame_number) +
-              "; components=" + std::to_string(slot.component_count) +
-              "; geometry_admission=unqualified; execution_eligible=false";
-          measurements_->publish(message);
+          format_unqualified_measurement(measurement_.data, slot.metadata,
+                                         slot.component_count, now().nanoseconds());
+          // Const-reference publication copies into ROS-owned storage. Never
+          // move/loan this reusable member to an asynchronous consumer.
+          measurements_->publish(static_cast<const std_msgs::msg::String &>(measurement_));
         });
   }
 };

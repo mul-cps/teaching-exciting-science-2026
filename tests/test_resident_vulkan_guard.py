@@ -94,7 +94,7 @@ def test_tile_all_lanes_and_immutable_pingpong_cover_bounded_local_graph():
     connect = body('shaders/resident.slang', 'void connect(')
     assert 'uint(nx)/16==x/16&&uint(ny)/16==y/16' in connect
     submit = body('src/gpu_pipeline.cpp', 'void Pipeline::submit(')
-    assert 'dispatch(7);for(unsigned i=0;i<32;i++){dispatch(3);copy_canonical_parents();dispatch(2);}dispatch(3)' in submit
+    assert 'dispatch(7);for(unsigned i=0;i<32;i++){dispatch(3);dispatch(2);}dispatch(3)' in submit
     assert 'if(i==7)vkCmdDispatch(s.command,(p.width+15)/16,(p.height+15)/16,1)' in submit
 
 
@@ -116,7 +116,7 @@ def test_frozen_canonical_labels_remove_morphology_atomic_reads():
         assert not re.search(r'(?<![A-Za-z])parent\(', code)
         assert 'canonicalParent(' in code
     submit = body('src/gpu_pipeline.cpp', 'void Pipeline::submit(')
-    assert 'dispatch(3);copy_canonical_parents();dispatch(2);' in submit
+    assert 'dispatch(3);dispatch(2);' in submit
     assert 'dispatch(4);dispatch(6);dispatch(5)' in re.sub(r'stamp\(\d+\);', '', submit)
 
 

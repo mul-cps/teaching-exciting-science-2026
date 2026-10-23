@@ -68,19 +68,10 @@ void Pipeline::submit(const FrameLease& f){
  Parameters p{width(),height(),width()*height(),kMaxComponents,s.calibration.depth_scale,s.calibration.fx,s.calibration.fy,s.calibration.cx,s.calibration.cy,1.2f,.012f,pool_->diagnostics?1u:0u};
  vkCmdBindDescriptorSets(s.command,VK_PIPELINE_BIND_POINT_COMPUTE,layout_,0,1,&s.descriptors,0,nullptr);vkCmdPushConstants(s.command,layout_,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof(p),&p);
  auto dispatch=[&](unsigned i){vkCmdBindPipeline(s.command,VK_PIPELINE_BIND_POINT_COMPUTE,kernels_[i]);if(i==7)vkCmdDispatch(s.command,(p.width+15)/16,(p.height+15)/16,1);else vkCmdDispatch(s.command,(p.count+255)/256,1,1);barrier(s.command,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_ACCESS_SHADER_WRITE_BIT,VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT);};
- // A and B are disjoint uint planes in the same device-local scratch buffer.
- // Canonicalizing A preserves its partition while avoiding repeated deep walks.
- VkDeviceSize parent_bytes=VkDeviceSize(p.count)*sizeof(uint32_t);
- VkBufferCopy parent_copy{17*parent_bytes,6*parent_bytes,parent_bytes};
- auto copy_canonical_parents=[&](){
-  // Complete compress reads of A and writes of B before overwriting A/reading B.
-  barrier(s.command,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT|VK_ACCESS_TRANSFER_WRITE_BIT);
-  vkCmdCopyBuffer(s.command,s.scratch.buffer,s.scratch.buffer,1,&parent_copy);
-  // Connect reads frozen B and atomically lowers copied A; no ordinary A reader.
-  barrier(s.command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT);
- };
- stamp(1);dispatch(0);stamp(2);dispatch(1);stamp(3);dispatch(7);for(unsigned i=0;i<32;i++){dispatch(3);copy_canonical_parents();dispatch(2);}dispatch(3);stamp(4);dispatch(4);stamp(5);dispatch(6);stamp(6);dispatch(5);stamp(7);
- // Diagnostic A includes transfer copy writes as well as compute hook writes.
+ // Compress reads immutable A and writes B. Connect reads frozen B and performs
+ // only atomic min writes to A: active-pixel flattening plus boundary hooks.
+ stamp(1);dispatch(0);stamp(2);dispatch(1);stamp(3);dispatch(7);for(unsigned i=0;i<32;i++){dispatch(3);dispatch(2);}dispatch(3);stamp(4);dispatch(4);stamp(5);dispatch(6);stamp(6);dispatch(5);stamp(7);
+ // Retain the conservative compute/transfer source dependency for readback.
  barrier(s.command,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT|VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_SHADER_WRITE_BIT|VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT);
  copy.size=s.compact.size;vkCmdCopyBuffer(s.command,s.compact.buffer,s.readback.buffer,1,&copy);if(pool_->diagnostics){copy.size=s.scratch.size;vkCmdCopyBuffer(s.command,s.scratch.buffer,s.diagnostic.buffer,1,&copy);}
  barrier(s.command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_HOST_BIT,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_HOST_READ_BIT);

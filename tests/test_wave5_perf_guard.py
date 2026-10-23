@@ -61,16 +61,16 @@ def test_native_loaded_digest_metadata_reads_only_cached_attributes():
         assert '_sha256' in ast.unparse(value)
 
 
-def test_feature_negotiation_is_cold_and_new_command_copy_is_bounded():
+def test_feature_negotiation_is_cold_and_fused_command_loop_is_bounded():
     context=(PACKAGE/'src/vulkan_context.cpp').read_text()
     cold=context.split('Context::Context(){',1)[1].split('Context::~Context()',1)[0]
     assert context.count('vkGetPhysicalDeviceFeatures2(')==cold.count('vkGetPhysicalDeviceFeatures2(')==1
     code=(PACKAGE/'src/gpu_pipeline.cpp').read_text().split('void Pipeline::submit(',1)[1].split('void Pipeline::finish(',1)[0]
     for forbidden in ('vkGetPhysicalDevice','vkEnumerate','vkWait','vkAllocate','vkCreate','vkMapMemory','std::vector','new '):
         assert forbidden not in code
-    assert 'VkBufferCopy parent_copy{17*parent_bytes,6*parent_bytes,parent_bytes}' in code
-    assert 'for(unsigned i=0;i<32;i++){dispatch(3);copy_canonical_parents();dispatch(2);}' in code
-    assert 'VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT|VK_ACCESS_TRANSFER_WRITE_BIT' in code
+    assert 'parent_copy' not in code and 'copy_canonical_parents' not in code
+    assert 'for(unsigned i=0;i<32;i++){dispatch(3);dispatch(2);}' in code
+    assert 'vkCmdCopyBuffer(s.command,s.scratch.buffer,s.scratch.buffer' not in code
     assert 'VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT|VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_SHADER_WRITE_BIT|VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT' in code
     cmake=(PACKAGE/'CMakeLists.txt').read_text()
     inventory=cmake.split('foreach(VIDEO_SOURCE ',1)[1].split(')',1)[0]

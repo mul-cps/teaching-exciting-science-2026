@@ -103,16 +103,21 @@ void compress(uint3 tid:SV_DispatchThreadID){
 [numthreads(256,1,1)]
 void connect(uint3 tid:SV_DispatchThreadID){
  uint i=tid.x;if(i>=p.count)return;uint x=i%p.width,y=i/p.width;
+ uint a=canonicalParent(i),ignored;if(a==0)return;
+ // B[i] is the root of the immutable pre-dispatch A tree, hence B[i]<=A[i].
+ // Atomic flattening and boundary hooks all take min with fixed B-derived
+ // proposals. They commute, exactly matching a full B->A copy then hooks.
+ scratch.InterlockedMin(parentOffset(i),a,ignored);
  // Interior pixels have no edge leaving their tile. Visit every undirected
  // cross-tile 8-neighbor edge exactly once: right, down-left/down/down-right.
  if((x&15u)!=0&&(x&15u)!=15&&(y&15u)!=15)return;
- uint a=canonicalParent(i);if(a==0)return;uint m=mask(i);
+ uint m=mask(i);
  [unroll]for(int dy=0;dy<=1;dy++)[unroll]for(int dx=-1;dx<=1;dx++){
   if(dy==0&&dx!=1)continue;
   int nx=int(x)+dx,ny=int(y)+dy;if(nx<0||ny<0||nx>=int(p.width)||ny>=int(p.height))continue;
   if(uint(nx)/16==x/16&&uint(ny)/16==y/16)continue;
   uint j=uint(ny)*p.width+uint(nx);if(mask(j)!=m)continue;
-  uint b=canonicalParent(j),ignored;
+  uint b=canonicalParent(j);
   if(b!=0&&a!=b)scratch.InterlockedMin(parentOffset(max(a,b)-1),min(a,b),ignored);
  }
 }
