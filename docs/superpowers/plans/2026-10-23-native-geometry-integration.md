@@ -1,0 +1,156 @@
+# Native object geometry: remaining implementation and acceptance
+
+This continues Task 3 of the [approved workshop/station plan](2026-10-22-beginner-vulkan-workshop.md).
+It does not replace the full workshop, fwmini4, physical-cycle or release requirements.
+Checkpoint `be3219a` supplies raw alignment and compact components; it does not supply
+validated complete object geometry. The following are implementation choices and
+acceptance dependencies, rather than additional requests for the instructor.
+
+## Authoritative behavior
+
+Use `analyze_rgbd` in
+`ros2/src/so101_station_objects/so101_station_objects/objects.py`, its
+`colored_object_validation.py` helpers, and
+`workshop/digital_twin/grasp_geometry.py` as the retained implementation.
+Use `tools/native_geometry_oracle.py` for independent reference evidence.
+
+Preserve complete report schema, types, color/component/contour order, first-five
+rejection diagnostics, reasons and qualification flags. Full report tolerance is
+absolute `1e-9`; calibrated rays and preparation coordinates use `1e-12`.
+Memberships, flags, sample indices/order, booleans and integers are exact.
+Do not replace median-centered PCA/SVD or linear percentiles with box moments.
+
+The required evidence has distinct meanings:
+
+1. Original color parents include invalid/out-of-range depth pixels. Parent area
+   defaults to 30 pixels, and its OpenCV CCL_GRANA label order matters.
+2. Depth children remove both sides of a four-neighbor jump over 12 mm, then use
+   eight-connected membership and the retained minimum-size configuration.
+3. Validation support includes the original parent within the child's 5x5 halo
+   and externally filled contour. Invalid holes remain evidence of missing depth.
+4. Final observed child pixels remain distinct from per-piece 3x3 closing and
+   contour fill. Morphology cannot manufacture silhouette support.
+
+Preserve depth support fraction 0.90, minimum 24 validation points, depth-gap,
+minority and neighbor-coherence gates, final silhouette fill 0.45, sensor-edge
+truncation, full-child ROI semantics, and all current footprint/height/opening
+limits. Plane residual, saturation and rectangularity remain diagnostics.
+
+Support sampling uses the global row-major stride-8 lattice, radius-3 known-hue
+exclusion, inclusive support ROI and seed-17 selection capped at 2,000 points.
+Retain the 120 seed-17 RANSAC proposals, first-winning ties, measured-plane
+admission/snap rules, and eight Huber refinements. Cached-plane recovery is
+limited to its existing typed failure and age rules.
+
+## 1. Freeze the complete CPU contract before porting it
+
+- Freeze deterministic inputs, full reports, ordered intermediate evidence and
+  lossless array identities for holes, depth-separated touching regions,
+  nonplanar surfaces, sensor edges, concavity, partial observation/pickup ROIs,
+  4/5/8-coefficient distortion and more than 2,000 support samples.
+- `tools/native_geometry_matrix.py` and `matrix-v1.json` establish the first
+  twelve cases. Dense arrays remain in a verified external snapshot; reference
+  reports and array hashes are committed. A native result must never regenerate
+  its own expected values.
+- Separate exact qualification-artifact identity from cross-runtime payload
+  regression. Record actual runtime versions. Runtime differences may not excuse
+  changed sources, inputs, array hashes, report values, order or types.
+- Add a parent-label-order counterexample before implementing the resident
+  parent handoff. OpenCV CCL_GRANA is not minimum-pixel order: in a 4x6 mask with
+  foreground at `(y=1,x=0)` and `(y=0,x=2)`, labels 1/2 have minimum flat pixels
+  6/2. Preserve parent and local child ordering through the full report.
+
+## 2. Make compute features independent of optional video
+
+- Query supported core features once when constructing a Context.
+- Request supported `shaderFloat64` in the legacy compute-only device and
+  optional-video-create fallback. Keep the existing video feature chain intact.
+- Report actually enabled features, and never request unsupported features.
+  Features2 and legacy feature pointers must remain mutually exclusive.
+- Exercise real create-info host tests, retained-owner allocation/query guards,
+  default AMD preparation and combined raw/compact cases, and Intel's explicit
+  unsupported-FP64 refusal.
+- Exercise the compute-only branch against real AMD hardware using a reviewed,
+  process-local capability fault injection. Label injected evidence honestly.
+  A generic Mesa version override was ignored by the installed RADV 26.2.3;
+  retain that failed test setup and its provenance limitation.
+
+This repairs a feature-negotiation bug. It does not give Intel hardware FP64.
+
+## 3. Resolve Intel precision without weakening the contract
+
+Keep the existing explicit FP64 refusal until the alternative passes its gates.
+Do not use float32 Core XYZ as an unqualified substitute for retained float64 rays.
+
+The first candidate is a bounded, coordinate-only software binary64 primitive
+layer using uint64 carriers and uint32 arithmetic limbs. A separate instance-only
+capability audit found physical `shaderInt64` support on both station GPUs;
+Intel's missing FP64 must not be confused with missing Int64. The current
+compute-only Context baseline does not enable Int64. Deliberately request the
+supported feature before the shared device's first consumer, then verify the
+actual enabled state and SPIR-V capabilities before executing this candidate.
+Do not claim that a physical-feature probe qualifies software arithmetic.
+
+Evaluate licensed existing implementations before
+writing new arithmetic. [Mesa's SoftFloat-derived GLSL](https://gitlab.freedesktop.org/mesa/mesa/-/blob/mesa-26.2.3/src/compiler/glsl/float64.glsl) needs carrier/constant
+adaptation; it is not a ready Slang implementation. Its reciprocal path
+is not an exact-division implementation. Preserve attribution and review rounding,
+special-value and subnormal behavior explicitly.
+
+Before GPU execution, require independent CPU bit tests, static SPIR-V capability
+checks and a separate performance refinement/benchmark review. Then compare the
+same complete preparation outputs on AMD and Intel at unchanged tolerances and
+exact membership/order. Measure transfer-inclusive processing and CPU demand;
+do not infer frame rate from primitive instruction counts. A prototype that fails
+correctness or the station budgets does not become the default backend.
+
+## 4. Specify and implement resident evidence, not diagnostic downloads
+
+Define a typed, bounded per-frame evidence lease that retains its source through
+the final consumer fence. Include original parents, depth children, local support,
+observed membership, ordinary resident closed membership and deterministic order.
+Keep calibration/configuration generation and computational crop origins explicit.
+
+Current Core normal morphology stores closed counts; dense closed memberships are
+diagnostic-only. Separate ordinary resident retention from diagnostic readback.
+Do not enable dense diagnostic downloads to make the geometry consumer work.
+Preserve three-slot ownership, latest pending replacement, bounded capacities,
+explicit overflow/nonconvergence faults and zero frame-time allocation/device waits.
+
+Verify every intermediate against the frozen parent/child/support/contour matrix
+before implementing accepted object reports. Unsupported configurations must fail
+visibly instead of silently using different depth/area thresholds.
+
+## 5. Implement the complete estimator and publication contract
+
+Implement support fitting, validation/rejection order, ordered contours/splitting,
+observed-silhouette checks, robust visible geometry and supported pickup estimates.
+GPU work owns dense image/point processing and reductions. Bounded native C++
+scalar algebra, tracking and serialization may consume compact results; this must
+not conceal a dense CPU path or full-frame host readback.
+
+Compare the entire output with the retained oracle, including rejected samples
+and false execution/IK/collision flags. Preserve the pinhole-only grasp-ray rule,
+which differs from distortion-corrected point-cloud rays.
+
+Integrate through existing source/calibration/transform epoch and freshness
+admission, timestamped TF, tracker acquisition and attachment ownership. Preserve
+the actual observation stamp during unknown/stale recovery. A raw FrameLease or
+component count is not a world-qualified observation. Existing Detection3DArray,
+tracking JSON and scene consumers must receive equivalent semantics.
+
+## 6. Qualification and return to the complete workshop release
+
+For every new data path: failing regression first, separate hot-path refinement
+with benchmark/static guards, CPU/native checks, then independently checked GPU
+fixtures. Preserve failures and freeze actual loaded artifacts and drivers.
+
+Require full native report parity, cancellation/stale/restart/unknown behavior,
+and the existing fwmini4 acquisition/processing/latency/CPU targets with actual
+devices. Revalidate video interoperability, scene attachment/self-filtering,
+RViz/Blockly/notebook concurrency and the ten-minute full-stack soak.
+
+Finish service/source-identity deployment together, the five workshop review
+passes, taught segments and EV3 references, STOP/recovery, and three consecutive
+physical dispense/convey/grasp/lift/place/release/return cycles. Merge/push main
+and prove fwmini4 runs that revision only after the original release gates hold.
