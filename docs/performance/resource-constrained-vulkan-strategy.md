@@ -16,15 +16,15 @@ For this station, attempt Vulkan first and expose the reason for any CPU fallbac
 A slower GPU can satisfy the CPU budget, provided it also meets the required rate and age limits.
 Lower process CPU time alone does not establish lower power use or improved control timing.
 
-| Historical Intel prealigned workload | CPU → GPU process ms/completed | Delivery | Interpretation |
+| Intel prealigned workload after exact-division correction | CPU → GPU process ms/completed | Delivery | Interpretation |
 |---|---:|---|---|
-| Recorded, offered at 30 Hz | 6.141550 → 1.664821 | Both 1800/1800 | 72.89% less process CPU/frame |
-| Dense, offered at 30 Hz | 24.448020 → 2.156685 | CPU 30.0000, GPU 23.3667 fps | 91.18% less CPU/frame, unequal service |
-| Dense process demand | 0.733440 → 0.050395 logical CPUs | Same paced experiment | CPU budget saved, rate contract failed |
+| Recorded, offered at 30 Hz | 6.112 → 1.620 | Both 1800/1800, 30 Hz | 73.50% less process CPU/frame |
+| Dense, offered at 30 Hz | 24.725 → 2.221 | CPU 30.00, GPU 23.07 fps | 91.02% less CPU/frame, unequal service |
 
-Source: [resident paced trials](resident-20261023.md#paced-cpu-headroom-and-delivery).
-These figures precede the latest shared exact-division Core correction.
-They cover a prealigned subset, excluding alignment and complete geometry; they are not current Core timings.
+Source: [corrected Intel Core paced trials](intel-core-shared-divide-20261023.md).
+These figures cover a prealigned subset, excluding capture, alignment, ROS and complete geometry.
+Preserve the [earlier paced trials](resident-20261023.md#paced-cpu-headroom-and-delivery)
+as historical evidence rather than mixing them into the corrected baseline.
 A matched whole-camera CPU/GPU comparison remains unmeasured. A later
 [local AMD camera smoke](raw-camera-startup-20261023.md) observed about 30 unique outputs/s
 in CPU, strict Vulkan and auto, one 15-second run each. Those sequential observations
@@ -67,6 +67,10 @@ Keep one active submission and one replaceable, unsubmitted latest pending input
 inputs must never incur GPU submission. Publish each completed source cohort once.
 Source: [raw resident companion](raw-resident-20261023.md); queue semantics also appear in
 [resident ownership evidence](resident-20261023.md#latest-frame-software-boundary).
+Under sustained overload, keep capture rate and unique processed-output rate separate.
+Replace pending work before submission, process the newest available cohort, and report skipped
+inputs and frame age. Publishing an old result again does not count as another processed frame.
+Accept this policy only when its measured unique rate and age still meet the application budget.
 CPU capture, SDK RGB conversion, ROS, and control still consume CPU; new GPU compute uses
 Vulkan/Slang/SPIR-V, and complete geometry remains unfinished.
 Zero own allocations/waits in a fake-driver hot path excludes SDK, RMW, real-driver behavior,
@@ -95,8 +99,8 @@ negotiation must not erase independent compute capabilities: the
 without granting unsupported FP64 to Intel. Probe driver-specific test controls before relying
 on them; the generic Mesa version override was not implemented by this RADV version.
 Inventory individual physical features before designing an emulation path: both tested GPUs
-support Int64 even though Intel lacks FP64. Its compute-only logical device currently leaves
-Int64 disabled. Capability, enablement and qualified arithmetic are three separate facts.
+support Int64 even though Intel lacks FP64. The committed compute-only baseline at `c53d8d5`
+leaves Int64 disabled. Capability, enablement and qualified arithmetic are three separate facts.
 
 ## Account for camera and system work
 
