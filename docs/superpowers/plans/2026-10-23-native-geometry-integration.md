@@ -181,6 +181,64 @@ node-level source health/order, epochs, freshness and timestamped transform/worl
 admission remain separate. Unsupported configurations must fail visibly instead
 of silently using different depth/area thresholds.
 
+### Child preparation implementation
+
+The bounded CPU reference gate is **CLOSED**: the committed
+[24-case fixture](../../../tests/fixtures/native_geometry/child-evidence-v1.json),
+[validator](../../../tools/native_geometry_child_evidence.py) and
+[validator tests](../../../tests/test_native_geometry_child_evidence.py) freeze
+crop-local ordering, regions and support against the
+[retained splitter](../../../ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py).
+The parent GPU boundary is already recorded above. The following child design is
+selected for implementation; it is not evidence of completed child GPU work.
+
+`ChildPreparation` consumes a completed `ParentLease`; `ChildLease` retains it
+through consumer fences. Two additive parent accessors return source and
+configuration copies. Candidate F32 depth admission, both-endpoint edge cuts and
+eight-connected components remain configurable and enforce the same parent
+identity. Validate configuration as host doubles before deriving F32 comparison
+bits, including derived zero/infinity cases. Keep opaque minimum-pixel roots
+separate from the true crop-local block key K. Sort at most 4096 kept children on
+the GPU by parent order and K; do not promise exact numeric OpenCV CCL IDs.
+
+Retain compact GPU `ParentChildStatus` for every kept parent: four U32 fields
+`{valid_depth_pixels, candidate_pixels, all_children, kept_children}` (16 bytes
+per parent), computed in existing passes and retained through aliases. Even when
+no child record survives, these counters must reproduce
+`outside_observation_depth_range` versus `no_depth_coherent_component` without
+dense CPU readback.
+
+Use packed clipped halo storage with default capacity 4N and explicit record,
+job and pack overflow faults. Retain region, nearby, cut, original-parent and
+support bits. Fill a region through the complement of four-connected exterior
+background, then form support from the original parent intersected with the union
+of the 5×5 dilated region and filled region. The finite CPU hole-fill pilot passed
+109,051 fill comparisons per runtime and 21 accepted support regions across 14
+accepted fixture cases; this is not
+a universal equivalence proof. Both connectivity graphs use 32 bounded
+hook/jump rounds followed by full convergence validation, with no N-step walks or
+host convergence loop. Indirect work and explicit barriers avoid a CPU count
+round trip.
+
+The earlier reference resource calculation is 24,079,696 payload bytes per slot
+and 72,239,088 bytes for three slots. It excludes the newly required parent-status
+storage and host-cached decoded records, as well as borrowed parent/Core and
+driver storage; it is not an actual or all-inclusive budget. Recompute and report
+the actual budget for all named payloads after implementation.
+Production admission remains bounded to 640×480. A literal shader adapter may
+exercise N ≤ 307200 and axes ≤ 2048 for the 1025×7 fixture: source admission and
+kernel parity are separate gates. It must use the same actual command graph and
+SPVs, not a copied test loop. There is no production admission bypass or dense
+CPU fallback.
+
+Ordinary observed-ROI memberships and 3×3 closed memberships remain a **later,
+distinct GPU stage**. Closing raw children before the observation ROI would
+change the retained semantics. Real child GPU parity, universal fill equivalence,
+range coverage and performance targets remain **UNPROVEN**. Every new data path
+requires a separate performance worker, static guards and a microbenchmark before
+GPU execution, in the qualification sequence of this
+[formal integration plan](2026-10-23-native-geometry-integration.md#6-qualification-and-return-to-the-complete-workshop-release).
+
 ## 5. Implement the complete estimator and publication contract
 
 Implement support fitting, validation/rejection order, ordered contours/splitting,
