@@ -153,3 +153,30 @@ For future projects, execute this proposed sequence:
 3. Bound ownership and latest-pending behavior; enforce correctness, precision, and failure gates.
 4. Measure paced mixed workloads, CPU demand, and safety/control QoS on each target configuration.
 5. Keep explicit target-specific fallbacks; finish full-station soak, rehearsal, and physical cycles.
+
+## Reusable experiment record
+
+These dated platform results are evidence to guide future experiments, not portable speedup promises.
+Process CPU reduction and the unique-rate/frame-age contract jointly determine useful offload.
+A slower GPU path may be acceptable when it frees required CPU headroom and still satisfies the
+application's rate, age, latency and correctness constraints. A control-loop benefit requires measured
+control evidence. In the [dense comparison](intel-core-shared-divide-20261023.md), 91.02% CPU savings per completed
+frame came with unequal service: 23.07 versus 30 fps. Preserve both facts when assessing that saving.
+Use the [measurement boundaries](geometry-preparation-timing-20261023.md) and the
+[ownership/rate contracts](resident-20261023.md#latest-frame-software-boundary) to fill this record:
+
+```text
+Project / date / acceptance owner:
+Exact source + transitive helper hashes / compiler identity + flags:
+SPIR-V hashes / loaded driver + library hashes / device identity + enabled features:
+Input resolution / density / calibration identity + structure:
+Matched CPU/GPU operation scope / precision / unchanged correctness threshold + result:
+Measurement window / warmup / trials / samples / clocks / polling policy:
+Offered / completed / replaced counts and rates / unique-output rate:
+Frame-age p95 / clock domain / application rate + age limits:
+Process CPU seconds per completed output / seconds per wall-second (CPU and GPU paths):
+Latency trial p95s + aggregation rule (separate from process CPU):
+Transfers (bytes + direction) / allocations / synchronization + readback per output:
+Concurrent control-loop p95 / p99 / deadline misses / required limits:
+Fallback reason / acceptance decision / unmet constraints / evidence links:
+```
