@@ -79,26 +79,52 @@ This repairs a feature-negotiation bug. It does not give Intel hardware FP64.
 
 ## 3. Resolve Intel precision without weakening the contract
 
-Keep the existing explicit FP64 refusal until the alternative passes its gates.
+Keep the existing default NativeFloat64 refusal; the software alternative remains
+an explicit opt-in after its bounded gates, not automatic camera admission.
 Do not use float32 Core XYZ as an unqualified substitute for retained float64 rays.
 
-The first candidate is a bounded, coordinate-only software binary64 primitive
-layer using uint64 carriers and uint32 arithmetic limbs. A separate instance-only
-capability audit found physical `shaderInt64` support on both station GPUs;
-Intel's missing FP64 must not be confused with missing Int64. The current
-compute-only Context baseline does not enable Int64. Deliberately request the
-supported feature before the shared device's first consumer, then verify the
-actual enabled state and SPIR-V capabilities before executing this candidate.
-Do not claim that a physical-feature probe qualifies software arithmetic.
+The selected candidate is a bounded, coordinate-only **Berkeley SoftFloat Release
+3e FAST_INT64 subset**, shared between C++ and Slang with uint64 carriers and
+uint32 arithmetic limbs. It provides fixed nearest-even add/multiply, exact
+binary32 widening, ordered comparisons and finiteness, with gradual underflow and
+canonical quiet NaNs. Division, square root, fused arithmetic, configurable rounding
+and exception-state equivalence remain outside the subset. Retain the full BSD
+notice and source/modification inventory in
+`ros2/src/so101_station_vulkan/third_party/softfloat/NOTICE` and `provenance.json`.
 
-Evaluate licensed existing implementations before
-writing new arithmetic. [Mesa's SoftFloat-derived GLSL](https://gitlab.freedesktop.org/mesa/mesa/-/blob/mesa-26.2.3/src/compiler/glsl/float64.glsl) needs carrier/constant
-adaptation; it is not a ready Slang implementation. Its reciprocal path
-is not an exact-division implementation. Preserve attribution and review rounding,
-special-value and subnormal behavior explicitly.
+[Mesa's SoftFloat-derived GLSL](https://gitlab.freedesktop.org/mesa/mesa/-/blob/mesa-26.2.3/src/compiler/glsl/float64.glsl)
+was evaluated as a reference only; its carrier/constant adaptation and non-exact
+reciprocal path did not make it the selected implementation. Do not attribute this
+subset to Mesa or treat a reciprocal as qualified exact division.
 
-Before GPU execution, require independent CPU bit tests, static SPIR-V capability
-checks and a separate performance refinement/benchmark review. Then compare the
+The earlier instance-only audit found physical `shaderInt64` support on both
+station GPUs; missing FP64 must not be confused with missing Int64. Context now
+requests only supported Int64 alongside supported Float64 in its existing compute
+baseline. Actual create-info/enabled-feature host tests cover the independent
+feature profiles and optional-video fallback. Physical support and synthetic tests
+still do not qualify GPU arithmetic.
+
+`GeometryPrecision::SoftwareBinary64` is an explicit preparation-only opt-in and
+requires actually enabled Int64. The existing three-argument constructor retains
+`NativeFloat64`, including its explicit unsupported-FP64 refusal. The separate
+software shader build option defaults OFF; there is no precision auto-selection
+or default-camera wiring. Source ordering, thresholds, arena ABI, resident
+ownership and exact discrete comparators remain unchanged. The
+[CPU evidence checkpoint](../../performance/software-binary64-20261023.md) records
+conformance, independent CPU refinement, compiler/cache-provenance correction and
+remaining limits. Reproducible offline corpus/shader/build instructions are in the
+[diagnostic README](../../../tools/performance/README.md#software-binary64-primitive-diagnostic).
+Root-reviewed GPU evidence now passes primitive bit conformance and all eight
+unchanged preparation cases on each tested AMD/Intel device. Both actually enable
+Int64; Intel retains physical/enabled Float64 false. Maximum coordinate error is
+2.7755575615628914e-17 m under the unchanged 1e-12 limit, with exact flags, counts,
+membership/order and ownership contracts. The archive preserves failed protocol
+attempts separately from the accepted AMD prefix plus fresh seventeen-step remainder.
+This closes only the recorded primitive/preparation diagnostic boundary.
+
+For each changed arithmetic/preparation revision, require independent CPU bit tests,
+static SPIR-V capability checks and a separate performance refinement/benchmark
+review before GPU execution. Then compare the
 same complete preparation outputs on AMD and Intel at unchanged tolerances and
 exact membership/order. Measure transfer-inclusive processing and CPU demand;
 do not infer frame rate from primitive instruction counts. A prototype that fails

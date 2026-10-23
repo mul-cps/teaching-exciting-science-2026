@@ -1,0 +1,698 @@
+{
+  "schema": "so101-software-binary64-evidence-v1",
+  "date": "2026-10-23",
+  "qualified": false,
+  "scope": "explicit opt-in software binary64 primitive and bounded geometry preparation diagnostic; CPU and two-device GPU conformance checkpoint",
+  "qualification": {
+    "cpu_contract_verified": true,
+    "fresh_build_install_verified": true,
+    "offline_spirv_verified": true,
+    "gpu_execution_evidenced_here": true,
+    "gpu_primitive_conformance": true,
+    "gpu_coordinate_accuracy": true,
+    "gpu_performance": false,
+    "default_camera_mode": false,
+    "full_geometry": false,
+    "full_objects": false,
+    "physical_station": false,
+    "bounded_software_preparation_passed": true
+  },
+  "upstream": {
+    "name": "Berkeley SoftFloat Release 3e",
+    "license": "BSD-3-Clause",
+    "source_documentation": "https://www.jhauser.us/arithmetic/SoftFloat-3/doc/SoftFloat-source.html",
+    "softfloat_archive_sha256": "21130ce885d35c1fe73fc1e1bf2244178167e05c6747cad5f450cc991714c746",
+    "testfloat_archive_sha256": "6d4bdf0096b48a653aa59fc203a9e5fe18b5a58d7a1b715107c7146776a0aad6",
+    "algorithm_subset": "FAST_INT64, fixed nearest-even, gradual underflow, canonical quiet NaN",
+    "installed_notice_and_source_provenance_verified": true
+  },
+  "arithmetic_contract": {
+    "public_operations": [
+      "sf64_add_bits",
+      "sf64_mul_bits",
+      "sf64_from_f32_bits",
+      "sf64_less",
+      "sf64_less_equal",
+      "sf64_is_finite"
+    ],
+    "non_nan_results": "exact IEEE encodings including signed zeros and infinities",
+    "canonical_nan_bits": "0xFFF8000000000000",
+    "rounding": "nearest, ties to even",
+    "excluded": [
+      "divide",
+      "sqrt",
+      "fused arithmetic",
+      "other rounding modes",
+      "exception-state equivalence",
+      "NaN payload propagation equivalence",
+      "exhaustive proof"
+    ]
+  },
+  "integration": {
+    "context": "requests only physically supported Int64 and Float64 in existing compute baseline; synthetic tests inspect actual device creation and enabled features",
+    "precision_mode": "GeometryPrecision::SoftwareBinary64",
+    "default_precision": "GeometryPrecision::NativeFloat64",
+    "software_requires_actually_enabled_shaderInt64": true,
+    "software_requires_shaderFloat64": false,
+    "three_argument_constructor_preserved": true,
+    "automatic_selection": false,
+    "build_option_default": "OFF",
+    "ordered_coordinate_multiplications": 11,
+    "ordered_coordinate_additions": 9,
+    "arena_abi_unchanged": true,
+    "ordinary_completion_bytes": 16,
+    "resident_arenas": 3,
+    "max_support_samples": 4800,
+    "hot_path_allocation_or_wait_added": false
+  },
+  "cpu_conformance": {
+    "native_assertions_per_ordinary_run": 5294430,
+    "random_binary64_pairs": 1000000,
+    "random_binary32_conversions": 200000,
+    "upstream_testfloat_vectors": {
+      "f64_add": 46464,
+      "f64_mul": 46464,
+      "f32_to_f64": 600,
+      "total": 93528,
+      "exception_flags_compared": false
+    },
+    "actual_shader_expression_coordinate_and_flag_cases": 20000,
+    "rounding_and_pack_mutants_rejected": true,
+    "final_upstream_testfloat_test_executed": true,
+    "exhaustive": false,
+    "ubsan_execution_verified": false
+  },
+  "performance_refinement": {
+    "measurement": "CPU microbenchmark only; median of three paired run medians, seven trials per scenario; unchanged ordered expressions",
+    "gpu_timing": false,
+    "refinement": "exact multiplication by plus/minus one after special-value handling",
+    "rows": [
+      {
+        "scenario": "random",
+        "baseline_ns_per_coordinate": 170.173,
+        "refined_ns_per_coordinate": 169.879,
+        "change_percent": -0.17,
+        "interpretation": "neutral at this resolution"
+      },
+      {
+        "scenario": "axis_aligned_calibration",
+        "baseline_ns_per_coordinate": 77.71,
+        "refined_ns_per_coordinate": 67.84,
+        "change_percent": -12.7,
+        "interpretation": "bounded CPU improvement"
+      },
+      {
+        "scenario": "dense_rotated_calibration",
+        "baseline_ns_per_coordinate": 142.654,
+        "refined_ns_per_coordinate": 143.136,
+        "change_percent": 0.34,
+        "interpretation": "neutral at this resolution"
+      }
+    ],
+    "coordinates_per_trial": 65536,
+    "timed_heap_allocations": 0,
+    "coordinate_spirv_bytes_before": 192728,
+    "coordinate_spirv_bytes_after": 195608,
+    "universal_speedup_claimed": false,
+    "transfer_inclusive_benefit_measured": false
+  },
+  "correctness_review": {
+    "arithmetic_and_integration": "no arithmetic blocker found in independent source review",
+    "cmake_compiler_identity_p2": "resolved by independent follow-up",
+    "stable_mode_identity": true,
+    "compiler_executable_dependency": true,
+    "provenance_published_after_all_spv_and_sidecars": true,
+    "real_compiler_counter_regressions": [
+      "unchanged configure does not compile or rewrite provenance",
+      "same-path executable version/content change rebuilds",
+      "compiler file change automatically reconfigures",
+      "offline to compiler mode rebuilds",
+      "helper-only stale offline cache refused"
+    ],
+    "forced_compiler_failure_publication_test": false,
+    "multi_entry_publication_dependency_review": "source reasoning"
+  },
+  "chronology": [
+    {
+      "stage": "initial_full_cpu_attempt",
+      "result": "stopped at first failure",
+      "failed_test": "tests/test_preparation_perf_guard.py::test_hot_paths_have_no_allocation_wait_dense_cpu_loop_or_mapping",
+      "passed": 2945,
+      "failed": 1,
+      "skipped": 105,
+      "subtests_passed": 48,
+      "interrupted": true
+    },
+    {
+      "stage": "authorized_test_only_correction",
+      "source": "tests/test_preparation_perf_guard.py",
+      "change": "exclude exact four-argument cold initializer; retain delegating constructor under residual guard",
+      "forbidden_regexes_and_hot_methods_unchanged": true,
+      "allocation_wait_mutants_rejected": 6,
+      "targeted_passed": 9
+    },
+    {
+      "stage": "final_full_cpu",
+      "passed": 3898,
+      "skipped": 136,
+      "subtests_passed": 48,
+      "seconds": 79.44
+    },
+    {
+      "stage": "final_native",
+      "passed": 347,
+      "skipped": 0,
+      "seconds": 30.98
+    },
+    {
+      "stage": "fresh_native_ctest",
+      "passed": 14,
+      "failed": 0,
+      "seconds": 22.93,
+      "not_repeated_after_test_only_fix": true
+    }
+  ],
+  "final_build": {
+    "compiler": "Slang 2026.19",
+    "compiler_sha256": "19c0217f848537db2a87120eb1b3f882ab2e3eb54fdec4cf5300035943704145",
+    "source_composite_sha256": "b4d6c0ee7925b5b07a4ed1f21292805e151b81519faeb045d82645c597c74a11",
+    "source_manifest_sha256": "f61af7214008e8b19f7c06461c372c23323395a2864ead977d768db6a75d0e2a",
+    "source_files_pinned": 526,
+    "source_drift": false,
+    "old_build_spvs_unchanged": 17,
+    "old_installed_spvs_unchanged": 16,
+    "baseline_note": "one divide diagnostic SPV is build-only",
+    "software_stages": {
+      "geometry_coordinates.spv": {
+        "sha256": "1c2798cbfb9f4af876f64a483639ec440a51be7e7a1defef8e2b121cca1b98ac",
+        "bytes": 195608,
+        "capabilities": [
+          11,
+          1
+        ],
+        "float64_capability": false,
+        "float64_type": false
+      },
+      "geometry_support_offsets.spv": {
+        "sha256": "b208b13263698a1d8b1819ac91a69b47c0d34774a62c2c498d90f00d1762e3dd",
+        "bytes": 1912,
+        "capabilities": [
+          1
+        ],
+        "float64_capability": false,
+        "float64_type": false
+      },
+      "geometry_support_scan.spv": {
+        "sha256": "9584291624a1231651fa56ac1829c1ea326f988f86eae59f004ea1d6b4510e2f",
+        "bytes": 3808,
+        "capabilities": [
+          1
+        ],
+        "float64_capability": false,
+        "float64_type": false
+      },
+      "geometry_support_scatter.spv": {
+        "sha256": "79c69a96a5ad2213012b2290c3148539cb3e4ae71e2d76b7bc428443d6a8039b",
+        "bytes": 3644,
+        "capabilities": [
+          11,
+          1
+        ],
+        "float64_capability": false,
+        "float64_type": false
+      },
+      "geometry_valid_count.spv": {
+        "sha256": "c41ddcfdd3462963951db7b71730ffbc23bd96cad7aca1191b1b3f30b6120e99",
+        "bytes": 2224,
+        "capabilities": [
+          1
+        ],
+        "float64_capability": false,
+        "float64_type": false
+      }
+    }
+  },
+  "offline_diagnostic_probe": {
+    "status": "executed on two GPUs with immutable independent-oracle corpus; bounded primitive conformance passed",
+    "default_corpus_rows": 65536,
+    "with_upstream_rows": 159064,
+    "batch_rows": 16384,
+    "one_submission_active": true,
+    "bounded_diagnostic_readback": true,
+    "external_watchdog_required": true,
+    "full_geometry_qualified": false
+  },
+  "remaining_gates": [
+    "actual transfer-inclusive performance, CPU demand and latency before default selection",
+    "complete geometry reports within unchanged 1e-9 plus exact arrays and schema",
+    "default camera integration and physical station qualification"
+  ],
+  "source_sha256": {
+    "ros2/src/so101_station_vulkan/shaders/soft_binary64.slang": "2cb3eae2dd92ca8a69234af8787e2c3a9ac28726fa440b11e6f6a4041cb96901",
+    "ros2/src/so101_station_vulkan/shaders/geometry_soft.slang": "5fd59968529786399cdddebfcf35f1a91c9348992ea084256b482376d06e5b20",
+    "ros2/src/so101_station_vulkan/src/vulkan_context.cpp": "c31886988dfdc31df69f40c8e96b11bb70f8ae1db2b749c14869642d34bd0c88",
+    "ros2/src/so101_station_vulkan/src/geometry.cpp": "82c235c0c0890356a21439d27243f75575db6d6668176b3e72a8f8edd9ad788b",
+    "ros2/src/so101_station_vulkan/include/so101_station_vulkan/geometry.hpp": "18e2b7b34cd9de492ffbb10e9570bd05436d95e93b1bdc56996641972594dab6",
+    "ros2/src/so101_station_vulkan/cmake/geometry.cmake": "33d82aee30f8b6e28aca1e9fcb104e9823a3b90f6db5cf05366afb2f34dd2777",
+    "ros2/src/so101_station_vulkan/cmake/software_geometry.cmake": "6074fbf23758b52ee7c34ba3dd3644e7387e4dc0cf37defa90169056977ffb81",
+    "ros2/src/so101_station_vulkan/test/qualify_geometry.cpp": "07c835ed640528ce882a8876f80495cefa969798e66c309939d8a1d784e584f8",
+    "ros2/src/so101_station_vulkan/third_party/softfloat/NOTICE": "ae3986bc6292443a76a34137895f16763447ff3e73abb76e8a1c0268c963f770",
+    "ros2/src/so101_station_vulkan/third_party/softfloat/provenance.json": "a5286691ccaae332fe2da01ad35cb86898b246e67b547aab5f69974c04035000",
+    "tests/test_soft_binary64.py": "1bebb175e8f301949b40ec014a81dd65bce5ea80717ce23623bc257445267b8e",
+    "tests/test_software_geometry_contract.py": "e5d23d8065b44d1a9f63cbbc1198e251f5a702f4fdcf3fe013cb2b079ae953ba",
+    "tests/test_preparation_perf_guard.py": "005a84d5f02109daeb9ef1e89dc845e5833c8daaac1f745d6639dc45b9106a5d",
+    "tests/test_soft_binary64_perf.py": "d575d140fc56c81d41f16ca80b028c91cda2211d05ef53bad124b6af7f947c9d",
+    "tests/test_soft_binary64_probe.py": "d8412da0a6f1eb4ea34cccc2f26c1d081edb4020f5a0c00d714c0afccfad6516",
+    "tests/test_soft_binary64_probe_perf.py": "da2fb0a68ea72cd90846609dcb2fc912225812eb147b1cd982d81c7a0f70f25e",
+    "tools/performance/qualify_soft_binary64.cpp": "5cd3ef8e6cefb9489688f4bcabc3a704cb656446863beeffd62b583b6dcc1ef6",
+    "tools/performance/soft_binary64_probe.slang": "b76484a5b68d0552f30582bbe4d01e441480817575c97a8b88f7b2466fc5c7ae"
+  },
+  "original_report_sha256": [
+    {
+      "report": "workshop-softfloat-coordinate-contract-20261023.md",
+      "sha256": "d27d4887a846256db617eaef29430f839e02b6c2162071f31cbfb2be4ae62c33"
+    },
+    {
+      "report": "workshop-softfloat-reference-build-20261023.md",
+      "sha256": "33b3d0826be6f7997f453bbb16686707703190c918a89ef29696a6f1bb76ff18"
+    },
+    {
+      "report": "workshop-int64-context-cpu-20261023.md",
+      "sha256": "c856b202f0a38b97ad48e889557261a152ee4d4b07dcf5f78db5e25147e103a3"
+    },
+    {
+      "report": "workshop-soft-binary64-cpu-20261023.md",
+      "sha256": "e42d06b74abf3e3f3863deec1f27601ceb4fbc73ddd9c15854e261e7b3b93d81"
+    },
+    {
+      "report": "workshop-soft-binary64-cpu-20261023.json",
+      "sha256": "1daa1a1e1bfac8316e488e6ffc0407dc749f8d882257fa23d29dae8f5e9e8a20"
+    },
+    {
+      "report": "workshop-soft-binary64-perf-20261023.md",
+      "sha256": "87c6c4cf9649355a3883fa8d9154bc2f9fc8a27294f7d0b41f12e21e73cfd127"
+    },
+    {
+      "report": "workshop-soft-binary64-perf-20261023.json",
+      "sha256": "be2d8eff5849475872d0f344c8cf13d6e0c65e9987595b3377c3d4946404ea19"
+    },
+    {
+      "report": "workshop-soft-binary64-probe-cpu-20261023.md",
+      "sha256": "769e93f9146bba1ed9e0ace635176564e06bd8065c21690bf520b2f8c5d7cef0"
+    },
+    {
+      "report": "workshop-soft-binary64-probe-cpu-20261023.json",
+      "sha256": "48d7cae5ac3cbfc2c227a626dd33f530ad3630a63d84dae9323104275a27475e"
+    },
+    {
+      "report": "workshop-soft-binary64-probe-perf-20261023.md",
+      "sha256": "8d625fb18de2b6393dfc4cae8dbc9f624dae156befc7280bb2add9a940942b4b"
+    },
+    {
+      "report": "workshop-software-geometry-integration-20261023.md",
+      "sha256": "3da3e8009f1dc5cd6c575730e3f13b03fe1748967b671cee2c90be2fa2c7e3bc"
+    },
+    {
+      "report": "workshop-software-precision-correctness-review-20261023.md",
+      "sha256": "629720303b50a2982f56a87cc2b0a7c2ca958edc4b60f0a84949e503530414d8"
+    },
+    {
+      "report": "workshop-software-geometry-integration-20261023-p2.md",
+      "sha256": "fa7c9b1ed20dc05ab4310eb57f0da7a187f38e28ff5cf60c97209fdb1b17d08d"
+    },
+    {
+      "report": "workshop-software-precision-p2-review-20261023.md",
+      "sha256": "1fb9bbf89251e3847ffd497dfc8045fcfe0982d25de220912332bca9236c6c63"
+    },
+    {
+      "report": "workshop-software-binary64-full-cpu-20261023.md",
+      "sha256": "e2022c5b46f6ac7a4bbfc59ac606e3cff6c523deaf22ff235474a40d9985bbe6"
+    },
+    {
+      "report": "workshop-software-binary64-full-cpu-20261023.json",
+      "sha256": "408fd4e9f99bacd056c443c7631112e8d5a5482cf0ff05e3ad98b68dcc6ef3f6"
+    },
+    {
+      "report": "workshop-preparation-perf-guard-fix-20261023.md",
+      "sha256": "8832cae6226b0c3bb909f74bc46443a32601643fec5c11f763fb4ef9e9001fa9"
+    },
+    {
+      "report": "workshop-software-binary64-full-cpu-final-20261023.md",
+      "sha256": "1105e656182226236fba274a15b736d78f7a8584f84847d2c85b2cac311d8b3d"
+    },
+    {
+      "report": "workshop-software-binary64-full-cpu-final-20261023.json",
+      "sha256": "032ac2d5cedda931201b9e2c1cec2d05f10ba47617975e51006f07211c00ff30"
+    },
+    {
+      "report": "workshop-software-binary64-public-cpu-snapshot-20261023.md",
+      "sha256": "6fc7d7afb680f645fb40bcef7c96d2ac06535c79c46e0e8426e9f29e3fda21af"
+    },
+    {
+      "report": "workshop-software-binary64-public-cpu-snapshot-20261023.json",
+      "sha256": "97da6e1cd3c683f084f95bee3115b36fdf60adbc50411c75894e971073dca0b1"
+    },
+    {
+      "report": "workshop-software-binary64-public-review-20261023.md",
+      "sha256": "251994f4654dd73ec7f63e347a4ef0e30745ce69f8eca5d6baa944ed707426d7"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-protocol-20261023.md",
+      "sha256": "c3c515479fd033ce546c019c696738b8e57cd6ae9257538f414bb32154b3b4a0"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-20261023.md",
+      "sha256": "a0f1f3c4df6f9a450cd70879ffe72e74e61235c060d7ab623e125c8d279d8627"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-protocol-20261023.json",
+      "sha256": "ae907e031f89f0e8111c7a2c03f97f8c82aaa50413dbfab68657bf8fd0dc9eae"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-20261023.json",
+      "sha256": "e92ab9e35c6d33286eb481f797f900097c0ebae99bcd1baf27dad9ccedb9ad2b"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-protocol-v2-20261023.md",
+      "sha256": "8fa61defbcb1c1c7146b32dc5122e50ea60c8fa22ffef3ee6d3fac14583ce3f6"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-v2-20261023.md",
+      "sha256": "15c28f6459a1f2a25bba76c0fc7507a00c5ac46f82e062f89c0a79a6f10917f6"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-protocol-v2-20261023.json",
+      "sha256": "4717eb9487576d96de773568865f0a29fa80db05d7d2c1d6498c3eee918cd7f0"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-v2-20261023.json",
+      "sha256": "ce2310d93c2657098be74ea5c3e3e65431fc48881fac096239b822dd76d36ee7"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-protocol-v3-20261023.md",
+      "sha256": "7a0574db63ff37d276b58044ece6542c0718a171fa03894239381a29a76b9142"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-v3-20261023.md",
+      "sha256": "eed03dcd5b7278f4f06933d4cfb2092762686e2ab96cc58c25370c7665cadd24"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-protocol-v3-20261023.json",
+      "sha256": "6db0a187623d070d4f7306ed63fe7146da91af2ecfe281f7aaccd5876426338b"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-v3-20261023.json",
+      "sha256": "ba911a976d2d5d725ce4b4818a0a70cadb1d382de5dc80304fc72f704f58a864"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-protocol-v4-20261023.md",
+      "sha256": "8cd9280f371d15eddf145d523f95d511ab477f33b9f843706b32cf9c3302448b"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-v4-20261023.md",
+      "sha256": "d279255d5c9baa59db1a7e40829be56de51af9d24621ea5e3eca45807a30cec6"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-protocol-v4-20261023.json",
+      "sha256": "201c8f7ae630e18f56298c49d2e26f3210b1bbd169d09ee5472f3fe5772899a1"
+    },
+    {
+      "report": "workshop-software-binary64-gpu-v4-20261023.json",
+      "sha256": "9201cfe1c6db3b9deb5450209ac1dd007695e03e609e610fbbf9d6f59a2dd497"
+    },
+    {
+      "report": "software-binary64-gpu-v4-coordinator-result.json",
+      "sha256": "f554fb375f6cb907957c44ba85604136a132908af3746888b9fb657a7752dc48"
+    }
+  ],
+  "sanitization": "aggregate results and repository-relative identifiers only; no local paths, launch command arrays, serials, UUIDs, calibration, or per-frame payloads",
+  "gpu_conformance": {
+    "acceptance_scope": "two-device primitive/software-preparation diagnostic only",
+    "protocol_status": "PASS: one accepted V3 AMD primitive carried plus 17 fresh V4 steps",
+    "accepted_steps": 18,
+    "carried_v3_amd_primitive_steps": 1,
+    "new_v4_steps": 17,
+    "amd_primitive_rerun_in_v4": false,
+    "primitives": {
+      "amd": {
+        "vendor_id": 4098,
+        "device_id": 5510,
+        "driver_version": 109060099,
+        "api_version": 4211042,
+        "physical_shader_float64": 1,
+        "enabled_shader_float64": 1,
+        "physical_shader_int64": 1,
+        "enabled_shader_int64": 1,
+        "case_count": 159064,
+        "batch_cap": 16384,
+        "batch_count": 10,
+        "mismatch_word_count": 0,
+        "corpus_sha256": "26c821b1363667135e56c2af24814e91ece715fe51a98348454f993d1a77b93c",
+        "spirv_sha256": "a68c380a5558b6e3af5c7e6e541a0ddf654ae6e50b1e8998d6f5125918581d8a",
+        "output_sha256": "994850d825dbf49d19dbb5a5506e8321c033003c4267d2ece69f32b59aa72e2d",
+        "compared_words": 636256,
+        "origin": "accepted V3 prefix",
+        "child_exit": 0
+      },
+      "intel": {
+        "vendor_id": 32902,
+        "device_id": 18129,
+        "driver_version": 104865800,
+        "api_version": 4211006,
+        "physical_shader_float64": 0,
+        "enabled_shader_float64": 0,
+        "physical_shader_int64": 1,
+        "enabled_shader_int64": 1,
+        "case_count": 159064,
+        "batch_cap": 16384,
+        "batch_count": 10,
+        "mismatch_word_count": 0,
+        "corpus_sha256": "26c821b1363667135e56c2af24814e91ece715fe51a98348454f993d1a77b93c",
+        "spirv_sha256": "a68c380a5558b6e3af5c7e6e541a0ddf654ae6e50b1e8998d6f5125918581d8a",
+        "output_sha256": "994850d825dbf49d19dbb5a5506e8321c033003c4267d2ece69f32b59aa72e2d",
+        "compared_words": 636256,
+        "origin": "fresh V4 step",
+        "child_exit": 0
+      }
+    },
+    "total_compared_primitive_words": 1272512,
+    "total_mismatched_primitive_words": 0,
+    "software_preparation_cases": {
+      "procedural": {
+        "amd": {
+          "valid_count": 12288,
+          "support_count": 63,
+          "max_coordinate_error_m": 0.0,
+          "arena_bytes": 350216
+        },
+        "intel": {
+          "valid_count": 12288,
+          "support_count": 63,
+          "max_coordinate_error_m": 0.0,
+          "arena_bytes": 350216
+        }
+      },
+      "partial_grid": {
+        "amd": {
+          "valid_count": 13017,
+          "support_count": 69,
+          "max_coordinate_error_m": 0.0,
+          "arena_bytes": 402608
+        },
+        "intel": {
+          "valid_count": 13017,
+          "support_count": 69,
+          "max_coordinate_error_m": 0.0,
+          "arena_bytes": 402608
+        }
+      },
+      "all_valid": {
+        "amd": {
+          "valid_count": 307200,
+          "support_count": 4800,
+          "max_coordinate_error_m": 0.0,
+          "arena_bytes": 8755352
+        },
+        "intel": {
+          "valid_count": 307200,
+          "support_count": 4800,
+          "max_coordinate_error_m": 0.0,
+          "arena_bytes": 8755352
+        }
+      },
+      "all_vivid": {
+        "amd": {
+          "valid_count": 14111,
+          "support_count": 0,
+          "max_coordinate_error_m": 0.0,
+          "arena_bytes": 402608
+        },
+        "intel": {
+          "valid_count": 14111,
+          "support_count": 0,
+          "max_coordinate_error_m": 0.0,
+          "arena_bytes": 402608
+        }
+      },
+      "hue_gaps": {
+        "amd": {
+          "valid_count": 3420,
+          "support_count": 9,
+          "max_coordinate_error_m": 0.0,
+          "arena_bytes": 97980
+        },
+        "intel": {
+          "valid_count": 3420,
+          "support_count": 9,
+          "max_coordinate_error_m": 0.0,
+          "arena_bytes": 97980
+        }
+      },
+      "distortion4": {
+        "amd": {
+          "valid_count": 14111,
+          "support_count": 80,
+          "max_coordinate_error_m": 2.7755575615628914e-17,
+          "arena_bytes": 402608
+        },
+        "intel": {
+          "valid_count": 14111,
+          "support_count": 80,
+          "max_coordinate_error_m": 2.7755575615628914e-17,
+          "arena_bytes": 402608
+        }
+      },
+      "distortion5": {
+        "amd": {
+          "valid_count": 14111,
+          "support_count": 80,
+          "max_coordinate_error_m": 2.7755575615628914e-17,
+          "arena_bytes": 402608
+        },
+        "intel": {
+          "valid_count": 14111,
+          "support_count": 80,
+          "max_coordinate_error_m": 2.7755575615628914e-17,
+          "arena_bytes": 402608
+        }
+      },
+      "distortion8": {
+        "amd": {
+          "valid_count": 14111,
+          "support_count": 80,
+          "max_coordinate_error_m": 2.7755575615628914e-17,
+          "arena_bytes": 402608
+        },
+        "intel": {
+          "valid_count": 14111,
+          "support_count": 80,
+          "max_coordinate_error_m": 2.7755575615628914e-17,
+          "arena_bytes": 402608
+        }
+      }
+    },
+    "preparation_case_count": 16,
+    "coordinate_absolute_tolerance_m": 1e-12,
+    "rtol": 0,
+    "max_coordinate_error_m": 2.7755575615628914e-17,
+    "exact_flags_membership_order_counts_arena_bytes": true,
+    "metadata_copy_lease_source_generation_fence_drop_contracts": true,
+    "three_arena_saturation": true,
+    "no_gpu_generated_goldens": true,
+    "executable_sha256": {
+      "amd": {
+        "qualify_soft_binary64": "8b3ccbfad29accdaf6bb2b1718d5e7ab88f0b66929805a5f79fbe2988e9a652f",
+        "qualify_geometry": "d69596169f160c1d70acf0cc1f9b6015df70e6c2a7c7ddef0612a63d2dcca34f"
+      },
+      "intel": {
+        "qualify_soft_binary64": "74f2edf54c34e7c1c5ea15fdb85f5b05a8d9b89cc41e6046d81538ccbb5512d8",
+        "qualify_geometry": "c030e2940d8d9e37b1f01370adb9cc145fd967fce6b94dd3644ccb461b7db2f9"
+      }
+    },
+    "registered_critical_pre_post_identities_match": true,
+    "actual_critical_maps_accepted": true,
+    "all_children_exited_normally": true,
+    "external_watchdog": {
+      "deadline_seconds": 90,
+      "kill_grace_seconds": 2,
+      "drain_seconds": 5,
+      "timeouts_or_kills_needed": false
+    },
+    "remaining_gpu_children": 0,
+    "frozen_code_test_pin_count": 50,
+    "frozen_code_test_pins_unchanged": true,
+    "no_binary_recompile_or_source_changes_during_gpu_protocol": true,
+    "gpu_performance_claimed": false,
+    "attempts": [
+      {
+        "protocol": "V1",
+        "status": "failed",
+        "accepted_steps": 0,
+        "raw_amd_primitive_exact_words": 636256,
+        "failure": "Mesa shader-cache data outside map path policy; observed maps lost before archival",
+        "intel_or_preparation_executed": false
+      },
+      {
+        "protocol": "V2",
+        "status": "failed",
+        "accepted_steps": 0,
+        "raw_amd_primitive_exact_words": 636256,
+        "failure": "separate RADV builtin-cache data rejected; raw maps archived",
+        "intel_or_preparation_executed": false
+      },
+      {
+        "protocol": "V3",
+        "status": "partial; stopped at critical prehash gap",
+        "accepted_steps": 1,
+        "amd_primitive_accepted": true,
+        "raw_intel_primitive_exact_words": 636256,
+        "intel_accepted": false,
+        "failure": "actual Intel DRM library missing from critical preregistration",
+        "preparation_executed": false
+      },
+      {
+        "protocol": "V4",
+        "status": "passed accepted prefix plus new remainder",
+        "accepted_steps": 18,
+        "new_steps": 17,
+        "intel_primitive_freshly_pinned_and_accepted": true,
+        "preparation_passed": 16,
+        "earlier_failed_attempts_retroactively_accepted": false
+      }
+    ],
+    "provenance_lesson": "Record unrelated mutable nonexecuting data separately from executable/source identity; preserve raw maps before validation. Critical loader/driver/library omissions require fresh preregistered execution, not posthoc acceptance.",
+    "frozen_code_test_pins_sha256": "75ff798410be3fa628e14932e63ccb577752711cb3360c3b053112fda737f47b"
+  },
+  "documentation_followup": {
+    "broad_build_manifest_documentary_delta": [
+      "tools/performance/README.md"
+    ],
+    "frozen_code_test_pins_unchanged": true,
+    "no_new_runtime_or_test_execution_by_documentation_update": true,
+    "broad_build_manifest_packaging_delta": [
+      "ros2/src/so101_station_vulkan/third_party/softfloat/NOTICE"
+    ],
+    "broad_build_manifest_metadata_only_delta": [
+      "ros2/src/so101_station_vulkan/third_party/softfloat/NOTICE",
+      "tools/performance/README.md"
+    ]
+  },
+  "packaging_metadata": {
+    "change": "remove exactly one extra trailing LF from NOTICE",
+    "old_notice_sha256": "145ea96b4a4a04a1a7738d2a2bf9e830f861971e69606187b018d9e8fc0b95c7",
+    "new_notice_sha256": "ae3986bc6292443a76a34137895f16763447ff3e73abb76e8a1c0268c963f770",
+    "old_bytes": 1738,
+    "new_bytes": 1737,
+    "full_license_text_unchanged": true,
+    "installed_notice_sha256": "ae3986bc6292443a76a34137895f16763447ff3e73abb76e8a1c0268c963f770",
+    "install_refresh_only": true,
+    "software_spvs_unchanged": 5,
+    "old_build_spvs_unchanged": 17,
+    "old_installed_spvs_unchanged": 16,
+    "gpu_code_test_pins_unchanged": 50,
+    "accepted_gpu_artifact_identity_unchanged": true,
+    "rebuild_or_test_or_driver_execution": false,
+    "historical_report_digests_unchanged": true,
+    "evidence_report": "workshop-software-binary64-packaging-20261023.json"
+  }
+}

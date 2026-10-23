@@ -78,6 +78,19 @@ int main(int argc,char** argv){
  // Strict actual-enabled-feature admission, and failure clears retained source.
  context->enabled_features.features.shaderFloat64=VK_FALSE;
  bool rejected=false;try{GeometryPreparation unavailable(context,gc,argv[2]);}catch(const std::runtime_error&){rejected=true;}require(rejected);context->enabled_features.features.shaderFloat64=VK_TRUE;
+ // Opt-in software mode accepts Int64 without Float64; unsupported, merely
+ // physical-but-disabled, and invalid precision profiles fail before allocation.
+ context->enabled_features.features.shaderFloat64=VK_FALSE;
+ context->enabled_features.features.shaderInt64=VK_FALSE;
+ auto allocations_before_guard=buffer_allocations;
+ rejected=false;try{GeometryPreparation unavailable(context,gc,argv[2],GeometryPrecision::SoftwareBinary64);}catch(const std::runtime_error& e){rejected=std::string(e.what()).find("shaderInt64 was not enabled")!=std::string::npos;}require(rejected&&buffer_allocations==allocations_before_guard);
+ rejected=false;try{GeometryPreparation unavailable(context,gc,argv[2],static_cast<GeometryPrecision>(99));}catch(const std::invalid_argument&){rejected=true;}require(rejected&&buffer_allocations==allocations_before_guard);
+ context->enabled_features.features.shaderInt64=VK_TRUE;
+ {GeometryPreparation software(context,gc,argv[2],GeometryPrecision::SoftwareBinary64);
+  auto lease=software.submit(source);auto copy=lease;require(software.ready(copy));require(software.finish(copy).calibration_generation==1);
+ }
+ context->enabled_features.features.shaderFloat64=VK_TRUE;
+ context->enabled_features.features.shaderInt64=VK_FALSE;
  auto refs_before_failure=source.slot().references.load();submit_result=VK_ERROR_OUT_OF_HOST_MEMORY;
  rejected=false;try{geometry.submit(source);}catch(const std::runtime_error&){rejected=true;}require(rejected&&source.slot().references==refs_before_failure);submit_result=VK_SUCCESS;
  // Generation, compact source fault and source-completion admission stay strict.

@@ -99,8 +99,11 @@ negotiation must not erase independent compute capabilities: the
 without granting unsupported FP64 to Intel. Probe driver-specific test controls before relying
 on them; the generic Mesa version override was not implemented by this RADV version.
 Inventory individual physical features before designing an emulation path: both tested GPUs
-support Int64 even though Intel lacks FP64. The committed compute-only baseline at `c53d8d5`
-leaves Int64 disabled. Capability, enablement and qualified arithmetic are three separate facts.
+support Int64 even though Intel lacks FP64. The historical committed compute-only baseline
+at `c53d8d5` left Int64 disabled. The later [explicit software binary64 prototype](software-binary64-20261023.md#bounded-gpu-conformance-and-preparation) enables supported Int64 and passes bounded
+primitive/preparation accuracy on both tested GPUs, including Intel without Float64.
+Transfer-inclusive GPU cost and latency remain unmeasured, so it is not the default path.
+Capability, enablement, accuracy and useful performance are separate evidence.
 
 ## Account for camera and system work
 

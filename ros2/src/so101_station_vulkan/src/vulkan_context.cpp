@@ -36,7 +36,7 @@ Context::Context(){
   if(!physical)throw std::runtime_error("no hardware Vulkan compute device (software adapters refused)");
   // Compute capabilities do not depend on optional video negotiation.
   VkPhysicalDeviceFeatures supported_compute{};vkGetPhysicalDeviceFeatures(physical,&supported_compute);
-  VkPhysicalDeviceFeatures baseline{};baseline.shaderFloat64=supported_compute.shaderFloat64;
+  VkPhysicalDeviceFeatures baseline{};baseline.shaderFloat64=supported_compute.shaderFloat64;baseline.shaderInt64=supported_compute.shaderInt64;
   float priority=1;
   // Optional video is negotiated on this same device before any compute consumer
   // obtains it. Unsupported or failed negotiation retains the compute lane.

@@ -1,0 +1,183 @@
+{
+  "upstream": "Berkeley SoftFloat Release 3e",
+  "author": "John R. Hauser",
+  "license": "BSD-3-Clause",
+  "archive_url": "https://www.jhauser.us/arithmetic/SoftFloat-3e.zip",
+  "archive_sha256": "21130ce885d35c1fe73fc1e1bf2244178167e05c6747cad5f450cc991714c746",
+  "source_files": [
+    {
+      "path": "source/f64_add.c",
+      "lines": [
+        43,
+        71
+      ],
+      "sha256": "b788a9f2ad36c0b4fd831f2cd63017284bff6c2965876ea1e9fe283b65a3d4cb"
+    },
+    {
+      "path": "source/s_addMagsF64.c",
+      "lines": [
+        43,
+        125
+      ],
+      "sha256": "076349e43628e4d204f74d96924df2a7dc74fba4580bdf288cd915c51c934d74"
+    },
+    {
+      "path": "source/s_subMagsF64.c",
+      "lines": [
+        44,
+        138
+      ],
+      "sha256": "ba49c86793182190e1325aef81f53d2bd9e8297478cd8ad1616dc83472ef9585"
+    },
+    {
+      "path": "source/f64_mul.c",
+      "lines": [
+        44,
+        147
+      ],
+      "sha256": "44394167ef08997b9a4585d5f2289d0513bf9cd59f030dcdcb49ba7c6ab25ef4"
+    },
+    {
+      "path": "source/f32_to_f64.c",
+      "lines": [
+        44,
+        90
+      ],
+      "sha256": "5a0f8ebd66b57aef07d6aa51dec61201761a8e646bdc6a1ceebd01d24daf3d8f"
+    },
+    {
+      "path": "source/f64_lt_quiet.c",
+      "lines": [
+        44,
+        69
+      ],
+      "sha256": "1ba8f4cf0c68d3e0188d907f6078d61e7370d82cd38b54b42ffb32ce8bcd0fb2"
+    },
+    {
+      "path": "source/f64_le_quiet.c",
+      "lines": [
+        44,
+        69
+      ],
+      "sha256": "bf00048b2b435c58924d7a59fbd8683336ad0f9a88e495163ed6695039675057"
+    },
+    {
+      "path": "source/s_roundPackToF64.c",
+      "lines": [
+        43,
+        114
+      ],
+      "sha256": "e8c3c65b986d4deb7e32f83df0e8887b1d5c3532ce44fc0037d64101433f6234"
+    },
+    {
+      "path": "source/s_normRoundPackToF64.c",
+      "lines": [
+        42,
+        55
+      ],
+      "sha256": "2b0a47495c6a70a178c0a00a775289f3cd5c4d49d71858a41fe31a1d0a9f0e3b"
+    },
+    {
+      "path": "source/s_normSubnormalF64Sig.c",
+      "lines": [
+        41,
+        49
+      ],
+      "sha256": "b942313fededb11e3d117374dce3635161e36319c9f502a7db1b68054d51e1f2"
+    },
+    {
+      "path": "source/s_normSubnormalF32Sig.c",
+      "lines": [
+        41,
+        49
+      ],
+      "sha256": "8e0f15899c33364c3cfe33644b389d34dc39ee5680a51e0aa18a8bb92401a3bb"
+    },
+    {
+      "path": "source/s_shiftRightJam64.c",
+      "lines": [
+        42,
+        46
+      ],
+      "sha256": "bf5f98460d427c7d36d54dec5426d78366a24e84740ce0b06732a993eb6814d3"
+    },
+    {
+      "path": "source/s_mul64To128.c",
+      "lines": [
+        43,
+        61
+      ],
+      "sha256": "cb28fa4d4846652a584ce78de10a9afb122f57806f8412781dbedac674922191"
+    },
+    {
+      "path": "source/s_countLeadingZeros64.c",
+      "lines": [
+        45,
+        68
+      ],
+      "sha256": "34406fc742b3fb19303d0b82d932c50129c634b67b3d9168f03c39c09c341cbf"
+    },
+    {
+      "path": "source/s_countLeadingZeros32.c",
+      "lines": [
+        45,
+        59
+      ],
+      "sha256": "1d9e7a84ac8f2823de61a493a0392d96248f87d2a7932e245de70265687bf800"
+    },
+    {
+      "path": "source/s_countLeadingZeros8.c",
+      "lines": [
+        41,
+        58
+      ],
+      "sha256": "84c5c634e61a4898cccb587f6048010a1e07b6edcb1a815ffea33a4d2663658a"
+    },
+    {
+      "path": "source/include/internals.h",
+      "lines": [
+        104,
+        139
+      ],
+      "sha256": "e7205630a8087895388cb6c6afbc5dfe8a8c201f4eb3eab2586e91a73e36bd4e"
+    },
+    {
+      "path": "source/include/primitives.h",
+      "lines": [
+        81,
+        160
+      ],
+      "sha256": "146644301372c13af893119485269d54f3d718df9ce8b1a96cb908d3b828b1ed"
+    },
+    {
+      "path": "source/include/primitiveTypes.h",
+      "lines": [
+        42,
+        52
+      ],
+      "sha256": "ab4e4209a90b07dcc7600636dcf1c04f910ba4ff63d0eec64b0141769c16a221"
+    },
+    {
+      "path": "source/8086-SSE/specialize.h",
+      "lines": [
+        155,
+        165
+      ],
+      "sha256": "df46e75514f9f1051acb6f0bad7322231c927bba1d4493f33fa606376b20e3e8"
+    }
+  ],
+  "modifications": [
+    "Single polyglot C++/Slang integer-only value API; removed wrapper unions, function-pointer dispatch and gotos.",
+    "Fixed RNE only; removed all exception state, flags and other rounding modes; retained gradual underflow.",
+    "Canonicalized every NaN to 0xFFF8000000000000, including invalid operations.",
+    "Explicit uint32/uint64 and bounded signed int exponent arithmetic replace fast types.",
+    "Unsigned magnitude comparison/subtraction replaces signed significand difference.",
+    "CLZ byte table replaced with bounded binary-search shifts with defined zero handling.",
+    "Total guarded jam helper handles zero and full-width distances.",
+    "Portable four 32x32 product with carry and named high/low fields; no wide native arithmetic.",
+    "Normalization helpers inlined into multiplication/conversion; no out parameters or aliasing.",
+    "Packing remains additive; exact signed zero, infinity, underflow and tie behavior retained.",
+    "After NaN and infinity handling, multiplication by either exact finite +1 or -1 returns the other operand encoding with the unit operand sign XORed into its sign bit; both operand orders preserve subnormals and signed zeros without rounding."
+  ],
+  "scope": "add, multiply, widening binary32, quiet ordered comparisons and finiteness; no exception model or general IEEE library"
+}

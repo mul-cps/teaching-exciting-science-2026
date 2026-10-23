@@ -1,9 +1,12 @@
 """CPU-only scheduling guards for the separately reviewed preparation modules."""
 from pathlib import Path
 import re
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT/'ros2/src/so101_station_vulkan'
+GEOMETRY_INITIALIZER = ('GeometryPreparation::GeometryPreparation(std::shared_ptr<Context> context,'
+                        'const GeometryCalibration& cal,const std::string& directory,GeometryPrecision precision)')
 
 
 def body(source, signature):
@@ -34,7 +37,7 @@ def test_hot_paths_have_no_allocation_wait_dense_cpu_loop_or_mapping():
     # Whole-module residual checks also catch forbidden work moved into helpers.
     for module, initialization, destructor in (
         ('alignment', ('Alignment::Alignment(', 'void initialize('), '~AlignmentState('),
-        ('geometry', ('GeometryPreparation::GeometryPreparation(',), '~GeometryStorage('),
+        ('geometry', (GEOMETRY_INITIALIZER,), '~GeometryStorage('),
     ):
         source = (PACKAGE/f'src/{module}.cpp').read_text()
         for signature in (*initialization, destructor):
@@ -44,9 +47,38 @@ def test_hot_paths_have_no_allocation_wait_dense_cpu_loop_or_mapping():
     assert 'commands=VK_NULL_HANDLE' in geometry
     assert 'cmd_info.commandPool=s->commands' in geometry
     assert 'source.fence' in body(geometry, 'GeometryPreparation::submit(')
-    assert 'shaderFloat64' in body(geometry, 'GeometryPreparation::GeometryPreparation(')
+    assert 'shaderFloat64' in body(geometry, GEOMETRY_INITIALIZER)
     assert 'maxComputeWorkGroupInvocations<256' in geometry
     assert 'maxStorageBufferRange' in geometry
+
+
+
+@pytest.mark.parametrize('location,payload', [
+    ('hot', 'auto forbidden = std::make_shared<int>(0);'),
+    ('hot', 'vkWaitForFences();'),
+    ('helper', 'auto forbidden = std::make_shared<int>(0);'),
+    ('helper', 'vkWaitForFences();'),
+    ('delegating_constructor', 'auto forbidden = std::make_shared<int>(0);'),
+    ('delegating_constructor', 'vkWaitForFences();'),
+])
+def test_geometry_guard_rejects_hot_helper_and_delegation_mutants(monkeypatch, location, payload):
+    # Exercise the same complete guard using in-memory source mutations only.
+    # Only the exact cold initializer may escape the whole-module residual scan.
+    path = PACKAGE/'src/geometry.cpp'
+    source = path.read_text()
+    if location == 'helper':
+        mutated = source + '\nvoid forbidden_helper(){' + payload + '}\n'
+    else:
+        signature = ('GeometryPreparation::submit(' if location == 'hot'
+                     else 'GeometryPreparation::GeometryPreparation(')
+        start = source.index('{', source.index(signature)) + 1
+        mutated = source[:start] + payload + source[start:]
+    read_text = Path.read_text
+    def read_mutated(candidate, *args, **kwargs):
+        return mutated if candidate == path else read_text(candidate, *args, **kwargs)
+    monkeypatch.setattr(Path, 'read_text', read_mutated)
+    with pytest.raises(AssertionError):
+        test_hot_paths_have_no_allocation_wait_dense_cpu_loop_or_mapping()
 
 
 def test_normal_readback_capacities_and_private_pool_serialization():

@@ -65,3 +65,8 @@ add_executable(qualify_geometry test/qualify_geometry.cpp)
 target_compile_features(qualify_geometry PRIVATE cxx_std_17)
 target_link_libraries(qualify_geometry resident_geometry)
 target_compile_options(qualify_geometry PRIVATE -Wall -Wextra -Wno-missing-field-initializers -ffp-contract=off)
+
+option(ENABLE_SOFTWARE_GEOMETRY "Build opt-in software binary64 geometry preparation shaders" OFF)
+if(ENABLE_SOFTWARE_GEOMETRY)
+ include("${CMAKE_CURRENT_LIST_DIR}/software_geometry.cmake")
+endif()

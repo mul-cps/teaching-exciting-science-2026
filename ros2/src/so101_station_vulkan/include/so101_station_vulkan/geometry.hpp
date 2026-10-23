@@ -33,10 +33,13 @@ public:
 // First geometry gate only: calibrated coordinates, vivid exclusion, valid
 // depth and deterministic stride8 support population. NO accepted objects,
 // support plane fit, contours or executable detections are produced here.
+enum class GeometryPrecision { NativeFloat64, SoftwareBinary64 };
 class GeometryPreparation {
   std::shared_ptr<GeometryStorage> storage_;
 public:
   GeometryPreparation(std::shared_ptr<Context>, const GeometryCalibration&,const std::string& shader_directory);
+  // Explicit preparation-only prototype; directory must contain matching precision shaders.
+  GeometryPreparation(std::shared_ptr<Context>, const GeometryCalibration&,const std::string& shader_directory,GeometryPrecision);
   GeometryLease submit(const FrameLease&); // source must already be complete
   bool ready(const GeometryLease&)const;
   GeometryCounts finish(const GeometryLease&); // nonblocking, throws if pending

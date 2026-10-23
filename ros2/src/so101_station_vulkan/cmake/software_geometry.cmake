@@ -1,0 +1,87 @@
+# Explicit build opt-in only. No camera consumer or precision auto-selection.
+set(SOFTWARE_GEOMETRY_SHADER_DIR "${CMAKE_CURRENT_BINARY_DIR}/software-geometry-shaders")
+set(PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR "" CACHE PATH "Hash-validated offline software binary64 preparation SPIR-V")
+file(MAKE_DIRECTORY "${SOFTWARE_GEOMETRY_SHADER_DIR}")
+# Preserve mtimes when identity is unchanged: reconfiguration is not compilation.
+function(software_geometry_write_stable PATH CONTENT)
+ if(EXISTS "${PATH}")
+  file(READ "${PATH}" PREVIOUS)
+  if(PREVIOUS STREQUAL CONTENT)
+   return()
+  endif()
+ endif()
+ file(WRITE "${PATH}" "${CONTENT}")
+endfunction()
+set(SOFTWARE_GEOMETRY_IDENTITY "${CMAKE_CURRENT_BINARY_DIR}/software-geometry-build-identity.txt")
+set(SOFTWARE_GEOMETRY_PENDING_PROVENANCE "${CMAKE_CURRENT_BINARY_DIR}/software-geometry-provenance.pending")
+set(SOFTWARE_GEOMETRY_PENDING_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/software-geometry-source.pending")
+file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/shaders/geometry_soft.slang" SOFTWARE_GEOMETRY_PARENT_HASH)
+file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/shaders/soft_binary64.slang" SOFTWARE_GEOMETRY_HELPER_HASH)
+string(SHA256 SOFTWARE_GEOMETRY_HASH "geometry_soft.slang=${SOFTWARE_GEOMETRY_PARENT_HASH}\nsoft_binary64.slang=${SOFTWARE_GEOMETRY_HELPER_HASH}\n")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/geometry_soft.slang" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/soft_binary64.slang")
+set(SOFTWARE_GEOMETRY_FLAGS "-entry <entry> -stage compute -target spirv -profile sm_6_0 -fp-mode precise -O2")
+if(PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR)
+ file(READ "${PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR}/source.sha256" SOFTWARE_GEOMETRY_EXPECTED_SOURCE)
+ file(READ "${PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR}/provenance.txt" SOFTWARE_GEOMETRY_PROVENANCE)
+ if(NOT SOFTWARE_GEOMETRY_EXPECTED_SOURCE STREQUAL "${SOFTWARE_GEOMETRY_HASH}\n")
+  message(FATAL_ERROR "Offline software geometry transitive source digest mismatch")
+ endif()
+ foreach(REQUIRED_LINE "source_sha256=${SOFTWARE_GEOMETRY_HASH}\n" "geometry_soft.slang=${SOFTWARE_GEOMETRY_PARENT_HASH}\n" "soft_binary64.slang=${SOFTWARE_GEOMETRY_HELPER_HASH}\n" "flags=${SOFTWARE_GEOMETRY_FLAGS}\n" "compiler=" "version=" "compiler_sha256=")
+  string(FIND "${SOFTWARE_GEOMETRY_PROVENANCE}" "${REQUIRED_LINE}" SOFTWARE_GEOMETRY_POSITION)
+  if(SOFTWARE_GEOMETRY_POSITION EQUAL -1)
+   message(FATAL_ERROR "Offline software geometry missing matching provenance: ${REQUIRED_LINE}")
+  endif()
+ endforeach()
+ file(SHA256 "${PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR}/provenance.txt" SOFTWARE_GEOMETRY_CACHE_PROVENANCE_HASH)
+ software_geometry_write_stable("${SOFTWARE_GEOMETRY_IDENTITY}" "mode=offline
+cache=${PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR}
+provenance_sha256=${SOFTWARE_GEOMETRY_CACHE_PROVENANCE_HASH}
+${SOFTWARE_GEOMETRY_PROVENANCE}")
+else()
+ if(NOT EXISTS "${SLANGC_EXECUTABLE}")
+  message(FATAL_ERROR "Software geometry requires offline compiler or validated PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR")
+ endif()
+ file(SHA256 "${SLANGC_EXECUTABLE}" SOFTWARE_GEOMETRY_COMPILER_HASH)
+ get_filename_component(SOFTWARE_GEOMETRY_COMPILER_PATH "${SLANGC_EXECUTABLE}" ABSOLUTE)
+ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SOFTWARE_GEOMETRY_COMPILER_PATH}")
+ execute_process(COMMAND "${SLANGC_EXECUTABLE}" -version OUTPUT_VARIABLE SOFTWARE_GEOMETRY_VERSION ERROR_VARIABLE SOFTWARE_GEOMETRY_VERSION_ERROR RESULT_VARIABLE SOFTWARE_GEOMETRY_VERSION_RESULT OUTPUT_STRIP_TRAILING_WHITESPACE)
+ if(NOT SOFTWARE_GEOMETRY_VERSION_RESULT EQUAL 0)
+  message(FATAL_ERROR "Software geometry Slang compiler version probe failed")
+ endif()
+ set(SOFTWARE_GEOMETRY_PROVENANCE "compiler=${SOFTWARE_GEOMETRY_COMPILER_PATH}\ncompiler_sha256=${SOFTWARE_GEOMETRY_COMPILER_HASH}\nversion=${SOFTWARE_GEOMETRY_VERSION}${SOFTWARE_GEOMETRY_VERSION_ERROR}\nsource_sha256=${SOFTWARE_GEOMETRY_HASH}\ngeometry_soft.slang=${SOFTWARE_GEOMETRY_PARENT_HASH}\nsoft_binary64.slang=${SOFTWARE_GEOMETRY_HELPER_HASH}\nflags=${SOFTWARE_GEOMETRY_FLAGS}\n")
+ software_geometry_write_stable("${SOFTWARE_GEOMETRY_IDENTITY}" "mode=compiler\n${SOFTWARE_GEOMETRY_PROVENANCE}")
+endif()
+software_geometry_write_stable("${SOFTWARE_GEOMETRY_PENDING_PROVENANCE}" "${SOFTWARE_GEOMETRY_PROVENANCE}")
+software_geometry_write_stable("${SOFTWARE_GEOMETRY_PENDING_SOURCE}" "${SOFTWARE_GEOMETRY_HASH}\n")
+set(SOFTWARE_GEOMETRY_SPIRV)
+foreach(ENTRY IN LISTS GEOMETRY_ENTRIES)
+ set(OUTPUT "${SOFTWARE_GEOMETRY_SHADER_DIR}/${ENTRY}.spv")
+ if(PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR)
+  file(SHA256 "${PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR}/${ENTRY}.spv" SOFTWARE_GEOMETRY_ACTUAL_SPIRV)
+  file(READ "${PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR}/${ENTRY}.spv.sha256" SOFTWARE_GEOMETRY_EXPECTED_SPIRV)
+  if(NOT SOFTWARE_GEOMETRY_EXPECTED_SPIRV STREQUAL "${SOFTWARE_GEOMETRY_ACTUAL_SPIRV}  ${ENTRY}.spv\n")
+   message(FATAL_ERROR "Offline software geometry SPIR-V digest mismatch: ${ENTRY}")
+  endif()
+  configure_file("${PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR}/${ENTRY}.spv" "${OUTPUT}" COPYONLY)
+  configure_file("${PRECOMPILED_SOFTWARE_GEOMETRY_SHADER_DIR}/${ENTRY}.spv.sha256" "${OUTPUT}.sha256" COPYONLY)
+ else()
+  add_custom_command(OUTPUT "${OUTPUT}" "${OUTPUT}.sha256"
+   COMMAND "${SLANGC_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/geometry_soft.slang" -entry "${ENTRY}" -stage compute -target spirv -profile sm_6_0 -fp-mode precise -O2 -o "${OUTPUT}"
+   COMMAND "${CMAKE_COMMAND}" "-DSPIRV=${OUTPUT}" -P "${CMAKE_CURRENT_SOURCE_DIR}/shaders/hash_shader.cmake"
+   DEPENDS shaders/geometry_soft.slang shaders/soft_binary64.slang shaders/hash_shader.cmake "${SOFTWARE_GEOMETRY_IDENTITY}" "${SOFTWARE_GEOMETRY_COMPILER_PATH}" VERBATIM)
+ endif()
+ list(APPEND SOFTWARE_GEOMETRY_SPIRV "${OUTPUT}" "${OUTPUT}.sha256")
+endforeach()
+# Publish provenance only after every binary and digest matches this identity.
+# The internal mode stamp forces offline -> compiler transitions to rebuild,
+# even when the offline cache copied newer binary mtimes into this directory.
+add_custom_command(OUTPUT "${SOFTWARE_GEOMETRY_SHADER_DIR}/provenance.txt" "${SOFTWARE_GEOMETRY_SHADER_DIR}/source.sha256"
+ COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SOFTWARE_GEOMETRY_PENDING_PROVENANCE}" "${SOFTWARE_GEOMETRY_SHADER_DIR}/provenance.txt"
+ COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SOFTWARE_GEOMETRY_PENDING_SOURCE}" "${SOFTWARE_GEOMETRY_SHADER_DIR}/source.sha256"
+ DEPENDS ${SOFTWARE_GEOMETRY_SPIRV} "${SOFTWARE_GEOMETRY_IDENTITY}" "${SOFTWARE_GEOMETRY_PENDING_PROVENANCE}" "${SOFTWARE_GEOMETRY_PENDING_SOURCE}" VERBATIM)
+add_custom_target(software_geometry_spirv ALL DEPENDS ${SOFTWARE_GEOMETRY_SPIRV} "${SOFTWARE_GEOMETRY_SHADER_DIR}/provenance.txt" "${SOFTWARE_GEOMETRY_SHADER_DIR}/source.sha256")
+install(DIRECTORY "${SOFTWARE_GEOMETRY_SHADER_DIR}/" DESTINATION share/${PROJECT_NAME}/software-geometry-shaders)
+install(FILES shaders/geometry_soft.slang shaders/soft_binary64.slang DESTINATION share/${PROJECT_NAME}/software-geometry-shaders)
+
+# Binary redistribution must retain Berkeley SoftFloat attribution/provenance.
+install(FILES third_party/softfloat/NOTICE third_party/softfloat/provenance.json DESTINATION share/${PROJECT_NAME}/software-geometry-shaders/third_party/softfloat)

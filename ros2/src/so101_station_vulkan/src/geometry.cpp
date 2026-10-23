@@ -94,10 +94,20 @@ VkBuffer GeometryLease::resident_buffer()const{
  if(!storage_->ready(index_))throw std::logic_error("geometry buffer not complete");
  return storage_->entries[index_].arena.buffer;
 }
-GeometryPreparation::GeometryPreparation(std::shared_ptr<Context> context,const GeometryCalibration& cal,const std::string& directory){
+GeometryPreparation::GeometryPreparation(std::shared_ptr<Context> context,const GeometryCalibration& cal,const std::string& directory)
+ :GeometryPreparation(std::move(context),cal,directory,GeometryPrecision::NativeFloat64){}
+GeometryPreparation::GeometryPreparation(std::shared_ptr<Context> context,const GeometryCalibration& cal,const std::string& directory,GeometryPrecision precision){
  cal.validate();if(!context)throw std::invalid_argument("geometry requires the resident Vulkan device");
- if(!context->enabled_features.features.shaderFloat64)throw std::runtime_error("geometry unavailable: shaderFloat64 was not enabled on shared device");
- if(context->properties.limits.maxComputeWorkGroupInvocations<256||context->properties.limits.maxComputeWorkGroupSize[0]<256||context->properties.limits.maxComputeSharedMemorySize<2048||context->properties.limits.maxComputeWorkGroupCount[0]<(cal.width*cal.height+255)/256||context->properties.limits.maxPushConstantsSize<sizeof(Parameters))throw std::runtime_error("geometry requires 256-lane FP64 preparation workgroups");
+ switch(precision){
+ case GeometryPrecision::NativeFloat64:
+  if(!context->enabled_features.features.shaderFloat64)throw std::runtime_error("geometry unavailable: shaderFloat64 was not enabled on shared device");
+  break;
+ case GeometryPrecision::SoftwareBinary64:
+  if(!context->enabled_features.features.shaderInt64)throw std::runtime_error("geometry unavailable: shaderInt64 was not enabled on shared device");
+  break;
+ default:throw std::invalid_argument("invalid geometry precision");
+ }
+ if(context->properties.limits.maxComputeWorkGroupInvocations<256||context->properties.limits.maxComputeWorkGroupSize[0]<256||context->properties.limits.maxComputeSharedMemorySize<2048||context->properties.limits.maxComputeWorkGroupCount[0]<(cal.width*cal.height+255)/256||context->properties.limits.maxPushConstantsSize<sizeof(Parameters))throw std::runtime_error("geometry requires 256-lane preparation workgroups");
  auto s=std::make_shared<GeometryStorage>();s->context=std::move(context);s->p=dimensions(cal.width,cal.height);s->generation=cal.generation;s->depth_scale=float(cal.depth_scale_m);auto& c=*s->context;
  size_t calibration_bytes=(size_t(s->p.count)*2+19)*sizeof(double);
  if(geometry_arena_bytes(cal.width,cal.height)>c.properties.limits.maxStorageBufferRange||calibration_bytes>c.properties.limits.maxStorageBufferRange)throw std::runtime_error("geometry unavailable: bounded arena exceeds device storage range");
