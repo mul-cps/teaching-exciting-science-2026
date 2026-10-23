@@ -18,6 +18,36 @@ The essential Blockly, Python, notebook and paper routes work offline.
 | Presentation | Actual editable PPTX/PDF and five DOCX/PDF handouts are built. Full slide/page renders are reviewed; photographs retain actual station provenance and altered reports are labelled. | Classroom projector and actual-size printer review remain to be performed. |
 | Full physical rehearsal | No new physical acceptance claimed. Paper and simulation explicitly identify their evidence source. | Full physical rehearsal remains pending: fwmini4 has no attached devices; taught fixed-fixture payload grasp/lift/place/release and three consecutive complete EV3-to-return cycles are unverified. |
 
+## Evidence update — 23 October 2026
+
+Commits `e32974d` and `f0b445a` resolve six source/runtime clarity issues:
+offline executable Python using the shared AST, simulation reset, worked
+examples, hints, progressive browser help, and matching example/prediction/
+worksheet instructions. The schedule remains 240 minutes for six beginners in
+three pairs. Generated materials are committed in `b6dc86d`.
+
+A temporary nbclient runner executed all three canonical notebooks in separate
+fresh kernels: Student 9/9, Instructor 9/9 and Live 7/7 code cells (25 total),
+with no errors or skips and all three source hashes unchanged. Live used
+`WORKSHOP_LIVE=0`, explicitly labelled invented data with no hardware, and
+produced two inspected plots. This records default offline execution only.
+
+The final [editable deck](workshop-slides.pptx) has 24 slides (eight introduction,
+16 mission cards) and 24 speaker notes. The five handouts have 36 pages,
+including the six-page [worksheet](student-worksheet.pdf); with the slide PDF,
+there are 60 final PDF pages. All-page visual evidence combines 65 author image
+views across initial and final renders with exact pixel comparisons; this is
+not 65 unique final pages. Independent final review inspected worksheet pages
+4/5 and slides 17/23. [Material source/hash checks](materials-build.json) and
+[learner ZIP](student-workshop.zip) source/hash/allowlist checks passed: 90 ZIP
+entries, with no instructor, private station or qualification paths.
+
+Pacing remains a desk check: no elapsed classroom rehearsal has occurred.
+Full physical rehearsal, three consecutive complete cycles and fwmini4
+deployment remain pending. CUA had no available browser, so no new interactive
+graphical Blockly QA is claimed. The historical evidence below retains its
+original scope.
+
 ## Historical revision and operational evidence
 
 The dated material below records the previous route and its evidence. Its
