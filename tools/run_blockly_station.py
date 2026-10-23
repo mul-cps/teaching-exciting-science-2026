@@ -34,8 +34,14 @@ class _ControlCancellation:
         return True
 
 
+class SimulationResetConflict(RuntimeError):
+    """A learner reset cannot safely replace the current invented state."""
+
+
 class Application:
-    def __init__(self, directory, *, physical=False, instructor=False, skills=None):
+    def __init__(self, directory, *, physical=False, instructor=False, skills=None, ros_api=False):
+        self.ros_api=ros_api or physical
+        self.simulation_stop_verified=False
         self.physical_lock=None
         if physical:
             import fcntl
@@ -78,7 +84,33 @@ class Application:
         with self.lock:
             return {'admission':{'session':self.admission_session,'epoch':self.admission_epoch},'job':dict(self.job),'recording':self.recorder.name if self.recorder else None,
                     'taught_skills':self.skill_library.status(),'record_error':self.record_error,'recordings':sorted(self.recordings),'recording_info':dict(self.recording_info),
+                    'python_export':self.python_export_mode(),
                     'recovery_required':self.recovery_required,'instructor':self.instructor,'operator_busy':self.operator_busy,**self.backend.status()}
+
+    def python_export_mode(self):
+        if self.backend.physical or self.ros_api:
+            return {'mode':'shared_station','help':'Shared station client: requires the running ROS program service and prepared workshop ROS Python environment. The file explicitly selects this server mode.'}
+        return {'mode':'offline_simulation','help':'Synthetic offline simulation: no hardware or ROS required. Runs a fresh invented model in Python with the built-in synthetic demo stroke, separate from the browser simulation. Other named strokes require separate synthetic resources or the shared station route.'}
+
+    def simulation_reset(self,*,admission):
+        with self.lock:
+            self._check_admission(admission)
+            if self.backend.physical: raise SimulationResetConflict('Reset simulation is unavailable in physical mode')
+            try: self.idle()
+            except RuntimeError as error: raise SimulationResetConflict(str(error)) from error
+            state=self.job.get('state'); result=self.job.get('result',{})
+            terminal=(state=='complete' and result.get('complete') is True or
+                      state=='stopped' and result.get('stopped') is True)
+            if state!='idle' and not terminal and not self.simulation_stop_verified:
+                raise SimulationResetConflict('Reset simulation requires idle, verified completion or verified STOP; stop the sequence first')
+            self.admission_epoch+=1
+            self.cancel.set(); self.record_cancel.set(); self.control_cancel.set()
+            self.backend=SimulationBackend(self.recordings)
+            self.backend.skill_library=self.skill_library
+            self.job={'state':'idle'}; self.thread=None
+            self.cancel=threading.Event(); self.record_cancel=threading.Event(); self.control_cancel=threading.Event()
+            self.record_error=None; self.program_recording=False; self.simulation_stop_verified=False
+            return self.status()
 
     def idle(self,*,recovery=False):
         if self.recovery_required and not recovery: raise RuntimeError('unknown/failed physical operation: inspect and recover explicitly')
@@ -251,7 +283,7 @@ class Application:
 
     def control_external(self,operation,arguments,admission,*,cancel=None):
         fields={'operator':{'command'},'recover':set(),'record_start':{'name'},
-                'record_stop':set(),'simulation_color':{'color'}}
+                'record_stop':set(),'simulation_color':{'color'},'simulation_reset':set()}
         if not isinstance(operation,str) or operation not in fields or not isinstance(arguments,dict) or set(arguments)!=fields[operation]:
             raise ValueError('unsupported external control or argument fields')
         with self.lock: self._check_admission(admission)
@@ -259,7 +291,8 @@ class Application:
                 'recover':lambda:self.recover(admission=admission,cancel=cancel),
                 'record_start':lambda:self.record_start(arguments['name'],admission=admission,cancel=cancel),
                 'record_stop':lambda:self.record_stop(admission=admission,cancel=cancel),
-                'simulation_color':lambda:self.simulation_color(arguments['color'],admission=admission)}[operation]()
+                'simulation_color':lambda:self.simulation_color(arguments['color'],admission=admission),
+                'simulation_reset':lambda:self.simulation_reset(admission=admission)}[operation]()
 
     def simulation_color(self,color,*,admission):
         from workshop.blockly_program import COLORS
@@ -288,6 +321,7 @@ class Application:
                 raise RuntimeError('stale admission session or epoch; fetch status before a new intentional run')
             self._check_skills(program)
             self._revalidate_recordings(program)
+            self.simulation_stop_verified=False
             self.cancel=threading.Event(); job=secrets.token_hex(8)
             self.job={'id':job,'state':'running'}
             def work():
@@ -354,8 +388,14 @@ class Application:
         with self.lock:
             self.admission_epoch+=1
             self.stop_pending+=1
+            self.simulation_stop_verified=False
             self.cancel.set(); self.record_cancel.set(); self.control_cancel.set()
-        try: return self.backend.stop()
+        try:
+            result=self.backend.stop()
+            with self.lock:
+                self.simulation_stop_verified=(not self.backend.physical and isinstance(result,dict) and
+                                               result.get('acknowledged') is True and result.get('simulation') is True)
+            return result
         except BaseException:
             with self.lock: self.recovery_required=self.backend.physical
             raise
@@ -503,8 +543,11 @@ def make_server(app,port,*,control_only=False,frontend_port=None):
                 if path=='/api/program/run' and set(payload)=={'program','admission'}: result=app.run_external(payload['program'],payload['admission'])
                 elif path=='/api/python' and set(payload)=={'program'}:
                     from workshop.blockly_client import export_python
-                    result={'python':export_python(payload['program'],physical=app.backend.physical)}
+                    mode=app.python_export_mode()
+                    result={**mode,'python':export_python(payload['program'],physical=app.backend.physical,offline=mode['mode']=='offline_simulation')}
                 elif path=='/api/program/stop' and not payload: result=app.stop()
+                elif path=='/api/simulation/reset' and set(payload)=={'admission'}:
+                    result=app.control_external('simulation_reset',{},payload['admission'])
                 elif path=='/api/record/start' and set(payload)=={'name','admission'}: result=app.control_external('record_start',{'name':payload['name']},payload['admission'])
                 elif path=='/api/record/stop' and set(payload)=={'admission'}: result=app.control_external('record_stop',{},payload['admission'])
                 elif path=='/api/simulation/color' and set(payload)=={'color','admission'}:
@@ -513,6 +556,7 @@ def make_server(app,port,*,control_only=False,frontend_port=None):
                 elif path=='/api/instructor' and set(payload)=={'command','admission'}: result=app.control_external('operator',{'command':payload['command']},payload['admission'])
                 else: raise ValueError('unsupported endpoint or fields')
                 self.send_json(200,result)
+            except SimulationResetConflict as error: self.send_json(409,{'error':str(error)[:2000]})
             except (ValueError,RuntimeError,KeyError,TimeoutError,OSError,RecursionError) as error: self.send_json(400,{'error':str(error)[:2000]})
     server=BoundedServer(('127.0.0.1',port),Handler); server.daemon_threads=True
     return server
@@ -526,7 +570,7 @@ def main():
     parser.add_argument('--skills',type=Path,help='private instructor taught skill library root')
     parser.add_argument('--recordings',type=Path,default=Path.home()/'.local/share/exciting-science/blockly-recordings')
     args=parser.parse_args()
-    app=Application(args.recordings,physical=args.physical,instructor=args.instructor,skills=args.skills)
+    app=Application(args.recordings,physical=args.physical,instructor=args.instructor,skills=args.skills,ros_api=args.ros_api)
     ros_api=server=control=None
     control_started=False
     try:

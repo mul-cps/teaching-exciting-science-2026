@@ -51,10 +51,23 @@ def simulate_program(program, *, recordings=None, cancel=None):
     return {**result,'simulation':True,'events':list(backend.events),'status':backend.status()}
 
 
-def export_python(program, *, physical=True):
+def export_python(program, *, physical=True, offline=False):
     """An executable, syntax-safe JSON literal, not a second interpreter."""
     validate_program(program)
+    if type(physical) is not bool or type(offline) is not bool:
+        raise ValueError('explicit boolean physical and offline modes required')
+    if physical and offline: raise ValueError('physical programs cannot use offline simulation')
     literal=repr(json.dumps(program,ensure_ascii=False,allow_nan=False))
+    if offline:
+        return ('# Synthetic offline simulation; no hardware or shared station connection.\n'
+                'from workshop.blockly_client import simulate_program\nimport json\n\n'
+                f'program = json.loads({literal})\n\n'
+                '# Built-in demo is invented/synthetic, never a physical recording.\n'
+                '# Other named strokes require separate synthetic resources or the shared station route.\n'
+                "recordings = {'demo': {'schema': 'simulation-only'}}\n\n"
+                'if __name__ == "__main__":\n'
+                '    result = simulate_program(program, recordings=recordings)\n'
+                '    print(json.dumps(result, ensure_ascii=False, indent=2))\n')
     return ('from workshop.blockly_client import run_program\nimport json\n\n'
             f'program = json.loads({literal})\n\n'
             'if __name__ == "__main__":\n'
