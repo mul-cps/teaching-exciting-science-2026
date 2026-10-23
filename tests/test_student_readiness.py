@@ -69,13 +69,13 @@ app.close()
                    cwd=tmp_path, check=True, timeout=10)
 
 
-def test_first_exercise_greeting_and_decision(tmp_path):
+def test_first_exercise_greeting_and_loop(tmp_path):
     source = (ROOT / "exercises/01_python.py").read_text()
-    for color, expected in (("red", "left"), ("blue", "right"), ("yellow", "reject")):
-        result = subprocess.run([sys.executable, "-S", "-c", source.replace('COLOR = "red"', f'COLOR = "{color}"')],
-                                cwd=tmp_path, capture_output=True, text=True, check=True)
-        assert "Object number 3" in result.stdout
-        assert "Decision: " + expected in result.stdout
+    result = subprocess.run([sys.executable, "-S", "-c", source.replace('REPEATS = 3', 'REPEATS = 2')],
+                            cwd=tmp_path, capture_output=True, text=True, check=True)
+    assert "Object number 2" in result.stdout
+    assert "Object number 3" not in result.stdout
+    assert "Welcome to the robot factory" in result.stdout
 
 
 def test_all_plain_entries_without_site_packages(tmp_path):
@@ -83,9 +83,9 @@ def test_all_plain_entries_without_site_packages(tmp_path):
         result = subprocess.run([sys.executable, "-S", str(ROOT / "exercises" / name)],
                                 cwd=tmp_path, capture_output=True, text=True, check=True)
         if name == "03_vision.py":
-            assert "{'left': 2, 'right': 2, 'reject': 1}" in result.stdout
+            assert "Actual: blue Reported: None" in result.stdout
         if name == "04_sort.py":
-            assert "left : 2" in result.stdout and "right : 2" in result.stdout and "reject : 1" in result.stdout
+            assert "{'left': 2, 'right': 2, 'reject': 1}" in result.stdout
     assert (tmp_path / "sorting-result.html").is_file()
 
 
@@ -127,3 +127,55 @@ def test_factory_stops_after_sensor_error():
     with pytest.raises(RuntimeError, match="disconnected"):
         Factory(Belt(), Camera(), SimRobot()).one_cycle()
     assert events == ["move", "stop", "stop"]
+
+
+def test_published_bundle_matches_current_allowlist_and_source_bytes():
+    import runpy
+    builder=runpy.run_path(str(ROOT/'exercises/make_student_bundle.py'))
+    with zipfile.ZipFile(ROOT/'docs/student-workshop.zip') as archive:
+        entries=builder['bundle_entries'](ROOT)
+        assert set(archive.namelist())==set(entries)
+        assert 'workshop/blockly_skills.py' in entries
+        assert 'web/blockly-station/curriculum.json' in entries
+        assert not any('instructor' in n.lower() or 'qualification' in n.lower() or n.startswith('workshop/station/') for n in entries)
+        assert 'curriculum/workshop.json' not in entries
+        for name, data in entries.items():
+            assert archive.read(name)==data, name
+            assert archive.getinfo(name).date_time==(2026,10,22,0,0,0)
+
+
+def test_published_bundle_portable_admission_endpoint(tmp_path):
+    extracted=tmp_path/'published'
+    with zipfile.ZipFile(ROOT/'docs/student-workshop.zip') as archive: archive.extractall(extracted)
+    for name in ('check_setup.py','01_python.py','02_robot.py','03_vision.py','04_sort.py'):
+        subprocess.run([sys.executable,'-S',str(extracted/'exercises'/name)],cwd=tmp_path,check=True,capture_output=True)
+    script='''import json,runpy,sys,threading,time,urllib.request,urllib.error
+from pathlib import Path
+root=Path(sys.argv[1]);sys.path.insert(0,str(root))
+module=runpy.run_path(str(root/'tools/run_blockly_station.py'))
+app=module['Application'](Path(sys.argv[2]));server=module['make_server'](app,0)
+thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+url='http://127.0.0.1:'+str(server.server_port)
+def post(path,body):
+    req=urllib.request.Request(url+path,data=json.dumps(body).encode(),headers={'X-Station-Token':app.token})
+    return json.load(urllib.request.urlopen(req))
+def rejected(body):
+    try:post('/api/program/run',body)
+    except urllib.error.HTTPError as error:assert error.code==400
+    else:raise AssertionError('Missing/stale admission was accepted')
+try:
+    program=[{'op':'log','message':'published current endpoint'}]
+    rejected({'program':program})
+    admission=app.status()['admission']
+    post('/api/program/stop',{})
+    rejected({'program':program,'admission':admission})
+    post('/api/program/run',{'program':program,'admission':app.status()['admission']})
+    app.thread.join(3);assert app.status()['job']['state']=='complete'
+    assert app.backend.events[-1]=='published current endpoint'
+    exported=post('/api/python',{'program':[{'op':'pick_place_recording','name':'fixed_pick_place','speed':.5}]})
+    compile(exported['python'],'<published export>','exec')
+    assert 'physical=False' in exported['python']
+finally:
+    server.shutdown();server.server_close();thread.join(3);app.close()
+'''
+    subprocess.run([sys.executable,'-S','-c',script,str(extracted),str(tmp_path/'recordings')],cwd=tmp_path,check=True,timeout=15)

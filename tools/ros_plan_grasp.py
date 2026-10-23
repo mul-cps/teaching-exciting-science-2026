@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import numpy as np
+import os
 from pathlib import Path
 import sys
 import time
@@ -314,7 +315,14 @@ def parse_args(argv=None):
     parser.add_argument("--return-joint-pose", help="JSON file with commissioned arm joint radians for post-release clearance")
     parser.add_argument("--open-gap-m", type=float)
     parser.add_argument("--close-gap-m", type=float)
+    parser.add_argument("--taught-skill", help="private instructor manifest; never supplied by student program")
+    parser.add_argument("--taught-lifetime-fd", type=int, help="inherited shared Application lifetime pipe")
+    parser.add_argument("--taught-speed", type=float, default=.5)
     args = parser.parse_args(argv)
+    if not math.isfinite(args.taught_speed) or not .1 <= args.taught_speed <= 1:
+        parser.error("taught speed must be .1..1")
+    if args.taught_skill and (not args.execute or args.placement_selection or args.return_joint_pose):
+        parser.error("taught skill requires execute and its own fixed fixture/return")
     if not 0 < args.planning_time <= 60 or not 0 < args.timeout <= 180:
         parser.error("planning time and timeout must be positive and bounded")
     if args.execute and (not args.track_id or not args.place_pose or not args.execution_config):
@@ -324,6 +332,9 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
+    if args.taught_lifetime_fd is not None:
+        if not args.taught_skill or args.taught_lifetime_fd<0: raise ValueError('lifetime pipe requires a taught session')
+        os.set_blocking(args.taught_lifetime_fd,False)
     import rclpy
     import signal
     from rclpy.signals import SignalHandlerOptions
@@ -339,12 +350,19 @@ def main(argv=None):
     from sensor_msgs.msg import JointState
     from shape_msgs.msg import SolidPrimitive
     from std_msgs.msg import String
+    from std_srvs.srv import Trigger
     from tf2_ros import Buffer, TransformListener
 
     class Client(Node):
         def __init__(self):
             super().__init__("so101_grasp_plan")
             self.joints = None
+            self.owner_snapshot = None
+            self.owner_pending = None
+            if args.taught_skill:
+                self.owner_client = self.create_client(Trigger, "/follower/status")
+                self.taught_calibration_client = self.create_client(Trigger, "/follower/gripper_calibration_status")
+                self.create_timer(.1, self.poll_owner)
             self.status = None
             self.status_received = 0.0
             self.status_history = []
@@ -370,6 +388,21 @@ def main(argv=None):
             if args.execute:
                 self.arm_action = ActionClient(self, FollowJointTrajectory, args.trajectory_action)
                 self.gripper_action = ActionClient(self, GripperCommand, args.gripper_action)
+
+        def poll_owner(self):
+            if self.owner_pending is not None and not self.owner_pending.done():
+                return
+            if not self.owner_client.service_is_ready(): return
+            future = self.owner_client.call_async(Trigger.Request())
+            self.owner_pending = future
+            def received(reply):
+                try:
+                    response=reply.result()
+                    if not response.success or len(response.message)>32768: return
+                    self.owner_snapshot=json.loads(response.message)
+                except (ValueError, TypeError, AttributeError):
+                    self.owner_snapshot=None
+            future.add_done_callback(received)
 
         def on_placement(self, msg):
             try:
@@ -419,6 +452,19 @@ def main(argv=None):
     }
     node = Client()
     try:
+        taught = None
+        taught_cohort = None
+        phase_jaw = None
+        cancellation_cleanup = False
+        if args.taught_skill:
+            from workshop.blockly_skills import SkillLibrary
+            manifest = Path(args.taught_skill).resolve()
+            taught_library = SkillLibrary(manifest.parent)
+            taught = taught_library.load(manifest.stem, physical=True)
+            if (Path(args.execution_config).resolve()!=taught['artifact_paths']['execution_config'] or
+                    args.frame!=taught['frame_id'] or args.tip_link!=taught['tip_link'] or
+                    list(args.place_pose)!=taught['checkpoints']['drop']):
+                raise ValueError("taught CLI configuration differs from private manifest")
         jaw_calibration = tcp_calibration = tcp_from_object = None
         selected_track_id = None
         scene_track_id = None
@@ -467,24 +513,129 @@ def main(argv=None):
         def spin_future(future, deadline, label):
             while rclpy.ok() and not future.done() and time.monotonic() < deadline:
                 rclpy.spin_once(node, timeout_sec=0.05)
+                check_taught_lifetime()
+                check_taught_cohort()
             if not future.done():
                 raise TimeoutError(f"{label} timed out")
             return future.result()
 
+        def check_taught_lifetime():
+            if args.taught_lifetime_fd is None or cancellation_cleanup: return
+            try: value=os.read(args.taught_lifetime_fd,1)
+            except BlockingIOError: return
+            if value==b'': raise InterruptedError('shared Application lifetime ended; taught producer cancelled')
+            raise RuntimeError('unexpected taught lifetime pipe data')
+
+        def measured_now():
+            return _joint_state_map(node.joints, node.get_clock().now().nanoseconds*1e-9)
+
+        def check_taught_cohort():
+            if taught_cohort is None: return
+            from workshop.blockly_ros import ROSBackend
+            from workshop.station.taught_phases import require_phase_cohort
+            identity=ROSBackend._identity(node.owner_snapshot or {})
+            require_phase_cohort(identity,taught_cohort,measured_now(),phase_jaw)
+
+        def fresh_taught_identity(deadline):
+            check_taught_lifetime()
+            from workshop.blockly_ros import ROSBackend
+            if not node.owner_client.wait_for_service(timeout_sec=max(0.,deadline-time.monotonic())):
+                raise TimeoutError("fresh taught owner status service unavailable")
+            # Do not monitor a previous cache while awaiting this fresh snapshot.
+            response=_wait_future(node,node.owner_client.call_async(Trigger.Request()),
+                                  max(.01,deadline-time.monotonic()),"taught owner status")
+            if response is None or not response.success or len(response.message)>32768:
+                raise RuntimeError("fresh taught owner identity unavailable")
+            node.owner_snapshot=json.loads(response.message)
+            identity=ROSBackend._identity(node.owner_snapshot)
+            if taught_cohort is not None and identity!=taught_cohort:
+                raise RuntimeError("owner cohort changed during taught transaction")
+            return identity
+
+        def check_taught_calibration(skill,deadline):
+            from workshop.blockly_skills import require_taught_calibration_status
+            from workshop.blockly_ros import parse_gripper_calibration_status
+            client=node.taught_calibration_client
+            if not client.wait_for_service(timeout_sec=max(0.,deadline-time.monotonic())):
+                raise TimeoutError('taught angular/SI calibration status unavailable')
+            response=_wait_future(node,client.call_async(Trigger.Request()),
+                                  max(.01,deadline-time.monotonic()),'taught calibration status')
+            require_taught_calibration_status(parse_gripper_calibration_status(response),skill)
+            from rclpy.parameter_client import AsyncParameterClient
+            client=getattr(node,'taught_model_client',None)
+            if client is None:
+                client=AsyncParameterClient(node,model_parameter_node)
+                node.taught_model_client=client
+            if not client.wait_for_services(timeout_sec=max(0.,deadline-time.monotonic())):
+                raise TimeoutError('taught effective model service unavailable')
+            response=_wait_future(node,client.get_parameters(['robot_description']),
+                                  max(.01,deadline-time.monotonic()),'taught effective model')
+            verify_effective_model(robot_description_from_parameter_response(response),
+                                   skill['binding']['effective_model_sha256'])
+
+        def taught_trajectory(phase,deadline):
+            from moveit_msgs.msg import RobotTrajectory
+            from trajectory_msgs.msg import JointTrajectoryPoint
+            from builtin_interfaces.msg import Duration
+            from workshop.blockly_recording import JOINTS
+            from workshop.station.taught_phases import admit_phase
+            identity=fresh_taught_identity(deadline)
+            current_skill=taught_library.load(taught['name'],physical=True,identity=identity)
+            check_taught_calibration(current_skill,deadline)
+            recording=current_skill['recordings'][phase]
+            points=admit_phase(recording,identity,measured_now(),args.taught_speed)
+            trajectory=RobotTrajectory()
+            trajectory.joint_trajectory.joint_names=list(JOINTS)
+            for point in points:
+                row=JointTrajectoryPoint()
+                row.positions=point['positions']
+                nanos=round(point['time']*1e9)
+                row.time_from_start=Duration(sec=nanos//1000000000,nanosec=nanos%1000000000)
+                trajectory.joint_trajectory.points.append(row)
+            return trajectory,recording['jaw_radians']
+
+        def validate_taught_endpoint(trajectory,target,deadline):
+            if not node.fk.wait_for_service(timeout_sec=max(0.,deadline-time.monotonic())):
+                raise TimeoutError("taught endpoint FK unavailable")
+            request=GetPositionFK.Request()
+            request.header.frame_id=target.frame_id
+            request.header.stamp=Time().to_msg()
+            request.fk_link_names=[args.tip_link]
+            endpoint={**measured_now(),**dict(zip(trajectory.joint_trajectory.joint_names,
+                                               trajectory.joint_trajectory.points[-1].positions))}
+            request.robot_state=RobotState()
+            request.robot_state.joint_state.name=list(ALL_JOINTS)
+            request.robot_state.joint_state.position=[endpoint[j] for j in ALL_JOINTS]
+            request.robot_state.is_diff=False
+            response=_wait_future(node,node.fk.call_async(request),
+                                  max(.01,deadline-time.monotonic()),"taught endpoint FK")
+            return validate_endpoint_fk_response(target,response,args.tip_link)
+
         def cancel_active_goal(deadline):
-            handle = node.active_goal_handle
-            if handle is None:
+            nonlocal phase_jaw, taught_cohort, cancellation_cleanup
+            phase_jaw=None
+            saved_cleanup=cancellation_cleanup
+            cancellation_cleanup=True
+            saved_cohort=taught_cohort
+            taught_cohort=None
+            try:
+                handle = node.active_goal_handle
+                if handle is None:
+                    return True
+                cancel_future = handle.cancel_goal_async()
+                response = spin_future(cancel_future, deadline, "action cancel acknowledgement")
+                if not getattr(response, "goals_canceling", []):
+                    if handle.status not in (4, 5, 6):
+                        raise RuntimeError("resident action did not confirm cancellation")
+                spin_future(handle.get_result_async(), deadline, "action terminal result")
+                node.active_goal_handle = None
                 return True
-            cancel_future = handle.cancel_goal_async()
-            response = spin_future(cancel_future, deadline, "action cancel acknowledgement")
-            if not getattr(response, "goals_canceling", []):
-                if handle.status not in (4, 5, 6):
-                    raise RuntimeError("resident action did not confirm cancellation")
-            spin_future(handle.get_result_async(), deadline, "action terminal result")
-            node.active_goal_handle = None
-            return True
+            finally:
+                taught_cohort=saved_cohort
+                cancellation_cleanup=saved_cleanup
 
         def send_action_goal(client, goal, deadline, label):
+            check_taught_lifetime()
             future = submit_localized_goal(client, goal,
                 registration=node.registration_status,
                 received_at=node.registration_received,
@@ -493,13 +644,18 @@ def main(argv=None):
                 return spin_future(future, deadline, label)
             except BaseException:
                 recovery_deadline = time.monotonic() + 5.0
-                while rclpy.ok() and not future.done() and time.monotonic() < recovery_deadline:
+                # A taught producer losing its parent must keep its ROS context
+                # until a possibly delivered goal is accepted/rejected, then
+                # cancel it. Destroying the client after five seconds can leave
+                # a late accepted goal running without its Application owner.
+                while (rclpy.ok() and not future.done() and
+                       (taught is not None or time.monotonic() < recovery_deadline)):
                     rclpy.spin_once(node, timeout_sec=0.05)
                 if future.done():
                     late_handle = future.result()
                     if late_handle.accepted:
                         node.active_goal_handle = late_handle
-                        cancel_active_goal(recovery_deadline)
+                        cancel_active_goal(time.monotonic()+5. if taught is not None else recovery_deadline)
                 raise
 
         def command_gap(gap, deadline):
@@ -521,6 +677,9 @@ def main(argv=None):
             return wrapped.result
 
         def move_trajectory(trajectory, deadline):
+            if taught is not None:
+                fresh_taught_identity(deadline)
+                check_taught_cohort()
             if not node.arm_action.wait_for_server(timeout_sec=max(0.0, deadline-time.monotonic())):
                 raise TimeoutError("resident FollowJointTrajectory action is unavailable")
             goal = FollowJointTrajectory.Goal()
@@ -539,6 +698,7 @@ def main(argv=None):
                 raise RuntimeError(f"resident trajectory failed: {wrapped.result.error_string}")
 
         def scene_attachment(action, track_id, deadline, **fields):
+            if action in {"lock","allow_contact","attach","detach"}: check_taught_lifetime()
             request_id = f"grasp-{time.monotonic_ns()}"
             payload = scene_request_payload(action, track_id, request_id, **fields)
             msg = String()
@@ -695,6 +855,13 @@ def main(argv=None):
             if (baseline_object is None or not baseline_object.get("geometric_only")
                     or baseline_object.get("pickup_eligible") is not True):
                 raise RuntimeError("fresh geometric object observation required before execution")
+        if taught is not None:
+            fixed=taught['checkpoints']['pickup']
+            validate_endpoint_pose(PoseTarget(args.frame,tuple(fixed[:3]),tuple(fixed[3:])),contact,
+                                   pos_tol=.003,rot_tol=.003)
+            taught_cohort=fresh_taught_identity(deadline)
+            taught=taught_library.load(taught['name'],physical=True,identity=taught_cohort)
+            check_taught_calibration(taught,deadline)
         locked_target = contact
         place = (PoseTarget(args.frame, tuple(args.place_pose[:3]), tuple(args.place_pose[3:]))
                  if args.place_pose else None)
@@ -743,6 +910,9 @@ def main(argv=None):
             raise ValueError("execute place pose frame must match the live geometric status frame")
         segments = staged_targets(contact, place=place,
             tip_from_grasp=tcp_calibration["tip_from_grasp"] if args.execute else None)
+        if taught is not None:
+            approach=taught['checkpoints']['approach_start']
+            segments[0]=('pregrasp',PoseTarget(args.frame,tuple(approach[:3]),tuple(approach[3:])))
         result = {
             "schema": 1, "state": "planning", "execution_enabled": bool(args.execute),
             "source": "tracked geometric proposal" if args.track_id else "explicit pose",
@@ -863,11 +1033,28 @@ def main(argv=None):
                 orientation.absolute_z_axis_tolerance = 0.45
                 orientation.weight = 1.0
                 constraints.orientation_constraints = [orientation]
+                if taught is not None and name == "pregrasp":
+                    constraints=Constraints()
+                    for joint,value in zip(ARM_JOINTS,taught['recordings']['approach']['points'][0]['positions']):
+                        constraint=JointConstraint()
+                        constraint.joint_name=joint; constraint.position=value
+                        constraint.tolerance_above=constraint.tolerance_below=.015
+                        constraint.weight=1.
+                        constraints.joint_constraints.append(constraint)
                 req.goal_constraints = [constraints]
                 service_request = GetMotionPlan.Request()
                 service_request.motion_plan_request = req
-                response = _wait_future(node, node.planner.call_async(service_request),
-                                        max(0.1, deadline-time.monotonic()), f"{name} plan")
+                phase_jaw=None
+                if taught is not None and name in {"contact","lift","place"}:
+                    from types import SimpleNamespace
+                    phase={"contact":"approach","lift":"lift","place":"transfer"}[name]
+                    trajectory,phase_jaw=taught_trajectory(phase,deadline)
+                    response=SimpleNamespace(motion_plan_response=SimpleNamespace(
+                        error_code=SimpleNamespace(val=MoveItErrorCodes.SUCCESS),
+                        planning_time=0.,trajectory=trajectory))
+                else:
+                    response = _wait_future(node, node.planner.call_async(service_request),
+                                            max(0.1, deadline-time.monotonic()), f"{name} plan")
                 if name != "place" or not args.placement_selection:
                     break
                 from workshop.station.placement_execution import same_destination
@@ -966,6 +1153,9 @@ def main(argv=None):
                         raise RuntimeError("placement moved after planning; trajectory refused")
                     segment["selected_placement"]["validated_stamp_ns"] = validated_place.observation_stamp_ns
                 move_trajectory(planned.trajectory, deadline)
+                if taught is not None:
+                    check_taught_cohort()
+                    phase_jaw=None
                 segment["execution_state"] = "trajectory_succeeded"
                 if name == "contact":
                     close_result = command_gap(args.close_gap_m, deadline)
@@ -1046,7 +1236,18 @@ def main(argv=None):
             result["segments"].append(segment)
         else:
             if args.execute and result.get("state") == "planning" and not attached and 'release_started' in locals():
-                if args.return_joint_pose:
+                if taught is not None:
+                    trajectory,phase_jaw=taught_trajectory('return',deadline)
+                    checkpoint=taught['checkpoints']['return']
+                    target=PoseTarget(args.frame,tuple(checkpoint[:3]),tuple(checkpoint[3:]))
+                    endpoint=validate_taught_endpoint(trajectory,target,deadline)
+                    move_trajectory(trajectory,deadline)
+                    check_taught_cohort()
+                    phase_jaw=None
+                    result['segments'].append({'name':'post_release_taught_return',
+                        'state':'trajectory_succeeded','endpoint_validation':endpoint,
+                        'trajectory':ros_message_json(trajectory)})
+                elif args.return_joint_pose:
                     execute_clear_pose(args.return_joint_pose)
                 else:
                     execute_tool_retreat(place)

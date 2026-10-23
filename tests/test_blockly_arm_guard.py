@@ -37,10 +37,12 @@ def digest(node):
     ('_joints', 'af6b3fe819c9c71a7fcc6408f3ad53bf0250faac3631c95369b261fa860df2cc'),
     ('_refresh_calibration', '5e94d384dc1c932daef76477953a54a9e99fba472cc3869c3b6125755a0eddd3'),
     ('_refresh_owner', 'fb65cbe035d513f853731986eace45093a8ca7f8b95140fac3f94ef97620ffcc'),
-    ('_identity', '043c8a03e5a43ceaf1894873dfb237e46016ab4f949c0f49f750a18b5b5c2527'),
+    ('_identity', '59441a32407eab947b82241ede090c71a3e196bbaccde6c355210a68f67af7ed'),
     ('sample', 'e5e1fb45c134ec1592410593ab59c2c98b2648b8b9dc29020db4439d221ccda3'),
 ])
 def test_callbacks_and_cached_sampler_remain_baseline(method, expected):
+    # Reviewed 2026-10-23: _identity carries two cached optional calibration digests;
+    # physical recording admission requires both. Existing predicates stay pinned.
     # Baseline b5d2a06: semantic AST pins reject new callback work/allocations,
     # publishers, subscriptions, driver access, or RPCs in these existing paths.
     assert digest(methods('workshop/blockly_ros.py', 'ROSBackend')[method]) == expected
@@ -297,6 +299,12 @@ def test_recovery_native_predicates_and_unknown_delivery_barrier_stay_baseline()
                       if ast.unparse(node) == 'self.stop()')
     assert ast.unparse(recover.body[stop_index + 1]) == 'check()'
     assert ast.unparse(recover.body[2]) == "context = {'cancel': cancel, 'deadline': deadline} if cancel is not None or deadline is not None else {}"
+    # Reviewed taught producer reconciliation is explicit inspected recovery;
+    # require the exact local seam, then preserve the original native digest.
+    assert [ast.unparse(node) for node in recover.body[stop_index-2:stop_index]] == [
+        "session = getattr(self, 'taught_session', None)",
+        "if session is not None:\n    session.reconcile_terminated()"]
+    del recover.body[stop_index-2:stop_index]
     # Normalize only the reviewed optional context/check additions. The entire
     # remaining method must retain the frozen pre-feature safety predicates.
     recover.args.kwonlyargs = []

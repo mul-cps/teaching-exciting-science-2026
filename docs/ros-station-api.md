@@ -96,16 +96,25 @@ Requests contain `operation` and `arguments_json`; responses contain `success`, 
 
 | Operation | Arguments |
 |---|---|
-| `status`, `recordings`, `record_stop`, `stop`, `recover` | `{}` |
-| `run` | `{"program": [...]}` |
-| `record_start` | `{"name": "stroke_name"}` |
-| `operator` | `{"command": "teleop_relative"}` or another allowlisted operator command |
+| `status`, `recordings`, `stop` | `{}` |
+| `run` | `{"program": [...], "admission": {"session": "...", "epoch": 0}}` |
+| `record_start` | `{"name": "stroke_name", "admission": {...}}` |
+| `record_stop`, `recover` | `{"admission": {...}}` |
+| `operator` | `{"command": "teleop_relative", "admission": {...}}`; command must be allowlisted |
+
+Status exposes `admission={"session":"...","epoch":0}`; `{...}` above means that
+exact object. All external mutations require it, except emergency `stop`, which
+always accepts `{}`. STOP increments the epoch before cancellation; restart
+changes the session. Per-operation cancellation combines application STOP with
+transport shutdown and reaches the guarded ROS delivery check. Stale or uncertain
+mutations are never refreshed and retried automatically. Read-only status, lists
+and Python export require no stamp.
 
 An admitted program runs asynchronously; inspect `status` for the exact program job/result/error. The interface preserves physical/instructor admission and the same cancellation, recovery and generation barriers as HTTP. A successful RPC is not a completed motion.
 
-Recording is read-only acquisition of measured follower arm joints. Physical mode is required. Strokes have a fixed jaw, at least two fresh samples, at most 600 samples and 60 seconds. Identity binds arm, calibration, source hashes and owner generation. Restarting/replacing the owner invalidates old-generation recordings; no silent rebinding occurs. Replay uses the normal trajectory action, checks recorded identity, near-start pose and fixed jaw, and retains collision/motion limits. Use separate calibrated jaw commands for changing gap. Optional skipping of exact stationary pauses retains moving edges and rejects an expanded nominal curve-deviation bound.
+Recording is read-only acquisition of measured follower arm joints. Physical mode is required. Strokes have a fixed jaw, at least two fresh samples, at most 600 samples and 60 seconds. Capture provenance records arm, calibration, source hashes and owner generation. Durable binding excludes owner generation only; restart loads structure as revalidation-required, and each physical operation checks fresh live identity/cohort. Changed robot/calibration/source identity requires reteaching or explicit revalidation; no silent rebinding occurs. Replay uses the normal trajectory action, checks recorded identity, near-start pose and fixed jaw, and retains collision/motion limits. Use separate calibrated jaw commands for changing gap. Optional skipping of exact stationary pauses retains moving edges and rejects an expanded nominal curve-deviation bound.
 
-Recordings are stored outside Git under `~/.local/share/exciting-science/blockly-recordings`. There is no independent always-running ROS recorder, arbitrary trajectory bypass or automatic migration of recordings between owner generations.
+Recordings are stored outside Git under `~/.local/share/exciting-science/blockly-recordings`. There is no independent always-running ROS recorder, arbitrary trajectory bypass or automatic authorization from a saved capture generation. See [durable recording checks](python-station-client.md#recording-restart-behavior).
 
 ## Blockly HTTP adapter
 
@@ -114,11 +123,13 @@ The browser server binds loopback at `127.0.0.1:8877`. Its authenticated routes 
 | HTTP route | Payload |
 |---|---|
 | `GET /api/status`, `GET /api/recordings` | No body |
-| `POST /api/program/run` | `{"program": [...]}` |
-| `POST /api/program/stop`, `/api/record/stop`, `/api/recover` | `{}` |
-| `POST /api/record/start` | `{"name": "stroke_name"}` |
-| `POST /api/instructor` | `{"command": "<allowlisted command>"}` |
-| `POST /api/simulation/color` | `{"color": "red"}`; simulation only |
+| `POST /api/program/run` | `{"program": [...], "admission": {"session": "...", "epoch": 0}}` |
+| `POST /api/program/stop` | `{}`; no admission stamp required |
+| `POST /api/record/stop`, `/api/recover` | `{"admission": {...}}` |
+| `POST /api/record/start` | `{"name": "stroke_name", "admission": {...}}` |
+| `POST /api/instructor` | `{"command": "<allowlisted command>", "admission": {...}}` |
+| `POST /api/simulation/color` | `{"color": "red", "admission": {...}}`; simulation only |
+| `POST /api/python` | `{"program": [...]}`; read-only executable shared-client export |
 
 Malformed/unsupported HTTP fields return 400 with an `error`; authentication failures return 403. Program, recording and operator exceptions remain failures, not success-shaped completion. The dedicated STOP listener accepts only program STOP. [Blockly client sources](../web/blockly-station/README.md) document the UI integration.
 

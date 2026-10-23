@@ -1,14 +1,14 @@
-# Optional MoveIt occupancy-map input. The official filtered output removes
-# the robot body; the range/update-rate limits keep the update bounded.
+# Opt-in MoveIt occupancy input from the 20 mm GPU-downsampled stream.
+# Robot self-filter and collision behavior remain unqualified; static boxes stay.
 octomap_frame: base_link
 octomap_resolution: 0.02
 sensors:
   - resident_pointcloud
 resident_pointcloud:
   sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
-  point_cloud_topic: /camera/depth/color/points
+  point_cloud_topic: /station/resident/downsampled_points
   max_range: 1.2
-  point_subsample: 4
+  point_subsample: 1
   padding_offset: 0.01
   padding_scale: 1.0
   max_update_rate: 2.0

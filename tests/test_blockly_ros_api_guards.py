@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_ros_transport_keeps_exact_bounded_operation_allowlist():
     assert MAX_JSON_BYTES == 64 * 1024
-    assert FIELDS == {'status': (), 'run': ('program',), 'record_start': ('name',),
-                      'record_stop': (), 'recordings': (), 'stop': (), 'recover': (),
-                      'operator': ('command',)}
+    assert FIELDS == {'status': (), 'run': ('program', 'admission'), 'record_start': ('name', 'admission'),
+                      'record_stop': ('admission',), 'recordings': (), 'stop': (), 'recover': ('admission',),
+                      'operator': ('command', 'admission')}
     tree = ast.parse((ROOT / 'workshop/blockly_ros_api.py').read_text())
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
     forbidden = {'eval', 'exec', 'compile', 'open', '__import__', 'read_text', 'read_bytes',
@@ -113,7 +113,7 @@ def test_shutdown_is_bounded_and_backend_is_retained_on_cleanup_failure():
     assert close_text.index('self.closing.set()') < close_text.index('self.app.stop()')
     assert close_text.index('shutdown incomplete') < close_text.index('self.node.destroy_node()')
     dispatch = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == 'dispatch')
-    assert "self.app.operator(args['command'], cancel=self.closing)" in ast.unparse(dispatch)
+    assert "self.app.control_external(operation, {key: value for key, value in args.items() if key != 'admission'}, args['admission'], cancel=self.closing)" in ast.unparse(dispatch)
     main_tree = ast.parse((ROOT / 'tools/run_blockly_station.py').read_text())
     main = next(node for node in main_tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main')
     cleanup = next(node for node in main.body if isinstance(node, ast.Try)).finalbody

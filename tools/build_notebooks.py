@@ -1,100 +1,144 @@
-"""Build both editions from shared teaching text and existing runnable scripts."""
-import ast
+"""Generate every textual teaching artifact from curriculum/workshop.json.
+
+--check compares bytes without writing. DOCX/PDF/PPTX are format adapters built
+by build_materials.py; this command verifies their authored source projections.
+"""
+import argparse
 import json
 from pathlib import Path
+import sys
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from workshop.curriculum import load_curriculum, learner_projection, STAGES
+GENERATED = '<!-- Generated from curriculum/workshop.json; edit the source, then run tools/build_notebooks.py. -->\n\n'
 
 
-def python_piece(kind):
-    """Reuse the first script in small teaching steps rather than a combined cell."""
-    source=(ROOT/'exercises/01_python.py').read_text()
-    nodes=ast.parse(source).body
-    selected=[]
-    names={'team': 'TEAM', 'repeat': 'REPEATS', 'decision': 'COLOR'}
-    for node in nodes:
-        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == names[kind] for t in node.targets):
-            selected.append(node)
-        if kind=='repeat' and isinstance(node,ast.For): selected.append(node)
-        if kind=='decision' and isinstance(node,ast.If): selected.append(node)
-        if isinstance(node,ast.Expr) and isinstance(node.value,ast.Call) and node.value.args:
-            arg=node.value.args[0]
-            if isinstance(arg,ast.Constant) and ((kind=='team' and str(arg.value).startswith('Welcome')) or (kind=='decision' and arg.value=='Decision:')):
-                selected.append(node)
-    return '\n'.join(ast.get_source_segment(source,n) for n in selected)
+
+def schedule(c):
+    lines=['| Minutes | Duration | Session |','|---|---|---|']; start=0
+    for s in c['sessions']:
+        end=start+s['minutes']; lines.append(f"| {start}-{end} | {s['minutes']} | {s['title']} |"); start=end
+    return '\n'.join(lines)
 
 
-def build(instructor=False):
+def rotations(c):
+    sections=['## Pair rotations','Each 15-minute slot includes 2 minutes to save and transition. Driver edits; observer predicts and checks. Swap roles halfway. One instructor controls the physical integration station.']
+    for circuit in c['rotations']:
+        sections.append('### '+next(s['title'] for s in c['sessions'] if s['id']==circuit['id']))
+        rows=['| Slot | Pair A | Pair B | Pair C |','|---|---|---|---|']
+        for i in range(3): rows.append('| '+str(i+1)+' | '+' | '.join(circuit['stations'][(i+j)%3] for j in range(3))+' |')
+        sections.append('\n'.join(rows))
+    return '\n\n'.join(sections)
+
+
+def mission_markdown(m, *, instructor=False):
+    lines=[f"## {m['title']}",f"Mission `{m['id']}` · {m['minutes']} minutes · {m['goal']}"]
+    names={'worked_example':'Worked example','success':'Success check','extension':'Optional challenge','offline_route':'Offline route'}
+    for k in STAGES: lines.append('**'+names.get(k,k.title())+'** '+m[k])
+    lines += ['**Hint 1** '+m['hints'][0], '**Hint 2** '+m['hints'][1]]
+    if instructor: lines.append('**Instructor guidance** '+m['instructor_notes'])
+    return '\n\n'.join(lines)
+
+
+def notebook(c, instructor=False, live=False):
     cells=[]
-    def md(s): cells.append({'cell_type':'markdown','metadata':{},'source':s.splitlines(True)})
-    def code(s): cells.append({'cell_type':'code','metadata':{},'execution_count':None,'outputs':[], 'source':s.splitlines(True)})
-    def answer(s):
-        if instructor: md('### Instructor guidance\n\n'+s)
-    def exercise(filename, visual):
-        source=(ROOT/'exercises'/filename).read_text()
-        tree=ast.parse(source)
-        if isinstance(tree.body[0], ast.Expr) and isinstance(tree.body[0].value, ast.Constant):
-            source='\n'.join(source.splitlines()[tree.body[0].end_lineno:])
-        source=source.replace('import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path(__file__).resolve().parents[1]))\n', '')
-        # Keep the executable exercise identical across script and notebook routes.
-        code(source + '\n' + visual)
-    md('# Program your own sorting factory\n\n22 October 2026 · First semester · Work in pairs\n\nYou will make a small program, use camera information to choose a destination, and test a simulated factory. No previous programming or robotics is needed. Your changes produce pictures immediately. These notebooks never control a physical machine.\n\nOne partner predicts, one types. Swap after each activity. There are no marks for speed.')
-    md('## Start here\n\n1. In the Jupyter file list open **Robot_Candy_Factory_Student.ipynb**. Choose **File → Save Notebook As** and give your copy your team name. Keep the original as a clean copy.\n2. A **Markdown cell** contains explanation like this. A **code cell** contains instructions the computer can run. Click a code cell and press **Shift+Enter**: it runs and selects the next cell. Output appears underneath. A number in square brackets means the run finished; `[*]` means it is busy.\n3. Run the short setup cell below once. Then read and run each cell in order. You can also click the triangular Run button.\n4. Edit only the marked **STUDENT AREA** first. Click inside the code, change one value, run that cell again, and compare its output with your prediction. Each mission creates a fresh simulation when rerun.\n5. Press **Ctrl+S** (Mac: **Command+S**) to save. A kernel is the Python process running your code. **Kernel → Restart Kernel** clears values held in memory; it does **not** undo edits saved in your file. To undo edits, use Undo or make a new copy of the original notebook. After restarting, run the setup cell again.\n\nIf you see an error, read its last line. Check paired quotes, commas, square brackets and spaces first. Worked error fix: `print("Hello factory)` is missing its closing quote. Python reports a SyntaxError on the last line. Repair it to `print("Hello factory")`, then rerun. After two attempts ask a partner or the instructor. If no picture appears, check that you ran the whole cell, then rerun setup. Do not install software during class.')
-    code('from pathlib import Path\nimport sys\nroot = Path.cwd()\nif not (root / "workshop").is_dir():\n    root = root.parent\nif str(root) not in sys.path:\n    sys.path.insert(0, str(root))\nfrom exercises.student_visuals import draw_bins, show_photos, compare_observations\nprint("Ready. All activities are simulation only.")')
-    md('## Before Python · Blockly logic · 10 minutes\n\nOpen [Blockly Maze](https://blockly.games/maze?lang=en). Drag instructions into a sequence, predict the route and run. Complete levels 1–3; levels 4–5 are optional. Explain one failed route and one correction. If internet fails, draw a maze and give your partner step instructions. Then return here. These web tasks do not control the physical station.')
-    md('## A · Your first instructions · 30 minutes\n\nA **program** is a sequence of instructions. `print` puts text in the **output**, the result below a code cell. A **string** is text inside quotes. Predict what will appear, then run this worked example with Shift+Enter.')
-    code('print("Hello factory")')
-    md('### Your first edit\n\nA **variable** is a name for a value. The single `=` stores text under the name `TEAM`. Run once. Then change only `"Team 1"` to your pair name, keeping both quotes, and rerun. Predict the changed words first. **Check:** the greeting should contain your new name. **Hint:** edit to the right of `=`.')
-    code('# STUDENT AREA: change the quoted name\n' + python_piece('team'))
-    md('### Repeat one instruction\n\nA **loop** repeats its indented instruction. `range(REPEATS)` supplies that many numbers, starting at zero; `number + 1` displays numbering from one. The colon starts the group and four spaces put `print` inside it. Predict, run, then change only 3 to 5 and rerun. **Check:** the last object number matches REPEATS. **Hint:** numbers need no quotes.')
-    code('# STUDENT AREA: change the repeat count\n' + python_piece('repeat'))
-    md('### Choose a destination\n\nA **condition** chooses an instruction. `==` asks whether two values match; `=` stores a value. `elif` tries another choice; `else` catches everything else. Predict the destination, run, then change only red to blue and rerun. Try yellow next. **Check:** one decision appears. **Hint:** preserve quotes and four spaces. The last line draws the result; keep it as provided.')
-    code('# STUDENT AREA: change the quoted color first\n' + python_piece('decision') + '\ndraw_bins([destination], [COLOR], "Your first decision")')
-    md('### Explore with your partner\n\nTry a new color of your choice. Predict before running; explain which condition matched. **Optional challenge:** add an `elif` for green before `else`, with an indented destination assignment. **Hint 1:** copy the shape of the blue branch. **Hint 2:** change its color and choose left or right. Keep the unknown fallback. Swap typing and predicting roles.')
-    answer('Original: numbers 1, 2, 3 and left. Set `REPEATS = 5`, `COLOR = "blue"` to get 1–5 and right. Yellow reaches the unknown fallback. Ask students to point to one assignment and one comparison. Green extension: `elif COLOR == "green":` then an indented `destination = "left"`. Assign `destination = "left"` in the green branch; the same destination drives the picture.')
-    md('## B · Train a camera report · 20 minutes\n\nA **sensor** measures something in the world. A camera is a sensor: it records an image, a grid of colored dots called pixels. A program may turn those pixels into a report such as `"red"`. A report can be wrong or missing.\n\nFirst inspect these **real photograph crops** from our teaching station. The labels below are human descriptions of the visible examples. We are not claiming a live camera classifier measured these labels. The fourth crop does not isolate a colored object clearly. Which pixels would you trust?')
-    md('Open [Teachable Machine](https://teachablemachine.withgoogle.com/train/image). Your instructor supplies prepared red, blue and background examples. Compare predictions on a held-out example; change the background or lighting and retry. A class name is a learned report, not truth. No export or live robot connection is needed. Use the controlled photograph/report experiment below if the website or camera is unavailable. Spend 5 minutes identifying classes, 7 testing examples, 5 changing one condition and 3 explaining a failure. Complete the website task OR the controlled photo/report fallback, not both. The five-report list and single-report cells below are optional extensions for challenges; finish this block after 20 minutes.')
-    code('show_photos()')
-    md('### Ask for one report\n\nThe simulation supplies a report; it does not analyze the photo. `SimCamera` makes this practice sensor; `.detect()` requests its next report. Predict and run. Change red to blue and rerun. **Check:** the printed report changes. **Hint:** only edit the quoted word. This cell recreates the sensor each time.')
-    code('from workshop import SimCamera\n# STUDENT AREA: change one report\ncamera = SimCamera(["red"])\nprint("Camera report:", camera.detect())')
-    md('### Worked example and a list\n\nA **list** stores several values in order. Square brackets start and end the list; commas separate its items: `["red", "blue", "unknown"]`. `None`, with no quotes, means a missing value; `"unknown"` is a text report that the color could not be decided.\n\nBelow `SimCamera` supplies the reports in `COLORS`; it does not analyze a photograph. `camera.detect()` asks this simulated sensor for its next report. The condition turns the report into a decision. The code below the STUDENT AREA is **provided plumbing**: run it but edit only COLORS and the two destination values first. `len` counts reports, `range` repeats once per report, and `routes.append` records an action for the picture. The program keeps **counts**, running totals for each destination. `+= 1` adds one to a total.\n\n### Your turn\n\nPoint to each list item and predict left, right or reject. Run to check. Change the second report to red and run again. Add green at the end, including a comma before it. Then swap `RED_DESTINATION` and `BLUE_DESTINATION`. Rerun and describe the change.\n\n**Small hint:** the names on the left of `=` stay the same; edit the quoted values on the right. **Check:** every report produces exactly one decision; unrecognized reports reach reject. **Optional challenge:** add a separate green condition before `else`; keep unknown and `None` rejected.')
-    exercise('03_vision.py', 'draw_bins(routes, COLORS, "Decisions from the camera reports")')
-    answer('Baseline left 2, right 2, reject 1. Second report blue→red: left 3, right 1, reject 1. Adding green before a new rule adds one reject. Reverse variables for the flip. For a green extension insert an elif before else; the recorded routes drive the drawing too. Keep destinations to left/right/reject.')
-    md('### Can correct code make a wrong decision\n\nIn this controlled example `ACTUAL` is our known object sequence; `REPORTS` is what we pretend the camera reports. The helper compares them and colors the bins using the **actual** objects. Thus a red object can visibly land in the wrong bin when its report is blue. These lists describe a teaching experiment, not measurements from the photo above.\n\nWorked example: with matching lists the reports are correct. Run once. Then change **only the first report** to `"blue"`. Predict the destination of the actual red object and rerun. Next replace that report with `None`. Which experiment creates a wrong accepted sort and which creates a reject?\n\n**Small hint:** keep both lists the same length. **Check:** the printed row shows actual color, report and destination for every object. **Optional challenge:** make two different errors; decide which ones the sorting rules can detect.')
-    code('# ===== STUDENT AREA =====\nACTUAL = ["red", "blue", "red", "blue"]\nREPORTS = ["red", "blue", "red", "blue"]\n# ========================\ncompare_observations(ACTUAL, REPORTS, {"red": "left", "blue": "right"})')
-    answer('First report blue: a real red goes right and the mismatch count is 1. First report None: it goes reject. A plausible but false blue report cannot be detected by red/blue routing alone. Ask about lighting, occlusion and a second measurement; do not imply that always rejecting uncertainty detects every sensor error.')
-    md('## Break · 10 minutes\n\nSave your work. Leave the original notebook available so you can recover a clean copy.')
-    md('## C · Visit three stations · 45 minutes\n\nYour instructor divides the class into three groups. Spend **15 minutes each** at robot and twin, camera and conveyor, and virtual robot, then rotate. The command-sequence activity below belongs to the virtual robot rotation; the separate live notebook belongs to robot and twin. Neither is an extra lesson. All three stations have an offline route.\n\n**Robot and twin:** open Robot_Candy_Factory_Live_SO101.ipynb for the 15-minute read-only joint activity, in DEMO unless the instructor prepared LIVE. Return here afterward. An **actuator** makes a physical change. Motors turn joints and a gripper opens or closes. A destination like left is only a label. A real robot also needs **coordinates**, numbers describing a position relative to a chosen starting reference, and a safe movement sequence. Here we show destination commands only; these are not motor coordinates.\n\n**Conveyor:** trace move → stop → observe → decide → pick. Use five paper objects and a finger as the belt if no live demonstration is available. One partner calls each step; the other acts. Deliberately call pick before stop once and explain why that order is unsafe.\n\n**Virtual robot:** use the command-sequence activity below. Optional kinematics web app is in the instructor resources; offline sequences remain the core task. **Camera comparison:** compare the four photograph crops again. Describe one source of uncertainty. Cover part of a paper object or photograph and decide when a report should become unknown. Do not confuse seeing an object with knowing its exact position.\n\n### Robot worked example\n\nThe list below is a **sequence**: commands happen in that order. `robot.sort(destination)` records one simulated placement. First predict left/right counts and run. Then change the sequence to left, left, right. Add reject. Finally try `"middle"`.\n\n**Small hint:** keep square brackets and separate quoted commands with commas. **Check:** counts add up to the number of commands, including invalid commands sent to reject. **Optional challenge:** invent a six-command sequence; swap it with another pair and predict its totals before running.')
-    exercise('02_robot.py', 'draw_bins(robot.actions, title="Your robot command sequence")')
-    answer('Original sequence left/right/left gives left 2, right 1. Task left/left/right has the same totals but a different order. Adding reject gives one reject. Middle is redirected to reject by the provided validation. Distinguish order from totals; neither proves that a real placement succeeded.')
-    md('## D · Connect the whole factory · 50 minutes\n\nNow the program connects simulated belt, camera and robot. A factory cycle is one complete trip through move → stop → read → decide → sort. The provided `Factory` carries out this sequence. Every run below creates a new factory and resets its counts.\n\nA **mapping** connects a key to a value. `RULES = {"red": "left", "blue": "right"}` means the report red maps to the destination left. Curly brackets hold the mapping; a colon connects each report to its destination; commas separate rules. The mapping is also called a dictionary in Python. It is useful because you can change a policy without rewriting the whole program.\n\n### Worked example\n\nFor `OBJECTS = ["red", "blue"]` and the default rules, there is one left and one right. Trace each cycle with your partner before the larger example below.\n\n### Your turn\n\nPredict all five destinations and the totals on your worksheet. Run the original. Swap red/blue destinations, predict again, and rerun. Add an unknown report and verify it is rejected. Reorder the list and explain what changes in the action sequence and what stays the same in the totals.\n\n**Small hint:** change the values in `RULES`, not the keys, to reverse destinations. **Check:** left + right + reject equals the list length; belt advances once per object. The log must show stop before camera read and robot placement. **Optional challenge:** add green to the object list and a green rule. Check a missing report with `None` too.')
-    exercise('04_sort.py', 'draw_bins(factory.robot.actions, OBJECTS, "Your completed sorting factory")')
-    answer('Baseline is left 2/right 2/reject 1 with five belt advances. Swapping gives the same totals for this balanced list, but actions differ: right,left,right,reject,left. Use an asymmetric list to expose a rule inversion in totals. Green rule `"green": "left"`; add a green object. None remains reject. Invalid destination `"middle"` is rejected. The invariant catches missing counts, not incorrect routes.')
-    md('## E · Choose and test challenges · 35 minutes\n\nUse the factory cell above. Choose two challenges with your partner. For each, write a prediction, change one thing, rerun, then record evidence. Return to the original five objects and rules before a new experiment so you know what caused the difference.\n\n**1 · Flip the rules.** Make an unequal number of red and blue objects, then swap their destinations. Predict the changed totals. Hint: three reds and one blue make the swap visible. Check the action list as well as the totals.\n\n**2 · Add green.** Add a green object first without a rule. Predict and run. Then add a rule and run again. Hint: a new entry in the mapping needs a comma. Check that unknown is still rejected.\n\n**3 · Broken reports.** Add `None`, `"unknown"`, `42` and an empty string `""`. These stand for missing, undecidable, invalid and empty reports. Predict each route. Check that none is accepted as a known color. Hint: keep the original red/blue rules.\n\n**4 · Count ten.** Create ten reports and count each destination by hand before running. Check totals and the printed order. Hint: repeats are allowed in a list.\n\n**5 · Find a bad rule.** Temporarily change red to the destination `"middle"`. Predict what validation should do; run, then repair the rule. Hint: a destination must be left, right or reject. Check that the run finishes and every object is counted.\n\n**6 · Challenge another pair.** Give them a short sequence with one missing report and tell them your rules. Let them predict before you run. Check both the per-object destinations and totals. Optional: write an `assert` after the factory cell to test one expected count. `assert` asks Python to stop with an error if a claim is false.\n\n**Independent check:** a successful run alone does not prove that the rules are right. State one experiment that would reveal a rule error, and one real sensor problem these string reports cannot reproduce.')
-    answer('Challenge 3: all four added invalid reports reject, producing baseline left 2/right 2/reject 5. Challenge 5: reds reject, so left 0/right 2/reject 3. Optional test example: `assert factory.counts["reject"] == 1` on baseline. Ask why this test is insufficient alone. Ensure each team changes an input and a rule, records predictions and inspects actions. Do not add hardware as a fast-finisher requirement.')
-    md('## Closing · 15 minutes\n\nSave the notebook. Each pair shows one picture, one changed rule and one test result. Tell your partner which part senses, which part decides and which part acts. Explain why the belt stops before the robot picks.\n\nOn your worksheet finish: “Our prediction was …; the output showed …; we changed … because …”. Name one difference between this simulation and a real factory. A drawing or a command log does not prove that a real motor moved safely or a real object reached a bin.\n\nYou have written instructions, used observations to decide, and tested a small automated system.')
-    n={'cells':cells,'metadata':{'kernelspec':{'display_name':'Python 3','language':'python','name':'python3'},'language_info':{'name':'python','version':'3.11'}},'nbformat':4,'nbformat_minor':5}
-    for i,c in enumerate(cells): c['id']=('instructor' if instructor else 'student')+'-'+str(i)
-    return n
+    def cell(kind,text,example_id=None,mission_id=None):
+        meta={}
+        if example_id: meta['example_id']=example_id
+        if mission_id: meta['mission_id']=mission_id
+        item={'cell_type':kind,'metadata':meta,'source':text.splitlines(True),'id':f"{'instructor' if instructor else 'student'}-{len(cells):03}"}
+        if kind=='code': item.update(execution_count=None,outputs=[])
+        cells.append(item)
+    cell('markdown','# '+('Robot and twin observation' if live else c['title'])+'\n\n'+c['intro']+'\n\n'+c['evidence_rule']+'\n\nSave a pair copy. Run cells from the top with Shift+Enter. The essential route works offline. Read the explicit evidence and capture-mode labels below.\n\n'+schedule(c))
+    cell('code',c['examples']['live_bootstrap' if live else 'notebook_setup']['code'],example_id='setup')
+    if live:
+        spec=c['live_notebook']
+        cell('markdown', spec['intro']+'\n\n15-minute observation rotation. Worked example, predict/change/run/observe/explain and success criteria are on the teach demonstration mission card.')
+        for item in spec['cells']:
+            if 'example_id' in item:
+                eid=item['example_id']
+                cell('code',c['examples'][eid]['code'],example_id=eid,mission_id='teach-demo')
+            else:
+                cell('markdown',item['text'],mission_id='teach-demo')
+    else:
+        cell('markdown','![Actual station photograph](assets/station-photo.jpg)\n\nActual supplied station photograph. It does not prove current commissioning or a successful pickup.')
+        seen=set()
+        for m in c['missions']:
+            cell('markdown',mission_markdown(m,instructor=instructor),mission_id=m['id'])
+            eid=m['example_id']
+            if eid not in seen:
+                cell('code',c['examples'][eid]['code'],example_id=eid,mission_id=m['id']); seen.add(eid)
+            if m['id']=='python':
+                cell('code',c['examples']['shared']['code'],example_id='shared',mission_id=m['id'])
+                cell('markdown','On the prepared shared station, the instructor can submit the same `program` with `run_program(program, physical=False)` from `workshop.blockly_client`. That explicit simulation endpoint must already be running. The executable cell above uses the same validator and interpreter locally. Physical submission requires the supervised prepared station and its admission checks.')
+        cell('markdown',rotations(c))
+        cell('markdown','## Optional color destinations extension\n\nComplete the fixed-fixture core first. This separate simulated routing example does not teach physical grasping. Predict each route. Change an input, run, observe routes and counts, and explain a limitation. Try three reds and one blue before swapping rules. Unknown or invalid reports reject.')
+        cell('code',c['examples']['extension']['code'],example_id='extension')
+    return {'cells':cells,'metadata':{'curriculum_schema':1,'kernelspec':{'display_name':'Python 3','language':'python','name':'python3'},'language_info':{'name':'python','version':'3.11'}},'nbformat':4,'nbformat_minor':5}
 
 
-def main():
-    from build_live_notebook import main as live_notebook
-    live_notebook()
+def outputs(c):
+    result={}
+    def put(name,text): result[name]=text if isinstance(text,str) else json.dumps(text,indent=2)+'\n'
+    put('web/blockly-station/curriculum.json',learner_projection(c))
+    plan='# Beginner robot factory lesson plan\n\n'+c['intro']+'\n\n'+c['evidence_rule']+'\n\n'+schedule(c)+'\n\n'+rotations(c)
+    put('docs/lesson-plan.md',GENERATED+plan)
+    put('docs/instructor.md',GENERATED+'# Beginner robot factory instructor guide\n\n'+c['intro']+'\n\n'+c['evidence_rule']+'\n\nPrepare local Blockly, learner notebooks and printed cards before class. Keep recovery, restart and physical enable controls with the instructor. No essential activity needs an external website. Use the paper route when a station gate is incomplete. Historical commissioning evidence remains in the operational runbooks.\n\n'+schedule(c)+'\n\n'+rotations(c)+'\n\n'+'\n\n'.join(mission_markdown(m,instructor=True) for m in c['missions']))
+    worksheet=['# Robot factory worksheet',c['intro'],'Pair names: __________________  Driver first: __________  Observer first: __________',schedule(c)]
+    for m in c['missions']:
+        worksheet += ['## '+m['title'],m['goal'],'Predict: ______________________________','One change: ___________________________','Run and observed evidence: ______________________________','Explain and limit: ______________________________','Evidence source (circle): PAPER / SIMULATION / PHYSICAL','Success check: '+m['success']]
+    put('docs/student-worksheet.md',GENERATED+'\n\n'.join(worksheet)+'\n')
+    put('docs/activity-cards.md',GENERATED+'# Robot factory practical mission cards\n\n'+c['intro']+'\n\n'+c['evidence_rule']+'\n\n'+schedule(c)+'\n\n'+rotations(c)+'\n\n'+'\n\n'.join(mission_markdown(m) for m in c['missions']))
+    put('docs/blockly-student.md',GENERATED+'# Local Blockly robot factory\n\nStart `python tools/run_blockly_station.py`, then open http://127.0.0.1:8877. Choose a mission, predict, edit one thing, run, inspect and explain. Save your workspace before changing missions. STOP ends the program; later blocks must not run. Reset simulation state between experiments. Missing recordings are a reason to inspect and prepare, never a reason to invent a physical success.\n\n'+c['evidence_rule']+'\n\n'+'\n\n'.join(mission_markdown(m) for m in c['missions'] if m['id'] in ('blocks','observe','integrate','improve')))
+    put('docs/workshop-resources.md',GENERATED+'# Offline workshop resources\n\n'+c['intro']+'\n\n'+schedule(c)+'\n\n'+'\n\n'.join('## '+r['title']+'\n\n`'+r['command']+'`' for r in c['resources'])+'\n\nLearner handouts: student-handbook.pdf, student-worksheet.pdf and activity-cards.pdf. Source and scripts remain usable without downloads. External training websites are optional instructor enrichment after the essential local route.\n')
+    notes=['# Workshop slide speaker notes','Eight introductory slides total 20 minutes, followed by two slide cards per practical mission. Both cards share the mission duration; they do not add session time.']
+    for i,s in enumerate(c['slides'],1): notes += [f"## Slide {i}: {s['title']}",f"{s['minutes']} minutes",s['notes']]
+    for i,m in enumerate(c['missions']):
+        for part in range(2):
+            notes += [f"## Slide {9+i*2+part}: {m['title']} card {part+1}",f"{m['minutes']} minutes total for this activity, shared across its two cards.",mission_markdown(m,instructor=True)]
+    put('docs/lecture-notes.md',GENERATED+'\n\n'.join(notes)+'\n')
     for edition in ('Student','Instructor'):
-        n=build(edition=='Instructor')
-        (ROOT/'notebooks'/f'Robot_Candy_Factory_{edition}.ipynb').write_text(json.dumps(n,indent=1)+'\n')
-    # The handbook shares all novice explanations with the student notebook.
-    n=build()
-    text=[]
-    for c in n['cells']:
-        s=''.join(c['source'])
-        if c['cell_type']=='markdown' and s.startswith('## Break'):
-            continue
-        if c['cell_type']=='markdown' and s.startswith('## C ·'):
-            s = s.replace('Your instructor divides', 'After the 85–95 minute break, save your work. Your instructor divides')
-        text.append(s if c['cell_type']=='markdown' else '```python\n'+s+'\n```')
-        if c['cell_type']=='code' and s == 'show_photos()':
-            text.append('![Real station photograph crops with human labels](../notebooks/assets/photo-examples.jpg)')
-    (ROOT/'docs/student-exercises.md').write_text('\n\n'.join(text)+'\n')
+        n=notebook(c,edition=='Instructor'); put(f'notebooks/Robot_Candy_Factory_{edition}.ipynb',n)
+        if edition=='Student':
+            body=[]
+            for cell in n['cells']:
+                source=''.join(cell['source'])
+                if cell['cell_type']=='markdown': body.append(source.replace('(assets/station-photo.jpg)','(../notebooks/assets/station-photo.jpg)'))
+                else: body.append('```python\n'+source+'\n```')
+            put('docs/student-exercises.md',GENERATED+'\n\n'.join(body)+'\n')
+    put('notebooks/Robot_Candy_Factory_Live_SO101.ipynb',notebook(c,live=True))
+    # Each script is generated from exactly the code cells used in the notebook.
+    for eid,e in c['examples'].items():
+        if not e.get('script'): continue
+        code=e['code']
+        if eid=='sequence': code=c['examples']['shared']['code']
+        header='"""Generated from curriculum/workshop.json. '+('Optional color-routing extension.' if eid=='extension' else 'Offline beginner activity.')+'\nRun with the prepared Python; no physical commands are sent.\n"""\n'
+        pre='import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path(__file__).resolve().parents[1]))\n\n'
+        put('exercises/'+e['script'],header+(pre if eid in ('shared','extension') else '')+code)
+    put('notebooks/README.md', GENERATED+'# Offline classroom notebooks\n\n'+c['intro']+'\n\nOn the prepared PC run `./station notebook`, open `Robot_Candy_Factory_Student.ipynb` and save a pair copy. Run cells from the top with Shift+Enter. Restart and rerun from the top after a confusing edit. Every executable cell uses invented inputs or explicit simulation; no learner cell imports ROS or commands hardware.\n\nIn the extracted learner ZIP, keep all folders together. Use the prepared Python to run `python notebooks/launch.py`. No installation or internet is a classroom task. Without Jupyter, run `python exercises/check_setup.py`, then scripts 01, 02 and 03. Script 04 is the optional color-routing extension, and 05 renders that extension as an offline HTML report.\n\nStart local Blockly with `python tools/run_blockly_station.py`; open http://127.0.0.1:8877 and choose the first mission. `./station sim` is the prepared-PC shortcut. Both languages share validated command JSON and the same interpreter.\n\n`Robot_Candy_Factory_Live_SO101.ipynb` defaults to invented DEMO observations. The prepared instructor launcher `tools/launch_live_workshop.py --live --ros-wrapper /path/to/wrapper` sets WORKSHOP_LIVE=1 for read-only live topic capture in a bounded wrapper subprocess. Missing LIVE data stay explicitly unavailable; there is no DEMO fallback. No cell sends motion or changes modes.\n\n'+c['evidence_rule']+'\n')
+    # An editable standalone sequence diagram, derived from the slide text.
+    steps=c['slides'][3]['lines']; boxes=[]
+    for i,t in enumerate(steps):
+        import textwrap
+        x=20+i*230
+        lines=textwrap.wrap(t, width=22)
+        spans=''.join(f'<tspan x="{x+105}" dy="{0 if j==0 else 22}">{line}</tspan>' for j,line in enumerate(lines))
+        boxes.append(f'<rect x="{x}" y="25" width="210" height="90" rx="8" fill="#e4eff0" stroke="#17354b"/><text x="{x+105}" y="{70-(len(lines)-1)*11}" text-anchor="middle" font-family="sans-serif" font-size="16">{spans}</text>')
+        if i<4: boxes.append(f'<path d="M {x+210} 70 h 20" stroke="#197f80" stroke-width="3"/>')
+    put('docs/assets/fixed-fixture-sequence.svg','<svg xmlns="http://www.w3.org/2000/svg" width="1170" height="145" viewBox="0 0 1170 145">'+''.join(boxes)+'</svg>\n')
+    return result
+
+
+def main(argv=None):
+    parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--check',action='store_true'); args=parser.parse_args(argv)
+    differences=[]
+    for name,text in outputs(load_curriculum()).items():
+        p=ROOT/name
+        if args.check:
+            if not p.exists() or p.read_text()!=text: differences.append(name)
+        else:
+            p.parent.mkdir(parents=True,exist_ok=True); p.write_text(text)
+    if differences: raise SystemExit('Generated curriculum drift: '+', '.join(differences))
+    print('Canonical curriculum '+('verified' if args.check else 'generated')+' (240 minutes, eight intro slides).')
 
 if __name__=='__main__': main()

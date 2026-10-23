@@ -4,16 +4,50 @@ import math
 import time
 from .blockly_program import name, number
 
+CALIBRATION_FIELDS=('jaw_calibration_sha256','joint_calibration_sha256')
+
+def require_physical_calibration(identity):
+    for field in CALIBRATION_FIELDS:
+        value=identity.get(field)
+        if not isinstance(value,str) or len(value)!=64 or any(c not in '0123456789abcdef' for c in value):
+            raise ValueError('qualified loaded jaw and joint calibration digests required; reteach recording')
+
+
+COHORT_FIELDS=frozenset({'owner_generation'})
+CAPTURE_FIELDS=COHORT_FIELDS | {'source_sha256'}
+
+
+def durable_binding(identity):
+    if not isinstance(identity,dict): raise ValueError('recording identity unavailable')
+    return {key:value for key,value in identity.items() if key not in COHORT_FIELDS}
+
+
+def recording_binding(recording):
+    schema=recording.get('schema')
+    if schema not in {'so101-blockly-stroke-v1','so101-blockly-stroke-v2'}:
+        raise ValueError('unsupported recording schema')
+    binding=durable_binding(recording.get('identity'))
+    if schema=='so101-blockly-stroke-v2':
+        if recording.get('binding')!=binding or recording.get('capture_cohort')!={key:value for key,value in recording['identity'].items() if key in CAPTURE_FIELDS}:
+            raise ValueError('recording binding/capture cohort disagrees with identity')
+        if recording.get('origin') not in {'physical','synthetic_simulation'}: raise ValueError('recording origin unavailable')
+    return binding
+
+
 JOINTS=('shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll')
 
 
 class Recorder:
-    def __init__(self, recording_name, identity, *, clock=time.monotonic):
+    def __init__(self, recording_name, identity, *, clock=time.monotonic, origin=None):
         self.name=name(recording_name)
         if (not isinstance(identity,dict) or not isinstance(identity.get('arm_id'),str)
                 or not identity['arm_id'] or len(identity.get('calibration_sha256','')) != 64):
             raise ValueError('fresh arm identity and calibration hash required')
-        self.identity=dict(identity); self.clock=clock; self.started=clock()
+        if origin is None: origin='synthetic_simulation' if identity['arm_id']=='simulation' else 'physical'
+        if origin not in {'physical','synthetic_simulation'}: raise ValueError('unsupported recording origin')
+        if origin=='physical': require_physical_calibration(identity)
+        self.origin=origin
+        self.identity=copy.deepcopy(identity); self.clock=clock; self.started=clock()
         self.rows=[]; self.jaw=None; self.error=None
 
     def add(self, positions, jaw, stamp):
@@ -37,18 +71,26 @@ class Recorder:
         if self.error: raise ValueError(self.error)
         if len(self.rows)<2: raise ValueError('record at least two fresh samples')
         origin=self.rows[0]['source_stamp']
-        return {'schema':'so101-blockly-stroke-v1','name':self.name,'identity':self.identity,
+        return {'schema':'so101-blockly-stroke-v2','name':self.name,'identity':self.identity,
+                'binding':durable_binding(self.identity),'capture_cohort':{key:value for key,value in self.identity.items() if key in CAPTURE_FIELDS},
+                'origin':self.origin,
                 'joint_names':list(JOINTS),'jaw_radians':self.jaw,
                 'points':[{'time':r['source_stamp']-origin,'positions':r['positions']} for r in self.rows]}
 
 
-def replay_points(recording, identity, speed=.5, *, timing='original', start_radians=None):
+def replay_points(recording, identity, speed=.5, *, timing='original', start_radians=None, physical=False):
     if timing not in ('original','skip_stationary_pauses'): raise ValueError('unknown replay timing mode')
     number(speed,.1,1)
-    if recording.get('schema')!='so101-blockly-stroke-v1' or recording.get('identity')!=identity:
+    binding=recording_binding(recording)
+    origin=recording.get('origin','synthetic_simulation' if binding.get('arm_id')=='simulation' else 'physical')
+    if physical and origin!='physical': raise ValueError('synthetic recording cannot play physically')
+    if physical:
+        require_physical_calibration(binding)
+        require_physical_calibration(identity)
+    if binding!=durable_binding(identity):
         raise ValueError('recording identity/calibration differs from current follower')
     if recording.get('joint_names')!=list(JOINTS): raise ValueError('recording joint names differ')
-    check=Recorder(recording['name'],identity)
+    check=Recorder(recording['name'],identity,origin=origin)
     for row in recording.get('points',[]):
         if set(row)!={'time','positions'}: raise ValueError('unsupported recording fields')
         check.add(row['positions'],recording['jaw_radians'],row['time'])

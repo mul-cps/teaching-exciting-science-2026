@@ -30,6 +30,14 @@ def _independent_joint_limits(limits):
     return {joint: dict(values) for joint, values in limits.items()}
 
 
+def _octomap_parameters(enabled, path):
+    """Load occupancy parameters only on explicit opt-in; static boxes stay active."""
+    if not enabled:
+        return {}
+    with path.open(encoding="utf-8") as stream:
+        return yaml.safe_load(stream)
+
+
 def _launch_nodes(context):
     station_root = Path(LaunchConfiguration("station_root").perform(context)).resolve()
     config_value = LaunchConfiguration("station_config").perform(context)
@@ -118,6 +126,9 @@ def _launch_nodes(context):
     # with this environment before executing the renderer.
     rviz_environment = {"LD_PRELOAD": rviz_preload_value()}
     parameters = moveit_config.to_dict()
+    parameters.update(_octomap_parameters(
+        LaunchConfiguration("use_octomap").perform(context).lower() == "true",
+        Path(LaunchConfiguration("octomap_config").perform(context))))
     parameters["moveit_controller_manager"] = "moveit_simple_controller_manager/MoveItSimpleControllerManager"
     parameters["moveit_simple_controller_manager"] = {
         "controller_names": ["arm_trajectory_controller", "moveit_gripper_controller"],
@@ -209,6 +220,8 @@ def _launch_nodes(context):
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument("use_octomap", default_value="false",
+                              description="Opt-in experimental 20 mm/2 Hz GPU cloud occupancy; collision qualification pending"),
         *(DeclareLaunchArgument(name, default_value="true") for name in
           ("use_robot_state_publisher", "use_move_group", "use_trajectory_server")),
         *(DeclareLaunchArgument("operator_"+key+"_unit", default_value="") for key in
@@ -238,6 +251,7 @@ def generate_launch_description():
         DeclareLaunchArgument("operator_maintenance_journal", default_value=str(Path.home()/".local/share/exciting-science/station/operator-maintenance-pending.json")),
         DeclareLaunchArgument("station_root", default_value=os.getcwd(),
                               description="Checkout containing workshop.station.arm_session"),
+        DeclareLaunchArgument("octomap_config", default_value=[LaunchConfiguration("station_root"), "/ros2/config/sensors_3d.yaml"]),
         DeclareLaunchArgument("station_config", default_value="",
                               description="Station config with exact arm identity and calibration"),
         DeclareLaunchArgument("state_file", default_value="",

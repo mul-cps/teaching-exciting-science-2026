@@ -342,3 +342,24 @@ class LauncherTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def test_private_skills_argument_reaches_only_explicit_physical_command(tmp_path):
+    import pytest
+    private=tmp_path/'private-skills';private.mkdir()
+    command=module.blockly_command(True,skills=private)
+    assert command[command.index('--skills')+1]==str(private.resolve())
+    assert '--skills' not in module.blockly_command(True)
+    with pytest.raises(ValueError,match='physical'):
+        module.blockly_command(False,skills=private)
+
+
+def test_private_skills_configuration_cannot_silently_reuse_other_library(tmp_path):
+    import pytest
+    private=tmp_path/'private';private.mkdir()
+    record={'process':{'pid':123},'root':str(module.ROOT),'physical':True,'skills':None}
+    (tmp_path/'blockly-server.json').write_text(json.dumps(record))
+    with patch.object(module,'STATE',tmp_path),patch('tools.station_process.same_process',return_value=True),patch.object(module,'blockly_status',return_value={'physical':True}),patch.object(module.subprocess,'Popen') as launch:
+        with pytest.raises(RuntimeError,match='skill configuration'):
+            module.blockly('blockly-physical',skills=private)
+        launch.assert_not_called()

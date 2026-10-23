@@ -416,14 +416,14 @@ def test_cache_and_control_hot_paths_static_guard():
     assert 'response.get("command") != "teleop_step"' in reader
 
 
-def test_bridge_owner_source_map_uses_shared_six_module_contract():
+def test_bridge_owner_source_map_uses_shared_module_contract():
     from so101_station_control.trajectory_server import _load_owner_source_hashes
     from workshop.station.recovery_types import OWNER_SOURCE_MODULES, owner_source_sha256
     root = Path(__file__).resolve().parents[1]
     expected = owner_source_sha256(root/'workshop/station')
     assert set(expected) == set(OWNER_SOURCE_MODULES)
     assert set(expected) == {'arm', 'arm_session', 'recovery_runtime', 'recovery_types',
-                             'recovery_runtime_config', 'camera_recovery'}
+                             'recovery_runtime_config', 'camera_recovery', 'ros_trajectory', 'native_damping'}
     assert _load_owner_source_hashes(root) == expected
 
 
@@ -461,3 +461,38 @@ def test_fresh_fault_observation_stays_visible_and_unhealthy_even_if_bridge_bit_
     with pytest.raises(RuntimeError, match='explicit reconnect'):
         node._send({'command': 'home'})
     assert not process.commands
+
+
+def test_status_calibration_identity_uses_loaded_bytes_without_disk_reload(ready,tmp_path,monkeypatch):
+    from so101_station_control.trajectory_server import _load_calibration_snapshot
+    from workshop.blockly_ros import ROSBackend
+    from workshop.blockly_recording import Recorder,replay_points
+    node,process=ready
+    path=tmp_path/'qualified.json';path.write_text('{"qualified":true}')
+    loaded,digest=_load_calibration_snapshot(path,lambda data:data)
+    node._gripper_jaw=loaded;node._gripper_joint=loaded
+    node._gripper_jaw_sha256=digest;node._gripper_joint_sha256=digest
+    before=ROSBackend._identity(status(node))
+    recorder=Recorder('stroke',before,origin='physical')
+    recorder.add([0.]*5,0.,0.);recorder.add([.01]*5,0.,.1)
+    path.write_text('{"qualified":true,"changed":true}')
+    assert ROSBackend._identity(status(node))==before
+    assert replay_points(recorder.finish(),before,physical=True)
+    loaded,digest=_load_calibration_snapshot(path,lambda data:data)
+    node._gripper_jaw=loaded;node._gripper_jaw_sha256=digest
+    node._owner_started=time.monotonic()-.001
+    node._cache_owner_state(state(node))
+    after=ROSBackend._identity(status(node))
+    assert after['calibration_sha256']==before['calibration_sha256']
+    assert after['source_sha256']==before['source_sha256']
+    with pytest.raises(ValueError,match='calibration'):
+        replay_points(recorder.finish(),after,physical=True)
+    assert process.commands==[]
+
+
+@pytest.mark.parametrize('field',['jaw','joint'])
+def test_status_does_not_expose_digest_for_unloaded_calibration(ready,field):
+    node,_=ready
+    setattr(node,'_gripper_'+field,None)
+    setattr(node,'_gripper_'+field+'_sha256','c'*64)
+    assert status(node)[field+'_calibration_sha256'] is None

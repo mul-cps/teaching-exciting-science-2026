@@ -90,11 +90,21 @@ def test_exception_is_one_readonly_endpoint_and_other_backend_code_unchanged():
     # Baseline25dfc5e with only refresh body removed. All action admission,
     # metric conversion, generic success rejection, joint callback, timers,
     # clients/publishers, cancellation, STOP and recovery code stays pinned.
-    assert digest(cls) == '8a619724c1e9e7082f9e979672264e59b77225f878d50081c3a3fd71addb2189'
+    # Reviewed shared-execution change: only replay admission changed to durable
+    # identity plus live cohort, and new explicit planned approach/resident FJT
+    # helpers were added. Generic jaw, parser, action, STOP and recovery stay
+    # pinned; narrower calibration/native hashes above and below are unchanged.
+    # Parent reviewed named skill CLI dispatch plus nonblocking producer stop,
+    # independent resident STOP and proven-terminal recovery reconciliation.
+    # Generic jaw/action transport, identity thresholds and calibrated angular
+    # conversion stay unchanged; native status adds only two cached file hashes.
+    # Reviewed 2026-10-23: _identity adds two optional cached calibration digests,
+    # rejecting malformed non-null hashes while permitting safe uncalibrated recovery.
+    assert digest(cls) == '497b74489ef20891a0e641c97322d84e5397d6e3418850a67991fa12a2cda785'
 
 
 @pytest.mark.parametrize('name,expected', [
-    ('_gripper_calibration_status', 'e712a8731212a9ecce64ae5ef4892eea310e32259442ccd809c22ee93ec9d1de'),
+    ('_gripper_calibration_status', 'd1afa844523807e33652bdffccf7bda4fee18e21e17a8165ff037e57b5008431'),
     ('_moveit_gripper_gap', 'aa0ce1bc59f241a8ac6a17faecd011b78bd5a185bf686223cb51547c113ba65c'),
     ('_moveit_gripper_goal_request', '8de2775734fafd6c70238739e040bb1c124f52306e1ca1f1a561124a7b26d94e')])
 def test_native_combined_status_and_angular_guards_unchanged(name, expected):

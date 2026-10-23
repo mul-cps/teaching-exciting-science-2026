@@ -1,72 +1,266 @@
-# Teaching the sorting factory workshop
-22 October 2026 · Four hours · First semester · No prerequisites
+<!-- Generated from curriculum/workshop.json; edit the source, then run tools/build_notebooks.py. -->
 
-Students learn by predicting a small change, running it and explaining a visible result. Use the student notebook as the main route. The instructor notebook adds guidance beside identical executable activities. Swap typing and predicting roles every activity. Red routes left, blue right, all other reports reject.
+# Beginner robot factory instructor guide
 
-## Prepare before class
-Prepare Python 3.11 or newer in an environment separate from ROS. Install notebooks/requirements.txt in that environment before class. Extract the complete student ZIP; retain exercises, notebooks and workshop together. Do not distribute the instructor notebook as learner material. Open a clean notebook, run setup and the first activity, save a team copy and demonstrate recovery after a kernel restart.
+Build an offline robot factory from ordered instructions. Start with one fixed pickup fixture and one fixed destination. Pair roles: driver edits; observer predicts and checks; swap halfway. Only the instructor enables supervised hardware.
 
-```bash
-python3 -m venv .venv-workshop
-.venv-workshop/bin/python -m pip install -r notebooks/requirements.txt
-.venv-workshop/bin/python notebooks/launch.py
-```
+Simulation, paper, reports and measured physical outcomes are separate evidence. Never claim a grasp or placement from a command log alone. Unknown or stale observations require pause and inspection.
 
-Windows uses .venv-workshop\Scripts\python.exe with the same launcher. The launcher opens a local JupyterLab with the bundle as its root. No JupyterLite service is provided. Internet is needed for the external Blockly Maze and Teachable Machine websites; check the links and prepare offline alternatives in workshop-resources.md. The bundled Blockly factory runs offline after setup; follow docs/blockly-student.md for the learner challenge and docs/blockly-workshop.md for instructor setup. Use nonpersonal objects, not student faces, for camera examples. Print one worksheet per pair.
+Prepare local Blockly, learner notebooks and printed cards before class. Keep recovery, restart and physical enable controls with the instructor. No essential activity needs an external website. Use the paper route when a station gate is incomplete. Historical commissioning evidence remains in the operational runbooks.
 
-## Timetable and transitions
-| Elapsed minutes | Task | Teaching move |
-| --- | --- | --- |
-| 00–25 | Introduction | Ask how humans sort; show sensing, deciding, acting and feedback; demonstrate notebook controls |
-| 25–35 | Blockly Maze | Levels 1–3 core; 4–5 stretch; reserve last minute to return to notebook |
-| 35–65 | A Python | Greeting 6 min, repeat 8, condition 10, explanation and transition 6 |
-| 65–85 | B Teachable Machine | Classes 5 min, tests 7, changed condition 5, explanation 3 |
-| 85–95 | Break | Save; name three groups and starting stations |
-| 95–140 | C Stations | Three 15-minute rotations including 1-minute transitions |
-| 140–190 | D Factory | Trace 10 min, baseline 12, change rule 15, compare routes 10, save 3 |
-| 190–225 | E Blockly factory or notebook challenges | Choose 5 min, run and record 22, exchange tests 8 |
-| 225–240 | Demos | Prepare 4 min, show results 8, reflect and save 3 |
+| Minutes | Duration | Session |
+|---|---|---|
+| 0-20 | 20 | Meet our factory |
+| 20-45 | 25 | Ordered instructions |
+| 45-65 | 20 | Observations and uncertainty |
+| 65-95 | 30 | First Python edits |
+| 95-105 | 10 | Break |
+| 105-120 | 15 | Teach inspect and replay demonstration |
+| 120-165 | 45 | Explore three stations |
+| 165-210 | 45 | Build the physical sequence |
+| 210-230 | 20 | Improve one failure |
+| 230-240 | 10 | Three pair demonstrations |
 
-Exactly 240 minutes. Do not add the live lab as an extra lesson. The camera notebook contains optional extensions: select one controlled observation experiment within the 20-minute perception block; leave further list experiments for challenges. Definitions follow visible examples, not a vocabulary lecture.
+## Pair rotations
 
-## Beginner prompts and solutions
-A: show Shift+Enter, output, quotes and indentation. A variable stores a value with =; == compares values. Original loop prints 1, 2, 3. Five repeats print 1–5. Red chooses left; blue right; yellow reject. If a quote is missing, read the last error line, repair one quote and rerun. A kernel restart clears values but preserves saved edits; run setup again.
+Each 15-minute slot includes 2 minutes to save and transition. Driver edits; observer predicts and checks. Swap roles halfway. One instructor controls the physical integration station.
 
-B: prepared red, blue and background classes reduce setup time. Keep a few examples out of training. Ask what changes when background or illumination changes. The notebook photograph crops are real photographs with human descriptions; its report lists are controlled teaching data, not output of an implemented camera classifier. Actual red reported blue goes right; None rejects. A plausible incorrect report cannot be detected by the routing rule alone. Offline use the photograph and actual/report comparison; avoid presenting demo counts as recognition accuracy.
+### Explore three stations
 
-D: baseline is left 2, right 2, reject 1, with five belt advances and actions left/right/left/reject/right. Swapping rules has identical totals for this balanced input but different actions. Use three reds and one blue to reveal the difference in counts. Stop precedes observation and placement. Adding green without a rule rejects it; with a green-to-left rule it reaches left. None, unknown and invalid destinations reject. Counting every object does not prove every route is correct.
+| Slot | Pair A | Pair B | Pair C |
+|---|---|---|---|
+| 1 | Arm and twin observation | Conveyor and observation sequencing | Offline Blockly and Python preparation |
+| 2 | Conveyor and observation sequencing | Offline Blockly and Python preparation | Arm and twin observation |
+| 3 | Offline Blockly and Python preparation | Arm and twin observation | Conveyor and observation sequencing |
 
-E: pairs choose the [offline Blockly factory challenge](blockly-student.md) or notebook challenges for the same 35-minute slot. For Blockly, start in simulation: predict and run, change the sequence, add color branches, test unknown, then save and explain the result. Use the [instructor Blockly guide](blockly-workshop.md) for setup and recovery. For notebooks, select two experiments, reset the original inputs between them and record predictions before running. Adding None, unknown, 42 and empty text to the baseline yields left 2, right 2, reject 5. Red-to-middle produces left 0, right 2, reject 3. Ten reports must produce ten outcomes. Ask early finishers for a test that detects swapped rules.
+### Build the physical sequence
 
-## Three stations
-Use three groups: robot → camera → virtual; camera → virtual → robot; virtual → robot → camera. Each slot uses explain 2 min, try 9, explain evidence 3, save and rotate 1.
+| Slot | Pair A | Pair B | Pair C |
+|---|---|---|---|
+| 1 | Supervised fixed-fixture integration | Offline sequence rehearsal | Failure tests and evidence |
+| 2 | Offline sequence rehearsal | Failure tests and evidence | Supervised fixed-fixture integration |
+| 3 | Failure tests and evidence | Supervised fixed-fixture integration | Offline sequence rehearsal |
 
-Robot and twin: open Robot_Candy_Factory_Live_SO101.ipynb. It defaults to invented DEMO data. Students choose one body joint, read a graph and calculate one relative versus absolute prediction. Relative mapping is follower start + leader now − leader start; 30 + 15 − 10 = 35 degrees. Absolute prediction is 15 degrees. Angle differences can be expected in relative mode. The gripper JointState is a visual proxy and is excluded. A twin follows measurements; it is not an independent confirmation of reality.
+## Make a short conveyor story
 
-A supervised physical Blockly extension replaces time within the robot rotation or challenge slot; it adds no lesson time. After simulation, teach a short fixed-jaw stroke with the leader, record the follower, return to the checked starting pose and replay once at speed 0.5. Add one approved EV3 action only when commissioned; require unknown to stop before manipulation. Dispensing and jaw control need their own commissioning. For payload sorting, the separate Run one commissioned sorting cycle block lets the native station own the complete grasp and object ownership transaction; a taught replay plus jaw movement does not establish a grasp. Review setup and recovery in docs/blockly-workshop.md.
+Mission `blocks` · 25 minutes · Put instructions in order and repeat a small section.
 
-Camera and conveyor: trace move → stop → observe → decide → pick using paper objects or a qualified instructor demonstration. Ask why stopping before picking matters. Change one visual condition and explain uncertainty. No student connects motor hardware or changes station controls.
+**Worked example** Ready → dispense → belt to pickup endpoint → inspect. In simulation each command changes a model; no physical object is verified.
 
-Virtual robot: run the notebook's short destination sequence; compare order and totals. Original left/right/left has the same totals as left/left/right. Add reject, then middle; invalid destinations reject. Optional kinematics activity is linked in workshop-resources.md; use the sequence fallback if unavailable. A destination label is not a physical motor coordinate.
+**Predict** Which message appears first? Where should the object model stop?
 
-## Live observer preparation
-Use the full checkout on the same station host as ROS. Keep the existing commissioned resident controller; the observer starts no controller, opens no USB, calls no ROS services and reads only /leader/joint_states, /follower/joint_states and /follower/teleop_status. Real enable, mode selection and stop belong in the instructor's RViz operations panel. Review current physical acceptance evidence before demonstrating motion.
+**Change** Change Ready to your pair name. Add repeat 2 around a message, then around one tested short sequence.
 
-```bash
-# Offline invented examples, no ROS needed
-.venv-workshop/bin/python tools/launch_live_workshop.py
-# Instructor only, existing station topics through existing ROS wrapper
-ROS_DOMAIN_ID=76 .venv-workshop/bin/python tools/launch_live_workshop.py --live
-```
+**Run** Open local Blockly simulation; select this mission; run the starter once. Use STOP and Reset before a different test. Save your workspace.
 
-The helper defaults to this checkout's existing ros2/conda/so101-conda.sh run wrapper. It uses the prepared Conda ROS environment, while Jupyter stays isolated. For the remote station pass --ros-wrapper ~/.local/bin/station-fwmini4 --ros-wrapper-command ros-vulkan to the live launcher. This preserves the station's accepted environment. No container image is needed. The live Jupyter server uses loopback port 8890, separate from the student server on 8888; a second launch reports that the port is in use. Jupyter remains a normal Python kernel. Each capture starts a bounded subscriber through the existing prepared ROS wrapper; it collects for 3 seconds (maximum 5), samples at most 5 times/second and exits, destroying the node. The outer process timeout includes up to 20 seconds for ROS wrapper startup. This avoids installing incompatible ROS libraries into Jupyter. Localhost binding and normal Jupyter token authentication are preserved. For a remote browser use the prepared SSH forwarding arrangement; do not expose an unauthenticated notebook server.
+**Observe** Read the command log and model state. Compare the repeated messages with your prediction.
 
-Freshness requires receipt age and source age at most one second. Joint source age is ROS header age; the follower header is publication time, not an independent motor acquisition timestamp. The controller retains its own acquisition freshness gates. Teleop status uses same-host monotonic time; latched disabled status may be old. The notebook hides expired values, reports missing streams and never silently substitutes demo data. A fresh topic does not establish motion permission, independent geometry accuracy or physical sorting success.
+**Explain** Why do instruction order and a stopped belt matter before pickup?
 
-If a LIVE stream disappears, rerun the observation after the instructor restores the existing station. Every call starts a new node; reconnection needs no notebook service. On failure use the explicit DEMO launcher and restart the kernel. Never infer zero from missing data. The observer is additional visualization, not an emergency stop or safety monitor.
+**Success check** Your pair can trace the order, predict a repeat count and explain one corrected sequence.
 
-## Offline and environment fallback
-Run python3 exercises/check_setup.py, then exercises/01_python.py, 03_vision.py, 02_robot.py and 04_sort.py in lesson order. Edit the marked STUDENT AREA, save and rerun. Python standard library is sufficient. Run exercises/05_visual_sort.py and open sorting-result.html for an offline browser animation. If computers fail, use paper objects, report cards and three bins with the same predictions and worksheet.
+**Optional challenge** Try an intentionally wrong order in simulation and explain the result.
 
-## Build and verification
-Build notebooks and shared handbook text with python tools/build_notebooks.py. Build printable handouts using SOFFICE=/path/to/prepared/soffice python tools/build_materials.py --handouts-only. Build the learner ZIP with python exercises/make_student_bundle.py --output docs/student-workshop.zip. Execute tools/verify_notebooks.py in the prepared environment; it opens fresh kernels and checks meaningful variants. These software checks do not establish physical commissioning or complete sorting acceptance.
+**Offline route** Draw each instruction on paper and move a paper object only when its instruction runs.
+
+**Hint 1** Read from the top connection down.
+
+**Hint 2** Repeat repeats every block inside it; start with a message.
+
+**Instructor guidance** Expected order is message, eject, endpoint, inspect. Repeat does not imply two verified physical placements.
+
+## Separate the object from its report
+
+Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
+
+**Worked example** An actual blue brick can have a missing report. An actual red brick can be reported blue. Both need inspection.
+
+**Predict** Which of the three reports is missing? Which disagrees with the labelled object?
+
+**Change** Change one report to None; then change one known report to a wrong known color.
+
+**Run** Run the short Python example or trace its three rows on paper. Compare the real labelled photo with a deliberately changed report.
+
+**Observe** Record actual object, reported label and your decision separately. None means missing, never zero or proof of empty space.
+
+**Explain** Why can a fresh color label still be wrong? What evidence would justify continuing?
+
+**Success check** You identify one missing and one wrong report and choose pause/inspect for uncertainty.
+
+**Optional challenge** Test unfamiliar green without adding a rule.
+
+**Offline route** Use the supplied real photo and handwritten report cards; no camera or website is needed.
+
+**Hint 1** Compare actual and reported columns one row at a time.
+
+**Hint 2** A known word is still only a report.
+
+**Instructor guidance** Missing is row two; wrong known label row three. Correct words alone do not validate a classifier.
+
+## Change a name and a number
+
+Mission `python` · 30 minutes · Read and edit a short Python program before sharing the same program representation with blocks.
+
+**Worked example** TEAM stores text in quotes. REPEATS stores a number. print shows text. The indented line runs once for each number.
+
+**Predict** What greeting and how many object lines will appear?
+
+**Change** Change TEAM, predict, run. Then change REPEATS to 2, predict, run. Keep indentation.
+
+**Run** Open the Student notebook, save a pair copy and run cells from the top with Shift+Enter. Run the shared Program example in simulation.
+
+**Observe** Count output lines and compare the shared Python program JSON with the Blockly exported JSON.
+
+**Explain** Which edit changed text? Which changed how often a line ran? What stayed in the same order?
+
+**Success check** Both partners make one edit and explain it; shared commands are validated before execution.
+
+**Optional challenge** Change a wait or message in both Python and Blockly and compare command traces.
+
+**Offline route** Run exercises/01_python.py using the prepared Python or trace it on paper. No package downloads.
+
+**Hint 1** Quotes surround text; do not quote the number.
+
+**Hint 2** Four spaces keep print inside the loop.
+
+**Instructor guidance** Original prints three object lines. Changing REPEATS resets the next run; Program simulation is not hardware proof.
+
+## Watch teach inspect return replay
+
+Mission `teach-demo` · 15 minutes · Understand that a recorded stroke needs validated start/end poses and explicit jaw state.
+
+**Worked example** Leader 10°, follower 30°, leader now 15° gives relative request 35°. A request and a measured result are different.
+
+**Predict** Will a replay start safely from any pose? What if the jaw state changed?
+
+**Change** Ask the instructor to change one invented angle; predict before rerunning. Learners do not change physical modes.
+
+**Run** Watch instructor: teach a short empty stroke, stop recording, inspect metadata and path, return safely to its validated start, then replay separately.
+
+**Observe** Name start pose, endpoint, jaw state, identity/calibration and validity evidence. An invented demo recording is never a student-taught physical skill.
+
+**Explain** Why must teaching and playback be separate runs? Why does a changed robot or calibration require reteaching?
+
+**Success check** You can say teach → inspect/validate → return to start → replay, and point to STOP.
+
+**Optional challenge** Predict a relative versus absolute joint request.
+
+**Offline route** Use the invented joint example and paper start/end diagrams. Label evidence DEMO.
+
+**Hint 1** A recording stores movement; it does not plan a safe approach from every pose.
+
+**Hint 2** A screen model can match commands while a physical object slips.
+
+**Instructor guidance** Relative is 35 and absolute 15. Demonstrate only with prepared supervised hardware; if validation fails use paper and report physical gate incomplete.
+
+## Explore three stations
+
+Mission `explore` · 45 minutes · Connect observations, instructions and the robot model.
+
+**Worked example** Three pairs rotate through arm/twin observation, conveyor/observation sequencing, and offline Blockly/Python preparation.
+
+**Predict** At your current station, predict one direction, report or sequence before the instructor or simulator acts.
+
+**Change** Change only one paper angle, report or message; switch driver and observer halfway.
+
+**Run** Each slot is 15 minutes: 2 predict, 7 change/run, 4 observe/explain, 2 save and transition. Use the rotation table.
+
+**Observe** Arm: compare measured joint and twin when available. Conveyor: inspect stopped fixture/report. Offline: compare ordered traces. Label each evidence source.
+
+**Explain** Which part measures, decides or acts? What can your evidence establish?
+
+**Success check** Every pair completes all three positions with one recorded prediction and evidence statement per position.
+
+**Optional challenge** Compare a fresh report with a stale one without guessing missing values.
+
+**Offline route** All three positions have photo, paper and simulation versions; record DEMO/OFFLINE if no measured stream.
+
+**Hint 1** The twin is a model updated from a stream.
+
+**Hint 2** Use the same short sequence at the offline table.
+
+**Instructor guidance** No three physical robots implied. Instructor controls the arm path; preserve transition time.
+
+## Dispense carry pick and place
+
+Mission `integrate` · 45 minutes · Assemble the supervised fixed pickup to fixed destination sequence.
+
+**Worked example** EV3 dispense → conveyor to pickup fixture and stop → named taught skill fixed_pick_place. That skill binds validated approach/open, calibrated grasp, lift/transfer, release and return phases. Missing or uncommissioned qualification blocks physical execution; simulation labels every transfer synthetic.
+
+**Predict** Where must the object and arm be before each next step? What should stop the run?
+
+**Change** First reorder paper cards. In simulation use pick_place_recording named fixed_pick_place and change one message or delay. Physical execution requires instructor-validated phase recordings, measured jaw calibration and the qualification manifest; missing evidence is a blocking result.
+
+**Run** Rotate: supervised integration, offline trace/rehearsal, failure/evidence desk. Each 15-minute slot includes 2 minutes transition. Run dispense, conveyor/stop and the named fixed_pick_place skill only through the existing shared endpoint. Instructor alone enables a qualified physical run; otherwise complete explicit synthetic simulation.
+
+**Observe** Record dispense, stopped fixture arrival, grasp, lift, placement/release and return separately. A completed command does not prove object transfer.
+
+**Explain** Which observation supports each claimed step? Which step remains unverified?
+
+**Success check** Your pair explains the full fixed-fixture sequence and records honest per-step evidence. Physical completion requires observed object transfer; offline completion is labelled rehearsal.
+
+**Optional challenge** After the core succeeds, discuss color-dependent destinations as separately validated taught skills.
+
+**Offline route** Use the same fixed pickup/drop paper layout and named-skill simulation. Its grasp/lift/release outcomes are synthetic assumptions with physical_evidence false. Missing recordings or qualification means physical execution remains incomplete.
+
+**Hint 1** Stop the conveyor before the arm approaches.
+
+**Hint 2** Start/end poses and jaw state of adjacent taught strokes must agree.
+
+**Instructor guidance** Do not substitute demo recordings. Current historical operational notes remain evidence until a new physical rehearsal supersedes them. Never infer payload success from a log.
+
+## Find one failure and test a repair
+
+Mission `improve` · 20 minutes · Use a controlled change and evidence to improve a sequence.
+
+**Worked example** A missing fixture observation pauses the sequence after one inspected object. Fix the observation path before retrying.
+
+**Predict** What happens when the middle report is None?
+
+**Change** Test one failure: missing report, wrong order, missing recording or STOP. Change one cause only and reset.
+
+**Run** Reproduce in simulation or paper; record expected versus actual. Repair and rerun the same input.
+
+**Observe** Capture the failure message, stopped state and repaired trace. No physical fault injection by learners.
+
+**Explain** Did your test detect the problem? What could still fail on hardware?
+
+**Success check** You show a failing prediction, one repair and a repeated check with its limits.
+
+**Optional challenge** Use the optional color-routing example with three reds and one blue to expose swapped rules.
+
+**Offline route** All failures can be traced with paper command/report cards.
+
+**Hint 1** Choose one input so cause and effect stay clear.
+
+**Hint 2** A successful run alone cannot identify a wrong known report.
+
+**Instructor guidance** Missing report stops after one; avoid relaxing admission or faking a report to pass.
+
+## Show one prediction and result
+
+Mission `share` · 10 minutes · Explain what your program did and what the evidence cannot prove.
+
+**Worked example** Pair A shows prediction, one change, observed result and one limit; then pairs B and C follow.
+
+**Predict** Which single output best supports your claim?
+
+**Change** Shorten your demonstration to one change and one observation.
+
+**Run** Use 1 minute preparation, 3 demonstrations of 2 minutes, 3 minutes shared reflection. Both partners speak.
+
+**Observe** Show saved trace, worksheet or observed supervised step; label simulation, paper or physical.
+
+**Explain** Name one next test that would increase confidence.
+
+**Success check** All three pairs demonstrate and state a specific limitation.
+
+**Optional challenge** Explain how a wrong known color differs from a missing report.
+
+**Offline route** Present the worksheet and paper trace.
+
+**Hint 1** Read your prediction before the result.
+
+**Hint 2** A trace supports instruction order, not physical arrival.
+
+**Instructor guidance** Keep all three demonstrations within ten minutes. Do not require successful hardware to explain evidence.

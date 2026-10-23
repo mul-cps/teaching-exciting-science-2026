@@ -66,7 +66,7 @@ def test_shared_application_and_recording_library(api, fake_ros):
     assert fake_ros.nodes[0].service[1] == SERVICE
     assert fake_ros.executors[0].num_threads == 4
     assert json.loads(command(api, 'recordings').result_json) == {'names': ['demo']}
-    result = command(api, 'run', '{"program":[{"op":"log","message":"hello"}]}')
+    result = command(api, 'run', json.dumps({'program':[{'op':'log','message':'hello'}],'admission':api.app.status()['admission']}))
     assert result.success, result.message
     api.app.thread.join(2)
     assert json.loads(command(api, 'status').result_json)['job'] == api.app.status()['job']
@@ -88,10 +88,10 @@ def test_malformed_or_forbidden_requests(api, operation, arguments):
 def test_noninstructor_reuses_application_gate(api):
     api.app.backend.physical = True
     try:
-        response = command(api, 'operator', '{"command":"zero_torque"}')
+        response = command(api, 'operator', json.dumps({'command':'zero_torque','admission':api.app.status()['admission']}))
         assert not response.success
         assert 'instructor' in response.message
-        response = command(api, 'recover')
+        response = command(api, 'recover',json.dumps({'admission':api.app.status()['admission']}))
         assert not response.success
         assert api.app.operator_busy is False
     finally:
@@ -105,15 +105,15 @@ def test_busy_and_stop_progress_during_waiting_operator(api):
     api.app.backend.stop = lambda: (stopped.set(), {'stopped': True})[-1]
     try:
         with ThreadPoolExecutor(max_workers=4) as pool:
-            pending = pool.submit(command, api, 'operator', '{"command":"zero_torque"}')
+            pending = pool.submit(command, api, 'operator', json.dumps({'command':'zero_torque','admission':api.app.status()['admission']}))
             assert entered.wait(1)
-            busy = command(api, 'run', '{"program":[{"op":"wait","seconds":0.1}]}')
+            busy = command(api, 'run', json.dumps({'program':[{'op':'wait','seconds':0.1}],'admission':api.app.status()['admission']}))
             assert not busy.success and 'active' in busy.message
             stop = pool.submit(command, api, 'stop')
             assert stop.result(timeout=1).success
             assert stopped.is_set() and not pending.done()
             release.set()
-            assert pending.result(timeout=1).success
+            assert not pending.result(timeout=1).success
     finally:
         release.set(); api.app.backend.physical = False
 
@@ -186,7 +186,7 @@ def test_active_operator_close_stops_and_preserves_backend_until_callback_finish
     api.app.backend.stop = lambda: (stops.append('STOP'), {'stopped': True})[-1]
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
-            pending = pool.submit(command, api, 'operator', '{"command":"zero_torque"}')
+            pending = pool.submit(command, api, 'operator', json.dumps({'command':'zero_torque','admission':api.app.status()['admission']}))
             assert entered.wait(1)
             with pytest.raises(RuntimeError, match='retain application ownership'):
                 api.close()
@@ -195,7 +195,7 @@ def test_active_operator_close_stops_and_preserves_backend_until_callback_finish
             assert fake_ros.shutdown == []
             assert not command(api, 'stop').success
             release.set()
-            assert pending.result(timeout=1).success
+            assert not pending.result(timeout=1).success
         api.close()
         assert fake_ros.nodes[0].destroyed
     finally:
@@ -220,16 +220,20 @@ def test_main_retains_application_on_incomplete_api_close(monkeypatch, tmp_path)
     assert events == []
 
 
-def test_optional_operator_cancellation_propagates_without_changing_default_http(api):
+def test_operator_cancellation_combines_application_stop_and_transport_shutdown(api):
     from workshop.blockly_ros import ROSBackend
     api.app.backend.physical = True; api.app.instructor = True
     calls = []
     api.app.backend.instructor = lambda command, **kwargs: (calls.append((command, kwargs)), {'ok': True})[-1]
     try:
         api.app.operator('zero_torque')
-        assert calls[-1] == ('zero_torque', {})
-        assert command(api, 'operator', '{"command":"zero_torque"}').success
-        assert calls[-1] == ('zero_torque', {'cancel': api.closing})
+        assert calls[-1][0]=='zero_torque'
+        assert calls[-1][1]['cancel'].local is api.app.control_cancel
+        assert calls[-1][1]['cancel'].parent is None
+        assert command(api, 'operator', json.dumps({'command':'zero_torque','admission':api.app.status()['admission']})).success
+        assert calls[-1][0]=='zero_torque'
+        assert calls[-1][1]['cancel'].local is api.app.control_cancel
+        assert calls[-1][1]['cancel'].parent is api.closing
         backend = ROSBackend.__new__(ROSBackend)
         backend.trigger = lambda *args, **kwargs: (calls.append((args, kwargs)), {'ok': True})[-1]
         backend.instructor('zero_torque')
@@ -238,3 +242,29 @@ def test_optional_operator_cancellation_propagates_without_changing_default_http
         assert calls[-1][1]['cancel'] is api.closing
     finally:
         api.app.backend.physical = False
+
+
+def test_delayed_run_callback_behind_stop_is_rejected(api):
+    stamp=api.app.status()['admission']
+    entered=threading.Event();release=threading.Event();original=api.app.run_external
+    def delayed(program,admission):
+        entered.set();assert release.wait(2)
+        return original(program,admission)
+    api.app.run_external=delayed
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        late=pool.submit(command,api,'run',json.dumps({'program':[{'op':'log','message':'must not run'}],'admission':stamp}))
+        assert entered.wait(2)
+        assert command(api,'stop').success
+        release.set();response=late.result(2)
+    assert not response.success
+    assert 'admission' in response.message
+    assert api.app.thread is None
+    assert 'must not run' not in api.app.backend.events
+
+@pytest.mark.parametrize('operation,arguments',[
+    ('operator',{'command':'start'}),('recover',{}),('record_start',{'name':'move'}),('record_stop',{})])
+def test_mutating_ros_controls_require_admission(api,operation,arguments):
+    api.app.backend.instructor=lambda *args,**kwargs:pytest.fail('unstamped mutation dispatched')
+    assert not command(api,operation,json.dumps(arguments)).success
+    arguments['admission']=api.app.status()['admission'];command(api,'stop')
+    assert not command(api,operation,json.dumps(arguments)).success

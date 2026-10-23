@@ -172,7 +172,11 @@ class ROSBackend:
         generation=status.get('owner_started_monotonic')
         if not isinstance(source,dict) or not source or type(generation) not in (int,float) or not math.isfinite(generation):
             raise RuntimeError('owner generation/source identity unavailable')
-        return {'arm_id':status['arm_id'],'calibration_sha256':status['calibration_sha256'],
+        calibrations={field:status.get(field) for field in ('jaw_calibration_sha256','joint_calibration_sha256')}
+        for value in calibrations.values():
+            if value is not None and (not isinstance(value,str) or len(value)!=64 or any(c not in '0123456789abcdef' for c in value)):
+                raise RuntimeError('loaded calibration digest malformed')
+        return {**calibrations,'arm_id':status['arm_id'],'calibration_sha256':status['calibration_sha256'],
                 'owner_generation':generation,'source_sha256':hashlib.sha256(json.dumps(source,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
 
     def sample(self):
@@ -344,6 +348,16 @@ class ROSBackend:
             for command in ARM_SERVICES[row['command']]:
                 self.trigger('/station/operator/'+command,cancel,deadline)
             return
+        if row['op']=='pick_place_recording':
+            from workshop.station.taught_execution import TaughtSession
+            library=getattr(self,'skill_library',None)
+            if library is None: raise RuntimeError('private taught skill library not configured')
+            session=TaughtSession(self,library)
+            self.taught_session=session
+            try: return session.run(row['name'],row['speed'],cancel,deadline)
+            finally:
+                session.stop()
+                self.node.destroy_subscription(session.subscription)
         if row['op']=='sort_cycle':
             from so101_station_workflow.srv import RunCycles
             request=RunCycles.Request(); request.cycles=1
@@ -366,32 +380,117 @@ class ROSBackend:
             result=self._action(self.jaw,goal,cancel,deadline)
             if not result.reached_goal or result.stalled: raise RuntimeError('jaw did not reach requested gap')
             return
-        if row['op']=='replay':
-            from trajectory_msgs.msg import JointTrajectoryPoint
-            from builtin_interfaces.msg import Duration
+        if row['op'] in {'replay','approach_recording'}:
             recording=self.recordings.get(row['name'])
             if recording is None: raise RuntimeError('recording not found')
             identity=self.identity()
             sample=self.sample()
             points=replay_points(recording,identity,row['speed'],timing=row.get('timing','original'),
-                                 start_radians=dict(zip(JOINTS,sample['positions'])))
-            if sample['identity']!=recording['identity']: raise RuntimeError('owner cohort changed during replay admission')
-            if max(abs(a-b) for a,b in zip(sample['positions'],points[0]['positions']))>math.radians(2):
-                raise RuntimeError('move to recorded start under instructor supervision before replay')
+                                 start_radians=dict(zip(JOINTS,sample['positions'])),physical=True)
+            if sample['identity']!=identity: raise RuntimeError('owner cohort changed during replay admission')
             if abs(sample['jaw']-recording['jaw_radians'])>.015: raise RuntimeError('jaw differs from recorded fixed-jaw stroke')
-            goal=self.FJT.Goal(); goal.trajectory.joint_names=list(JOINTS)
-            for row in points:
-                ns=round(row['time']*1e9); sec,nanosec=divmod(ns,1000000000)
-                goal.trajectory.points.append(JointTrajectoryPoint(positions=row['positions'],time_from_start=Duration(sec=sec,nanosec=nanosec)))
-            result=self._action(self.arm,goal,cancel,deadline)
-            if result.error_code!=0: raise RuntimeError('trajectory failed: '+result.error_string)
+            if row['op']=='approach_recording':
+                points=self._plan_recording_start(points[0]['positions'],sample,row['speed'],cancel,deadline)
+                current=self.sample()
+                if current['identity']!=identity: raise RuntimeError('owner cohort changed during approach planning')
+                if abs(current['jaw']-sample['jaw'])>.015: raise RuntimeError('jaw changed during approach planning')
+                if max(abs(a-b) for a,b in zip(current['positions'],sample['positions']))>math.radians(2):
+                    raise RuntimeError('follower moved during approach planning; replan explicitly')
+            elif max(abs(a-b) for a,b in zip(sample['positions'],points[0]['positions']))>math.radians(2):
+                raise RuntimeError('move to recorded start under instructor supervision before replay')
+            self._execute_recording_trajectory(points,cancel,deadline,identity=identity,jaw=sample['jaw'])
+            final=self.sample()
+            if final['identity']!=identity: raise RuntimeError('owner cohort changed during recording operation')
+            if abs(final['jaw']-sample['jaw'])>.015: raise RuntimeError('jaw changed during recording operation')
+            if row['op']=='approach_recording':
+                if final['stamp']<=sample['stamp']: raise RuntimeError('approach lacks fresh measured arrival')
+                if max(abs(a-b) for a,b in zip(final['positions'],recording['points'][0]['positions']))>math.radians(2):
+                    raise RuntimeError('approach did not reach recorded start')
             return
         raise ValueError('unsupported physical command')
+
+    def _plan_recording_start(self,target,sample,speed,cancel,deadline):
+        """Absolute joint goal from a complete measured start, using current scene.
+
+        The existing resident trajectory server retains final retiming, limits,
+        measured-start validation and collision admission before execution.
+        """
+        from moveit_msgs.msg import Constraints, JointConstraint, MotionPlanRequest, RobotState
+        from moveit_msgs.srv import GetMotionPlan
+        from tools.ros_plan_current import prepare_with_retiming
+        request=GetMotionPlan.Request(); plan=MotionPlanRequest()
+        plan.group_name='manipulator'; plan.pipeline_id='ompl'; plan.planner_id='RRTConnectkConfigDefault'
+        plan.allowed_planning_time=min(5.,max(.1,deadline-time.monotonic()))
+        plan.num_planning_attempts=3; plan.max_velocity_scaling_factor=speed; plan.max_acceleration_scaling_factor=speed
+        plan.start_state=RobotState(); plan.start_state.is_diff=False
+        plan.start_state.joint_state.header.stamp=self.node.get_clock().now().to_msg()
+        plan.start_state.joint_state.name=list(JOINTS)+['gripper']
+        plan.start_state.joint_state.position=list(sample['positions'])+[sample['jaw']]
+        constraints=Constraints()
+        for joint,value in zip(JOINTS,target):
+            constraint=JointConstraint(); constraint.joint_name=joint; constraint.position=value
+            constraint.tolerance_above=.001; constraint.tolerance_below=.001; constraint.weight=1.
+            constraints.joint_constraints.append(constraint)
+        plan.goal_constraints=[constraints]; request.motion_plan_request=plan
+        endpoint='/follower/plan_kinematic_path'
+        with self.lock:
+            client=self.clients.get(endpoint)
+            if client is None:
+                client=self.node.create_client(GetMotionPlan,endpoint); self.clients[endpoint]=client
+        while not client.service_is_ready():
+            if cancel.is_set(): raise InterruptedError('approach planning cancelled')
+            if time.monotonic()>=deadline: raise TimeoutError('MoveIt planning service unavailable')
+            cancel.wait(.02)
+        future=client.call_async(request)
+        try: response=self._wait(future,cancel,deadline).motion_plan_response
+        except BaseException:
+            client.remove_pending_request(future); raise
+        if response.error_code.val!=1: raise RuntimeError('MoveIt approach planning failed: '+str(response.error_code.val))
+        trajectory=response.trajectory.joint_trajectory
+        if len(trajectory.joint_names)!=5 or set(trajectory.joint_names)!=set(JOINTS): raise RuntimeError('planner returned unexpected arm joints')
+        if not 2<=len(trajectory.points)<=600: raise RuntimeError('planner returned unbounded or empty trajectory')
+        indices=[trajectory.joint_names.index(joint) for joint in JOINTS]
+        points=[]
+        for point in trajectory.points:
+            if len(point.positions)!=5: raise RuntimeError('planner returned incomplete joint positions')
+            positions=[point.positions[index] for index in indices]
+            if any(not math.isfinite(value) for value in positions): raise RuntimeError('planner returned nonfinite positions')
+            stamp=point.time_from_start.sec+point.time_from_start.nanosec*1e-9
+            if not math.isfinite(stamp) or stamp<0 or (points and stamp<=points[-1]['time']): raise RuntimeError('planner returned invalid timing')
+            points.append({'time':stamp,'positions':positions})
+        if max(abs(a-b) for a,b in zip(points[-1]['positions'],target))>.0011: raise RuntimeError('planner did not reach recording target')
+        _,effective,_=prepare_with_retiming(JOINTS,points,start_radians=dict(zip(JOINTS,sample['positions'])),
+                                            velocity_scale=speed,acceleration_scale=speed)
+        return effective
+
+    def _execute_recording_trajectory(self,points,cancel,deadline,*,identity,jaw):
+        from trajectory_msgs.msg import JointTrajectoryPoint
+        from builtin_interfaces.msg import Duration
+        backend=self
+        class CohortGuard:
+            def is_set(self):
+                if cancel.is_set(): return True
+                current=backend.sample()
+                if current['identity']!=identity: raise RuntimeError('owner cohort changed during trajectory')
+                if abs(current['jaw']-jaw)>.015: raise RuntimeError('jaw changed during fixed-jaw trajectory')
+                return False
+            def wait(self,seconds): return cancel.wait(seconds)
+        goal=self.FJT.Goal(); goal.trajectory.joint_names=list(JOINTS)
+        for point in points:
+            ns=round(point['time']*1e9); sec,nanosec=divmod(ns,1000000000)
+            goal.trajectory.points.append(JointTrajectoryPoint(positions=point['positions'],time_from_start=Duration(sec=sec,nanosec=nanosec)))
+        result=self._action(self.arm,goal,CohortGuard(),deadline)
+        if result.error_code!=0: raise RuntimeError('trajectory failed: '+result.error_string)
 
     def stop(self):
         with self.stop_lock: return self._stop()
 
     def _stop(self):
+        producer_error=None
+        session=getattr(self,'taught_session',None)
+        if session is not None:
+            try: session.request_stop()
+            except Exception as error: producer_error=str(error)[:256]
         with self.action_lock: handle=self.active_handle
         cancel_error=None
         if handle is not None:
@@ -400,6 +499,9 @@ class ROSBackend:
             except Exception as error: cancel_error=str(error)[:256]
         deadline=time.monotonic()+15
         reply=self.trigger('/station/stop',deadline=deadline)
+        if session is not None:
+            try: session.wait_stopped()
+            except Exception as error: producer_error=str(error)[:256]
         request_id=reply.get('request_id')
         if not isinstance(request_id,str) or not request_id: raise RuntimeError('station STOP API lacks correlation; update station API before physical Blockly')
         while True:
@@ -408,6 +510,7 @@ class ROSBackend:
                 raise RuntimeError('STOP correlation changed')
             if status.get('pending') is False and status.get('ev3_stopped') is True and status.get('arm_disarmed') is True:
                 if cancel_error: status=dict(status,action_cancel_error=cancel_error)
+                if producer_error: raise RuntimeError('station stopped; taught producer termination unresolved: '+producer_error)
                 return status
             if time.monotonic()>=deadline: raise RuntimeError('STOP terminal acknowledgements missing')
             time.sleep(.05)
@@ -422,6 +525,8 @@ class ROSBackend:
             if self.active_handle is not None: raise RuntimeError('previous action terminal result is unresolved')
         with self.lock:
             if self.pending_mutations: raise RuntimeError('mutating ROS request/goal delivery still unresolved; keep station stopped')
+        session=getattr(self,'taught_session',None)
+        if session is not None: session.reconcile_terminated()
         self.stop()
         check()
         status=self.trigger('/follower/status',**context)

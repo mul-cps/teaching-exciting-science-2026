@@ -64,7 +64,8 @@ def cached_recording_operation(modules):
         'schema': 1, 'kind': 'follower_status', 'sampled_monotonic': 1000000.,
         'fresh': True, 'position_age_s': 0., 'torque_age_s': 0.,
         'owner_source_sha256': {'owner': 'b' * 64}, 'owner_started_monotonic': 123.,
-        'arm_id': 'benchmark', 'calibration_sha256': 'a' * 64})
+        'arm_id': 'benchmark', 'calibration_sha256': 'a' * 64,
+        'jaw_calibration_sha256':'c'*64,'joint_calibration_sha256':'d'*64})
     identity = backend.sample()['identity']
     recorder_type = modules['blockly_recording'].Recorder
 
@@ -93,7 +94,8 @@ def owner_refresh_operation(modules, *, pending):
         'schema': 1, 'kind': 'follower_status', 'sampled_monotonic': 1000000.,
         'fresh': True, 'position_age_s': .2, 'torque_age_s': .2,
         'owner_source_sha256': {'owner': 'b' * 64}, 'owner_started_monotonic': 123.,
-        'arm_id': 'benchmark', 'calibration_sha256': 'a' * 64})
+        'arm_id': 'benchmark', 'calibration_sha256': 'a' * 64,
+        'jaw_calibration_sha256':'c'*64,'joint_calibration_sha256':'d'*64})
     response = types.SimpleNamespace(success=True, message=payload)
 
     class Future:

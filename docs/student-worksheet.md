@@ -1,51 +1,148 @@
-# My sorting factory
-22 October 2026 · Pair names ______________________________
+<!-- Generated from curriculum/workshop.json; edit the source, then run tools/build_notebooks.py. -->
 
-Predict → change one thing → run → check. One partner predicts and one types; swap. Run notebook cells with Shift+Enter and save with Ctrl+S or Command+S. Red → left; blue → right; everything else → reject.
+# Robot factory worksheet
 
-## Logic and Python 25 to 65 minutes
-Blockly levels 1–3: one wrong step and its repair __________________
+Build an offline robot factory from ordered instructions. Start with one fixed pickup fixture and one fixed destination. Pair roles: driver edits; observer predicts and checks; swap halfway. Only the instructor enables supervised hardware.
 
-Python value we changed ______________ Predicted output ___________
+Pair names: __________________  Driver first: __________  Observer first: __________
 
-Observed output ___________________ = stores; == asks if equal.
+| Minutes | Duration | Session |
+|---|---|---|
+| 0-20 | 20 | Meet our factory |
+| 20-45 | 25 | Ordered instructions |
+| 45-65 | 20 | Observations and uncertainty |
+| 65-95 | 30 | First Python edits |
+| 95-105 | 10 | Break |
+| 105-120 | 15 | Teach inspect and replay demonstration |
+| 120-165 | 45 | Explore three stations |
+| 165-210 | 45 | Build the physical sequence |
+| 210-230 | 20 | Improve one failure |
+| 230-240 | 10 | Three pair demonstrations |
 
-## Camera learning 65 to 85 minutes
-A red object reported as blue goes __________ A missing report goes _______
+## Make a short conveyor story
 
-Changed background or lighting and result ________________________
+Put instructions in order and repeat a small section.
 
-## Break 85 to 95 minutes
-Save. Your group starts at _______________________________
+Predict: ______________________________
 
-## Three stations 95 to 140 minutes
-Robot and twin evidence circle one: LIVE / invented DEMO
+One change: ___________________________
 
-Joint ______________ Relative prediction ______ Absolute prediction ______
+Run and observed evidence: ______________________________
 
-One observed direction or possible twin mismatch __________________
+Explain and limit: ______________________________
 
-Camera and conveyor: why stop before picking _____________________
+Evidence source (circle): PAPER / SIMULATION / PHYSICAL
 
-Virtual robot: predicted destinations __________ Observed __________
+Success check: Your pair can trace the order, predict a repeat count and explain one corrected sequence.
 
-## Complete factory 140 to 190 minutes
-Our rule change ______________________________________________
+## Separate the object from its report
 
-Predicted left ____ right ____ reject ____ total ____
+Recognise missing and incorrect observations.
 
-Observed left ____ right ____ reject ____ total ____
+Predict: ______________________________
 
-Does the action order also match _________________________________
+One change: ___________________________
 
-## Challenges 190 to 225 minutes
-Experiment 1 prediction ________________________________________
+Run and observed evidence: ______________________________
 
-Evidence _____________________________________________________
+Explain and limit: ______________________________
 
-Experiment 2 prediction and evidence ____________________________
+Evidence source (circle): PAPER / SIMULATION / PHYSICAL
 
-## Demos 225 to 240 minutes
-One change, one result, one real-world limitation __________________
+Success check: You identify one missing and one wrong report and choose pause/inspect for uncertainty.
 
-____________________________________________________________
+## Change a name and a number
+
+Read and edit a short Python program before sharing the same program representation with blocks.
+
+Predict: ______________________________
+
+One change: ___________________________
+
+Run and observed evidence: ______________________________
+
+Explain and limit: ______________________________
+
+Evidence source (circle): PAPER / SIMULATION / PHYSICAL
+
+Success check: Both partners make one edit and explain it; shared commands are validated before execution.
+
+## Watch teach inspect return replay
+
+Understand that a recorded stroke needs validated start/end poses and explicit jaw state.
+
+Predict: ______________________________
+
+One change: ___________________________
+
+Run and observed evidence: ______________________________
+
+Explain and limit: ______________________________
+
+Evidence source (circle): PAPER / SIMULATION / PHYSICAL
+
+Success check: You can say teach → inspect/validate → return to start → replay, and point to STOP.
+
+## Explore three stations
+
+Connect observations, instructions and the robot model.
+
+Predict: ______________________________
+
+One change: ___________________________
+
+Run and observed evidence: ______________________________
+
+Explain and limit: ______________________________
+
+Evidence source (circle): PAPER / SIMULATION / PHYSICAL
+
+Success check: Every pair completes all three positions with one recorded prediction and evidence statement per position.
+
+## Dispense carry pick and place
+
+Assemble the supervised fixed pickup to fixed destination sequence.
+
+Predict: ______________________________
+
+One change: ___________________________
+
+Run and observed evidence: ______________________________
+
+Explain and limit: ______________________________
+
+Evidence source (circle): PAPER / SIMULATION / PHYSICAL
+
+Success check: Your pair explains the full fixed-fixture sequence and records honest per-step evidence. Physical completion requires observed object transfer; offline completion is labelled rehearsal.
+
+## Find one failure and test a repair
+
+Use a controlled change and evidence to improve a sequence.
+
+Predict: ______________________________
+
+One change: ___________________________
+
+Run and observed evidence: ______________________________
+
+Explain and limit: ______________________________
+
+Evidence source (circle): PAPER / SIMULATION / PHYSICAL
+
+Success check: You show a failing prediction, one repair and a repeated check with its limits.
+
+## Show one prediction and result
+
+Explain what your program did and what the evidence cannot prove.
+
+Predict: ______________________________
+
+One change: ___________________________
+
+Run and observed evidence: ______________________________
+
+Explain and limit: ______________________________
+
+Evidence source (circle): PAPER / SIMULATION / PHYSICAL
+
+Success check: All three pairs demonstrate and state a specific limitation.

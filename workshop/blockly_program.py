@@ -38,7 +38,7 @@ def validate_program(program):
         for row in rows:
             if not isinstance(row, dict): raise ValueError('command must be an object')
             op = row.get('op')
-            fields = {'wait':{'seconds'}, 'ev3':{'command'}, 'replay':{'name','speed'},
+            fields = {'wait':{'seconds'}, 'ev3':{'command'}, 'replay':{'name','speed'}, 'approach_recording':{'name','speed'}, 'pick_place_recording':{'name','speed'},
                       'station':{'command'}, 'arm':{'command'}, 'record_stroke':{'name','seconds'}, 'jaw':{'gap_mm'}, 'repeat':{'count','body'},
                       'if_color':{'color','then','else'}, 'stop':set(), 'sort_cycle':set(), 'log':{'message'}}
             if not isinstance(op,str) or op not in fields or (set(row) != fields[op] | {'op'} and not (op=='replay' and set(row)==fields[op] | {'op','timing'})):
@@ -53,7 +53,7 @@ def validate_program(program):
                 if not isinstance(row['command'],str) or row['command'] not in ARM: raise ValueError('unknown arm command')
             elif op == 'record_stroke':
                 name(row['name']); number(row['seconds'],1,30)
-            elif op == 'replay':
+            elif op in {'replay','approach_recording','pick_place_recording'}:
                 name(row['name']); number(row['speed'],.1,1)
                 if row.get('timing','original') not in ('original','skip_stationary_pauses'): raise ValueError('unknown replay timing mode')
             elif op == 'jaw': number(row['gap_mm'],0,200)
@@ -83,7 +83,7 @@ class ProgramRunner:
     def execute(self, program, cancel):
         validate_program(program)
         deadline = self.clock()+180
-        sort_results=[]
+        sort_results=[]; skill_results=[]
         def check():
             if cancel.is_set(): raise InterruptedError('program cancelled')
             if self.clock() >= deadline: raise TimeoutError('180 second program deadline')
@@ -110,12 +110,21 @@ class ProgramRunner:
                     raise _ProgramStopped()
                 elif op == 'log': self.backend.log(row['message'])
                 elif op == 'sort_cycle': sort_results.append(self.dispatch(row,cancel,deadline))
+                elif op == 'pick_place_recording':
+                    value=self.dispatch(row,cancel,deadline)
+                    if self.backend.physical:
+                        from workshop.blockly_skills import validate_skill_result
+                        validate_skill_result(value)
+                    elif not isinstance(value,dict) or value.get('simulation') is not True or value.get('physical_evidence') is not False:
+                        raise RuntimeError('explicit synthetic skill assumptions required')
+                    skill_results.append(value)
                 else: self.dispatch(row, cancel, deadline)
                 check()
         try:
             run(program)
             result={'complete':True}
             if sort_results: result['sort_cycles']=sort_results
+            if skill_results: result['taught_skills']=skill_results
             return result
         except _ProgramStopped:
             return {'complete':False,'stopped':True}
@@ -129,6 +138,8 @@ class SimulationBackend:
     """Explicit simulator: never imports ROS or accesses physical devices."""
     physical=False
     def __init__(self, recordings=None):
+        from workshop.blockly_simulation_state import SimulationState
+        self.state=SimulationState()
         self.events=[]; self.recordings=recordings if recordings is not None else {}; self.observed_color='red'
     def color(self): return self.observed_color
     def log(self,message): self.events.append(message); self.events=self.events[-100:]
@@ -141,18 +152,28 @@ class SimulationBackend:
             self.log('station:'+row['command']+' (simulation)')
             if row['command'] in {'reinitialize','verify_recovery'}: return self.recover(cancel=cancel,deadline=deadline)
             return {'acknowledged':True,'simulation':True}
-        if row['op']=='replay' and row['name'] not in self.recordings: raise RuntimeError('recording not found')
+        if row['op'] in {'replay','approach_recording'} and row['name'] not in self.recordings: raise RuntimeError('recording not found')
+        if row['op']=='pick_place_recording':
+            self.state.apply({'op':'sort_cycle'})
+            self.state.segment='pick_place_recording:'+row['name']
+            self.state.assumption='Synthetic taught transaction assumes contact, lift, transfer and release; no physical evidence.'
+            self.log(self.state.assumption)
+            return {'simulation':True,'physical_evidence':False,'name':row['name'],
+                    'state':'synthetic_pick_place_complete','pickup_verified':False,'lift_verified':False,
+                    'release_verified':False,'assumptions':self.state.assumption}
         if row['op']=='sort_cycle':
             color=self.color()
             if color not in {'red','blue','green','yellow'}: raise RuntimeError('simulation has no commissioned destination for unknown color')
+            self.state.apply(row)
             result={'completed':1,'colors':{color:1}}
             self.log('sort_cycle: '+color+' → commissioned destination (simulation)')
             return result
+        self.state.apply(row)
         self.log(row['op']+':'+str(row.get('command',row.get('name',row.get('gap_mm')))))
     def recover(self,*,cancel=None,deadline=None):
         if cancel is not None and cancel.is_set(): raise InterruptedError('simulation recovery cancelled')
         if deadline is not None and time.monotonic()>=deadline: raise TimeoutError('simulation recovery deadline expired')
         self.log('station recovery verified (simulation)'); return {'recovered':True,'simulation':True}
-    def stop(self): self.log('STOP'); return {'acknowledged':True,'simulation':True}
-    def status(self): return {'physical':False,'color':self.color(),'events':self.events[-20:]}
+    def stop(self): self.state.apply({'op':'stop'}); self.log('STOP'); return {'acknowledged':True,'simulation':True}
+    def status(self): return {'physical':False,'color':self.color(),'events':self.events[-20:],'simulation_state':self.state.snapshot()}
     def close(self): pass

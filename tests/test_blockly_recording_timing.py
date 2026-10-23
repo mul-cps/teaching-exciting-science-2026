@@ -4,7 +4,7 @@ import pytest
 from workshop.blockly_recording import (Recorder, replay_points, stationary_pause_points,
                                         nominal_curve_bounds, recording_timing)
 
-IDENTITY={'arm_id':'a','calibration_sha256':'b'*64}
+IDENTITY={'arm_id':'a','calibration_sha256':'b'*64,'jaw_calibration_sha256':'c'*64,'joint_calibration_sha256':'d'*64}
 
 
 def record(points):

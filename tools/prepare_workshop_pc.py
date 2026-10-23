@@ -234,23 +234,35 @@ def blockly_status(port=8877):
     return json.loads(result.stdout)
 
 
-def blockly_command(physical):
+def private_skills_directory(skills):
+    if skills is None: return None
+    path=Path(skills).expanduser().resolve()
+    if not path.is_dir(): raise ValueError('private taught skill directory is unavailable')
+    return str(path)
+
+
+def blockly_command(physical,*,skills=None):
+    if skills is not None and not physical: raise ValueError('private taught skills require explicit physical mode')
+    skills=private_skills_directory(skills)
     script = str(ROOT / 'tools/run_blockly_station.py')
     recordings = STATE / ('blockly-physical-recordings' if physical else 'blockly-simulation-recordings')
     arguments = [script, '--port', '8877', '--recordings', str(recordings)]
+    if skills is not None: arguments += ['--skills',skills]
     if physical:
         return [str(Path.home() / '.local/bin/station-fwmini4'), 'ros-vulkan', 'python',
                 *arguments, '--physical', '--instructor']
     return [sys.executable, *arguments]
 
 
-def blockly(action):
+def blockly(action,*,skills=None):
     # Reuse the existing session/PID-reuse checks and bounded pidfd cleanup.
     sys.path.insert(0, str(ROOT))
     from tools.station_process import process_identity, same_process, cleanup_session, save
     STATE.mkdir(parents=True, exist_ok=True)
     path = STATE / 'blockly-server.json'
     physical = action == 'blockly-physical'
+    if skills is not None and not physical: raise ValueError('private taught skills require explicit physical mode')
+    skills=private_skills_directory(skills)
     with (STATE / 'blockly-launch.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         try:
@@ -271,6 +283,8 @@ def blockly(action):
                 return
             if record.get('physical') is not physical:
                 raise RuntimeError('Blockly is already running in the other mode. Close it explicitly with blockly-close before changing mode.')
+            if record.get('skills') != skills:
+                raise RuntimeError('Blockly private skill configuration differs; close it explicitly before changing configuration.')
             if blockly_status().get('physical') is not physical:
                 raise RuntimeError('Blockly HTTP mode differs from the recorded launch; no new server was started.')
         elif action == 'blockly-close':
@@ -290,13 +304,13 @@ def blockly(action):
                 _, manifest = station_manifest()
                 env.update(ROS_DOMAIN_ID=str(manifest['domain']), ROS_LOCALHOST_ONLY='1', ROS_AUTOMATIC_DISCOVERY_RANGE='LOCALHOST')
             with (STATE / 'blockly-server.log').open('a') as log:
-                child = subprocess.Popen(blockly_command(physical), cwd=ROOT, env=env,
+                child = subprocess.Popen(blockly_command(physical,skills=skills), cwd=ROOT, env=env,
                                          stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                                          start_new_session=True)
             identity = process_identity(child.pid)
             if identity is None:
                 raise RuntimeError('Blockly exited before its process identity could be recorded; inspect blockly-server.log.')
-            record = {'process': identity, 'members': [identity], 'root': str(ROOT), 'physical': physical}
+            record = {'process': identity, 'members': [identity], 'root': str(ROOT), 'physical': physical,'skills':skills}
             save(path, record)
             deadline = time.monotonic() + 20
             while True:
@@ -316,13 +330,14 @@ def blockly(action):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['prepare', 'student', 'live', 'station', 'station-preflight', 'blockly-simulation', 'blockly-physical', 'blockly-close', '_blockly-probe'])
+    parser.add_argument('--skills',type=Path,help='Private commissioned taught skill directory; physical Blockly only')
     parser.add_argument('--probe-port', type=int, default=8877, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.action == '_blockly-probe':
         print(json.dumps(blockly_probe(args.probe_port)))
     elif args.action.startswith('blockly-'):
         try:
-            blockly(args.action)
+            blockly(args.action,**({'skills':args.skills} if args.skills is not None else {}))
         except (OSError, ValueError, RuntimeError, KeyError) as error:
             print(str(error), file=sys.stderr)
             if sys.stdin.isatty():

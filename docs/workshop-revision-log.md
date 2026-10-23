@@ -1,3 +1,30 @@
+# Beginner workshop revision evidence
+
+## Current route from 22 October 2026
+
+The authored source is `curriculum/workshop.json`. The current beginner route is
+20 + 25 + 20 + 30 + 10 + 15 + 45 + 45 + 20 + 10 = 240 minutes, with eight visual
+introductory slides totaling 20 minutes and separate practical mission cards.
+Six beginners work in three pairs. Both three-position rotation circuits use
+15-minute slots including transitions. The core sequence uses a fixed pickup
+fixture and a fixed destination; color-dependent destinations are an extension.
+The essential Blockly, Python, notebook and paper routes work offline.
+
+| Review pass | Actual evidence for this revision | Remaining boundary |
+|---|---|---|
+| Beginner clarity | Each practical mission exposes worked example, predict/change/run/observe/explain, success, two hints and optional challenge. Short greeting and shared Program simulation examples replace the old color-first core. | No first-time learner observation or teaching trial has been performed. |
+| Pacing | Validator checks the approved ten durations, eight intro slides totaling 20 minutes, three pairs and two circuits of three stations. Rotation cards allocate transitions. | This is a desk check, not an elapsed 240-minute classroom rehearsal. |
+| Consistency | Primary lesson plan, instructor guide, worksheet, practical cards, browser curriculum, scripts and three notebooks are generated from the one JSON source; source and artifact checks detect drift. Fresh-kernel execution checks the simulated examples and altered routing inputs. | Hardware commissioning cannot be established by generators or software tests. |
+| Presentation | Actual editable PPTX/PDF and five DOCX/PDF handouts are built. Full slide/page renders are reviewed; photographs retain actual station provenance and altered reports are labelled. | Classroom projector and actual-size printer review remain to be performed. |
+| Full physical rehearsal | No new physical acceptance claimed. Paper and simulation explicitly identify their evidence source. | Full physical rehearsal remains pending: fwmini4 has no attached devices; taught fixed-fixture payload grasp/lift/place/release and three consecutive complete EV3-to-return cycles are unverified. |
+
+## Historical revision and operational evidence
+
+The dated material below records the previous route and its evidence. Its
+18-slide deck, 25-minute introduction and previous activity durations have been
+superseded by the current source above. Historical hardware observations retain
+their original scope and do not qualify the new fixed-fixture sequence.
+
 # Five workshop revision passes
 
 The current deliverable is an 18-slide whole-class deck: ten introductory slides for 25 minutes and eight timed activity checkpoints. The complete route is **25 + 10 + 30 + 20 + 10 + 45 + 50 + 35 + 15 = 240 minutes**. All five passes below have actual results. Physical gripper calibration and a complete autonomous sorting cycle remain separate acceptance work.

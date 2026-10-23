@@ -1,4 +1,4 @@
-# Blockly station lab — implementation and lesson
+# Blockly station lab — interface and operating boundaries
 
 ## Design
 
@@ -17,34 +17,27 @@ inputs. It saves its own Blockly workspace JSON; upstream XML `.nodeblocks`
 files are not interchangeable. Station automation blocks use the existing ROS 2
 gateway. This is not the unmodified ROS Blocky desktop application.
 
-## Implementation plan
+## Canonical beginner lesson
 
-1. Strict program validation, bounded recorder, simulator and failure tests.
-2. ROS adapter using existing guarded services/actions and exact terminal results.
-3. Offline browser editor, workspace import/export, simulation and instructor tab.
-4. Fake ROS/browser qualification; independent review; physical qualification by
-   the instructor on the connected station before any classroom execution.
+The four-hour schedule, eight missions, worked examples and success criteria come
+from [curriculum/workshop.json](../curriculum/workshop.json). Use the generated
+[lesson plan](lesson-plan.md), [practical activity cards](activity-cards.md),
+[student worksheet](student-worksheet.md) and [student Blockly guide](blockly-student.md).
+The browser consumes the same generated mission projection and exposes categories
+progressively. Maintenance blocks, recovery controls and legacy starters belong
+to the instructor drawer. Loading a mission never runs it.
 
-## Lesson (replace the 35-minute independent challenge)
-
-- 0–5 min: predict the supplied dispense/wait/transfer sequence, run simulation.
-- 5–12 min: change a repeat count and add a conveyor movement in simulation.
-  Swap driver and observer roles.
-- 12–22 min: build red/blue decisions with the simulated EV3 color sensor and
-  compare their action lists.
-- 22–30 min: test unknown, placing its log/STOP before manipulation. Try a starter
-  workspace or extend a working sequence one instruction at a time.
-- 30–35 min: save and demonstrate the blocks, prediction and corrected mistake.
-
-The [supervised physical challenge](blockly-student.md#supervised-physical-automation-challenge)
-uses time within the robot rotation or this challenge slot. Teach and replay one
-short fixed-jaw stroke before adding EV3 actions. Add dispensing and measured
-jaw-gap instructions only when those components are commissioned. The 35-minute
-class activity remains achievable entirely in simulation.
+Pairs predict, change one value, run, observe and explain. Simulation has explicit
+synthetic conveyor/brick/jaw state; command logs, jaw closure and ordinary replay
+do not establish physical grasp or placement. The final supervised integration
+combines the commissioned EV3 conveyor with a named taught pick/place skill for
+one fixed pickup fixture and one fixed drop. That named transaction is
+implemented but **no commissioned physical skill is supplied**; use the offline
+route until its [qualification gates](taught-pick-place.md) pass.
 
 A recording is not a qualified plan. Replay retains the bridge's collision and
 sample-hash checks and may reject a demonstrated path. It starts at the recorded
-pose: it never automatically travels there. Record separate strokes with a
+pose. A separate explicit `approach_recording` block can plan to that start; replay itself never inserts an approach. Record separate strokes with a
 constant jaw; changing jaw during recording rejects that recording. Replay speed
 is 0.1–1.0, default 0.5; the bridge remains authoritative for all motion limits.
 
@@ -106,11 +99,10 @@ copy for **Open blocks**. Save an edited workspace before loading another.
    use a separate run for arm modes or motion. Restart does not enable torque or
    approach a saved pose automatically.
 
-The physical editor initially loads an instructional log, not a dispense/replay
-demonstration. Student instructions link to all five workspaces. Loading a starter never runs it.
-The toolbox groups **Station controls** (reset, recovery and services), **SO-ARM101** (arm commands and metric jaw), **Recordings**
-(timed capture and named replay), **EV3 conveyor**, **Flow & decisions** (including
-the commissioned sorting-cycle block), and **ROS Blocky · logging**.
+Both editor modes load the canonical selected mission. Its toolbox exposes only
+the current learning categories; instructor maintenance categories are opt-in
+inside the drawer. The five legacy starters remain instructor utilities.
+Loading a starter never runs it; physical backend admission remains mandatory.
 
 
 ### Recording and replay
@@ -126,7 +118,8 @@ the commissioned sorting-cycle block), and **ROS Blocky · logging**.
    Physical names must be new: no overwrite, repeated record block, or recording
    under any nested repeat whose expanded execution count exceeds one.
 4. Disable teleoperation in RViz. Return the follower to the recorded starting
-   pose under supervision. A replay never makes this approach automatically.
+   pose under supervision, or use a separate explicit approach block with current
+   MoveIt/scene admission. Replay never makes this approach automatically.
 5. Enter that name in a replay block, initially at speed 0.5. Capture and replay
    use separate programs and separate **Run sequence** actions; do not combine
    recording and playback in one program.
@@ -138,8 +131,14 @@ the commissioned sorting-cycle block), and **ROS Blocky · logging**.
    The currently recorded single 9 mm point does not qualify an interval.
 
 Recordings contain five measured arm angles plus the fixed jaw angle and a
-pinned arm/calibration/owner-generation/source identity. They are invalid after an
-owner restart/reconnect; record fresh strokes in the new owner session. The
+pinned arm/calibration/owner-generation/source identity, including the resident
+loaded jaw-gap and joint-angle calibration hashes. Physical teaching and replay
+require both qualified calibrations; older strokes missing either hash require
+reteaching. After an
+owner restart/reconnect they require live durable-binding revalidation; a new
+owner generation alone does not certify or invalidate durable calibration.
+Changed robot/calibration/source provenance requires reteaching or explicit
+revalidation. See [recording restart behavior](python-station-client.md#recording-restart-behavior). The
 JointState header is a bridge publication timestamp, not a motor acquisition
 timestamp: the collector also requires a fresh, identity-matched owner snapshot.
 Any >300 ms gap, regressing timestamp, changing jaw or cohort change rejects the
@@ -162,7 +161,7 @@ EV3 sequencing are the currently exposed physical activities. These capabilities
 physical autonomous sorting cycle has passed. The instructor must qualify the
 exact strokes, object, jaw gap and environment before students run that cycle.
 
-### Build a complete cycle
+### Historical free-stroke teaching sketch (not physical acceptance)
 
 Prepare and qualify the strokes before the class. Names below are suggestions,
 not supplied recordings. Each stroke's fixed jaw opening must match the preceding
@@ -197,8 +196,9 @@ the sensor can already observe the object. If color becomes available only at
 pickup, branch there before closing the jaw. The sketch's final return must be
 inside each color branch so that the correct return stroke is selected. Test
 each branch separately in simulation; do not assume a left return starts at the
-right destination. The beginner's core task remains the 35-minute simulation
-challenge; a physical cycle is an instructor extension using qualified strokes.
+right destination. Follow the canonical missions for the beginner task. This
+older free-stroke sketch does not implement contact, lift or release verification;
+physical integration uses the commissioned [named transaction](taught-pick-place.md).
 
 Keep demonstrations short and move continuously. Recorded pauses and encoder
 variation remain in the stroke; the bridge may lengthen it to satisfy its motion
@@ -276,16 +276,27 @@ perception/sorting station; it is not silently substituted for a sensor block.
 
 ## Program protocol
 
-`GET /api/status`, `GET /api/recordings`; token-authenticated JSON POST endpoints:
+`GET /api/status` returns `admission = {"session":"...","epoch":0}` plus
+station/job state; `GET /api/recordings` lists recordings. Authenticated JSON POSTs:
 
-- `/api/program/run`: `{"program": [ ... ]}` → program ID; poll status to terminal.
-- `/api/program/stop`: `{}` → verified stop or explicit missing acknowledgement.
-- `/api/record/start`: `{"name":"transfer"}`; `/api/record/stop`: `{}`.
-- `/api/instructor`: `{"command":"moveit"}`; `/api/recover`: `{}`.
-- `/api/simulation/color`: `{"color":"unknown"}`; simulation only.
+- `/api/program/run`: `{"program":[...],"admission":{"session":"...","epoch":0}}` → exact job ID; poll status to terminal.
+- `/api/program/stop`: `{}` → verified STOP or explicit missing acknowledgement; stamp is never required.
+- `/api/record/start`: `{"name":"transfer","admission":{...}}`; `/api/record/stop`: `{"admission":{...}}`.
+- `/api/instructor`: `{"command":"moveit","admission":{...}}`; `/api/recover`: `{"admission":{...}}`.
+- `/api/simulation/color`: `{"color":"unknown","admission":{...}}`; simulation only.
+- `/api/python`: `{"program":[...]}` → `{"python":"..."}` executable shared-client source; read-only.
 
-Commands are `station`, `arm`, `record_stroke`, `ev3`, `wait`, `replay`, `jaw`, `repeat`,
-`if_color`, `log`, `stop`. Timed capture is exactly
+Here `{...}` means the exact session/epoch object returned by status. The same
+stamp is mandatory for ROS program/control mutations. STOP advances the epoch
+before cancellation; process restart changes the session. An old queued command
+cannot admit after STOP or restart. Each admitted operator/recovery request also
+carries an application cancellation event combined with API shutdown through the
+existing ROS delivery lock. A stale/uncertain mutation is never retried; inspect
+and choose a new intentional operation after fresh status.
+
+Commands are `station`, `arm`, `record_stroke`, `ev3`, `wait`, `approach_recording`,
+`replay`, `pick_place_recording`, `sort_cycle`, `jaw`, `repeat`, `if_color`, `log`,
+`stop`. Timed capture is exactly
 `{"op":"record_stroke","name":"my_short_move","seconds":5}`: an existing-valid
 recording name and a finite duration from 1 through 30 seconds. In physical mode
 use a unique name, without repeated capture or a surrounding expanded repeat
@@ -296,7 +307,8 @@ Programs reject unknown/extra fields, nonfinite numbers, duplicate JSON keys,
 more than four nesting levels or 100 expanded steps. Repeat is 1–5, wait 0–10 s,
 program deadline 180 s. HTTP bodies are limited to 256 KiB, request sockets to 2 s,
 with eight worker slots per listener. Saved workspace JSON is editable Blockly
-state; generated Python is a learning preview and is never executed by the server.
+state. Exported Python calls the same validated-AST shared station service; the
+web server interprets the AST and does not execute uploaded Python.
 
 Before starting a sequence, every replay name is checked against the saved
 recordings, including both sides of color decisions and nested repeats. A missing
@@ -322,13 +334,13 @@ must be qualified on the connected hardware separately.
 
 ![Offline Blockly station editor](assets/blockly/station-editor.png)
 
-### Software qualification
+### Historical software rehearsal evidence
 
 - Focused tests cover program limits, strict JSON/auth/origin checks, fixed-jaw
   recording, source/cohort changes, stale/unknown responses, correlated STOP,
   cancellation failures, mandatory EV3 motion job IDs and explicit recovery.
 - Headless Chromium: offline editor, drag a block, save/reopen workspace, ported
-  ROS Blocky logging/Python preview, repeat sequence and actual STOP event passed
+  ROS Blocky logging/the then-current Python preview, repeat sequence and actual STOP event passed
   with zero JavaScript exceptions. STOP's CORS preflight has one origin header.
 - Isolated ROS domain 75: six captured samples, EV3 exact workflow completion,
   half-speed arm replay, metric jaw action, stale rejection and action cancellation
@@ -453,8 +465,8 @@ result follows the existing STOP and unknown-delivery barrier; no mutation is
 retried. Successful results appear in `job.result.sort_cycles`.
 
 Simulation returns an explicitly simulated one-object event and color count; it
-opens no hardware connection. The Python learning preview calls the same guarded
-adapter operation and is never executed by the web application.
+opens no hardware connection. Executable Python export submits the same strict
+operation through the shared guarded station client.
 
 This high-level block is separate from teaching free-space strokes. Composing a
 stroke replay with a generic jaw-gap block does not acquire object ownership or
@@ -474,4 +486,7 @@ runs, or one **Restart entire station + verify**; do not repeatedly retry restar
 
 Replay needs every recorded absolute joint within **2°** of its starting value
 and the jaw fixed at its recorded opening. The instructor uses teleoperation and
-measured feedback to return there. Automatic approach is not implemented.
+measured feedback, or a separate explicit `approach_recording`, to return there.
+Replay itself never inserts an approach. The [named taught transaction](taught-pick-place.md)
+is implemented with distinct commissioning/physical evidence gates; no supplied
+skill is commissioned for physical pickup.

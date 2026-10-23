@@ -93,6 +93,8 @@ class FastCancel:
 def recording_app(tmp_path,monkeypatch,mutate=None):
     app=Application(tmp_path); clock=[100.]; monkeypatch.setattr('tools.run_blockly_station.time.monotonic',lambda:clock[0])
     backend=app.backend; backend.physical=True; count=[0]
+    backend.identity=lambda:{'arm_id':'physical-fixture','calibration_sha256':'a'*64,
+                             'jaw_calibration_sha256':'c'*64,'joint_calibration_sha256':'d'*64}
     def sample():
         count[0]+=1
         result={'positions':[.1]*5,'jaw':.2,'stamp':clock[0], 'identity':backend.identity()}

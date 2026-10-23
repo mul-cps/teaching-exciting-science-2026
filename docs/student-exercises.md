@@ -1,20 +1,25 @@
-# Program your own sorting factory
+<!-- Generated from curriculum/workshop.json; edit the source, then run tools/build_notebooks.py. -->
 
-22 October 2026 · First semester · Work in pairs
+# Your first robot factory
 
-You will make a small program, use camera information to choose a destination, and test a simulated factory. No previous programming or robotics is needed. Your changes produce pictures immediately. These notebooks never control a physical machine.
+Build an offline robot factory from ordered instructions. Start with one fixed pickup fixture and one fixed destination. Pair roles: driver edits; observer predicts and checks; swap halfway. Only the instructor enables supervised hardware.
 
-One partner predicts, one types. Swap after each activity. There are no marks for speed.
+Simulation, paper, reports and measured physical outcomes are separate evidence. Never claim a grasp or placement from a command log alone. Unknown or stale observations require pause and inspection.
 
-## Start here
+Save a pair copy. Run cells from the top with Shift+Enter. The essential route works offline. Read the explicit evidence and capture-mode labels below.
 
-1. In the Jupyter file list open **Robot_Candy_Factory_Student.ipynb**. Choose **File → Save Notebook As** and give your copy your team name. Keep the original as a clean copy.
-2. A **Markdown cell** contains explanation like this. A **code cell** contains instructions the computer can run. Click a code cell and press **Shift+Enter**: it runs and selects the next cell. Output appears underneath. A number in square brackets means the run finished; `[*]` means it is busy.
-3. Run the short setup cell below once. Then read and run each cell in order. You can also click the triangular Run button.
-4. Edit only the marked **STUDENT AREA** first. Click inside the code, change one value, run that cell again, and compare its output with your prediction. Each mission creates a fresh simulation when rerun.
-5. Press **Ctrl+S** (Mac: **Command+S**) to save. A kernel is the Python process running your code. **Kernel → Restart Kernel** clears values held in memory; it does **not** undo edits saved in your file. To undo edits, use Undo or make a new copy of the original notebook. After restarting, run the setup cell again.
-
-If you see an error, read its last line. Check paired quotes, commas, square brackets and spaces first. Worked error fix: `print("Hello factory)` is missing its closing quote. Python reports a SyntaxError on the last line. Repair it to `print("Hello factory")`, then rerun. After two attempts ask a partner or the instructor. If no picture appears, check that you ran the whole cell, then rerun setup. Do not install software during class.
+| Minutes | Duration | Session |
+|---|---|---|
+| 0-20 | 20 | Meet our factory |
+| 20-45 | 25 | Ordered instructions |
+| 45-65 | 20 | Observations and uncertainty |
+| 65-95 | 30 | First Python edits |
+| 95-105 | 10 | Break |
+| 105-120 | 15 | Teach inspect and replay demonstration |
+| 120-165 | 45 | Explore three stations |
+| 165-210 | 45 | Build the physical sequence |
+| 210-230 | 20 | Improve one failure |
+| 230-240 | 10 | Three pair demonstrations |
 
 ```python
 from pathlib import Path
@@ -24,255 +29,335 @@ if not (root / "workshop").is_dir():
     root = root.parent
 if str(root) not in sys.path:
     sys.path.insert(0, str(root))
-from exercises.student_visuals import draw_bins, show_photos, compare_observations
-print("Ready. All activities are simulation only.")
+print("Offline learner simulation. No physical commands are sent.")
+
 ```
 
-## Before Python · Blockly logic · 10 minutes
+![Actual station photograph](../notebooks/assets/station-photo.jpg)
 
-Open [Blockly Maze](https://blockly.games/maze?lang=en). Drag instructions into a sequence, predict the route and run. Complete levels 1–3; levels 4–5 are optional. Explain one failed route and one correction. If internet fails, draw a maze and give your partner step instructions. Then return here. These web tasks do not control the physical station.
+Actual supplied station photograph. It does not prove current commissioning or a successful pickup.
 
-## A · Your first instructions · 30 minutes
+## Make a short conveyor story
 
-A **program** is a sequence of instructions. `print` puts text in the **output**, the result below a code cell. A **string** is text inside quotes. Predict what will appear, then run this worked example with Shift+Enter.
+Mission `blocks` · 25 minutes · Put instructions in order and repeat a small section.
+
+**Worked example** Ready → dispense → belt to pickup endpoint → inspect. In simulation each command changes a model; no physical object is verified.
+
+**Predict** Which message appears first? Where should the object model stop?
+
+**Change** Change Ready to your pair name. Add repeat 2 around a message, then around one tested short sequence.
+
+**Run** Open local Blockly simulation; select this mission; run the starter once. Use STOP and Reset before a different test. Save your workspace.
+
+**Observe** Read the command log and model state. Compare the repeated messages with your prediction.
+
+**Explain** Why do instruction order and a stopped belt matter before pickup?
+
+**Success check** Your pair can trace the order, predict a repeat count and explain one corrected sequence.
+
+**Optional challenge** Try an intentionally wrong order in simulation and explain the result.
+
+**Offline route** Draw each instruction on paper and move a paper object only when its instruction runs.
+
+**Hint 1** Read from the top connection down.
+
+**Hint 2** Repeat repeats every block inside it; start with a message.
 
 ```python
-print("Hello factory")
+PROGRAM = [{"op": "log", "message": "Ready"},
+           {"op": "ev3", "command": "eject"},
+           {"op": "ev3", "command": "left_end"},
+           {"op": "log", "message": "Inspect the stopped pickup fixture"}]
+print("SIMULATION instructions; no hardware command sent")
+for row in PROGRAM:
+    print(row)
+
 ```
 
-### Your first edit
+## Separate the object from its report
 
-A **variable** is a name for a value. The single `=` stores text under the name `TEAM`. Run once. Then change only `"Team 1"` to your pair name, keeping both quotes, and rerun. Predict the changed words first. **Check:** the greeting should contain your new name. **Hint:** edit to the right of `=`.
+Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
+
+**Worked example** An actual blue brick can have a missing report. An actual red brick can be reported blue. Both need inspection.
+
+**Predict** Which of the three reports is missing? Which disagrees with the labelled object?
+
+**Change** Change one report to None; then change one known report to a wrong known color.
+
+**Run** Run the short Python example or trace its three rows on paper. Compare the real labelled photo with a deliberately changed report.
+
+**Observe** Record actual object, reported label and your decision separately. None means missing, never zero or proof of empty space.
+
+**Explain** Why can a fresh color label still be wrong? What evidence would justify continuing?
+
+**Success check** You identify one missing and one wrong report and choose pause/inspect for uncertainty.
+
+**Optional challenge** Test unfamiliar green without adding a rule.
+
+**Offline route** Use the supplied real photo and handwritten report cards; no camera or website is needed.
+
+**Hint 1** Compare actual and reported columns one row at a time.
+
+**Hint 2** A known word is still only a report.
 
 ```python
-# STUDENT AREA: change the quoted name
+ACTUAL = ["red", "blue", "red"]
+REPORTED = ["red", None, "blue"]
+for actual, report in zip(ACTUAL, REPORTED):
+    print("Actual:", actual, "Reported:", report)
+    print("Pause and inspect" if report is None else "Report needs checking")
+
+```
+
+## Change a name and a number
+
+Mission `python` · 30 minutes · Read and edit a short Python program before sharing the same program representation with blocks.
+
+**Worked example** TEAM stores text in quotes. REPEATS stores a number. print shows text. The indented line runs once for each number.
+
+**Predict** What greeting and how many object lines will appear?
+
+**Change** Change TEAM, predict, run. Then change REPEATS to 2, predict, run. Keep indentation.
+
+**Run** Open the Student notebook, save a pair copy and run cells from the top with Shift+Enter. Run the shared Program example in simulation.
+
+**Observe** Count output lines and compare the shared Python program JSON with the Blockly exported JSON.
+
+**Explain** Which edit changed text? Which changed how often a line ran? What stayed in the same order?
+
+**Success check** Both partners make one edit and explain it; shared commands are validated before execution.
+
+**Optional challenge** Change a wait or message in both Python and Blockly and compare command traces.
+
+**Offline route** Run exercises/01_python.py using the prepared Python or trace it on paper. No package downloads.
+
+**Hint 1** Quotes surround text; do not quote the number.
+
+**Hint 2** Four spaces keep print inside the loop.
+
+```python
 TEAM = "Team 1"
-print("Welcome to the robot factory,", TEAM)
-```
-
-### Repeat one instruction
-
-A **loop** repeats its indented instruction. `range(REPEATS)` supplies that many numbers, starting at zero; `number + 1` displays numbering from one. The colon starts the group and four spaces put `print` inside it. Predict, run, then change only 3 to 5 and rerun. **Check:** the last object number matches REPEATS. **Hint:** numbers need no quotes.
-
-```python
-# STUDENT AREA: change the repeat count
 REPEATS = 3
+print("Welcome to the robot factory,", TEAM)
 for number in range(REPEATS):
     print("Object number", number + 1)
+
 ```
 
-### Choose a destination
-
-A **condition** chooses an instruction. `==` asks whether two values match; `=` stores a value. `elif` tries another choice; `else` catches everything else. Predict the destination, run, then change only red to blue and rerun. Try yellow next. **Check:** one decision appears. **Hint:** preserve quotes and four spaces. The last line draws the result; keep it as provided.
-
 ```python
-# STUDENT AREA: change the quoted color first
-COLOR = "red"
-if COLOR == "red":
-    destination = "left"
-elif COLOR == "blue":
-    destination = "right"
-else:
-    destination = "reject"
-print("Decision:", destination)
-draw_bins([destination], [COLOR], "Your first decision")
+from workshop.blockly_client import Program, simulate_program
+program = Program().log("Ready").ev3("eject").ev3("left_end")
+result = simulate_program(program)
+print("SIMULATION only:", result["complete"])
+print(result["events"])
+print("Shared Blockly JSON:", program.program)
+
 ```
 
-### Explore with your partner
+On the prepared shared station, the instructor can submit the same `program` with `run_program(program, physical=False)` from `workshop.blockly_client`. That explicit simulation endpoint must already be running. The executable cell above uses the same validator and interpreter locally. Physical submission requires the supervised prepared station and its admission checks.
 
-Try a new color of your choice. Predict before running; explain which condition matched. **Optional challenge:** add an `elif` for green before `else`, with an indented destination assignment. **Hint 1:** copy the shape of the blue branch. **Hint 2:** change its color and choose left or right. Keep the unknown fallback. Swap typing and predicting roles.
+## Watch teach inspect return replay
 
-## B · Train a camera report · 20 minutes
+Mission `teach-demo` · 15 minutes · Understand that a recorded stroke needs validated start/end poses and explicit jaw state.
 
-A **sensor** measures something in the world. A camera is a sensor: it records an image, a grid of colored dots called pixels. A program may turn those pixels into a report such as `"red"`. A report can be wrong or missing.
+**Worked example** Leader 10°, follower 30°, leader now 15° gives relative request 35°. A request and a measured result are different.
 
-First inspect these **real photograph crops** from our teaching station. The labels below are human descriptions of the visible examples. We are not claiming a live camera classifier measured these labels. The fourth crop does not isolate a colored object clearly. Which pixels would you trust?
+**Predict** Will a replay start safely from any pose? What if the jaw state changed?
 
-Open [Teachable Machine](https://teachablemachine.withgoogle.com/train/image). Your instructor supplies prepared red, blue and background examples. Compare predictions on a held-out example; change the background or lighting and retry. A class name is a learned report, not truth. No export or live robot connection is needed. Use the controlled photograph/report experiment below if the website or camera is unavailable. Spend 5 minutes identifying classes, 7 testing examples, 5 changing one condition and 3 explaining a failure. Complete the website task OR the controlled photo/report fallback, not both. The five-report list and single-report cells below are optional extensions for challenges; finish this block after 20 minutes.
+**Change** Ask the instructor to change one invented angle; predict before rerunning. Learners do not change physical modes.
+
+**Run** Watch instructor: teach a short empty stroke, stop recording, inspect metadata and path, return safely to its validated start, then replay separately.
+
+**Observe** Name start pose, endpoint, jaw state, identity/calibration and validity evidence. An invented demo recording is never a student-taught physical skill.
+
+**Explain** Why must teaching and playback be separate runs? Why does a changed robot or calibration require reteaching?
+
+**Success check** You can say teach → inspect/validate → return to start → replay, and point to STOP.
+
+**Optional challenge** Predict a relative versus absolute joint request.
+
+**Offline route** Use the invented joint example and paper start/end diagrams. Label evidence DEMO.
+
+**Hint 1** A recording stores movement; it does not plan a safe approach from every pose.
+
+**Hint 2** A screen model can match commands while a physical object slips.
 
 ```python
-show_photos()
+LEADER_START = 10
+FOLLOWER_START = 30
+LEADER_NOW = 15
+print("DEMO: invented angles; no robot measurement")
+print("Relative prediction:", FOLLOWER_START + LEADER_NOW - LEADER_START, "degrees")
+print("Absolute prediction:", LEADER_NOW, "degrees")
+
 ```
 
-![Real station photograph crops with human labels](../notebooks/assets/photo-examples.jpg)
+## Explore three stations
 
-### Ask for one report
+Mission `explore` · 45 minutes · Connect observations, instructions and the robot model.
 
-The simulation supplies a report; it does not analyze the photo. `SimCamera` makes this practice sensor; `.detect()` requests its next report. Predict and run. Change red to blue and rerun. **Check:** the printed report changes. **Hint:** only edit the quoted word. This cell recreates the sensor each time.
+**Worked example** Three pairs rotate through arm/twin observation, conveyor/observation sequencing, and offline Blockly/Python preparation.
+
+**Predict** At your current station, predict one direction, report or sequence before the instructor or simulator acts.
+
+**Change** Change only one paper angle, report or message; switch driver and observer halfway.
+
+**Run** Each slot is 15 minutes: 2 predict, 7 change/run, 4 observe/explain, 2 save and transition. Use the rotation table.
+
+**Observe** Arm: compare measured joint and twin when available. Conveyor: inspect stopped fixture/report. Offline: compare ordered traces. Label each evidence source.
+
+**Explain** Which part measures, decides or acts? What can your evidence establish?
+
+**Success check** Every pair completes all three positions with one recorded prediction and evidence statement per position.
+
+**Optional challenge** Compare a fresh report with a stale one without guessing missing values.
+
+**Offline route** All three positions have photo, paper and simulation versions; record DEMO/OFFLINE if no measured stream.
+
+**Hint 1** The twin is a model updated from a stream.
+
+**Hint 2** Use the same short sequence at the offline table.
+
+## Dispense carry pick and place
+
+Mission `integrate` · 45 minutes · Assemble the supervised fixed pickup to fixed destination sequence.
+
+**Worked example** EV3 dispense → conveyor to pickup fixture and stop → named taught skill fixed_pick_place. That skill binds validated approach/open, calibrated grasp, lift/transfer, release and return phases. Missing or uncommissioned qualification blocks physical execution; simulation labels every transfer synthetic.
+
+**Predict** Where must the object and arm be before each next step? What should stop the run?
+
+**Change** First reorder paper cards. In simulation use pick_place_recording named fixed_pick_place and change one message or delay. Physical execution requires instructor-validated phase recordings, measured jaw calibration and the qualification manifest; missing evidence is a blocking result.
+
+**Run** Rotate: supervised integration, offline trace/rehearsal, failure/evidence desk. Each 15-minute slot includes 2 minutes transition. Run dispense, conveyor/stop and the named fixed_pick_place skill only through the existing shared endpoint. Instructor alone enables a qualified physical run; otherwise complete explicit synthetic simulation.
+
+**Observe** Record dispense, stopped fixture arrival, grasp, lift, placement/release and return separately. A completed command does not prove object transfer.
+
+**Explain** Which observation supports each claimed step? Which step remains unverified?
+
+**Success check** Your pair explains the full fixed-fixture sequence and records honest per-step evidence. Physical completion requires observed object transfer; offline completion is labelled rehearsal.
+
+**Optional challenge** After the core succeeds, discuss color-dependent destinations as separately validated taught skills.
+
+**Offline route** Use the same fixed pickup/drop paper layout and named-skill simulation. Its grasp/lift/release outcomes are synthetic assumptions with physical_evidence false. Missing recordings or qualification means physical execution remains incomplete.
+
+**Hint 1** Stop the conveyor before the arm approaches.
+
+**Hint 2** Start/end poses and jaw state of adjacent taught strokes must agree.
 
 ```python
-from workshop import SimCamera
-# STUDENT AREA: change one report
-camera = SimCamera(["red"])
-print("Camera report:", camera.detect())
+from workshop.blockly_client import Program, simulate_program
+program = (Program().ev3("eject").ev3("left_end")
+           .pick_place_recording("fixed_pick_place", .5))
+result = simulate_program(program)
+skill = result["taught_skills"][0]
+print("Synthetic fixed-fixture rehearsal:", skill["state"])
+print("Physical evidence:", skill["physical_evidence"])
+assert skill["physical_evidence"] is False
+assert not any(skill[k] for k in ("pickup_verified", "lift_verified", "release_verified"))
+
 ```
 
-### Worked example and a list
+## Find one failure and test a repair
 
-A **list** stores several values in order. Square brackets start and end the list; commas separate its items: `["red", "blue", "unknown"]`. `None`, with no quotes, means a missing value; `"unknown"` is a text report that the color could not be decided.
+Mission `improve` · 20 minutes · Use a controlled change and evidence to improve a sequence.
 
-Below `SimCamera` supplies the reports in `COLORS`; it does not analyze a photograph. `camera.detect()` asks this simulated sensor for its next report. The condition turns the report into a decision. The code below the STUDENT AREA is **provided plumbing**: run it but edit only COLORS and the two destination values first. `len` counts reports, `range` repeats once per report, and `routes.append` records an action for the picture. The program keeps **counts**, running totals for each destination. `+= 1` adds one to a total.
+**Worked example** A missing fixture observation pauses the sequence after one inspected object. Fix the observation path before retrying.
 
-### Your turn
+**Predict** What happens when the middle report is None?
 
-Point to each list item and predict left, right or reject. Run to check. Change the second report to red and run again. Add green at the end, including a comma before it. Then swap `RED_DESTINATION` and `BLUE_DESTINATION`. Rerun and describe the change.
+**Change** Test one failure: missing report, wrong order, missing recording or STOP. Change one cause only and reset.
 
-**Small hint:** the names on the left of `=` stay the same; edit the quoted values on the right. **Check:** every report produces exactly one decision; unrecognized reports reach reject. **Optional challenge:** add a separate green condition before `else`; keep unknown and `None` rejected.
+**Run** Reproduce in simulation or paper; record expected versus actual. Repair and rerun the same input.
+
+**Observe** Capture the failure message, stopped state and repaired trace. No physical fault injection by learners.
+
+**Explain** Did your test detect the problem? What could still fail on hardware?
+
+**Success check** You show a failing prediction, one repair and a repeated check with its limits.
+
+**Optional challenge** Use the optional color-routing example with three reds and one blue to expose swapped rules.
+
+**Offline route** All failures can be traced with paper command/report cards.
+
+**Hint 1** Choose one input so cause and effect stay clear.
+
+**Hint 2** A successful run alone cannot identify a wrong known report.
 
 ```python
+REPORTS = ["present", None, "present"]
+completed = 0
+for report in REPORTS:
+    if report is None:
+        print("STOP: missing observation; inspect before retry")
+        break
+    completed += 1
+print("Simulated inspected objects:", completed)
 
-from workshop import SimCamera
-
-# ===== STUDENT AREA =====
-COLORS = ["red", "blue", "unknown", "red", "blue"]
-RED_DESTINATION = "left"
-BLUE_DESTINATION = "right"
-# ========================
-
-camera = SimCamera(COLORS)
-counts = {"left": 0, "right": 0, "reject": 0}
-routes = []
-
-for object_number in range(len(COLORS)):
-    color = camera.detect()
-    if color == "red":
-        destination = RED_DESTINATION
-    elif color == "blue":
-        destination = BLUE_DESTINATION
-    else:
-        destination = "reject"  # never guess when a sensor is uncertain
-
-    if destination not in ("left", "right", "reject"):
-        destination = "reject"
-    routes.append(destination)
-    counts[destination] += 1
-    print("Object", object_number + 1, "->", destination)
-
-print("\nFinal counts:", counts)
-print("Were any objects rejected? Why?")
-draw_bins(routes, COLORS, "Decisions from the camera reports")
 ```
 
-### Can correct code make a wrong decision
+## Show one prediction and result
 
-In this controlled example `ACTUAL` is our known object sequence; `REPORTS` is what we pretend the camera reports. The helper compares them and colors the bins using the **actual** objects. Thus a red object can visibly land in the wrong bin when its report is blue. These lists describe a teaching experiment, not measurements from the photo above.
+Mission `share` · 10 minutes · Explain what your program did and what the evidence cannot prove.
 
-Worked example: with matching lists the reports are correct. Run once. Then change **only the first report** to `"blue"`. Predict the destination of the actual red object and rerun. Next replace that report with `None`. Which experiment creates a wrong accepted sort and which creates a reject?
+**Worked example** Pair A shows prediction, one change, observed result and one limit; then pairs B and C follow.
 
-**Small hint:** keep both lists the same length. **Check:** the printed row shows actual color, report and destination for every object. **Optional challenge:** make two different errors; decide which ones the sorting rules can detect.
+**Predict** Which single output best supports your claim?
 
-```python
-# ===== STUDENT AREA =====
-ACTUAL = ["red", "blue", "red", "blue"]
-REPORTS = ["red", "blue", "red", "blue"]
-# ========================
-compare_observations(ACTUAL, REPORTS, {"red": "left", "blue": "right"})
-```
+**Change** Shorten your demonstration to one change and one observation.
 
-## C · Visit three stations · 45 minutes
+**Run** Use 1 minute preparation, 3 demonstrations of 2 minutes, 3 minutes shared reflection. Both partners speak.
 
-After the 85–95 minute break, save your work. Your instructor divides the class into three groups. Spend **15 minutes each** at robot and twin, camera and conveyor, and virtual robot, then rotate. The command-sequence activity below belongs to the virtual robot rotation; the separate live notebook belongs to robot and twin. Neither is an extra lesson. All three stations have an offline route.
+**Observe** Show saved trace, worksheet or observed supervised step; label simulation, paper or physical.
 
-**Robot and twin:** open Robot_Candy_Factory_Live_SO101.ipynb for the 15-minute read-only joint activity, in DEMO unless the instructor prepared LIVE. Return here afterward. An **actuator** makes a physical change. Motors turn joints and a gripper opens or closes. A destination like left is only a label. A real robot also needs **coordinates**, numbers describing a position relative to a chosen starting reference, and a safe movement sequence. Here we show destination commands only; these are not motor coordinates.
+**Explain** Name one next test that would increase confidence.
 
-**Conveyor:** trace move → stop → observe → decide → pick. Use five paper objects and a finger as the belt if no live demonstration is available. One partner calls each step; the other acts. Deliberately call pick before stop once and explain why that order is unsafe.
+**Success check** All three pairs demonstrate and state a specific limitation.
 
-**Virtual robot:** use the command-sequence activity below. Optional kinematics web app is in the instructor resources; offline sequences remain the core task. **Camera comparison:** compare the four photograph crops again. Describe one source of uncertainty. Cover part of a paper object or photograph and decide when a report should become unknown. Do not confuse seeing an object with knowing its exact position.
+**Optional challenge** Explain how a wrong known color differs from a missing report.
 
-### Robot worked example
+**Offline route** Present the worksheet and paper trace.
 
-The list below is a **sequence**: commands happen in that order. `robot.sort(destination)` records one simulated placement. First predict left/right counts and run. Then change the sequence to left, left, right. Add reject. Finally try `"middle"`.
+**Hint 1** Read your prediction before the result.
 
-**Small hint:** keep square brackets and separate quoted commands with commas. **Check:** counts add up to the number of commands, including invalid commands sent to reject. **Optional challenge:** invent a six-command sequence; swap it with another pair and predict its totals before running.
+**Hint 2** A trace supports instruction order, not physical arrival.
 
-```python
+## Pair rotations
 
-from workshop import SimRobot
+Each 15-minute slot includes 2 minutes to save and transition. Driver edits; observer predicts and checks. Swap roles halfway. One instructor controls the physical integration station.
 
-# ===== STUDENT AREA =====
-COMMANDS = ["left", "right", "left"]
-# ========================
+### Explore three stations
 
-robot = SimRobot()
-bin_counts = {"left": 0, "right": 0, "reject": 0}
+| Slot | Pair A | Pair B | Pair C |
+|---|---|---|---|
+| 1 | Arm and twin observation | Conveyor and observation sequencing | Offline Blockly and Python preparation |
+| 2 | Conveyor and observation sequencing | Offline Blockly and Python preparation | Arm and twin observation |
+| 3 | Offline Blockly and Python preparation | Arm and twin observation | Conveyor and observation sequencing |
 
-for destination in COMMANDS:
-    if destination not in ("left", "right", "reject"):
-        print("Unknown destination - reject:", destination)
-        destination = "reject"
-    robot.sort(destination)
-    bin_counts[destination] += 1
+### Build the physical sequence
 
-print("\nRobot commands:", robot.actions)
-print("Objects per bin:", bin_counts)
-print("Did the output match your prediction?")
-draw_bins(robot.actions, title="Your robot command sequence")
-```
+| Slot | Pair A | Pair B | Pair C |
+|---|---|---|---|
+| 1 | Supervised fixed-fixture integration | Offline sequence rehearsal | Failure tests and evidence |
+| 2 | Offline sequence rehearsal | Failure tests and evidence | Supervised fixed-fixture integration |
+| 3 | Failure tests and evidence | Supervised fixed-fixture integration | Offline sequence rehearsal |
 
-## D · Connect the whole factory · 50 minutes
+## Optional color destinations extension
 
-Now the program connects simulated belt, camera and robot. A factory cycle is one complete trip through move → stop → read → decide → sort. The provided `Factory` carries out this sequence. Every run below creates a new factory and resets its counts.
-
-A **mapping** connects a key to a value. `RULES = {"red": "left", "blue": "right"}` means the report red maps to the destination left. Curly brackets hold the mapping; a colon connects each report to its destination; commas separate rules. The mapping is also called a dictionary in Python. It is useful because you can change a policy without rewriting the whole program.
-
-### Worked example
-
-For `OBJECTS = ["red", "blue"]` and the default rules, there is one left and one right. Trace each cycle with your partner before the larger example below.
-
-### Your turn
-
-Predict all five destinations and the totals on your worksheet. Run the original. Swap red/blue destinations, predict again, and rerun. Add an unknown report and verify it is rejected. Reorder the list and explain what changes in the action sequence and what stays the same in the totals.
-
-**Small hint:** change the values in `RULES`, not the keys, to reverse destinations. **Check:** left + right + reject equals the list length; belt advances once per object. The log must show stop before camera read and robot placement. **Optional challenge:** add green to the object list and a green rule. Check a missing report with `None` too.
+Complete the fixed-fixture core first. This separate simulated routing example does not teach physical grasping. Predict each route. Change an input, run, observe routes and counts, and explain a limitation. Try three reds and one blue before swapping rules. Unknown or invalid reports reject.
 
 ```python
-
 from workshop import Factory, SimBelt, SimCamera, SimRobot
-
-# ===== STUDENT AREA =====
 OBJECTS = ["red", "blue", "red", "unknown", "blue"]
 RULES = {"red": "left", "blue": "right"}
-# ========================
-
 factory = Factory(SimBelt(), SimCamera(OBJECTS), SimRobot())
-
-for object_number in range(len(OBJECTS)):
-    print("\n--- Object", object_number + 1, "---")
+for _ in OBJECTS:
     factory.one_cycle(RULES)
+print(factory.counts)
+print("SIMULATION routes:", factory.robot.actions)
+assert sum(factory.counts.values()) == len(OBJECTS)
 
-print("\nFINAL FACTORY RESULT")
-for destination, number in factory.counts.items():
-    print(destination, ":", number)
-
+for destination, count in factory.counts.items():
+    print(destination, ":", count)
 print("Total objects:", sum(factory.counts.values()))
-print("Belt advances:", factory.belt.steps)
-print("Robot destinations:", factory.robot.actions)
-assert sum(factory.counts.values()) == len(OBJECTS), "Some objects are missing!"
-draw_bins(factory.robot.actions, OBJECTS, "Your completed sorting factory")
+
 ```
-
-## E · Choose and test challenges · 35 minutes
-
-Use the factory cell above. Choose two challenges with your partner. For each, write a prediction, change one thing, rerun, then record evidence. Return to the original five objects and rules before a new experiment so you know what caused the difference.
-
-**1 · Flip the rules.** Make an unequal number of red and blue objects, then swap their destinations. Predict the changed totals. Hint: three reds and one blue make the swap visible. Check the action list as well as the totals.
-
-**2 · Add green.** Add a green object first without a rule. Predict and run. Then add a rule and run again. Hint: a new entry in the mapping needs a comma. Check that unknown is still rejected.
-
-**3 · Broken reports.** Add `None`, `"unknown"`, `42` and an empty string `""`. These stand for missing, undecidable, invalid and empty reports. Predict each route. Check that none is accepted as a known color. Hint: keep the original red/blue rules.
-
-**4 · Count ten.** Create ten reports and count each destination by hand before running. Check totals and the printed order. Hint: repeats are allowed in a list.
-
-**5 · Find a bad rule.** Temporarily change red to the destination `"middle"`. Predict what validation should do; run, then repair the rule. Hint: a destination must be left, right or reject. Check that the run finishes and every object is counted.
-
-**6 · Challenge another pair.** Give them a short sequence with one missing report and tell them your rules. Let them predict before you run. Check both the per-object destinations and totals. Optional: write an `assert` after the factory cell to test one expected count. `assert` asks Python to stop with an error if a claim is false.
-
-**Independent check:** a successful run alone does not prove that the rules are right. State one experiment that would reveal a rule error, and one real sensor problem these string reports cannot reproduce.
-
-## Closing · 15 minutes
-
-Save the notebook. Each pair shows one picture, one changed rule and one test result. Tell your partner which part senses, which part decides and which part acts. Explain why the belt stops before the robot picks.
-
-On your worksheet finish: “Our prediction was …; the output showed …; we changed … because …”. Name one difference between this simulation and a real factory. A drawing or a command log does not prove that a real motor moved safely or a real object reached a bin.
-
-You have written instructions, used observations to decide, and tested a small automated system.

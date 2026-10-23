@@ -1,0 +1,18 @@
+# Beginner robotics workshop and Vulkan-first station
+
+Implementation contract: full user-approved plan supplied 2026-10-22. Work in isolation; no fabricated physical or performance acceptance.
+
+## Task 1: Canonical curriculum
+One offline English four-hour route for six beginners in three pairs. Minute schedule: 20 introduction, 25 Blockly, 20 observations and unknowns, 30 Python, 10 break, 15 teach/validate/replay demo, 45 teach/sensing/simulation rotations, 45 physical automation rotations, 20 improve/failure, 10 demonstrations. Fixed pickup/drop first; color destinations extension. Final EV3 dispense/conveyor/taught arm pick/place. Canonical source generates notebooks, worksheets, instructor notes, eight visual intro slides plus practical mission cards. Actual photographs, diagrams, readable code/editable assets. Predict/change/run/observe/explain, worked example, success, hints/challenge each activity. Progressive toolbox/stateful visualization/instructor drawer.
+
+## Task 2: Shared execution and taught skills
+Executable Python and Blockly share validated representation and /station/program/command, resident owner/actions. Wrapper-launched ROS client, simulation no ROS. EV3/jaw/modes/record/replay/reset/recovery parity. Explicit approach_recording current-pose planning; named pick_place_recording approach/lift-transfer/return plus calibrated grasp/release, existing locking/contact/attachment/grasp-lift-release verification. Bounded sequence. Revalidate after restart; changed robot/calibration requires reteaching. Synthetic recordings cannot play physically.
+
+## Task 3: Vulkan compute/video
+Vulkan first, visible CPU fallback/reason; strict Vulkan and CPU comparison modes. C++ composed ROS camera/consumers, shared Vulkan device, three-frame leases/latest scheduling/reusable buffers/type adaptation. Slang SPIR-V conversion/alignment/deprojection/segmentation/morphology/connected reductions; compact readback, throttled clouds/diagnostics. No per-frame allocations/device waits. Capability-gated capture import or measured upload/plane; capability-gated cross-process DMA-BUF/semaphore cleanup. Enumerated 640x480x30 RGB-D, calibration/units/time/invalid/texture boundary preserved; measured SDK GLSL comparison. FFmpeg shared-device Vulkan decoding/encoding, H264 preview, depth lossless, Intel flags per qualified process, VAAPI then CPU fallback; Intel/AMD codec cleanup validation.
+
+## Task 4: Scene/lifecycle
+Measured static boxes/stabilized bricks/attachment ownership. Optional MoveIt OctoMap 20mm/2Hz GPU-downsampled, self-filter/collision qualification; document VBG/TSDF/Gaussians. Preserve ./station lifecycle. doctor GPU/codec/camera/calibration/EV3/recordings. Dependency-order restart with blocking-component reason. Stop/purge all owned components, preserve private data. One canonical fwmini4 checkout/install/manifests/source pins.
+
+## Task 5: Verify/release
+Five actual passes: beginner clarity/pacing/consistency/presentation/full physical rehearsal. Fresh kernels/starters; Blockly/Python traces; cancel/stale/modes/restart/missing/incomplete. Frozen CPU/GPU references unchanged thresholds. Independent hot-path refinement/benchmark/static guards. fwmini4 acquisition30Hz, processing>=20Hz, p95<100ms, perception CPU>=30% reduction. Ten-minute full-stack soak RViz/Blockly/notebooks timing/memory/age/video engine. Physical separate segment/EV3 validation, three consecutive complete dispense/grasp/lift/place/release/return cycles plus STOP/unknown/restart. Merge coherent qualified release main/push; verify remote same SHA; remove superseded sources only after caller/link checks.

@@ -1,0 +1,498 @@
+{
+  "schema_version": 1,
+  "title": "Your first robot factory",
+  "intro": "Build an offline robot factory from ordered instructions. Start with one fixed pickup fixture and one fixed destination. Pair roles: driver edits; observer predicts and checks; swap halfway. Only the instructor enables supervised hardware.",
+  "evidence_rule": "Simulation, paper, reports and measured physical outcomes are separate evidence. Never claim a grasp or placement from a command log alone. Unknown or stale observations require pause and inspection.",
+  "sessions": [
+    {
+      "id": "intro",
+      "title": "Meet our factory",
+      "minutes": 20
+    },
+    {
+      "id": "blocks",
+      "title": "Ordered instructions",
+      "minutes": 25
+    },
+    {
+      "id": "observations",
+      "title": "Observations and uncertainty",
+      "minutes": 20
+    },
+    {
+      "id": "python",
+      "title": "First Python edits",
+      "minutes": 30
+    },
+    {
+      "id": "break",
+      "title": "Break",
+      "minutes": 10
+    },
+    {
+      "id": "teach",
+      "title": "Teach inspect and replay demonstration",
+      "minutes": 15
+    },
+    {
+      "id": "rotation1",
+      "title": "Explore three stations",
+      "minutes": 45
+    },
+    {
+      "id": "rotation2",
+      "title": "Build the physical sequence",
+      "minutes": 45
+    },
+    {
+      "id": "improve",
+      "title": "Improve one failure",
+      "minutes": 20
+    },
+    {
+      "id": "share",
+      "title": "Three pair demonstrations",
+      "minutes": 10
+    }
+  ],
+  "missions": [
+    {
+      "id": "blocks",
+      "title": "Make a short conveyor story",
+      "session_id": "blocks",
+      "minutes": 25,
+      "goal": "Put instructions in order and repeat a small section.",
+      "example_id": "sequence",
+      "starter": [
+        {
+          "op": "log",
+          "message": "Ready"
+        },
+        {
+          "op": "ev3",
+          "command": "eject"
+        },
+        {
+          "op": "ev3",
+          "command": "left_end"
+        },
+        {
+          "op": "log",
+          "message": "Inspect pickup fixture"
+        }
+      ],
+      "toolbox": [
+        "Messages",
+        "Timing",
+        "Conveyor",
+        "Loops"
+      ],
+      "hints": [
+        "Read from the top connection down.",
+        "Repeat repeats every block inside it; start with a message."
+      ],
+      "worksheet_prompts": [
+        "Our prediction was ...",
+        "We changed ...",
+        "Our evidence was ...",
+        "This does not prove ..."
+      ],
+      "worked_example": "Ready \u2192 dispense \u2192 belt to pickup endpoint \u2192 inspect. In simulation each command changes a model; no physical object is verified.",
+      "predict": "Which message appears first? Where should the object model stop?",
+      "change": "Change Ready to your pair name. Add repeat 2 around a message, then around one tested short sequence.",
+      "run": "Open local Blockly simulation; select this mission; run the starter once. Use STOP and Reset before a different test. Save your workspace.",
+      "observe": "Read the command log and model state. Compare the repeated messages with your prediction.",
+      "explain": "Why do instruction order and a stopped belt matter before pickup?",
+      "success": "Your pair can trace the order, predict a repeat count and explain one corrected sequence.",
+      "extension": "Try an intentionally wrong order in simulation and explain the result.",
+      "offline_route": "Draw each instruction on paper and move a paper object only when its instruction runs."
+    },
+    {
+      "id": "observe",
+      "title": "Separate the object from its report",
+      "session_id": "observations",
+      "minutes": 20,
+      "goal": "Recognise missing and incorrect observations.",
+      "example_id": "observation",
+      "starter": [
+        {
+          "op": "if_color",
+          "color": "red",
+          "then": [
+            {
+              "op": "log",
+              "message": "Reported red: inspect"
+            }
+          ],
+          "else": [
+            {
+              "op": "log",
+              "message": "Other or unknown: pause and inspect"
+            }
+          ]
+        }
+      ],
+      "toolbox": [
+        "Messages",
+        "Decisions"
+      ],
+      "hints": [
+        "Compare actual and reported columns one row at a time.",
+        "A known word is still only a report."
+      ],
+      "worksheet_prompts": [
+        "Our prediction was ...",
+        "We changed ...",
+        "Our evidence was ...",
+        "This does not prove ..."
+      ],
+      "worked_example": "An actual blue brick can have a missing report. An actual red brick can be reported blue. Both need inspection.",
+      "predict": "Which of the three reports is missing? Which disagrees with the labelled object?",
+      "change": "Change one report to None; then change one known report to a wrong known color.",
+      "run": "Run the short Python example or trace its three rows on paper. Compare the real labelled photo with a deliberately changed report.",
+      "observe": "Record actual object, reported label and your decision separately. None means missing, never zero or proof of empty space.",
+      "explain": "Why can a fresh color label still be wrong? What evidence would justify continuing?",
+      "success": "You identify one missing and one wrong report and choose pause/inspect for uncertainty.",
+      "extension": "Test unfamiliar green without adding a rule.",
+      "offline_route": "Use the supplied real photo and handwritten report cards; no camera or website is needed."
+    },
+    {
+      "id": "python",
+      "title": "Change a name and a number",
+      "session_id": "python",
+      "minutes": 30,
+      "goal": "Read and edit a short Python program before sharing the same program representation with blocks.",
+      "example_id": "greeting",
+      "starter": [
+        {
+          "op": "log",
+          "message": "Change a name and a number"
+        }
+      ],
+      "toolbox": [
+        "Messages",
+        "Timing",
+        "Loops"
+      ],
+      "hints": [
+        "Quotes surround text; do not quote the number.",
+        "Four spaces keep print inside the loop."
+      ],
+      "worksheet_prompts": [
+        "Our prediction was ...",
+        "We changed ...",
+        "Our evidence was ...",
+        "This does not prove ..."
+      ],
+      "worked_example": "TEAM stores text in quotes. REPEATS stores a number. print shows text. The indented line runs once for each number.",
+      "predict": "What greeting and how many object lines will appear?",
+      "change": "Change TEAM, predict, run. Then change REPEATS to 2, predict, run. Keep indentation.",
+      "run": "Open the Student notebook, save a pair copy and run cells from the top with Shift+Enter. Run the shared Program example in simulation.",
+      "observe": "Count output lines and compare the shared Python program JSON with the Blockly exported JSON.",
+      "explain": "Which edit changed text? Which changed how often a line ran? What stayed in the same order?",
+      "success": "Both partners make one edit and explain it; shared commands are validated before execution.",
+      "extension": "Change a wait or message in both Python and Blockly and compare command traces.",
+      "offline_route": "Run exercises/01_python.py using the prepared Python or trace it on paper. No package downloads."
+    },
+    {
+      "id": "teach-demo",
+      "title": "Watch teach inspect return replay",
+      "session_id": "teach",
+      "minutes": 15,
+      "goal": "Understand that a recorded stroke needs validated start/end poses and explicit jaw state.",
+      "example_id": "joint",
+      "starter": [
+        {
+          "op": "log",
+          "message": "Watch teach inspect return replay"
+        }
+      ],
+      "toolbox": [
+        "Messages",
+        "Recordings"
+      ],
+      "hints": [
+        "A recording stores movement; it does not plan a safe approach from every pose.",
+        "A screen model can match commands while a physical object slips."
+      ],
+      "worksheet_prompts": [
+        "Our prediction was ...",
+        "We changed ...",
+        "Our evidence was ...",
+        "This does not prove ..."
+      ],
+      "worked_example": "Leader 10\u00b0, follower 30\u00b0, leader now 15\u00b0 gives relative request 35\u00b0. A request and a measured result are different.",
+      "predict": "Will a replay start safely from any pose? What if the jaw state changed?",
+      "change": "Ask the instructor to change one invented angle; predict before rerunning. Learners do not change physical modes.",
+      "run": "Watch instructor: teach a short empty stroke, stop recording, inspect metadata and path, return safely to its validated start, then replay separately.",
+      "observe": "Name start pose, endpoint, jaw state, identity/calibration and validity evidence. An invented demo recording is never a student-taught physical skill.",
+      "explain": "Why must teaching and playback be separate runs? Why does a changed robot or calibration require reteaching?",
+      "success": "You can say teach \u2192 inspect/validate \u2192 return to start \u2192 replay, and point to STOP.",
+      "extension": "Predict a relative versus absolute joint request.",
+      "offline_route": "Use the invented joint example and paper start/end diagrams. Label evidence DEMO."
+    },
+    {
+      "id": "explore",
+      "title": "Explore three stations",
+      "session_id": "rotation1",
+      "minutes": 45,
+      "goal": "Connect observations, instructions and the robot model.",
+      "example_id": "joint",
+      "starter": [
+        {
+          "op": "log",
+          "message": "Explore three stations"
+        }
+      ],
+      "toolbox": [
+        "Messages",
+        "Timing",
+        "Conveyor",
+        "Loops",
+        "Decisions",
+        "Recordings"
+      ],
+      "hints": [
+        "The twin is a model updated from a stream.",
+        "Use the same short sequence at the offline table."
+      ],
+      "worksheet_prompts": [
+        "Our prediction was ...",
+        "We changed ...",
+        "Our evidence was ...",
+        "This does not prove ..."
+      ],
+      "worked_example": "Three pairs rotate through arm/twin observation, conveyor/observation sequencing, and offline Blockly/Python preparation.",
+      "predict": "At your current station, predict one direction, report or sequence before the instructor or simulator acts.",
+      "change": "Change only one paper angle, report or message; switch driver and observer halfway.",
+      "run": "Each slot is 15 minutes: 2 predict, 7 change/run, 4 observe/explain, 2 save and transition. Use the rotation table.",
+      "observe": "Arm: compare measured joint and twin when available. Conveyor: inspect stopped fixture/report. Offline: compare ordered traces. Label each evidence source.",
+      "explain": "Which part measures, decides or acts? What can your evidence establish?",
+      "success": "Every pair completes all three positions with one recorded prediction and evidence statement per position.",
+      "extension": "Compare a fresh report with a stale one without guessing missing values.",
+      "offline_route": "All three positions have photo, paper and simulation versions; record DEMO/OFFLINE if no measured stream."
+    },
+    {
+      "id": "integrate",
+      "title": "Dispense carry pick and place",
+      "session_id": "rotation2",
+      "minutes": 45,
+      "goal": "Assemble the supervised fixed pickup to fixed destination sequence.",
+      "example_id": "fixed_pick_place",
+      "starter": [
+        {
+          "op": "ev3",
+          "command": "eject"
+        },
+        {
+          "op": "ev3",
+          "command": "left_end"
+        },
+        {
+          "op": "pick_place_recording",
+          "name": "fixed_pick_place",
+          "speed": 0.5
+        }
+      ],
+      "toolbox": [
+        "Messages",
+        "Timing",
+        "Conveyor",
+        "Loops",
+        "Decisions",
+        "Recordings",
+        "Jaw"
+      ],
+      "hints": [
+        "Stop the conveyor before the arm approaches.",
+        "Start/end poses and jaw state of adjacent taught strokes must agree."
+      ],
+      "worksheet_prompts": [
+        "Our prediction was ...",
+        "We changed ...",
+        "Our evidence was ...",
+        "This does not prove ..."
+      ],
+      "worked_example": "EV3 dispense \u2192 conveyor to pickup fixture and stop \u2192 named taught skill fixed_pick_place. That skill binds validated approach/open, calibrated grasp, lift/transfer, release and return phases. Missing or uncommissioned qualification blocks physical execution; simulation labels every transfer synthetic.",
+      "predict": "Where must the object and arm be before each next step? What should stop the run?",
+      "change": "First reorder paper cards. In simulation use pick_place_recording named fixed_pick_place and change one message or delay. Physical execution requires instructor-validated phase recordings, measured jaw calibration and the qualification manifest; missing evidence is a blocking result.",
+      "run": "Rotate: supervised integration, offline trace/rehearsal, failure/evidence desk. Each 15-minute slot includes 2 minutes transition. Run dispense, conveyor/stop and the named fixed_pick_place skill only through the existing shared endpoint. Instructor alone enables a qualified physical run; otherwise complete explicit synthetic simulation.",
+      "observe": "Record dispense, stopped fixture arrival, grasp, lift, placement/release and return separately. A completed command does not prove object transfer.",
+      "explain": "Which observation supports each claimed step? Which step remains unverified?",
+      "success": "Your pair explains the full fixed-fixture sequence and records honest per-step evidence. Physical completion requires observed object transfer; offline completion is labelled rehearsal.",
+      "extension": "After the core succeeds, discuss color-dependent destinations as separately validated taught skills.",
+      "offline_route": "Use the same fixed pickup/drop paper layout and named-skill simulation. Its grasp/lift/release outcomes are synthetic assumptions with physical_evidence false. Missing recordings or qualification means physical execution remains incomplete."
+    },
+    {
+      "id": "improve",
+      "title": "Find one failure and test a repair",
+      "session_id": "improve",
+      "minutes": 20,
+      "goal": "Use a controlled change and evidence to improve a sequence.",
+      "example_id": "failure",
+      "starter": [
+        {
+          "op": "log",
+          "message": "Predict STOP"
+        },
+        {
+          "op": "stop"
+        },
+        {
+          "op": "log",
+          "message": "This must not run"
+        }
+      ],
+      "toolbox": [
+        "Messages",
+        "Timing",
+        "Conveyor",
+        "Loops",
+        "Decisions",
+        "Recordings",
+        "Jaw",
+        "Safety"
+      ],
+      "hints": [
+        "Choose one input so cause and effect stay clear.",
+        "A successful run alone cannot identify a wrong known report."
+      ],
+      "worksheet_prompts": [
+        "Our prediction was ...",
+        "We changed ...",
+        "Our evidence was ...",
+        "This does not prove ..."
+      ],
+      "worked_example": "A missing fixture observation pauses the sequence after one inspected object. Fix the observation path before retrying.",
+      "predict": "What happens when the middle report is None?",
+      "change": "Test one failure: missing report, wrong order, missing recording or STOP. Change one cause only and reset.",
+      "run": "Reproduce in simulation or paper; record expected versus actual. Repair and rerun the same input.",
+      "observe": "Capture the failure message, stopped state and repaired trace. No physical fault injection by learners.",
+      "explain": "Did your test detect the problem? What could still fail on hardware?",
+      "success": "You show a failing prediction, one repair and a repeated check with its limits.",
+      "extension": "Use the optional color-routing example with three reds and one blue to expose swapped rules.",
+      "offline_route": "All failures can be traced with paper command/report cards."
+    },
+    {
+      "id": "share",
+      "title": "Show one prediction and result",
+      "session_id": "share",
+      "minutes": 10,
+      "goal": "Explain what your program did and what the evidence cannot prove.",
+      "example_id": "failure",
+      "starter": [
+        {
+          "op": "log",
+          "message": "Show one prediction and result"
+        }
+      ],
+      "toolbox": [
+        "Messages"
+      ],
+      "hints": [
+        "Read your prediction before the result.",
+        "A trace supports instruction order, not physical arrival."
+      ],
+      "worksheet_prompts": [
+        "Our prediction was ...",
+        "We changed ...",
+        "Our evidence was ...",
+        "This does not prove ..."
+      ],
+      "worked_example": "Pair A shows prediction, one change, observed result and one limit; then pairs B and C follow.",
+      "predict": "Which single output best supports your claim?",
+      "change": "Shorten your demonstration to one change and one observation.",
+      "run": "Use 1 minute preparation, 3 demonstrations of 2 minutes, 3 minutes shared reflection. Both partners speak.",
+      "observe": "Show saved trace, worksheet or observed supervised step; label simulation, paper or physical.",
+      "explain": "Name one next test that would increase confidence.",
+      "success": "All three pairs demonstrate and state a specific limitation.",
+      "extension": "Explain how a wrong known color differs from a missing report.",
+      "offline_route": "Present the worksheet and paper trace."
+    }
+  ],
+  "examples": {
+    "greeting": {
+      "code": "TEAM = \"Team 1\"\nREPEATS = 3\nprint(\"Welcome to the robot factory,\", TEAM)\nfor number in range(REPEATS):\n    print(\"Object number\", number + 1)\n",
+      "expected": "Welcome to the robot factory, Team 1; Object number 1, 2, 3.",
+      "script": "01_python.py"
+    },
+    "observation": {
+      "code": "ACTUAL = [\"red\", \"blue\", \"red\"]\nREPORTED = [\"red\", None, \"blue\"]\nfor actual, report in zip(ACTUAL, REPORTED):\n    print(\"Actual:\", actual, \"Reported:\", report)\n    print(\"Pause and inspect\" if report is None else \"Report needs checking\")\n",
+      "expected": "One missing report and one wrong report. A label alone does not establish the actual object.",
+      "script": "03_vision.py"
+    },
+    "sequence": {
+      "code": "PROGRAM = [{\"op\": \"log\", \"message\": \"Ready\"},\n           {\"op\": \"ev3\", \"command\": \"eject\"},\n           {\"op\": \"ev3\", \"command\": \"left_end\"},\n           {\"op\": \"log\", \"message\": \"Inspect the stopped pickup fixture\"}]\nprint(\"SIMULATION instructions; no hardware command sent\")\nfor row in PROGRAM:\n    print(row)\n",
+      "expected": "Ready, simulated dispense, belt to endpoint, inspection. A printed command is not measured arrival.",
+      "script": null
+    },
+    "joint": {
+      "code": "LEADER_START = 10\nFOLLOWER_START = 30\nLEADER_NOW = 15\nprint(\"DEMO: invented angles; no robot measurement\")\nprint(\"Relative prediction:\", FOLLOWER_START + LEADER_NOW - LEADER_START, \"degrees\")\nprint(\"Absolute prediction:\", LEADER_NOW, \"degrees\")\n",
+      "expected": "Relative prediction 35 degrees; absolute prediction 15 degrees."
+    },
+    "failure": {
+      "code": "REPORTS = [\"present\", None, \"present\"]\ncompleted = 0\nfor report in REPORTS:\n    if report is None:\n        print(\"STOP: missing observation; inspect before retry\")\n        break\n    completed += 1\nprint(\"Simulated inspected objects:\", completed)\n",
+      "expected": "Stop at the missing observation; one simulated inspected object."
+    },
+    "extension": {
+      "code": "from workshop import Factory, SimBelt, SimCamera, SimRobot\nOBJECTS = [\"red\", \"blue\", \"red\", \"unknown\", \"blue\"]\nRULES = {\"red\": \"left\", \"blue\": \"right\"}\nfactory = Factory(SimBelt(), SimCamera(OBJECTS), SimRobot())\nfor _ in OBJECTS:\n    factory.one_cycle(RULES)\nprint(factory.counts)\nprint(\"SIMULATION routes:\", factory.robot.actions)\nassert sum(factory.counts.values()) == len(OBJECTS)\n\nfor destination, count in factory.counts.items():\n    print(destination, \":\", count)\nprint(\"Total objects:\", sum(factory.counts.values()))\n",
+      "expected": "{'left': 2, 'right': 2, 'reject': 1}; simulated report routes only.",
+      "script": "04_sort.py"
+    },
+    "shared": {
+      "code": "from workshop.blockly_client import Program, simulate_program\nprogram = Program().log(\"Ready\").ev3(\"eject\").ev3(\"left_end\")\nresult = simulate_program(program)\nprint(\"SIMULATION only:\", result[\"complete\"])\nprint(result[\"events\"])\nprint(\"Shared Blockly JSON:\", program.program)\n",
+      "expected": "The validated same AST executes in simulation; no hardware connection or ROS needed.",
+      "script": "02_robot.py"
+    },
+    "live_setup": {
+      "code": "import os\nfrom workshop.live_observer import observe, plot_samples, JOINTS\nLIVE = os.environ.get(\"WORKSHOP_LIVE\") == \"1\"\nprint(\"LIVE topic observation: read-only\" if LIVE else \"DEMO: invented data, no robot measurements\")\n",
+      "expected": "Read-only topic observation in LIVE; explicit invented DEMO otherwise. Missing LIVE never substitutes DEMO."
+    },
+    "live_capture": {
+      "code": "report = observe(live=LIVE, duration=3)\nprint(report[\"mode\"])\nprint(report[\"samples\"][-1] if report[\"samples\"] else report.get(\"error\", \"No samples\"))\n",
+      "expected": "Read-only topic observation in LIVE; explicit invented DEMO otherwise. Missing LIVE never substitutes DEMO."
+    },
+    "live_plot": {
+      "code": "print(JOINTS)\nJOINT = \"shoulder_pan\"\nplot_samples(report, JOINT)\n",
+      "expected": "Read-only topic observation in LIVE; explicit invented DEMO otherwise. Missing LIVE never substitutes DEMO."
+    },
+    "live_recapture": {
+      "code": "report = observe(live=LIVE, duration=3)\nprint(report[\"mode\"])\nprint(report.get(\"error\", \"Read fresh/stale labels; a request is not a measured result.\"))\nplot_samples(report, JOINT)\n",
+      "expected": "Read-only topic observation in LIVE; explicit invented DEMO otherwise. Missing LIVE never substitutes DEMO."
+    },
+    "live_status": {
+      "code": "statuses = [s[\"teleop\"][\"value\"] for s in report[\"samples\"]\n            if s.get(\"teleop\", {}).get(\"state\") == \"fresh\"]\nprint(statuses[-1] if statuses else \"No fresh teleop status. Ask instructor.\")\n",
+      "expected": "Read-only topic observation in LIVE; explicit invented DEMO otherwise. Missing LIVE never substitutes DEMO."
+    },
+    "notebook_setup": {
+      "code": "from pathlib import Path\nimport sys\nroot = Path.cwd()\nif not (root / \"workshop\").is_dir():\n    root = root.parent\nif str(root) not in sys.path:\n    sys.path.insert(0, str(root))\nprint(\"Offline learner simulation. No physical commands are sent.\")\n",
+      "expected": "Offline simulation label."
+    },
+    "live_bootstrap": {
+      "code": "from pathlib import Path\nimport sys\nroot = Path.cwd()\nif not (root / \"workshop\").is_dir():\n    root = root.parent\nif str(root) not in sys.path:\n    sys.path.insert(0, str(root))\nprint(\"Read-only observation notebook. Capture mode is selected below.\")\n",
+      "expected": "Read-only observation label."
+    },
+    "fixed_pick_place": {
+      "code": "from workshop.blockly_client import Program, simulate_program\nprogram = (Program().ev3(\"eject\").ev3(\"left_end\")\n           .pick_place_recording(\"fixed_pick_place\", .5))\nresult = simulate_program(program)\nskill = result[\"taught_skills\"][0]\nprint(\"Synthetic fixed-fixture rehearsal:\", skill[\"state\"])\nprint(\"Physical evidence:\", skill[\"physical_evidence\"])\nassert skill[\"physical_evidence\"] is False\nassert not any(skill[k] for k in (\"pickup_verified\", \"lift_verified\", \"release_verified\"))\n",
+      "expected": "Explicit synthetic simulation only. Physical evidence and pickup/lift/release verification remain false."
+    }
+  },
+  "rotations": [
+    {
+      "id": "rotation1",
+      "stations": [
+        "Arm and twin observation",
+        "Conveyor and observation sequencing",
+        "Offline Blockly and Python preparation"
+      ]
+    },
+    {
+      "id": "rotation2",
+      "stations": [
+        "Supervised fixed-fixture integration",
+        "Offline sequence rehearsal",
+        "Failure tests and evidence"
+      ]
+    }
+  ]
+}

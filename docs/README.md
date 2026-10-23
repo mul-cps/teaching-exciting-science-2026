@@ -4,6 +4,8 @@ Choose a route from the [project overview](../README.md).
 
 ## Students and teachers
 
+- [Download the offline learner ZIP](student-workshop.zip), [printable practical mission cards](activity-cards.pdf)
+
 - [Notebook activities](../notebooks/README.md), [Python exercises](student-exercises.md), [Blockly student guide](blockly-student.md)
 - [Lesson plan](lesson-plan.md), [instructor notes](instructor.md), [worksheet](student-worksheet.pdf), [handbook](student-handbook.pdf)
 - [Slides](workshop-slides.pptx), [slide PDF](workshop-slides.pdf), [speaker notes](lecture-notes.md), [offline resources](workshop-resources.md)

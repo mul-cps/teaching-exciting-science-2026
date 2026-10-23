@@ -146,10 +146,11 @@ def test_moveit_octomap_config_is_conservative_and_sensor_specific():
     assert config["octomap_frame"] == "base_link"
     assert config["octomap_resolution"] == pytest.approx(0.02)
     sensor = config["resident_pointcloud"]
-    assert sensor["point_cloud_topic"] == "/camera/depth/color/points"
+    assert sensor["point_cloud_topic"] == "/station/resident/downsampled_points"
+    assert sensor["point_subsample"] == 1  # input already downsampled on GPU
     assert sensor["sensor_plugin"] == "occupancy_map_monitor/PointCloudOctomapUpdater"
     assert sensor["max_range"] == pytest.approx(1.2)
-    assert sensor["max_update_rate"] <= 5.0
+    assert sensor["max_update_rate"] == pytest.approx(2.0)
     assert "min_range" not in sensor  # not a PointCloudOctomapUpdater parameter
 
 

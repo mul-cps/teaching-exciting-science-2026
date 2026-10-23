@@ -104,6 +104,13 @@ def _arm_session_command(station_python, config, state_file, log_dir, lock, idle
     return command
 
 
+def _load_calibration_snapshot(path, validator):
+    """Bind immutable provenance to exactly the bytes validated at load time."""
+    raw=Path(path).read_bytes()
+    value=validator(json.loads(raw))
+    return value,hashlib.sha256(raw).hexdigest()
+
+
 def _load_owner_source_hashes(station_root):
     """Use the child's shared source-map contract once for this owner generation."""
     directory = Path(station_root) / "workshop/station"
@@ -487,6 +494,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         self._state_file = self._resolve_state_file()
         self._gripper_jaw = None
         self._gripper_joint = None
+        self._gripper_jaw_sha256 = None
+        self._gripper_joint_sha256 = None
         self._gripper_raw_limits = None
         self._gripper_goal_cancelled = False
         self._gripper_command_submitted = False
@@ -760,7 +769,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
         jaw_path_value = str(self.get_parameter("gripper_jaw_calibration").value).strip()
         if jaw_path_value:
             try:
-                self._gripper_jaw = validate_jaw_calibration(json.loads(Path(jaw_path_value).read_text()))
+                self._gripper_jaw, self._gripper_jaw_sha256 = _load_calibration_snapshot(
+                    jaw_path_value, validate_jaw_calibration)
             except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
                 raise RuntimeError("configured jaw-gap calibration is invalid") from error
         joint_path = str(self.get_parameter("gripper_joint_calibration").value).strip()
@@ -769,10 +779,12 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
                 limits = list(self.get_parameter("gripper_joint_limits_rad").value)
                 if len(limits) != 2 or not all(math.isfinite(v) for v in limits) or limits[0] >= limits[1]:
                     raise ValueError("invalid admitted gripper model bounds")
-                joint = validate_joint_calibration(json.loads(Path(joint_path).read_text()), limits)
+                joint, joint_sha256 = _load_calibration_snapshot(
+                    joint_path, lambda data: validate_joint_calibration(data, limits))
                 if (joint["arm_id"] != expected_arm_id or joint["calibration_sha256"] != expected_calibration_sha256):
                     raise ValueError("joint-angle calibration identity does not match resident owner")
                 self._gripper_joint = joint
+                self._gripper_joint_sha256 = joint_sha256
             except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
                 raise RuntimeError("configured gripper joint-angle calibration is invalid") from error
         self._expected_arm_id = expected_arm_id
@@ -2679,6 +2691,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             "torque": torque if trusted and measurements_valid else None,
             "arm_id": state.get("arm_id"),
             "calibration_sha256": state.get("calibration_sha256"),
+            "jaw_calibration_sha256": getattr(self, "_gripper_jaw_sha256", None) if self._gripper_jaw is not None else None,
+            "joint_calibration_sha256": getattr(self, "_gripper_joint_sha256", None) if getattr(self, "_gripper_joint", None) is not None else None,
             "owner_source_sha256": actual_sources,
             "expected_owner_source_sha256": expected_sources if isinstance(expected_sources, dict) else None,
             "arm_bounds": state.get("arm_bounds") if trusted else None,
@@ -3775,6 +3789,8 @@ class TrajectoryBridge(OperatorRestartMixin, Node):
             schema="so101-gripper-calibration-status-v1", si_gap_calibrated=metric,
             moveit_joint_calibrated=angular, si_position_units="metres",
             moveit_position_units="radians", visual_proxy_only=not angular,
+            jaw_calibration_sha256=getattr(self, "_gripper_jaw_sha256", None) if metric else None,
+            joint_calibration_sha256=getattr(self, "_gripper_joint_sha256", None) if angular else None,
             reason=("qualified gap and joint-angle calibration loaded" if response.success else
                     "MoveIt gripper requires qualified gap and identity-matched joint-angle calibration; no motion commanded")))
         return response

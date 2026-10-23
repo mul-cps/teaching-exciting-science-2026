@@ -1,0 +1,96 @@
+# Resident RGB-D compute boundary
+
+`so101_station_vulkan` is an experimental native C++ ROS package. It is **not a qualified replacement for the station perception pipeline** and is not wired into the production launch. Its ordinary output topics live under `/station/resident`; measurements never admit robot execution.
+
+The implemented GPU path accepts **already aligned RGB8 and Z16**, at most 640×480. One shared Vulkan context owns the instance/device/compute queue, with hardware-only device selection. Three slots allocate upload, device input, resident scratch, compact reduction, descriptors, commands and readback at construction. A copied `FrameLease` retains its slot through late consumers. Recycling additionally requires successful per-frame fence completion. Latest scheduling keeps one active submission and one replaceable unsubmitted frame. The core performs no frame-time Vulkan allocation or device/queue-wide waits. Shutdown drains per-slot fences explicitly. The optional diagnostic readback is a separate qualification mode, not the compact production path.
+
+Offline Slang compilation emits SPIR-V for eight entry points. The source/compiler/flags provenance file is installed alongside the binaries. Deployment does not need SlangPy or a Slang compiler. Connectivity uses tiled 16×16 shared-memory ping-pong with a local 256-step bound, then 32 phases of immutable A→B compression, canonical B→A copyback and boundary atomic hooks. A final edge check reports a convergence fault; parent traversal does not read atomically modified parents.
+
+| Stage | Implemented boundary | Qualification limitation |
+|---|---|---|
+| Native RGB/Z16 upload | Padded native rows copied once; GPU byte extraction/conversion | USB import/DMA-BUF unavailable; upload cost must be measured |
+| Conversion | Native Z16 scale to Float32; invalid zero preserved | Already aligned input only |
+| Deprojection | Pinhole original integer pixel centers | Nonzero distortion unsupported; complete retained geometry unqualified |
+| Color | Retained OpenCV integer HSV thresholds/table rounding | Compare every pixel against independent OpenCV |
+| Depth splitting | Valid .10–1.2 m, four-neighbor 12 mm cuts on both sides before connectivity | Parent/support/rejection geometry still belongs to retained path |
+| Connectivity | Eight-connected per-color minimum-index roots; bounded GPU union/compress; explicit convergence fault | Fixed rounds, fault instead of silent incomplete output |
+| Reduction | Compact >=24-pixel component count, root, color, pixel bounds, min/max depth | Capacity 4096; overflow fails, never truncates silently |
+| Per-piece morphology | Exact tight-bbox 3×3 closing implemented with separate overlapping root memberships, original OpenCV borders, max nine source roots per pixel | Exact per-pixel memberships/counts match native CPU and retained OpenCV on both AMD/Intel bounded offline matrix; full geometry remains open |
+| Support/contours/geometry | Preparation only: FP64 cached coordinates, known-hue vivid 7×7 preparation and row-major stride 8 | AMD eight-fixture preparation passes at 1e-12; Intel rejects unsupported FP64. RANSAC, support contours, PCA and complete object reports are not implemented |
+| Raw alignment | Separate Alignment API implemented for zero distortion, checked against scalar SDK oracle | Exact GPU Z16 RED case 2 has AMD 160 / Intel 216 mismatches against the scalar SDK oracle; no camera adapter or strict-camera qualification |
+| Encoding/recording | Shared-device GPU conversion and H.264 implemented; see [resident video](resident-video.md) | AMD 60 encoded / 60 CPU-decoded / 60 hardware-decoded frames pass hashes and luma; Intel first packet is corrupt and uses CPU fallback. No caller recording-service integration |
+| Occupancy mapping | Not implemented | No free-space evidence or OctoMap qualification |
+
+Modes are `cpu`, `auto`, and strict `vulkan`. Native CPU mode executes equivalent conversion/masks/depth cuts/connectivity/compact reduction. `auto` tries a hardware Vulkan device first and reports the initialization failure reason when CPU is selected. Runtime dispatch/fence errors fail the frame visibly; **runtime CPU recovery has not been qualified**. Strict `vulkan` never silently runs CPU compute.
+
+The camera component enumerates the actual sensor profiles before starting a single RealSense owner; it requires 640×480×30 RGB8/Z16. Missing camera or profile causes a clear initialization error. Experimental auto capture uses **vendor CPU alignment** before resident compute and reports that hybrid boundary. Strict raw-camera Vulkan refuses because alignment/distortion parity is incomplete. It publishes adapted RGB compatibility images only when ordinary ROS subscribers request serialization. Internal composed consumers receive the lease through intra-process ROS type adaptation. Calibration generation, hardware time/domain, source frame number, device serial, original acquisition dimensions and host receipt time remain attached to the lease. Raw hardware timestamps are not relabeled as ROS-clock timestamps.
+
+Build with the existing native ROS wrapper and isolated prefixes:
+
+```bash
+ros2/conda/so101-conda.sh run colcon --log-base /tmp/station-vulkan-log build \
+  --base-paths ros2/src --packages-select so101_station_vulkan \
+  --build-base /tmp/station-vulkan-build --install-base /tmp/station-vulkan-install \
+  --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+  -DRMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
+  -DSLANGC_EXECUTABLE=$HOME/.local/opt/slang-2026.19/bin/slangc
+```
+
+On this host, Conda's loader and system RADV need process-local system libdrm libraries. Restrict the driver and preload for the tested command only:
+
+```bash
+ros2/conda/so101-conda.sh run env \
+  VK_DRIVER_FILES=/usr/share/vulkan/icd.d/radeon_icd.x86_64.json \
+  LD_PRELOAD=/usr/lib64/libdrm.so.2:/usr/lib64/libdrm_amdgpu.so.1 \
+  /tmp/station-vulkan-build/so101_station_vulkan/benchmark_rgbd \
+  --backend compare --frames 60 --warmup 10 --output /tmp/resident-synthetic.json
+```
+
+For an unchanged recorded 640×480 fixture with `color.png`, `aligned_depth-raw.npy` and explicitly calibrated `capture.json`:
+
+```bash
+ros2/conda/so101-conda.sh run python tools/benchmark_resident_rgbd.py \
+  --binary /tmp/station-vulkan-build/so101_station_vulkan/benchmark_rgbd \
+  --fixture /absolute/recorded/fixture --amd-system-driver \
+  --frames 60 --warmup 10 --output /tmp/resident-recorded.json
+```
+
+The wrapper rejects resize, inferred depth units, unmatched images and nonzero distortion. It hashes original inputs, carries source stamps/calibration into its report, compares native CPU/GPU full arrays and independently checks masks, depth bits, cuts and canonical all-pixel component membership against OpenCV. It additionally invokes the retained `split_depth_coherent_components` implementation and checks exact retained piece membership/areas. The historical seven-stage morphology comparison passed on AMD and Intel for every independently closed piece membership against retained per-piece OpenCV closing, including overlaps. Full geometry parity remains unqualified. Diagnostic comparisons and compact-only timings must be reported separately. All live-rate, physical-camera/USB, complete station latency/CPU reduction, long soak, recording on/off and physical sorting gates remain open.
+
+
+## Current eight-stage checkpoint, 2026-10-23
+
+The [software checkpoint](software-checkpoint-20261023.md) records the current Wave 5 copyback implementation and separate preparation/alignment/video boundaries. Both GPUs pass all seven exact compute cases and both actual capacity fault-2 cases. The actual production-reduction probe returns deliberately nonconverged fault 1, then canonical fault 0; universal 32-round convergence is not claimed.
+
+Compact p95 is 0.987300 ms dense / 0.579442 ms recorded on AMD and 47.966678 ms dense / 20.905493 ms recorded on Intel. Intel's dense result is below 50 ms for this isolated subset only. Recorded performance regresses against the previous eight-stage run on both GPUs; Intel recorded GPU also regresses against current CPU p95 5.151445 ms.
+
+Normal 640×480 upload is 1,536,000 B and compact readback 163,856 B/frame; diagnostics read back 34,570,256 B/frame. Internal copyback adds 39,321,600 B payload, or 78,643,200 B combined device read/write traffic/frame. These timings exclude upload memcpy and CPU oracle work. Full-station 20 Hz, 30% CPU reduction, long soak and physical acceptance remain unqualified.
+
+## Historical seven-stage qualification baseline, 2026-10-22
+
+This entire section describes only historical shader source `04c5b21ba975057197ed539e5b8c4febfccea6aa4691b9c4c61475c656694ccd`. Its seven-shader layout, atomic path splitting and unexecuted GPU nonconvergence-fault probe claims do not describe current code. The timings remain valid evidence of that failed baseline.
+
+The [machine-readable evidence summary](resident-vulkan-qualification-20261022.json) pins source/SPIR-V/input hashes, each matrix result and timestamp stage means. Shader source SHA256 is `04c5b21ba975057197ed539e5b8c4febfccea6aa4691b9c4c61475c656694ccd`, Slang2026.19, precise floating-point/O2. Evidence uses the compute-only Context before optional video integration changes. Earlier six-stage results are superseded for this computation boundary.
+
+Each successful case ran60 measured frames after10 warmup. Both Radeon8060S(RADV) and Intel Graphics(ADL-N) passed native CPU/GPU full-array and compact comparisons, unchanged XYZ1e-7 tolerance, and independent retained/OpenCV closing for holes, rings, diagonals, depth splits, long snakes, overlapping red/green checkerboard closings and the unchanged640x480 recorded fixture. Masks, depth bits, cuts and every canonical and closed membership had zero independent mismatches.5120separate24pixel components correctly failed capacity4096 with fault2 on both GPUs.
+
+| Historical seven-stage case | AMD p50/p95ms | Intel p50/p95ms |
+|---|---:|---:|
+|Dense640x480 synthetic, diagnostics|5.551 /6.390|560.365 /561.272|
+|Unchanged640x480 recorded, diagnostics|3.411 /4.332|15.236 /15.710|
+|Same recorded, compact-only GPU|0.528 /0.629|13.049 /13.152|
+|Same recorded, native CPU|1.856 /1.917|5.086 /5.125|
+
+**Intel fails the station performance target on the dense synthetic scene.** Its compact GPU recorded processing is also2.56x slower than native CPU. AMD results do not qualify Intel or the full station. Normal640x480 transfers are1,536,000B upload and163,856B compact download/frame; diagnostics download33,341,456B/frame. Neither benchmark includes capture/raw alignment, complete geometry, publication age, video or station concurrency. Serial frozen-input submit/finish timing excludes upload memcpy and CPU oracle comparisons.
+
+Optional `--timestamps 1` preallocates queries, collects GPU timestamps only after the existing frame fence, and never adds query waits or frame-time allocation. Intel synthetic compact GPU means: connect/compress542.464ms, reduction7.283ms, morphology4.537ms, convert1.044ms, cuts0.603ms, upload0.320ms, gather0.554ms and readback0.037ms. Diagnostic readback rises to2.250ms while CC remains543.626ms. Actual i915 render-engine busy was99.3–100%, native CPU~3%, RSS~67MiB. The measured bottleneck is global CC, not morphology or dense download. Tiled CC is only a potential next experiment; no such optimization is qualified.
+
+Native `/usr/bin/time` recorded compact runs (70total frames including warmup) used user+system CPU0.04s/RSS90936KiB on AMD and0.11s/RSS66132KiB on Intel, versus native CPU0.15s/87540KiB and0.41s/86880KiB. These aggregate short-process costs include initialization/reference work and do not establish full-station CPU reduction. AMD diagnostic runs additionally used26–30CPU seconds outside the small per-frame timing interval; that aggregate cost is not attributed to a steady station tick.
+
+Root traversal has a monotone pixel-count bound with atomic path splitting;32union/compression rounds and all admission thresholds remain unchanged. Long-chain/snake cases converged. An actual GPU nonconvergence fault was not forced; production decoder fault1/2/4/8 refusal was exercised separately. A CPU overflow safety regression (4096valid pieces followed by one5120pixel piece) originally segfaulted; clearing the rejected root-map lane fixes it without admitting extra components. Native regression now checks explicit fault2 and all retained counts24. CPU morphology also takes66ms on120nested640x480 rings, so the fallback has its own scene-dependent20Hz failure.
+
+All raw alignment/distortion, full geometry, live30Hz/unique frame/publish-age, >=20Hz/p95<100ms complete station, >=30%stationCPU reduction, video/recording,10min soak and physical sorting gates remain open. No camera or robot was started for these offline tests.
+
+## Current offline build boundary
+
+A deployment compiler is optional: `-DPRECOMPILED_SHADER_DIR=/absolute/offline/shaders` requires current source SHA256 in `provenance.txt`, exactly eight expected compute `.spv` files and matching per-binary `.spv.sha256` sidecars. Wrong source or output digest fails configuration. `CMAKE_CONFIGURE_DEPENDS` refreshes provenance when Slang source changes. The historical isolated Intel seven-stage build and offline comparisons passed; its wrapper uses absolute isolated package paths and a process-only `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` while the existing deployment's custom GID middleware has no development CMake config. No deployment or service changes are authorized by this package.

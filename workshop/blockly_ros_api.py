@@ -4,9 +4,9 @@ import threading
 
 SERVICE = '/station/program/command'
 MAX_JSON_BYTES = 65536
-FIELDS = {'status': (), 'run': ('program',), 'record_start': ('name',),
-          'record_stop': (), 'recordings': (), 'stop': (), 'recover': (),
-          'operator': ('command',)}
+FIELDS = {'status': (), 'run': ('program', 'admission'), 'record_start': ('name', 'admission'),
+          'record_stop': ('admission',), 'recordings': (), 'stop': (), 'recover': ('admission',),
+          'operator': ('command', 'admission')}
 
 
 class ROSProgramAPI:
@@ -82,11 +82,9 @@ class ROSProgramAPI:
                 with self.app.lock:
                     result = {'names': sorted(self.app.recordings)}
             elif operation == 'run':
-                result = self.app.run(args['program'])
-            elif operation == 'record_start':
-                result = self.app.record_start(args['name'])
-            elif operation == 'operator':
-                result = self.app.operator(args['command'], cancel=self.closing)
+                result = self.app.run_external(args['program'],args['admission'])
+            elif operation in {'record_start','record_stop','operator','recover'}:
+                result = self.app.control_external(operation,{key:value for key,value in args.items() if key!='admission'},args['admission'],cancel=self.closing)
             else:
                 result = getattr(self.app, operation)()
             encoded = json.dumps(result, allow_nan=False, separators=(',', ':'))

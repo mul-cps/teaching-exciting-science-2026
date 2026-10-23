@@ -1,13 +1,15 @@
-# Classroom notebooks
+<!-- Generated from curriculum/workshop.json; edit the source, then run tools/build_notebooks.py. -->
 
-On the prepared PC, run `./station notebook` from the repository root. Open `Robot_Candy_Factory_Student.ipynb` in JupyterLab, save a team copy, then run cells with Shift+Enter. Read the explanations between code cells. Follow the notebook's mission order and save with Ctrl+S or Command+S.
+# Offline classroom notebooks
 
-For an extracted learner ZIP, keep notebooks, exercises, workshop and images together. Use the prepared Python: `.venv-workshop/bin/python notebooks/launch.py` on Linux/macOS or `.venv-workshop\Scripts\python.exe notebooks\launch.py` on Windows. The instructor may supply a different prepared interpreter. Initial preparation is described in [the prepared PC guide](../docs/fwmini4-workshop.md); package installation is not a classroom task.
+Build an offline robot factory from ordered instructions. Start with one fixed pickup fixture and one fixed destination. Pair roles: driver edits; observer predicts and checks; swap halfway. Only the instructor enables supervised hardware.
 
-Restarting a kernel resets in-memory variables, not edited files. Keep the original notebook as a clean copy. Rerunning a mission creates a fresh simulated mission. The student factory notebook uses controlled simulation reports; its photographs are separate real image examples, not live classifier output.
+On the prepared PC run `./station notebook`, open `Robot_Candy_Factory_Student.ipynb` and save a pair copy. Run cells from the top with Shift+Enter. Restart and rerun from the top after a confusing edit. Every executable cell uses invented inputs or explicit simulation; no learner cell imports ROS or commands hardware.
 
-Without Jupyter, run `python3 exercises/check_setup.py`, then the exercise scripts in order 01, 03, 02, 04. `python3 exercises/05_visual_sort.py` produces `sorting-result.html`. These use Python's standard library; see [exercise instructions](../docs/student-exercises.md).
+In the extracted learner ZIP, keep all folders together. Use the prepared Python to run `python notebooks/launch.py`. No installation or internet is a classroom task. Without Jupyter, run `python exercises/check_setup.py`, then scripts 01, 02 and 03. Script 04 is the optional color-routing extension, and 05 renders that extension as an offline HTML report.
 
-`./station sim` opens the local Blockly simulation. In the learner bundle, run `python3 tools/run_blockly_station.py` and open <http://127.0.0.1:8877>. See [the student Blockly guide](../docs/blockly-student.md).
+Start local Blockly with `python tools/run_blockly_station.py`; open http://127.0.0.1:8877 and choose the first mission. `./station sim` is the prepared-PC shortcut. Both languages share validated command JSON and the same interpreter.
 
-`Robot_Candy_Factory_Live_SO101.ipynb` is the separate robot/twin observation activity. In the learner ZIP it uses clearly labelled invented DEMO data. On the prepared full station, `./station notebook --live` opens the instructor lab after hardware startup. Notebook cells do not command actuators. Use [the operator workflow](../docs/station-startup.md) for hardware and [the lesson plan](../docs/lesson-plan.md) for timings.
+`Robot_Candy_Factory_Live_SO101.ipynb` defaults to invented DEMO observations. The prepared instructor launcher `tools/launch_live_workshop.py --live --ros-wrapper /path/to/wrapper` sets WORKSHOP_LIVE=1 for read-only live topic capture in a bounded wrapper subprocess. Missing LIVE data stay explicitly unavailable; there is no DEMO fallback. No cell sends motion or changes modes.
+
+Simulation, paper, reports and measured physical outcomes are separate evidence. Never claim a grasp or placement from a command log alone. Unknown or stale observations require pause and inspection.

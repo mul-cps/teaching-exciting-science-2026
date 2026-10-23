@@ -29,7 +29,7 @@ def test_cancel_stops():
 
 
 def test_recording_fixed_jaw_and_gap():
-    r=Recorder('transfer', {'arm_id':'arm','calibration_sha256':'a'*64}, clock=lambda:0)
+    r=Recorder('transfer', {'arm_id':'arm','calibration_sha256':'a'*64,'jaw_calibration_sha256':'c'*64,'joint_calibration_sha256':'d'*64}, clock=lambda:0)
     r.add([0]*5,.2,0); r.add([.1]*5,.2,.1)
     assert r.finish()['points'][1]['time'] == .1
     for jaw,stamp in ((.3,.2),(.2,1)):
@@ -46,7 +46,7 @@ def test_exact_job_terminal_and_error():
 
 def test_replay_speed_identity_and_invalid_samples():
     from workshop.blockly_recording import replay_points
-    identity={'arm_id':'a','calibration_sha256':'a'*64}
+    identity={'arm_id':'a','calibration_sha256':'a'*64,'jaw_calibration_sha256':'c'*64,'joint_calibration_sha256':'d'*64}
     r=Recorder('stroke',identity); r.add([0]*5,0,0); r.add([.1]*5,0,.1)
     recording=r.finish()
     assert replay_points(recording,identity,.5)[1]['time']==.2
@@ -63,7 +63,7 @@ def test_server_auth_and_simulation(tmp_path):
     root=f'http://127.0.0.1:{server.server_port}'
     try:
         with pytest.raises(urllib.error.HTTPError): urllib.request.urlopen(root+'/api/status')
-        request=urllib.request.Request(root+'/api/program/run',data=json.dumps({'program':[{'op':'log','message':'hello'}]}).encode(),headers={'X-Station-Token':app.token})
+        request=urllib.request.Request(root+'/api/program/run',data=json.dumps({'program':[{'op':'log','message':'hello'}],'admission':app.status()['admission']}).encode(),headers={'X-Station-Token':app.token})
         assert json.load(urllib.request.urlopen(request))['id']
         request=urllib.request.Request(root+'/api/program/stop',data=b'{}',headers={'X-Station-Token':app.token,'Origin':'https://evil.invalid'})
         with pytest.raises(urllib.error.HTTPError): urllib.request.urlopen(request)
@@ -81,7 +81,7 @@ def test_adversarial_types_bounded_expansion_and_depth():
 
 
 def test_recording_errors_stay_latched():
-    r=Recorder('stroke',{'arm_id':'a','calibration_sha256':'b'*64})
+    r=Recorder('stroke',{'arm_id':'a','calibration_sha256':'b'*64,'jaw_calibration_sha256':'c'*64,'joint_calibration_sha256':'d'*64})
     r.add([0]*5,0,0)
     with pytest.raises(ValueError): r.add([0]*5,.2,.1)
     with pytest.raises(ValueError): r.finish()
@@ -137,7 +137,10 @@ def test_application_allows_known_replays_in_nested_branches(tmp_path):
     app=Application(tmp_path)
     class PhysicalLike(SimulationBackend):
         physical=True
-    app.recordings['known']={'schema':'test-only'}
+        def identity(self): return {'arm_id':'physical-fixture','calibration_sha256':'a'*64,'jaw_calibration_sha256':'c'*64,'joint_calibration_sha256':'d'*64}
+    recorder=Recorder('known',PhysicalLike().identity(),origin='physical')
+    recorder.add([0.]*5,0.,0.); recorder.add([0.]*5,0.,.1)
+    app.recordings['known']=recorder.finish()
     app.backend=PhysicalLike(app.recordings)
     replay={'op':'replay','name':'known','speed':.5}
     app.run([{'op':'ev3','command':'eject'},
@@ -268,7 +271,7 @@ def test_replay_cohort_cannot_change_between_identity_and_sample(monkeypatch):
     import sys,types,time
     monkeypatch.setitem(sys.modules,'trajectory_msgs.msg',types.SimpleNamespace(JointTrajectoryPoint=object))
     monkeypatch.setitem(sys.modules,'builtin_interfaces.msg',types.SimpleNamespace(Duration=object))
-    identity={'arm_id':'a','calibration_sha256':'b'*64,'owner_generation':1}
+    identity={'arm_id':'a','calibration_sha256':'b'*64,'jaw_calibration_sha256':'c'*64,'joint_calibration_sha256':'d'*64,'owner_generation':1}
     r=Recorder('stroke',identity);r.add([0]*5,0,0);r.add([0]*5,0,.1)
     backend=ROSBackend.__new__(ROSBackend);backend.recordings={'stroke':r.finish()};backend.identity=lambda:identity
     backend.sample=lambda:{'identity':dict(identity,owner_generation=2),'positions':[0]*5,'jaw':0}

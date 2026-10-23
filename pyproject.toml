@@ -1,7 +1,7 @@
 [project]
 name = "cps-candy-factory"
 version = "0.1.0"
-description = "A four-hour beginner CPS workshop; CPU-first and simulation-first"
+description = "Four-hour beginner robotics workshop with offline simulation and a guarded physical station"
 requires-python = ">=3.11"
 dependencies = []
 

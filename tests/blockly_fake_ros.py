@@ -35,12 +35,12 @@ counts={'arm':0,'jaw':0,'stop':0,'sort':0}; points=[]; publishing=[True]; slow=[
 calibration={'si':True,'angle':True}; calibration_replies=[]; jaw_positions=[]; operator_calls=[]; ev3_fault_reset_calls=[]
 def trigger(endpoint,request,response):
     response.success=True
-    if endpoint=='/follower/status': data={'schema':1,'kind':'follower_status','position_age_s':.01,'torque_age_s':.01,'fresh':True,'sampled_monotonic':time.monotonic(),'arm_id':'fake','calibration_sha256':'a'*64,'owner_started_monotonic':123.,'owner_source_sha256':{'owner':'b'*64},'owner_faulted':False,'stop_latched':False,'active_operation':None,'teleop_state':'disabled','torque':dict.fromkeys(['shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll','gripper'],0)}
+    if endpoint=='/follower/status': data={'schema':1,'kind':'follower_status','position_age_s':.01,'torque_age_s':.01,'fresh':True,'sampled_monotonic':time.monotonic(),'arm_id':'fake','calibration_sha256':'a'*64,'jaw_calibration_sha256':'c'*64 if calibration['si'] else None,'joint_calibration_sha256':'d'*64 if calibration['angle'] else None,'owner_started_monotonic':123.,'owner_source_sha256':{'owner':'b'*64},'owner_faulted':False,'stop_latched':False,'active_operation':None,'teleop_state':'disabled','torque':dict.fromkeys(['shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll','gripper'],0)}
     elif endpoint=='/station/status': data=state
     elif endpoint=='/follower/gripper_calibration_status':
         si,angle=calibration['si'],calibration['angle']
         response.success=si and angle
-        data={'schema':'so101-gripper-calibration-status-v1','si_gap_calibrated':si,'moveit_joint_calibrated':angle,'si_position_units':'metres','moveit_position_units':'radians','visual_proxy_only':not angle,'reason':'qualified gap and joint-angle calibration loaded' if si and angle else 'calibration incomplete'}
+        data={'schema':'so101-gripper-calibration-status-v1','si_gap_calibrated':si,'moveit_joint_calibrated':angle,'si_position_units':'metres','moveit_position_units':'radians','visual_proxy_only':not angle,'jaw_calibration_sha256':'c'*64 if si else None,'joint_calibration_sha256':'d'*64 if angle else None,'reason':'qualified gap and joint-angle calibration loaded' if si and angle else 'calibration incomplete'}
         calibration_replies.append((si,angle,response.success))
     elif endpoint=='/station/stop': counts['stop']+=1; state['stop']['request_id']='stop-'+str(counts['stop']); data={'cancel_requested':True,'request_id':state['stop']['request_id']}
     elif endpoint=='/station/reset_fault':

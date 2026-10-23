@@ -136,7 +136,10 @@ its schema/limits and implements the interpreter and simulation backend.
 recorded measured strokes and replay points.
 `blockly_ros.py` (`source/workshop/blockly_ros.py.md`, generated reference) adapts the program to the
 existing ROS action/service contracts when physical mode is explicitly selected.
-The Python preview is a teaching artifact; the server does not execute it.
+Executable Python export uses the shared client to submit this same validated
+AST through the station service. The web server interprets the AST; it does not
+execute uploaded Python. Teaching content comes from `curriculum/workshop.json`
+and its generated lesson plan, activity cards and browser mission projection.
 
 Recording/replay pins owner, calibration and source identity. Replay requires
 the recorded starting pose and a fixed jaw; jaw-gap commands have a separate

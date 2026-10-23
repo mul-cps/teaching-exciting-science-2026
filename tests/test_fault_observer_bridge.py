@@ -42,6 +42,7 @@ def lifecycle(owner):
     node._response_queue = queue.Queue()
     node._home_completed_owner_started = node._owner_started
     node._recovery_depth_cache = node._recovery_camera_identity = None
+    node._gripper_jaw = node._gripper_joint = None
     node._recovery_cache_error = None
     node._cached_owner_reason = None
     node._teleop_latest = None

@@ -525,6 +525,9 @@ def test_stop_revokes_feed_already_queued_for_motion_lock():
 
 def test_new_command_after_completed_stop_is_admitted():
     ev3, brick = ready()
+    # This admission check needs two motor watchdog slices. Keep deadline
+    # exhaustion in its dedicated tests instead of relying on sub-ms slack.
+    ev3.config['timeouts']['operation_s'] = 1
     ev3.homed = True
     brick.stalled = False
     ev3.stop()

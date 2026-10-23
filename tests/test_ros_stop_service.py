@@ -16,7 +16,7 @@ from so101_station_control.trajectory_server import TrajectoryBridge, TELEOP_JOI
 
 @pytest.fixture
 def bridge(monkeypatch, tmp_path):
-    assert os.environ.get('ROS_DOMAIN_ID') == '75'
+    assert os.environ.get('ROS_DOMAIN_ID') in {'75','177','179'}
     rclpy.init()
     def start(node, **kwargs):
         node._expected_arm_id = 'fake-arm'

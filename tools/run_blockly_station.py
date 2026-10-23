@@ -21,8 +21,21 @@ from workshop.blockly_program import ProgramRunner, SimulationBackend, RECOVERY_
 from workshop.blockly_recording import Recorder, recording_timing
 
 
+class _ControlCancellation:
+    """Event view combining one admitted operation with transport shutdown."""
+    def __init__(self,local,parent=None): self.local=local; self.parent=parent
+    def is_set(self): return self.local.is_set() or (self.parent is not None and self.parent.is_set())
+    def wait(self,seconds):
+        end=time.monotonic()+seconds
+        while not self.is_set():
+            remaining=end-time.monotonic()
+            if remaining<=0: return False
+            self.local.wait(min(.02,remaining))
+        return True
+
+
 class Application:
-    def __init__(self, directory, *, physical=False, instructor=False):
+    def __init__(self, directory, *, physical=False, instructor=False, skills=None):
         self.physical_lock=None
         if physical:
             import fcntl
@@ -33,7 +46,7 @@ class Application:
             except OSError:
                 self.physical_lock.close(); raise RuntimeError('another physical Blockly adapter already owns the program lock')
         self.directory=Path(directory); self.directory.mkdir(parents=True,exist_ok=True)
-        self.recordings={}
+        self.recordings={}; invalid_info={}
         for index,path in enumerate(self.directory.glob('*.json')):
             if index>=64: break
             if path.stat().st_size<=250000:
@@ -42,15 +55,20 @@ class Application:
                     from workshop.blockly_recording import replay_points
                     replay_points(data,data['identity'],.5)
                     self.recordings[data['name']]=data
-                except (ValueError,KeyError,TypeError): pass
+                except (ValueError,KeyError,TypeError) as error:
+                    invalid_info[path.stem]={'state':'invalid','reason':str(error)[:1000]}
         if not physical:
             self.recordings.setdefault('demo',{'schema':'simulation-only'})
-        self.recording_info={name:recording_timing(value) for name,value in self.recordings.items() if value.get('points')}
+        self.recording_info={name:{**recording_timing(value),'state':'revalidation_required','reason':'loaded structure; live robot binding not yet checked'} for name,value in self.recordings.items() if value.get('points')}
+        self.recording_info.update(invalid_info)
         if physical:
             from workshop.blockly_ros import ROSBackend
             self.backend=ROSBackend(self.recordings)
         else: self.backend=SimulationBackend(self.recordings)
+        from workshop.blockly_skills import SkillLibrary
+        self.skill_library=SkillLibrary(skills); self.backend.skill_library=self.skill_library
         self.instructor=instructor; self.token=secrets.token_urlsafe(32)
+        self.admission_session=secrets.token_urlsafe(32); self.admission_epoch=0; self.stop_pending=0; self.control_cancel=threading.Event()
         self.lock=threading.RLock(); self.cancel=threading.Event(); self.job={'state':'idle'}
         self.thread=None; self.recorder=None; self.record_thread=None; self.record_cancel=threading.Event()
         self.program_recording=False
@@ -58,8 +76,8 @@ class Application:
 
     def status(self):
         with self.lock:
-            return {'job':dict(self.job),'recording':self.recorder.name if self.recorder else None,
-                    'record_error':self.record_error,'recordings':sorted(self.recordings),'recording_info':dict(self.recording_info),
+            return {'admission':{'session':self.admission_session,'epoch':self.admission_epoch},'job':dict(self.job),'recording':self.recorder.name if self.recorder else None,
+                    'taught_skills':self.skill_library.status(),'record_error':self.record_error,'recordings':sorted(self.recordings),'recording_info':dict(self.recording_info),
                     'recovery_required':self.recovery_required,'instructor':self.instructor,'operator_busy':self.operator_busy,**self.backend.status()}
 
     def idle(self,*,recovery=False):
@@ -67,18 +85,52 @@ class Application:
         if self.thread and self.thread.is_alive(): raise RuntimeError('program still active')
         if self.recorder: raise RuntimeError('finish recording first')
         if self.operator_busy: raise RuntimeError('instructor operation active')
+        if self.stop_pending: raise RuntimeError('STOP still active')
 
     def _check_recordings(self,rows):
         missing=set()
         def walk(commands):
             for row in commands:
-                if row['op']=='replay' and row['name'] not in self.recordings:
+                if row['op'] in {'replay','approach_recording'} and row['name'] not in self.recordings:
                     missing.add(row['name'])
                 elif row['op']=='repeat': walk(row['body'])
                 elif row['op']=='if_color':
                     walk(row['then']); walk(row['else'])
         walk(rows)
         if missing: raise ValueError('recording not found: '+', '.join(sorted(missing)))
+
+    def _check_skills(self,rows):
+        if not self.backend.physical: return
+        referenced=set()
+        def walk(commands):
+            for row in commands:
+                if row['op']=='pick_place_recording':
+                    referenced.add(row['name'])
+                elif row['op']=='repeat': walk(row['body'])
+                elif row['op']=='if_color': walk(row['then']); walk(row['else'])
+        walk(rows)
+        for skill_name in sorted(referenced): self.skill_library.load(skill_name,physical=True)
+
+    def _revalidate_recordings(self,rows):
+        # Local name preflight remains bounded and independent of ROS/payloads.
+        if not self.backend.physical: return
+        from workshop.blockly_recording import replay_points
+        referenced=set()
+        def walk(commands):
+            for row in commands:
+                if row['op'] in {'replay','approach_recording'}: referenced.add(row['name'])
+                elif row['op']=='repeat': walk(row['body'])
+                elif row['op']=='if_color':
+                    walk(row['then']); walk(row['else'])
+        walk(rows)
+        if not referenced: return
+        identity=self.backend.identity()
+        for recording_name in referenced:
+            try: replay_points(self.recordings[recording_name],identity,physical=True)
+            except (ValueError,KeyError,TypeError) as error:
+                self.recording_info.setdefault(recording_name,{}).update(state='invalid',reason=str(error))
+                raise
+            self.recording_info.setdefault(recording_name,{}).update(state='usable',reason='live binding checked; each operation still requires fresh admission')
 
     def _preflight_program(self,rows):
         if self.recovery_required:
@@ -95,7 +147,7 @@ class Application:
                 if op=='ev3' and row['command']=='reset_fault': ev3_reset=True
                 elif op=='station': station=True
                 elif op=='arm': arm=True
-                elif op=='replay': replay=True
+                elif op in {'replay','approach_recording','pick_place_recording'}: replay=True
                 elif op=='record_stroke':
                     if repeated: raise ValueError('recording cannot run in repeat count >1')
                     if row['name'] in names or row['name'] in self.recordings or (self.directory/(row['name']+'.json')).exists():
@@ -115,7 +167,7 @@ class Application:
         if names and len(self.recordings)+len(names)>64: raise ValueError('recording library limit 64')
 
     def _save_recording(self,result,check=lambda:None):
-        info=recording_timing(result)
+        info={**recording_timing(result),'state':'usable','reason':'fresh capture; each operation requires live admission'}
         with self.lock:
             check()
             if result['name'] in self.recordings: raise ValueError('existing strokes are preserved')
@@ -149,7 +201,7 @@ class Application:
         if row['op']!='record_stroke': return self.backend.command(row,cancel,deadline)
         check()
         sample=self.backend.sample(); identity=sample['identity']
-        recorder=Recorder(row['name'],identity)
+        recorder=Recorder(row['name'],identity,origin='physical' if self.backend.physical else 'synthetic_simulation')
         with self.lock:
             if self.recorder is not None: raise RuntimeError('recording already active')
             self.recorder=recorder; self.program_recording=True; self.record_error=None
@@ -175,12 +227,67 @@ class Application:
         finally:
             with self.lock: self.recorder=None; self.program_recording=False
 
-    def run(self,program):
+    def _check_admission(self,admission):
+        if (not isinstance(admission,dict) or set(admission)!={'session','epoch'}
+                or not isinstance(admission['session'],str) or not admission['session']
+                or len(admission['session'])>128 or type(admission['epoch']) is not int or not 0<=admission['epoch']<2**63):
+            raise ValueError('valid admission session and epoch required')
+        if admission!={'session':self.admission_session,'epoch':self.admission_epoch}:
+            raise RuntimeError('stale admission session or epoch; fetch status before a new intentional control')
+
+    def _begin_control(self,admission,parent=None):
+        # Caller holds self.lock through admission and reservation. Internal
+        # calls may omit the external stamp, but still receive STOP cancellation.
+        if admission is not None: self._check_admission(admission)
+        if self.stop_pending: raise RuntimeError('STOP still active')
+        self.control_cancel=threading.Event()
+        cancel=_ControlCancellation(self.control_cancel,parent)
+        self._check_control(cancel)
+        return cancel
+
+    @staticmethod
+    def _check_control(cancel):
+        if cancel.is_set(): raise InterruptedError('control cancelled before completion or delivery')
+
+    def control_external(self,operation,arguments,admission,*,cancel=None):
+        fields={'operator':{'command'},'recover':set(),'record_start':{'name'},
+                'record_stop':set(),'simulation_color':{'color'}}
+        if not isinstance(operation,str) or operation not in fields or not isinstance(arguments,dict) or set(arguments)!=fields[operation]:
+            raise ValueError('unsupported external control or argument fields')
+        with self.lock: self._check_admission(admission)
+        return {'operator':lambda:self.operator(arguments['command'],admission=admission,cancel=cancel),
+                'recover':lambda:self.recover(admission=admission,cancel=cancel),
+                'record_start':lambda:self.record_start(arguments['name'],admission=admission,cancel=cancel),
+                'record_stop':lambda:self.record_stop(admission=admission,cancel=cancel),
+                'simulation_color':lambda:self.simulation_color(arguments['color'],admission=admission)}[operation]()
+
+    def simulation_color(self,color,*,admission):
+        from workshop.blockly_program import COLORS
+        with self.lock:
+            self._check_admission(admission)
+            if self.stop_pending: raise RuntimeError('STOP still active')
+            if self.backend.physical or not isinstance(color,str) or color not in COLORS:
+                raise ValueError('simulation color is unavailable or invalid')
+            self.backend.observed_color=color
+            return {'color':color}
+
+    def run_external(self,program,admission):
+        if (not isinstance(admission,dict) or set(admission)!={'session','epoch'}
+                or not isinstance(admission['session'],str) or not admission['session']
+                or len(admission['session'])>128 or type(admission['epoch']) is not int or not 0<=admission['epoch']<2**63):
+            raise ValueError('valid admission session and epoch required')
+        return self.run(program,admission=admission)
+
+    def run(self,program,*,admission=None):
         validate_program(program)
         with self.lock:
             self.idle(recovery=True)
             self._preflight_program(program)
             self._check_recordings(program)
+            if admission is not None and admission!={'session':self.admission_session,'epoch':self.admission_epoch}:
+                raise RuntimeError('stale admission session or epoch; fetch status before a new intentional run')
+            self._check_skills(program)
+            self._revalidate_recordings(program)
             self.cancel=threading.Event(); job=secrets.token_hex(8)
             self.job={'id':job,'state':'running'}
             def work():
@@ -194,9 +301,10 @@ class Application:
             self.thread=threading.Thread(target=work,daemon=True); self.thread.start()
             return {'id':job,'state':'running'}
 
-    def record_start(self,recording_name):
+    def record_start(self,recording_name,*,admission=None,cancel=None):
         with self.lock:
             self.idle(); name(recording_name)
+            cancel=self._begin_control(admission,cancel)
             if len(self.recordings)>=64: raise ValueError('recording library limit 64; archive old recordings while server is stopped')
             if recording_name in self.recordings: raise ValueError('choose a new recording name; existing strokes are preserved')
             if not self.backend.physical: raise RuntimeError('recording requires explicit physical mode; simulation has a demo stroke')
@@ -204,7 +312,8 @@ class Application:
         try:
             identity=self.backend.identity(); recorder=Recorder(recording_name,identity)
             with self.lock:
-                self.recorder=recorder; self.record_error=None; self.record_cancel=threading.Event()
+                self._check_control(cancel)
+                self.recorder=recorder; self.record_error=None; self.record_cancel=self.control_cancel
                 def capture():
                     last=None
                     try:
@@ -220,35 +329,53 @@ class Application:
         finally:
             with self.lock: self.operator_busy=False
 
-    def record_stop(self):
+    def record_stop(self,*,admission=None,cancel=None):
         with self.lock:
+            if admission is not None: self._check_admission(admission)
+            if self.operator_busy: raise RuntimeError('instructor operation active')
+            cancel=self._begin_control(admission,cancel)
             if self.program_recording: raise RuntimeError('recording is managed by the active program')
             if self.recorder is None: raise RuntimeError('no recording active')
             recorder=self.recorder; thread=self.record_thread; self.record_cancel.set()
-        thread.join(timeout=2)
-        if thread.is_alive(): raise RuntimeError('recording collector did not stop')
-        with self.lock: self.recorder=None; self.operator_busy=True
+            self.operator_busy=True
         try:
+            thread.join(timeout=2)
+            if thread.is_alive(): raise RuntimeError('recording collector did not stop')
+            with self.lock:
+                self._check_control(cancel)
+                self.recorder=None
             result=recorder.finish()
             if self.backend.identity()!=result['identity']: raise RuntimeError('follower identity changed during recording')
-            return self._save_recording(result)
+            return self._save_recording(result,lambda:self._check_control(cancel))
         finally:
             with self.lock: self.operator_busy=False
 
     def stop(self):
-        self.cancel.set(); self.record_cancel.set()
+        with self.lock:
+            self.admission_epoch+=1
+            self.stop_pending+=1
+            self.cancel.set(); self.record_cancel.set(); self.control_cancel.set()
         try: return self.backend.stop()
         except BaseException:
             with self.lock: self.recovery_required=self.backend.physical
             raise
 
-    def operator(self,command,*,cancel=None):
+        finally:
+            with self.lock: self.stop_pending-=1
+
+    def operator(self,command,*,cancel=None,admission=None):
         if not self.instructor or not self.backend.physical: raise RuntimeError('instructor controls require --physical --instructor')
-        with self.lock: self.idle(recovery=True); self.operator_busy=True
+        with self.lock:
+            self.idle(recovery=True)
+            cancel=self._begin_control(admission,cancel)
+            self.operator_busy=True
         try:
+            self._check_control(cancel)
             if self.recovery_required and command not in {'zero_torque','emergency_reset','reset','restart_moveit','restart_camera','restart_depth','restart_tags','restart_all','verify_restart'}:
                 raise RuntimeError('motion/mode changes blocked until explicit recovery')
-            return self.backend.instructor(command,**({'cancel':cancel} if cancel is not None else {}))
+            result=self.backend.instructor(command,cancel=cancel)
+            with self.lock: self._check_control(cancel)
+            return result
         except BaseException:
             with self.lock: self.recovery_required=True
             try: self.backend.stop()
@@ -257,18 +384,27 @@ class Application:
         finally:
             with self.lock: self.operator_busy=False
 
-    def recover(self):
+    def recover(self,*,admission=None,cancel=None):
         if not self.instructor or not self.backend.physical: raise RuntimeError('instructor physical recovery required')
-        with self.lock: self.idle(recovery=True); self.operator_busy=True
+        with self.lock:
+            self.idle(recovery=True)
+            cancel=self._begin_control(admission,cancel)
+            self.operator_busy=True
         try:
-            result=self.backend.recover()
-            with self.lock: self.recovery_required=False
+            self._check_control(cancel)
+            result=self.backend.recover(cancel=cancel)
+            with self.lock:
+                self._check_control(cancel)
+                self.recovery_required=False
             return result
+        except BaseException:
+            with self.lock: self.recovery_required=True
+            raise
         finally:
             with self.lock: self.operator_busy=False
 
     def close(self):
-        self.cancel.set(); self.record_cancel.set()
+        self.cancel.set(); self.record_cancel.set(); self.control_cancel.set()
         if self.backend.physical:
             try: self.backend.stop()
             except Exception as error: print('STOP acknowledgement missing: '+str(error),file=sys.stderr)
@@ -364,16 +500,17 @@ def make_server(app,port,*,control_only=False,frontend_port=None):
                 if not isinstance(payload,dict): raise ValueError('request must be an object')
                 path=urlsplit(self.path).path
                 if control_only and path!='/api/program/stop': raise ValueError('STOP listener only')
-                if path=='/api/program/run' and set(payload)=={'program'}: result=app.run(payload['program'])
+                if path=='/api/program/run' and set(payload)=={'program','admission'}: result=app.run_external(payload['program'],payload['admission'])
+                elif path=='/api/python' and set(payload)=={'program'}:
+                    from workshop.blockly_client import export_python
+                    result={'python':export_python(payload['program'],physical=app.backend.physical)}
                 elif path=='/api/program/stop' and not payload: result=app.stop()
-                elif path=='/api/record/start' and set(payload)=={'name'}: result=app.record_start(payload['name'])
-                elif path=='/api/record/stop' and not payload: result=app.record_stop()
-                elif path=='/api/simulation/color' and set(payload)=={'color'}:
-                    from workshop.blockly_program import COLORS
-                    if app.backend.physical or not isinstance(payload['color'],str) or payload['color'] not in COLORS: raise ValueError('simulation color is unavailable or invalid')
-                    app.backend.observed_color=payload['color']; result={'color':payload['color']}
-                elif path=='/api/recover' and not payload: result=app.recover()
-                elif path=='/api/instructor' and set(payload)=={'command'}: result=app.operator(payload['command'])
+                elif path=='/api/record/start' and set(payload)=={'name','admission'}: result=app.control_external('record_start',{'name':payload['name']},payload['admission'])
+                elif path=='/api/record/stop' and set(payload)=={'admission'}: result=app.control_external('record_stop',{},payload['admission'])
+                elif path=='/api/simulation/color' and set(payload)=={'color','admission'}:
+                    result=app.control_external('simulation_color',{'color':payload['color']},payload['admission'])
+                elif path=='/api/recover' and set(payload)=={'admission'}: result=app.control_external('recover',{},payload['admission'])
+                elif path=='/api/instructor' and set(payload)=={'command','admission'}: result=app.control_external('operator',{'command':payload['command']},payload['admission'])
                 else: raise ValueError('unsupported endpoint or fields')
                 self.send_json(200,result)
             except (ValueError,RuntimeError,KeyError,TimeoutError,OSError,RecursionError) as error: self.send_json(400,{'error':str(error)[:2000]})
@@ -386,9 +523,10 @@ def main():
     parser.add_argument('--physical',action='store_true'); parser.add_argument('--instructor',action='store_true')
     parser.add_argument('--port',type=int,default=8877)
     parser.add_argument('--ros-api',action='store_true',help='expose ROS program commands in simulation (automatic with --physical)')
+    parser.add_argument('--skills',type=Path,help='private instructor taught skill library root')
     parser.add_argument('--recordings',type=Path,default=Path.home()/'.local/share/exciting-science/blockly-recordings')
     args=parser.parse_args()
-    app=Application(args.recordings,physical=args.physical,instructor=args.instructor)
+    app=Application(args.recordings,physical=args.physical,instructor=args.instructor,skills=args.skills)
     ros_api=server=control=None
     control_started=False
     try:

@@ -1,24 +1,40 @@
-# Sorting factory lesson plan
-22 October 2026 · Four hours · First semester · No coding or robotics prerequisites
+<!-- Generated from curriculum/workshop.json; edit the source, then run tools/build_notebooks.py. -->
 
-Work in pairs. One partner predicts, one types; swap often. Every task follows predict, change one thing, run, check. Use the prepared local Jupyter notebook; no software installation during class. The complete lesson also works with offline controlled examples. Red goes left, blue goes right, everything else goes to reject.
+# Beginner robot factory lesson plan
 
-| Elapsed minutes | Duration | Activity | Evidence of learning |
-| --- | --- | --- | --- |
-| 00–25 | 25 min | Introduction and notebook demonstration | Identify sensor, decision, actuator and feedback |
-| 25–35 | 10 min | Blockly Maze levels 1–3 | Predict a sequence and fix one wrong step; levels 4–5 optional |
-| 35–65 | 30 min | A Python names, repeats and decisions | Change one value; distinguish = from == |
-| 65–85 | 20 min | B Teachable Machine perception | Compare red, blue and background; test changed lighting or background |
-| 85–95 | 10 min | Break | Save and assign rotation groups |
-| 95–140 | 45 min | C Three stations of 15 min | Robot and twin; camera and conveyor; virtual robot |
-| 140–190 | 50 min | D Complete sorting factory | Trace stop, observe, decide, sort and compare routes and totals |
-| 190–225 | 35 min | E Challenges: Blockly automation or notebook | Build and test a rule or sequence; save and explain the evidence |
-| 225–240 | 15 min | Demos and reflection | Show one change, one result and one real-world limitation |
+Build an offline robot factory from ordered instructions. Start with one fixed pickup fixture and one fixed destination. Pair roles: driver edits; observer predicts and checks; swap halfway. Only the instructor enables supervised hardware.
 
-Total 240 minutes including transitions. At each rotation use 2 minutes to explain, 9 to try, 3 to explain a result and 1 to save and rotate. Three groups rotate in opposite starting positions: group 1 robot → camera → virtual; group 2 camera → virtual → robot; group 3 virtual → robot → camera.
+Simulation, paper, reports and measured physical outcomes are separate evidence. Never claim a grasp or placement from a command log alone. Unknown or stale observations require pause and inspection.
 
-The robot station uses Robot_Candy_Factory_Live_SO101.ipynb. Its default data are invented DEMO examples. A separately launched LIVE mode reads existing ROS topics only; the instructor controls physical enable, mode and stop using the RViz operations panel. The virtual station uses the short command sequence in the student notebook. The camera station combines observation uncertainty with paper conveyor sequencing; only the instructor demonstrates qualified hardware.
+| Minutes | Duration | Session |
+|---|---|---|
+| 0-20 | 20 | Meet our factory |
+| 20-45 | 25 | Ordered instructions |
+| 45-65 | 20 | Observations and uncertainty |
+| 65-95 | 30 | First Python edits |
+| 95-105 | 10 | Break |
+| 105-120 | 15 | Teach inspect and replay demonstration |
+| 120-165 | 45 | Explore three stations |
+| 165-210 | 45 | Build the physical sequence |
+| 210-230 | 20 | Improve one failure |
+| 230-240 | 10 | Three pair demonstrations |
 
-For the 190–225 minute challenge, pairs can choose the [offline Blockly factory](blockly-student.md) or the notebook challenges. The Blockly task is to predict and run, change the sequence, add color branches, then test unknown and save the result. Start in simulation on every laptop. During their supervised robot rotation or allocated challenge time, pairs can follow the [physical automation milestones](blockly-student.md#supervised-physical-automation-challenge): teach a fixed-jaw stroke using the leader, record the follower, replay once, then add an approved EV3 action. This replaces time within those slots; it adds no extra lesson slot. Dispensing, jaw control and payload pick/place each require their own commissioning. See [the instructor Blockly guide](blockly-workshop.md).
+## Pair rotations
 
-Use the worksheet to record answers; use the student notebook for explanations. External sites and their offline alternatives are in workshop-resources.md. The handbook reproduces the notebook text and code; build_notebooks.py is its source generator. Integrated physical sorting remains subject to the station's commissioning and acceptance evidence, independently of the notebook tests.
+Each 15-minute slot includes 2 minutes to save and transition. Driver edits; observer predicts and checks. Swap roles halfway. One instructor controls the physical integration station.
+
+### Explore three stations
+
+| Slot | Pair A | Pair B | Pair C |
+|---|---|---|---|
+| 1 | Arm and twin observation | Conveyor and observation sequencing | Offline Blockly and Python preparation |
+| 2 | Conveyor and observation sequencing | Offline Blockly and Python preparation | Arm and twin observation |
+| 3 | Offline Blockly and Python preparation | Arm and twin observation | Conveyor and observation sequencing |
+
+### Build the physical sequence
+
+| Slot | Pair A | Pair B | Pair C |
+|---|---|---|---|
+| 1 | Supervised fixed-fixture integration | Offline sequence rehearsal | Failure tests and evidence |
+| 2 | Offline sequence rehearsal | Failure tests and evidence | Supervised fixed-fixture integration |
+| 3 | Failure tests and evidence | Supervised fixed-fixture integration | Offline sequence rehearsal |

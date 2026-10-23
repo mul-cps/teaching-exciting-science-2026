@@ -454,3 +454,20 @@ def test_lifecycle_runtime_prefix_symlink_preserved(tmp_path, monkeypatch):
     monkeypatch.setattr(entry, 'stop', lambda args: pytest.fail('unsafe runtime STOP'))
     assert entry.main(['purge', '--runtime', '--yes']) == 1
     assert private.is_dir()
+
+
+def test_private_skills_roundtrip_through_blockly_and_gui_hooks(tmp_path,monkeypatch,capsys):
+    entry=lifecycle(tmp_path,monkeypatch);private=tmp_path/'private-library';private.mkdir()
+    calls=[]
+    monkeypatch.setattr(entry.prepared,'blockly',lambda action,**kw:calls.append((action,kw)))
+    assert entry.main(['blockly','--physical','--instructor','--skills',str(private)])==0
+    assert calls==[('blockly-physical',{'skills':str(private.resolve())})]
+    command=entry.gui_command(True,private)
+    assert command[-2:]==['--skills',str(private.resolve())]
+    monkeypatch.setattr(entry.prepared,'start_station',lambda before_rviz,before_stop:(before_rviz(),before_stop()))
+    assert entry.main(command[2:])==0
+    assert calls[-2:]==[('blockly-physical',{'skills':str(private.resolve())}),('blockly-close',{})]
+    assert entry.main(['sim','--skills',str(private)])==1
+    assert str(private) not in capsys.readouterr().err
+    # Stop ownership remains checkable after the configured directory disappears.
+    private.rmdir();assert entry.gui_command(True,private)==command

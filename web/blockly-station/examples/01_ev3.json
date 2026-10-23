@@ -5,7 +5,7 @@
       "languageVersion": 0,
       "blocks": [
         {
-          "type": "station_ev3",
+          "type": "station_ev3_service",
           "fields": {
             "COMMAND": "connect"
           },

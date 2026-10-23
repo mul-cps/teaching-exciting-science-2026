@@ -31,11 +31,11 @@ def make_docx(filename, source, *, worksheet=False):
     sec.page_width, sec.page_height = Inches(8.27), Inches(11.69)
     sec.top_margin = sec.bottom_margin = Inches(.45 if worksheet else .65)
     sec.left_margin = sec.right_margin = Inches(.58 if worksheet else .72)
-    for name, size in (("Normal", 10), ("Title", 20 if worksheet else 24),
+    for name, size in (("Normal", 13 if filename == "activity-cards.docx" else 11), ("Title", 20 if worksheet else 24),
                        ("Heading 1", 11 if worksheet else 15), ("Heading 2", 10 if worksheet else 12)):
         st = d.styles[name]
         st.font.name, st.font.size = "DejaVu Sans", Pt(size)
-        st.font.color.rgb = RGBColor.from_string(NAVY)
+        st.font.color.rgb = RGBColor(0, 0, 0)
         st.paragraph_format.space_after = Pt(3 if worksheet else 6)
     for style in d.styles:
         for border in style.element.findall(".//" + qn("w:pBdr")):
@@ -51,18 +51,25 @@ def make_docx(filename, source, *, worksheet=False):
 
     def runs(p, text, code=False):
         if code:
+            p.paragraph_format.space_after = Pt(2)
             run = p.add_run(text)
-            run.font.name, run.font.size = "DejaVu Sans Mono", Pt(8.5)
+            run.font.name, run.font.size = "Noto Sans Mono", Pt(9.5)
             return
-        for i, part in enumerate(re.split(r"(`[^`]+`)", text)):
+        for i, part in enumerate(re.split(r"(`[^`]+`|\*\*[^*]+\*\*)", text)):
             run = p.add_run(clean(part))
+            if part.startswith("**"):
+                run.bold = True
             if part.startswith("`"):
-                run.font.name, run.font.size = "DejaVu Sans Mono", Pt(9 if worksheet else 9)
+                run.font.name, run.font.size = "Noto Sans Mono", Pt(9.5)
 
     lines = (DOCS / source).read_text().splitlines()
     table = None
     code = False
+    mission_titles = {m["title"] for m in __import__("build_notebooks").load_curriculum()["missions"]}
+    mission_index = 0
     for line in lines:
+        if line.startswith("<!--"):
+            continue
         if line.startswith("```"):
             code = not code
             continue
@@ -97,6 +104,12 @@ def make_docx(filename, source, *, worksheet=False):
         elif line.startswith("### "):
             d.add_paragraph(clean(line[4:]), "Heading 2")
         elif line.startswith("## "):
+            if line[3:] == "Optional color destinations extension" and filename == "student-handbook.docx":
+                d.add_page_break()
+            if line[3:] in mission_titles:
+                if filename in ("activity-cards.docx", "instructor-guide.docx", "student-handbook.docx") or (worksheet and mission_index % 2 == 0):
+                    d.add_page_break()
+                mission_index += 1
             if filename == "student-handbook.docx" and line.startswith(("## A ", "## B ", "## C ", "## D ", "## E ", "## A ·", "## B ·", "## C ·", "## D ·", "## E ·")):
                 d.add_page_break()
             d.add_paragraph(clean(line[3:]), "Heading 1")
@@ -105,8 +118,13 @@ def make_docx(filename, source, *, worksheet=False):
         else:
             p = d.add_paragraph()
             runs(p, line, code=code)
-    d.core_properties.title = (DOCS / source).read_text().splitlines()[0].lstrip("# ")
+    d.core_properties.title = next(line[2:] for line in lines if line.startswith("# "))
     d.core_properties.subject = "22 October 2026 workshop"
+    footer = sec.footer.paragraphs[0]
+    footer.alignment = 2
+    field = OxmlElement("w:fldSimple")
+    field.set(qn("w:instr"), "PAGE")
+    footer._p.append(field)
     d.save(DOCS / filename)
 
 
@@ -126,11 +144,55 @@ def export_handout_pdfs():
     soffice = os.environ.get("SOFFICE") or shutil.which("soffice")
     if not soffice:
         raise RuntimeError("Set SOFFICE to the prepared LibreOffice executable to export handout PDFs")
-    for name in ("instructor-guide", "student-worksheet", "student-handbook", "lesson-plan"):
+    for name in ("instructor-guide", "student-worksheet", "student-handbook", "lesson-plan", "activity-cards"):
         with tempfile.TemporaryDirectory(prefix="workshop-handout-") as profile:
             subprocess.run([soffice, "-env:UserInstallation=" + Path(profile).as_uri(), "--headless", "--convert-to", "pdf", "--outdir", str(DOCS), str(DOCS/(name + ".docx"))], check=True, capture_output=True)
         if not (DOCS/(name + ".pdf")).is_file():
             raise RuntimeError("PDF export missing: " + name)
+
+
+def normalize_artifact(path):
+    """Remove exporter timestamps/IDs so repeated builds have identical bytes."""
+    import re
+    from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
+    import io
+    if path.suffix in (".docx", ".pptx"):
+        buffer = io.BytesIO()
+        with ZipFile(path) as source, ZipFile(buffer, "w", ZIP_DEFLATED) as target:
+            for name in sorted(source.namelist()):
+                data = source.read(name)
+                if name == "docProps/core.xml":
+                    data = re.sub(rb"20[0-9]{2}-[0-9-]{5}T[0-9:]{8}Z", b"2026-10-22T00:00:00Z", data)
+                info = ZipInfo(name, (2026,10,22,0,0,0))
+                info.compress_type = ZIP_DEFLATED
+                target.writestr(info, data)
+        path.write_bytes(buffer.getvalue())
+    elif path.suffix == ".pdf":
+        data = path.read_bytes()
+        # Same-length replacement preserves the PDF xref byte offsets.
+        data = re.sub(rb"D:[0-9]{14}", b"D:20261022000000", data)
+        data = re.sub(rb"20[0-9]{2}-[0-9-]{5}T[0-9:]{8}[+-][0-9:]{5}", b"2026-10-22T00:00:00+00:00", data)
+        data = re.sub(rb"/DocChecksum /[A-Fa-f0-9]{32}", lambda m: b" " * len(m[0]), data)
+        data = re.sub(rb"/ID\s*\[\s*<([A-Fa-f0-9]+)>\s*<([A-Fa-f0-9]+)>\s*\]",
+                      lambda m: re.sub(rb"(?<=<)[A-Fa-f0-9]+(?=>)", lambda n: b"0"*len(n[0]), m[0]), data)
+        path.write_bytes(data)
+
+
+def bundle_receipt_inputs():
+    import runpy
+    builder=runpy.run_path(str(ROOT/'exercises/make_student_bundle.py'))
+    return builder, builder['bundle_input_names'](ROOT)+['exercises/make_student_bundle.py','docs/student-workshop.zip']
+
+
+def publish_bundle():
+    """Build the tracked learner deliverable and hash every allowlisted input."""
+    import hashlib,json
+    builder,names=bundle_receipt_inputs()
+    (DOCS/'student-workshop.zip').write_bytes(builder['bundle_bytes'](ROOT))
+    receipt=json.loads((DOCS/'materials-build.json').read_text()) if (DOCS/'materials-build.json').exists() else {}
+    names += ['tools/build_materials.py']
+    receipt.update({name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names})
+    (DOCS/'materials-build.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
 
 
 def main():
@@ -138,16 +200,47 @@ def main():
     from build_notebooks import main as notebooks
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--handouts-only", action="store_true")
+    parser.add_argument("--check", action="store_true", help="Verify source projections and binary receipt without writing")
+    parser.add_argument("--bundle-only",action="store_true",help="Rebuild published learner ZIP and receipt without rerendering materials")
     args = parser.parse_args()
-    notebooks()
+    if args.bundle_only:
+        notebooks(["--check"])
+        publish_bundle()
+        print("Published docs/student-workshop.zip and hashed all learner inputs")
+        return
+    if args.check:
+        notebooks(["--check"])
+        import hashlib, json
+        receipt = json.loads((DOCS/"materials-build.json").read_text())
+        builder,bundle_inputs=bundle_receipt_inputs()
+        missing=set(bundle_inputs)-set(receipt)
+        if missing: raise SystemExit("Untracked learner receipt inputs: "+", ".join(sorted(missing)))
+        if (DOCS/'student-workshop.zip').read_bytes()!=builder['bundle_bytes'](ROOT):
+            raise SystemExit("Learner bundle drift: docs/student-workshop.zip")
+        for name, expected in receipt.items():
+            if hashlib.sha256((ROOT/name).read_bytes()).hexdigest() != expected:
+                raise SystemExit("Material drift: " + name)
+        print("Material sources and binary hashes verified")
+        return
+    notebooks([])
     make_docx("instructor-guide.docx", "instructor.md")
     make_docx("student-worksheet.docx", "student-worksheet.md", worksheet=True)
     make_docx("student-handbook.docx", "student-exercises.md")
     make_docx("lesson-plan.docx", "lesson-plan.md")
+    make_docx("activity-cards.docx", "activity-cards.md")
     export_handout_pdfs()
     if not args.handouts_only:
         make_slides()
-    print("Built handouts and notebooks in", DOCS, "and", ROOT/"notebooks")
+    import hashlib, json
+    names = ["curriculum/workshop.json", "tools/build_materials.py", "tools/build_lecture_slides.mjs", "tools/build_notebooks.py"]
+    names += [str(p.relative_to(ROOT)) for p in sorted((DOCS/"assets/lecture").glob("*.png"))]
+    names += ["docs/" + stem + ext for stem in ("instructor-guide", "student-worksheet", "student-handbook", "lesson-plan", "activity-cards", "workshop-slides") for ext in ((".pptx", ".pdf") if stem=="workshop-slides" else (".docx", ".pdf"))]
+    for name in names:
+        path = ROOT/name
+        if path.suffix in (".docx", ".pdf", ".pptx") and path.exists(): normalize_artifact(path)
+    (DOCS/"materials-build.json").write_text(json.dumps({name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names if (ROOT/name).exists()}, indent=2)+"\n")
+    publish_bundle()
+    print("Built handouts, notebooks and published learner ZIP in", DOCS, "and", ROOT/"notebooks")
 
 
 if __name__ == "__main__":

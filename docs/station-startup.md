@@ -13,7 +13,11 @@ Connect follower **5AB9068906**, leader **5AB9068765** and D435i **243322071783*
 ./station start
 ```
 
-`doctor` checks local paths, calibration identity and expected arm devices. Startup additionally verifies the current overlay, manifest, user manager and EV3 readiness, passively exports real joint limits, starts the selected services and opens RViz. The manifest's source, wrapper, configuration, calibration and domain must agree; a different checkout requires an explicitly regenerated installation.
+`doctor` is a read-only aggregate inventory: it continues after prerequisite failures and checks configured paths and calibration hashes, configured serial paths, USB descriptors, a bounded hardware Vulkan summary and FFmpeg encoder enumeration. It never opens cameras or serial devices, captures frames, encodes/decodes, starts services or constructs a robot owner. USB vendor/product descriptors do not establish the RealSense SDK serial. Hardware Vulkan excludes llvmpipe/lavapipe. Encoder lists report Vulkan, VAAPI and CPU availability only; recording profiles remain unqualified.
+
+`./station doctor --json` emits pure JSON with schema `so101-station-doctor-v1`, `checks` entries (`component`, `state`, `reason`), `prerequisites_ready`, and `qualified_for_motion:false`. States are `blocked`, `unknown`, `available`, and `unqualified`. Exit 1 indicates a blocking prerequisite, hardware or calibration failure; exit 0 is an availability result. Unknown checks prevent `prerequisites_ready:true`; no result certifies motion. With a valid prepared manifest, a bounded wrapper-launched service client requests existing station API `status` only. Missing live API, EV3 references, jaw/TCP flags and recording validation stay explicit; the doctor never restores references or revalidates recordings. Private configuration contents and serial values are not printed.
+
+The current GPU camera path is experimental and aligned-input-only; full raw depth/color GPU alignment and codec-profile qualification remain pending. Startup additionally verifies the current overlay, manifest, user manager and EV3 readiness, passively exports real joint limits, starts the selected services and opens RViz. The manifest's source, wrapper, configuration, calibration and domain must agree; a different checkout requires an explicitly regenerated installation.
 
 The wrapper `~/.local/bin/station-fwmini4 ros-vulkan` selects native ROS and the Intel Vulkan environment. Live domain is **76**, with localhost discovery. All physical clients use the manifest domain. **177** is for explicitly isolated software fixtures, including their own manifest. Changing domains does not separate USB ownership or the native EV3 session.
 
@@ -90,3 +94,10 @@ These commands expose the exact native ROS launch arguments. Starting components
 | Shutdown acknowledgement missing | Keep the record, inspect physical state and logs, and follow [emergency reset](station-emergency-reset.md). |
 
 See the [ROS API](ros-station-api.md) for exact service types, asynchronous jobs and reset semantics. Startup is not physical pick/place or automatic-sorting acceptance.
+
+
+## Optional occupancy map
+
+The resident MoveIt launch accepts `use_octomap:=true` and optional `octomap_config:=/absolute/path/sensors_3d.yaml`. Its default is **false**, so occupancy parameters are loaded into the follower MoveGroup only on explicit opt-in. The default config comes from the selected `station_root` and uses `/station/resident/downsampled_points`, 20 mm voxels and a 2 Hz update limit. The input is expected to be the GPU-downsampled stream; missing input leaves occupancy unavailable. Existing static collision boxes and owner/admission contracts remain active. This resident-launch option is not enabled by the prepared unit recipe.
+
+Stream delivery, robot self-filtering, camera/base transforms, obstacle insertion/removal and physical collision behavior still require qualification before occupancy is used for motion. OctoMap provides bounded binary occupancy updates. A voxel block grid (VBG) with TSDF fusion can retain surface distance and weight for reconstruction, while Gaussian maps offer appearance and uncertain surface estimates; neither replaces qualified conservative collision occupancy without independent geometry and free-space evidence.

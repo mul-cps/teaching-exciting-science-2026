@@ -1,198 +1,111 @@
-# Build your factory with blocks
+<!-- Generated from curriculum/workshop.json; edit the source, then run tools/build_notebooks.py. -->
 
-**35-minute pair challenge.** A block is an instruction. Connected blocks run
-in order; a repeat block runs its instructions more than once.
+# Local Blockly robot factory
 
-## Open your factory
+Start `python tools/run_blockly_station.py`, then open http://127.0.0.1:8877. Choose a mission, predict, edit one thing, run, inspect and explain. Save your workspace before changing missions. STOP ends the program; later blocks must not run. Reset simulation state between experiments. Missing recordings are a reason to inspect and prepare, never a reason to invent a physical success.
 
-Keep the extracted workshop folder together. Run:
+Simulation, paper, reports and measured physical outcomes are separate evidence. Never claim a grasp or placement from a command log alone. Unknown or stale observations require pause and inspection.
 
-```bash
-python3 tools/run_blockly_station.py
-```
+## Make a short conveyor story
 
-On Windows use `python` instead of `python3`. Open **http://127.0.0.1:8877**.
-The heading says **SIMULATION — no robot motion**. No internet or extra packages
-are needed. Keep the terminal open; Ctrl+C closes the simulator.
+Mission `blocks` · 25 minutes · Put instructions in order and repeat a small section.
 
-![The example completed twice in simulation](assets/blockly/simulation-complete.png)
+**Worked example** Ready → dispense → belt to pickup endpoint → inspect. In simulation each command changes a model; no physical object is verified.
 
-The **Starter** menu gives you five saved programs. Choose one and press
-**Load starter**; **Download starter** keeps a copy you can reopen with **Open
-blocks**. Loading replaces the blocks on screen, so save your work first.
+**Predict** Which message appears first? Where should the object model stop?
 
-| Starter | Your experiment |
-| --- | --- |
-| [1 · EV3 endpoints](../web/blockly-station/examples/01_ev3.json) | Predict connect → home → left → right, then change the order in simulation. |
-| [2 · Teach and replay](../web/blockly-station/examples/02_teach_replay.json) | Record `my_short_move` at the supervised station. In simulation only, change that name to the invented `demo` stroke. |
-| [3 · Color factory](../web/blockly-station/examples/03_color_factory.json) | Compare red, blue and unknown. Dispensing requires a commissioned feeder in live mode. |
-| [4 · SO-ARM101 teach a stroke](../web/blockly-station/examples/04_arm_teach.json) | Try in simulation first. At the supervised physical station, capture a short manual leader demonstration with the jaw fixed. |
+**Change** Change Ready to your pair name. Add repeat 2 around a message, then around one tested short sequence.
 
-| [5 · Reset and reinitialize](../web/blockly-station/examples/05_reset_station.json) | Instructor: restart the station and verify recovery, then use a separate program for mode changes or movement. |
+**Run** Open local Blockly simulation; select this mission; run the starter once. Use STOP and Reset before a different test. Save your workspace.
 
-## Find your blocks
+**Observe** Read the command log and model state. Compare the repeated messages with your prediction.
 
-- **Station controls:** restart the entire station and verify recovery, reset with
-  torque off, verify recovery, change modes and restart individual services.
-  The instructor supervises physical control. Reset does not move the arm home.
-- **SO-ARM101:** saved home, MoveIt mode, leader teleop relative, leader teleop
-  absolute and torque OFF, plus the existing metric jaw-gap block. Saved home
-  moves the arm; ask the instructor before physical mode changes.
-- **Recordings:** record follower stroke by name for **1–30 seconds**, or replay
-  a named stroke with a speed and timing choice. Recording captures measured
-  positions during manual teaching; replay moves the follower.
-- **EV3 conveyor:** connection, dispensing and conveyor commands.
-- **Flow & decisions:** wait, repeat, color decision, STOP and the commissioned
-  sorting-cycle block. **ROS Blocky · logging** supplies messages.
+**Explain** Why do instruction order and a stopped belt matter before pickup?
 
-Loading a starter only changes the workspace. Press **Run sequence** when ready.
+**Success check** Your pair can trace the order, predict a repeat count and explain one corrected sequence.
 
-## Predict, build, run, check
+**Optional challenge** Try an intentionally wrong order in simulation and explain the result.
 
-1. **0–5 minutes:** Look at the example. Which instructions run twice?
-   Predict the action list, then click **Run sequence** and compare.
-2. **5–12 minutes:** Change the repeat count. Add a conveyor movement before
-   dispensing. Make one change at a time. Swap who uses the mouse.
-3. **12–22 minutes:** Add a color decision. Use the **Simulated sensor** menu
-   to try red and blue. Make each choose a different transfer stroke or
-   conveyor destination. The supplied `demo` stroke represents an invented
-   robot movement.
-4. **22–30 minutes:** Try **unknown**. In that branch, log a message such as
-   “Unknown object: reject” and skip dispensing and gripping. Explain why
-   choosing red or blue without a measurement would be wrong.
-5. **30–35 minutes:** Save your blocks. Show another pair your prediction,
-   observed action list and one corrected mistake.
+**Offline route** Draw each instruction on paper and move a paper object only when its instruction runs.
 
-| Experiment | Prediction | What happened? |
-| --- | --- | --- |
-| Changed repeat count | | |
-| Unknown sensor reading | | |
+**Hint 1** Read from the top connection down.
 
-## If the station needs recovery
+**Hint 2** Repeat repeats every block inside it; start with a message.
 
-Ask the instructor to inspect the station and support the arm before restarting.
-Save your current blocks. Choose **5 · Reset and reinitialize**, click **Load
-starter**, then **Run sequence**. This calls the existing station restart and
-checks recovery; it does not automatically enable teleoperation or move home.
-Read the result. If verification fails, its actual reason remains visible; do not
-repeat motion commands to clear it.
+## Separate the object from its report
 
-After recovery succeeds, load or build a **separate** program using **SO-ARM101 →
-MoveIt mode** before **Saved home**, or **leader teleop relative/absolute** before
-teaching. The arm's teleop blocks both select the mapping and enable following.
-The Station controls mapping selectors only choose relative/absolute mapping;
-**Enable leader teleop** is a separate command there.
+Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
 
-While recovery is pending, use only a flat sequence of recovery controls, messages,
-waits and STOP. Put motion and mode changes in the next run, after verification.
-**Run sequence** stays available for these recovery programs; **STOP station**
-remains available independently.
+**Worked example** An actual blue brick can have a missing report. An actual red brick can be reported blue. Both need inspection.
 
-## Supervised physical automation challenge
+**Predict** Which of the three reports is missing? Which disagrees with the labelled object?
 
-This optional extension uses time within your supervised robot rotation or the
-challenge slot; it is **not another 35-minute activity**. Complete the simulation
-challenge first. The instructor opens the live version using the station setup
-and recording guide in the full repository.
+**Change** Change one report to None; then change one known report to a wrong known color.
 
-1. Try **4 · SO-ARM101 teach a stroke** in simulation first. For physical use,
-   ask the instructor to check readiness and supervise switching arm modes.
-   Choose a short path clear of objects and a unique recording name, for example
-   `my_short_move` if it has not been recorded before. Physical recordings cannot
-   overwrite an existing name. Do not repeat a record block or put it in a loop.
-2. Load starter 4. It selects relative leader teleoperation, records the follower
-   for **5 seconds**, then returns to **MoveIt mode**. Keep the jaw fixed and move
-   the human-operated leader during that recording window. Capture is read-only
-   and applies no force; it does not automatically approach a starting pose.
-   Cancellation or stale follower data fails the capture without saving a partial
-   stroke. The **Record follower** and **Finish recording** buttons remain an
-   alternative for instructor-supervised manual recording.
-3. After capture, let the instructor inspect the path and supervise returning
-   the follower to its recorded starting pose. Load **2 · Teach and replay**,
-   use the same recorded name (`my_short_move` in the supplied placeholder), and
-   replay once at **speed 0.5** in a separate **Run sequence**. Keep recording and
-   playback in separate programs. Check completion before adding another action.
-4. Add **Connect EV3**, then one instructor-approved conveyor endpoint. Check that
-   each action reports completion. Add dispensing only after the instructor has
-   commissioned the feeder reference; add jaw instructions only with measured,
-   qualified jaw calibration over the requested interval. Only one **9 mm**
-   calibration point is currently recorded; the metric jaw interval is **not
-   qualified**. Keep the jaw fixed during each recorded stroke.
-5. Build red and blue branches, predicting a different message or approved action
-   for each. In simulation try red, blue and unknown. The unknown branch must log
-   and **STOP before dispensing, gripping or replaying a manipulation**. In live
-   mode use the measured EV3 color; the instructor must confirm it is available
-   before the chosen action.
+**Run** Run the short Python example or trace its three rows on paper. Compare the real labelled photo with a deliberately changed report.
 
-Start with this block sketch; substitute your own recorded name and the endpoint
-approved for your station:
+**Observe** Record actual object, reported label and your decision separately. None means missing, never zero or proof of empty space.
 
-```text
-Connect EV3
-If sensor is red:
-  Log "Red route"
-  Conveyor to approved endpoint
-  Replay my_short_move (speed 0.5)
-Else if sensor is blue:
-  Log "Blue route"
-  Conveyor to approved endpoint
-Else:
-  Log "Unknown: ask the instructor"
-  STOP
-```
+**Explain** Why can a fresh color label still be wrong? What evidence would justify continuing?
 
-A confirmed **STOP** block ends the sequence normally. If STOP fails or cannot be
-confirmed, ask the instructor to inspect and recover the station before recording
-or running another sequence. The recovery message shows the reported reason.
+**Success check** You identify one missing and one wrong report and choose pause/inspect for uncertainty.
 
-To use **Saved home**, leave teleoperation first: connect a **MoveIt mode**
-block before the **Saved home** block.
+**Optional challenge** Test unfamiliar green without adding a rule.
 
-After station **STOP**, the instructor inspects the mechanism, selects Station
-controls **Verify recovery / unlock**, then EV3 **Reset inspected fault / STOP
-latch**. This does not set the feeder EJECT reference. Dispensing needs a physical
-reference recorded with RViz **Record feeder reference**.
+**Offline route** Use the supplied real photo and handwritten report cards; no camera or website is needed.
 
-Perception restarts share a **30-second cooldown**. Use **Wait** blocks, separate
-runs, or one **Restart entire station + verify**; do not repeatedly retry restarts.
+**Hint 1** Compare actual and reported columns one row at a time.
 
-Replay needs every recorded absolute joint within **2°** of its starting value
-and the jaw fixed at its recorded opening. The instructor uses teleoperation and
-measured feedback to return there. Automatic approach is not implemented.
+**Hint 2** A known word is still only a report.
 
-Before every replay, the instructor checks the recorded starting pose. Add a
-**Wait** block for a deliberate process delay; a pause accidentally recorded while
-teaching is part of the stroke timing, not a separate factory instruction.
+## Dispense carry pick and place
 
-**Success:** show your prediction, the measured recording, one completed replay
-and completed EV3 actions. Show that unknown stops before manipulation. This is
-a demonstrated sequence without object contact; it does not establish a qualified
-whole sorting cycle. Dispensing, jaw movement and payload sorting need their
-own instructor commissioning before use.
+Mission `integrate` · 45 minutes · Assemble the supervised fixed pickup to fixed destination sequence.
 
-**Explain your system:** What observes the object? Which block decides?
-What moves? What tells you the movement finished?
+**Worked example** EV3 dispense → conveyor to pickup fixture and stop → named taught skill fixed_pick_place. That skill binds validated approach/open, calibrated grasp, lift/transfer, release and return phases. Missing or uncommissioned qualification blocks physical execution; simulation labels every transfer synthetic.
 
-### Keep or skip pauses in a taught stroke
+**Predict** Where must the object and arm be before each next step? What should stop the run?
 
-Replay uses **original timing** unless you change its dropdown. **Skip stationary
-pauses** shortens only long sections with exactly unchanged arm positions; it does
-not change the taught moving positions. Use **Wait** blocks for delays your
-factory actually needs. The duration shown on the block is the requested time;
-the robot controller may stretch it or reject the motion. If the optional timing
-check rejects a stroke, keep original timing or teach a shorter stroke.
+**Change** First reorder paper cards. In simulation use pick_place_recording named fixed_pick_place and change one message or delay. Physical execution requires instructor-validated phase recordings, measured jaw calibration and the qualification manifest; missing evidence is a blocking result.
 
+**Run** Rotate: supervised integration, offline trace/rehearsal, failure/evidence desk. Each 15-minute slot includes 2 minutes transition. Run dispense, conveyor/stop and the named fixed_pick_place skill only through the existing shared endpoint. Instructor alone enables a qualified physical run; otherwise complete explicit synthetic simulation.
 
-Taught-stroke replay does not manage detected-brick object ownership. Jaw-gap
-blocks position the fingers; they do not declare an object grasped or attached.
-Use the physical station for supervised free-space taught motion and EV3
-sequences until the instructor has qualified the complete grasp/ownership flow.
+**Observe** Record dispense, stopped fixture arrival, grasp, lift, placement/release and return separately. A completed command does not prove object transfer.
 
-### One complete commissioned cycle
+**Explain** Which observation supports each claimed step? Which step remains unverified?
 
-The separate **Run one commissioned sorting cycle** block lets the native station
-own dispensing, detection, grasp ownership and verified placement. Try it first
-in simulation and inspect the completed count. The instructor can enable a
-physical attempt only after commissioning the whole station. Taught free-space
-strokes and jaw-position blocks remain separate activities; they do not declare
-an object grasped or attached.
+**Success check** Your pair explains the full fixed-fixture sequence and records honest per-step evidence. Physical completion requires observed object transfer; offline completion is labelled rehearsal.
+
+**Optional challenge** After the core succeeds, discuss color-dependent destinations as separately validated taught skills.
+
+**Offline route** Use the same fixed pickup/drop paper layout and named-skill simulation. Its grasp/lift/release outcomes are synthetic assumptions with physical_evidence false. Missing recordings or qualification means physical execution remains incomplete.
+
+**Hint 1** Stop the conveyor before the arm approaches.
+
+**Hint 2** Start/end poses and jaw state of adjacent taught strokes must agree.
+
+## Find one failure and test a repair
+
+Mission `improve` · 20 minutes · Use a controlled change and evidence to improve a sequence.
+
+**Worked example** A missing fixture observation pauses the sequence after one inspected object. Fix the observation path before retrying.
+
+**Predict** What happens when the middle report is None?
+
+**Change** Test one failure: missing report, wrong order, missing recording or STOP. Change one cause only and reset.
+
+**Run** Reproduce in simulation or paper; record expected versus actual. Repair and rerun the same input.
+
+**Observe** Capture the failure message, stopped state and repaired trace. No physical fault injection by learners.
+
+**Explain** Did your test detect the problem? What could still fail on hardware?
+
+**Success check** You show a failing prediction, one repair and a repeated check with its limits.
+
+**Optional challenge** Use the optional color-routing example with three reds and one blue to expose swapped rules.
+
+**Offline route** All failures can be traced with paper command/report cards.
+
+**Hint 1** Choose one input so cause and effect stay clear.
+
+**Hint 2** A successful run alone cannot identify a wrong known report.

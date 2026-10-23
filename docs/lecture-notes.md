@@ -1,233 +1,565 @@
-# Your first robot factory
+<!-- Generated from curriculum/workshop.json; edit the source, then run tools/build_notebooks.py. -->
 
-A whole-class deck for a four-hour workshop with no programming or robotics prerequisite. Slides 1–10 teach the introduction in 25 minutes. Slides 11–18 remain on screen as the activity checkpoints. The complete timetable is 25 + 10 + 30 + 20 + 10 + 45 + 50 + 35 + 15 = 240 minutes. All students work in pairs: the driver uses the keyboard or mouse and the navigator predicts and checks. Swap after the first run and during longer tasks.
+# Workshop slide speaker notes
 
-The primary Python environment is the prepared local Jupyter notebook. A code cell is a small area of runnable instructions. The standard-library exercises are the alternative. Web activities and their alternatives appear in [workshop resources](workshop-resources.md). The one optional video excerpt is a minute inside the perception activity, not extra lecture time.
+Eight introductory slides total 20 minutes, followed by two slide cards per practical mission. Both cards share the mission duration; they do not add session time.
 
-## Slide 1: Your first robot factory
+## Slide 1: Our fixed-fixture factory
 
-**00:00–03:00, 3 minutes**
+2 minutes
 
-Start with a question before introducing vocabulary. “Here is the factory we will build in code. What must it know before it can sort one object?” Give everyone fifteen seconds to look. Ask each pair for one answer. Expected responses include color, location, destination, and whether the object arrived. Accept everyday phrases such as “it needs eyes.” Translate that to “a way to obtain information.”
+Point to actual equipment. Ask which step needs an observation. Explain fixed pickup/drop is core; colors are later.
 
-Explain the mission: “You will write decisions for a miniature sorting factory. A program is a list of instructions a computer follows. A robot can use instructions to make physical movements. Today you can begin without knowing how to program.” Distinguish the pictured concept from equipment in the room: “This is an illustration of the idea. In a moment we will look at our actual station.”
+## Slide 2: Measure decide act check
 
-Give a concrete example. “I can point and say ‘put that over there.’ What does a machine need instead?” Expected: identify the object and destination clearly. Say that each pair will later test five objects in a simulation, which is a computer version of a task. Real equipment and its screen model will help us investigate movement and observation. Do not promise an autonomous physical sorting run.
+3 minutes
 
-**Transition:** “Before writing any code, let us make the destination choices ourselves.”
+Define sensor and actuator with the actual station. Learners point to examples. A command acknowledgement is not object arrival.
 
-**Visual source:** `assets/lecture/factory-concept-hero.png`, a deliberately illustrated concept created for this workshop. It is visibly labeled Concept illustration. It is not a photograph of the real station.
+## Slide 3: Robot and screen twin
 
-## Slide 2: Where does it go?
+3 minutes
 
-**03:00–05:00, 2 minutes**
+Compare leader/follower/twin. A matching screen is not an independent sensor or payload proof.
 
-Read the three destinations. “Our first rule is red goes left, blue goes right, and unknown goes to reject. A destination is where we want an object to end up. Reject is the destination for an object that our rule cannot safely classify.” The native colored containers are an editable teaching diagram. They do not depict physical bins installed on the table.
+## Slide 4: Put the steps in order
 
-Ask pairs to predict the result for red, blue, and green in that order. Expected: left, right, reject. Ask why green should go to reject. Expected: the rule does not recognize green. Do not accept “green is probably blue” as a safe response. Explain that unknown is useful information rather than a student mistake.
+3 minutes
 
-Tell students that we will eventually reverse destinations and test the rule again. The color of a destination label is a convention we choose; the program must follow the actual written rule.
+Ask what happens if the belt is moving at pickup. Fixed-fixture sequence first. Separate calibrated jaw actions and validated strokes.
 
-**Transition:** “Which parts of our real station will obtain information and make movements?”
+## Slide 5: An observation can be wrong
 
-## Slide 3: The equipment in our room
+2 minutes
 
-**05:00–08:00, 3 minutes**
+Label the altered report clearly. Discuss lighting, occlusion and missing data. Unknown does not certify free space.
 
-Point to the actual photo, then the corresponding equipment in the room. “This picture comes from the station camera. The camera is above the table, outside its own view. The conveyor is a moving belt that carries objects. The robot arm changes the location of the gripper. The gripper opens and closes to hold an object.” The black mechanism on the left is the hand-controlled leader; explain its role on slide 6.
+## Slide 6: Blocks run in order
 
-Ask, “Which part gives us a picture?” Expected: camera. “Which parts can change an object's location?” Expected: conveyor and arm. If a student says the computer moves it, clarify that the computer sends instructions and the mechanism makes the movement.
+2 minutes
 
-Explain that left, right, and reject are destinations in the simulation. The photograph contains no sorting bins. Do not imply that the colored containers in the concept illustration are present in this capture. If physical containers are used later, identify today's actual placement explicitly.
+This is a local station screenshot, not an external Maze. Show short log/repeat sequence and STOP. No internet needed.
 
-A prepared instructor demonstration can show one accepted movement here, but keep the focus on the question: “What did you observe?” If a demonstration is unavailable, point to the parts and continue. A movement demonstration does not establish autonomous sorting.
+## Slide 7: Your first Python change
 
-**Transition:** “These parts must work together in a complete cycle.”
+3 minutes
 
-**Visual source:** `assets/lecture/station-current.png`, unmodified actual station camera capture from 21 October 2026.
+Read four lines aloud. Quotes store text; REPEATS stores a number. Ask what changes if TEAM changes. More code follows in practical missions.
 
-## Slide 4: A complete cycle
+## Slide 8: Teach inspect return replay
 
-**08:00–11:00, 3 minutes**
+2 minutes
 
-Read the four words slowly. “Observe means obtain information. Decide means use a rule. Act means make a movement. Check means compare what happened with what we wanted.” Trace the native editable diagram from top to bottom and back to the first step.
+Swap pair driver/observer. Point to STOP. Physical execution requires the instructor and prepared verified recordings. Begin the first local mission.
 
-Use one blue object as a worked story. Ask pairs to fill each step: get a picture, choose the right destination, make a movement, then look to see whether the object arrived. Clarify that the camera gives a picture and a program gives the picture a color label. The camera does not know our destination convention.
+## Slide 9: Make a short conveyor story card 1
 
-Ask, “The program sent an instruction, but the object is still on the belt. Which step reveals that?” Expected: check. Ask, “Are we finished?” Expected: no. “Sending an instruction and achieving the result are different events. We need another observation before deciding what to do next.”
+25 minutes total for this activity, shared across its two cards.
 
-**Transition:** “We need words for the part that measures and the part that moves.”
+## Make a short conveyor story
 
-## Slide 5: Information and movement
+Mission `blocks` · 25 minutes · Put instructions in order and repeat a small section.
 
-**11:00–13:00, 2 minutes**
+**Worked example** Ready → dispense → belt to pickup endpoint → inspect. In simulation each command changes a model; no physical object is verified.
 
-“A sensor is a device that measures something. A camera is a sensor: it gives us an image, which is a picture. An actuator is a part that makes a physical movement. A motor is an actuator: it turns.” Point to the large words and their examples.
+**Predict** Which message appears first? Where should the object model stop?
 
-Ask students to offer an everyday sensor. Accept a thermometer measuring temperature or a microphone measuring sound. Return to the workshop example. Ask, “Can the turning motor by itself tell us the color?” Expected: no. “Can the image by itself move a brick?” Expected: no.
+**Change** Change Ready to your pair name. Add repeat 2 around a message, then around one tested short sequence.
 
-Keep this distinction concrete. Students do not need component specifications or acronyms. Ask one student to point at a sensor and another to point at an actuator in the room.
+**Run** Open local Blockly simulation; select this mission; run the starter once. Use STOP and Reset before a different test. Save your workspace.
 
-**Transition:** “A person can guide the robot, and we can compare the physical movement with a model on screen.”
+**Observe** Read the command log and model state. Compare the repeated messages with your prediction.
 
-## Slide 6: You move. It follows.
+**Explain** Why do instruction order and a stopped belt matter before pickup?
 
-**13:00–16:00, 3 minutes**
+**Success check** Your pair can trace the order, predict a repeat count and explain one corrected sequence.
 
-Explain the three labels. “The leader is the handle you move. The follower is the robot arm that follows. Teleoperation means that a person guides the movement. A digital twin is a screen model updated from measurements of the real robot.” Point to the leader and follower in the room. Point to the supplied screen image as an example of the model and measured scene. Do not present this saved screenshot as a currently running connection.
+**Optional challenge** Try an intentionally wrong order in simulation and explain the result.
 
-“A joint is a place where parts of the arm can move relative to one another. It can bend or rotate. Several joints together change where the gripper is. The gripper opens and closes.” Invite students to bend their elbow and open their hand. This analogy introduces the mechanism without requiring geometry.
+**Offline route** Draw each instruction on paper and move a paper object only when its instruction runs.
 
-During the robot station, the instructor will select an accepted demonstration or the virtual alternative. Ask students to compare one real joint with the matching screen joint. Ask, “Does the screen prove that a real movement will miss the table?” Expected: no. It may omit an obstacle or a current detail. Explain clearance as enough empty space for a movement. Before moving sideways near an object, first provide clearance above the table and other objects.
+**Hint 1** Read from the top connection down.
 
-**Transition:** “Movement needs a decision. What information does our camera actually provide?”
+**Hint 2** Repeat repeats every block inside it; start with a message.
 
-**Visual source:** `assets/lecture/digital-twin-view.png`, cropped from the user-supplied actual station screenshot `digital-twin-screen.png` (original clipboard image `codex-clipboard-5CgWs7.png`). It illustrates the real application view, not a current physical acceptance result.
+**Instructor guidance** Expected order is message, eject, endpoint, inspect. Repeat does not imply two verified physical placements.
 
-## Slide 7: What does the camera give us?
+## Slide 10: Make a short conveyor story card 2
 
-**16:00–18:00, 2 minutes**
+25 minutes total for this activity, shared across its two cards.
 
-“The camera gives a picture. An image is made of pixels. A pixel is one tiny square of color. The enlarged middle example uses a deliberately small number of squares so we can see them. A program examines image information and attaches a label, such as red.” The reduced example is not a claim about the camera's native resolution.
+## Make a short conveyor story
 
-Point to the pale, dark, and red squares. Ask, “Are all the pixels red?” Expected: no. There is a background, a dark edge, and reflections. Ask, “Would changing the light or object position leave exactly the same image?” Expected: no. Explain that choosing the right image region and recognizing uncertain information both matter.
+Mission `blocks` · 25 minutes · Put instructions in order and repeat a small section.
 
-**Transition:** “We can write a decision explicitly, or teach a model with examples. We will try both approaches.”
+**Worked example** Ready → dispense → belt to pickup endpoint → inspect. In simulation each command changes a model; no physical object is verified.
 
-**Visual sources:** `brick-red.png` and `brick-pixels.png`, actual station crop and its deliberately reduced enlargement.
+**Predict** Which message appears first? Where should the object model stop?
 
-## Slide 8: Write a rule or teach examples
+**Change** Change Ready to your pair name. Add repeat 2 around a message, then around one tested short sequence.
 
-**18:00–20:00, 2 minutes**
+**Run** Open local Blockly simulation; select this mission; run the starter once. Use STOP and Reset before a different test. Save your workspace.
 
-“On the left, we write the choice ourselves: red goes left and blue goes right. On the right, we collect examples and teach a model to recognize a pattern. A model is the pattern the computer learns from those examples. Training means using the examples to build that model.” The destination rule and the image recognizer solve different parts of the task.
+**Observe** Read the command log and model state. Compare the repeated messages with your prediction.
 
-“We will teach three named groups: red, blue, and an empty background. A class is one named group. The background group gives the exercise examples where there is no object to sort.” Ask why a two-group red/blue activity would be incomplete for an empty table. Expected: it has not been taught a separate empty-background answer. Explain that an unfamiliar object can still receive a misleading label, so we must test a new view and keep the unknown/reject response in the sorter.
+**Explain** Why do instruction order and a stopped belt matter before pickup?
 
-No equations or machine-learning code are needed. The Teachable Machine activity is later, after Python, and has a prepared-photo alternative if the camera or site is unavailable.
+**Success check** Your pair can trace the order, predict a repeat count and explain one corrected sequence.
 
-**Transition:** “First we will write the destination rule in a language the computer can run.”
+**Optional challenge** Try an intentionally wrong order in simulation and explain the result.
 
-**Resource:** [Teachable Machine](https://teachablemachine.withgoogle.com/train/image), with primary project reference and bounded activity in [workshop resources](workshop-resources.md).
+**Offline route** Draw each instruction on paper and move a paper object only when its instruction runs.
 
-## Slide 9: A rule the computer can run
+**Hint 1** Read from the top connection down.
 
-**20:00–23:00, 3 minutes**
+**Hint 2** Repeat repeats every block inside it; start with a message.
 
-“Code is instructions written in a language a computer can run. This language is Python. Read from top to bottom.” Point to `COLOR = "red"`. “COLOR is a name that stores a value. We call it a variable. The value is the text red. Quotation marks mean text. One equals sign stores the value.” This is an example input, not a live sensor reading.
+**Instructor guidance** Expected order is message, eject, endpoint, inspect. Repeat does not imply two verified physical placements.
 
-Point at `if COLOR == "red":`. “If asks a question. Two equals signs compare values: is the stored color the same as this text? The colon ends the question line. The line beginning farther to the right belongs to that choice. We call that indentation.” Read `print("left")`: “Print shows output, the result the program displays. It does not move the arm.” Read `elif`: “Otherwise, if the color is blue, show right.” Read `else`: “Otherwise, show reject.”
+## Slide 11: Separate the object from its report card 1
 
-Ask what appears for red. Expected: left. In the prepared local notebook, point to the matching condition cell and click Run. Show the output underneath. Change only the first value to blue, ask for a prediction, then run. Expected: right. Ask what yellow would produce. Expected: reject. The following Python activity gives students time to try this themselves and introduces a short loop, meaning repetition. Do not add a loop to this slide.
+20 minutes total for this activity, shared across its two cards.
 
-**Transition:** “What should we do when the information is missing, wrong, or no longer current?”
+## Separate the object from its report
 
-## Slide 10: When the input is uncertain
+Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
 
-**23:00–25:00, 2 minutes**
+**Worked example** An actual blue brick can have a missing report. An actual red brick can be reported blue. Both need inspection.
 
-Use one concrete example. “Imagine the camera takes a picture and then the brick moves. The old location is no longer useful. What next?” Expected: stop, observe again, and ask the instructor before further physical action. Explain that repeating an old movement can repeat the mistake.
+**Predict** Which of the three reports is missing? Which disagrees with the labelled object?
 
-“For unknown or missing color information in the notebook, use reject. For unexpected physical movement, stop and ask the instructor. Do not reach into the moving station.” Ask, “Can the program announce success just because it sent the instruction?” Expected: no. It must check what happened.
+**Change** Change one report to None; then change one known report to a wrong known color.
 
-Introduce pair roles: driver uses the mouse or keyboard, navigator predicts and checks. Swap after the first run. Tell each pair to choose the first driver now.
+**Run** Run the short Python example or trace its three rows on paper. Compare the real labelled photo with a deliberately changed report.
 
-**Transition:** “Open Blockly Maze at level 1 from the resources. Your first task is to describe movement with blocks before typing Python.” The introduction ends at minute 25.
+**Observe** Record actual object, reported label and your decision separately. None means missing, never zero or proof of empty space.
 
-## Slide 11: Build a path
+**Explain** Why can a fresh color label still be wrong? What evidence would justify continuing?
 
-**25:00–35:00, 10 minutes**
+**Success check** You identify one missing and one wrong report and choose pause/inspect for uncertainty.
 
-**Prediction:** before pressing Run Program, the navigator says where the character will move. **Action:** attach blocks, run, compare, and correct. **Finish line:** explain one correction to a sequence.
+**Optional challenge** Test unfamiliar green without adding a rule.
 
-Spend the first two minutes showing drag, attach, and run. Students attempt levels 1–3 for five minutes. Swap after the first completed level. Levels 4–5 are stretch for pairs who are ready, not a completion requirement. Reserve the last minute for, “What changed when you changed the order?” Expected: the path or destination changes.
+**Offline route** Use the supplied real photo and handwritten report cards; no camera or website is needed.
 
-If the website is unavailable, use the paper instruction exercise in [workshop resources](workshop-resources.md). One partner reads the sequence and the other traces it. Do not add setup time or require all ten Maze levels.
+**Hint 1** Compare actual and reported columns one row at a time.
 
-**Transition at minute 35:** “Blocks and Python both describe instructions. Open the first Python activity in the prepared local notebook.”
+**Hint 2** A known word is still only a report.
 
-**Link and visual source:** [Blockly Maze level 1](https://blockly.games/maze?lang=en&level=1&skin=0). `blockly-view.png` is an actual browser screenshot after the checked first level, showing the next level. Students start at level 1.
+**Instructor guidance** Missing is row two; wrong known label row three. Correct words alone do not validate a classifier.
 
-## Slide 12: Change one thing
+## Slide 12: Separate the object from its report card 2
 
-**35:00–65:00, 30 minutes**
+20 minutes total for this activity, shared across its two cards.
 
-**Prediction:** state what the cell will print. **Action:** run it, change one value or instruction, and rerun. **Finish line:** show one correctly predicted result and explain the change that caused it.
+## Separate the object from its report
 
-Use the prepared student notebook's Python section. First show where the cell and Run control are. Begin with a short output example, then the `COLOR` condition that matches slide 9. Do not assume students know variables, quotes, or indentation. Explain an error as information about what Python could not follow. Let students repair one small change rather than replacing the whole cell.
+Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
 
-Introduce repetition with the notebook's short loop. Explain “repeat this action for each item” before asking students to read the loop syntax. Keep list-building and optional tasks out of the core route. Swap driver and navigator around minute 50. At minute 62 ask each pair to show a prediction and output. Use the standard-library exercise alternative if Jupyter is unavailable.
+**Worked example** An actual blue brick can have a missing report. An actual red brick can be reported blue. Both need inspection.
 
-**Transition at minute 65:** “Our written choices need an input. Now we will teach a camera model using examples.”
+**Predict** Which of the three reports is missing? Which disagrees with the labelled object?
 
-## Slide 13: Teach three answers
+**Change** Change one report to None; then change one known report to a wrong known color.
 
-**65:00–85:00, 20 minutes**
+**Run** Run the short Python example or trace its three rows on paper. Compare the real labelled photo with a deliberately changed report.
 
-**Prediction:** what should an empty background produce? **Action:** collect red, blue, and background examples, train, and test a new view. **Finish line:** explain one mistake or limitation using an observed result.
+**Observe** Record actual object, reported label and your decision separately. None means missing, never zero or proof of empty space.
 
-The optional Google video excerpt occupies only minute 65–66: [Teachable Machine 2.0: Making AI easier for everyone](https://www.youtube.com/watch?v=T2qQGqZxkD0), channel Google, full duration 2:08. Show 00:00–01:00 only. It is the only scheduled video minute in the workshop. Skip immediately if playback causes delay.
+**Explain** Why can a fresh color label still be wrong? What evidence would justify continuing?
 
-Use minutes 66–68 to create and name the three classes. Use 68–74 for example collection, 74–78 for training, 78–83 for testing, and 83–85 for discussion. Prepared object photos can replace the webcam. Before testing, ask pairs to predict both a green object that was not in training and a changed background. Then test and record the actual output for each. A third background class does not guarantee that an unfamiliar object becomes reject. A high score can still be wrong. Keep the learned label separate from the sorter's unknown/reject policy. Each pair must explain one observed mistake or one limitation. The [resources](workshop-resources.md) explain the alternatives. Swap roles during collection and keep the camera aimed at objects.
+**Success check** You identify one missing and one wrong report and choose pause/inspect for uncertainty.
 
-If collection or training cannot finish in the slot, use the controlled-photo notebook challenge for the same twenty minutes. The fallback includes a prediction, a displayed result, and a limitation. It is a complete activity, not extra work after the web activity.
+**Optional challenge** Test unfamiliar green without adding a rule.
 
-**Transition at minute 85:** “Save your observation. We have a ten-minute break, then rotate through three stations.”
+**Offline route** Use the supplied real photo and handwritten report cards; no camera or website is needed.
 
-## Slide 14: A real break
+**Hint 1** Compare actual and reported columns one row at a time.
 
-**85:00–95:00, 10 minutes**
+**Hint 2** A known word is still only a report.
 
-State the wall-clock return time corresponding to minute 95. Leave the station controls with the instructor. Students can leave their notebooks open. During the break the instructor prepares the next approved station views without asking students to install software.
+**Instructor guidance** Missing is row two; wrong known label row three. Correct words alone do not validate a classifier.
 
-**Transition at minute 95:** assign the three pairs to different stations and explain the rotation order. Each station lasts fifteen minutes.
+## Slide 13: Change a name and a number card 1
 
-## Slide 15: Three stations
+30 minutes total for this activity, shared across its two cards.
 
-**95:00–140:00, 45 minutes**
+## Change a name and a number
 
-Each pair visits all three stations in three fifteen-minute rounds: 95–110, 110–125, and 125–140. Swap roles halfway through each round. Each pair records one observation and one limitation per station.
+Mission `python` · 30 minutes · Read and edit a short Python program before sharing the same program representation with blocks.
 
-**Robot and digital twin:** the instructor uses the accepted prepared demonstration. Students predict one joint movement, compare the real and screen movement, and explain a difference or limitation. The live notebook is read-only for student observation. Real motion remains instructor controlled. If a live connection is unavailable, clearly identify the virtual alternative.
+**Worked example** TEAM stores text in quotes. REPEATS stores a number. print shows text. The indented line runs once for each number.
 
-**Camera and conveyor:** identify what the camera measures and what moves the belt. Predict a color or missing-reading result, compare the actual displayed reading, and identify one reason it might be wrong. Do not calibrate or change station services during the rotation.
+**Predict** What greeting and how many object lines will appear?
 
-**Virtual robot:** predict the effect of one joint change, make the change in the prepared virtual view, and compare. Use the notebook sequence alternative if necessary. The optional browser simulator and its bounded task are in [resources](workshop-resources.md). The generic browser model is not connected to the real SO-101 and is not its digital twin.
+**Change** Change TEAM, predict, run. Then change REPEATS to 2, predict, run. Keep indentation.
 
-**Transition at minute 140:** “Return to your laptop pair. We will connect the observations and decisions into the complete sorting task.”
+**Run** Open the Student notebook, save a pair copy and run cells from the top with Shift+Enter. Run the shared Program example in simulation.
 
-## Slide 16: Make the whole factory work
+**Observe** Count output lines and compare the shared Python program JSON with the Blockly exported JSON.
 
-**140:00–190:00, 50 minutes**
+**Explain** Which edit changed text? Which changed how often a line ran? What stayed in the same order?
 
-**Prediction:** red, blue, red, unknown, blue should produce two left, two right, and one reject. **Action:** build the notebook sorting logic and run the sequence. **Finish line:** five recorded outcomes whose total equals five, with an explanation of the unknown response.
+**Success check** Both partners make one edit and explain it; shared commands are validated before execution.
 
-Begin in simulation. Give pairs time to read the supplied inputs and destination rule before running. Ask the navigator to predict the full sequence, not only the total count. Then compare the displayed outputs. If the total is wrong, find the first point where observation and prediction differ. Change one thing and rerun. Swap roles halfway through the activity.
+**Optional challenge** Change a wait or message in both Python and Blockly and compare command traces.
 
-Use the prepared visual result if the notebook includes it. A simulated result checks the program's rule. It does not establish that a physical arm picked an object. Any supervised physical demonstration is an instructor-selected addition, using the accepted station procedure. It does not replace the pair's simulation result or require autonomous physical success.
+**Offline route** Run exercises/01_python.py using the prepared Python or trace it on paper. No package downloads.
 
-At minute 185, ask pairs to save their working result and identify one place where the rule handles uncertainty.
+**Hint 1** Quotes surround text; do not quote the number.
 
-**Transition at minute 190:** “Keep the working version. Choose a change and design a test before you edit.”
+**Hint 2** Four spaces keep print inside the loop.
 
-## Slide 17: Choose an upgrade
+**Instructor guidance** Original prints three object lines. Changing REPEATS resets the next run; Program simulation is not hardware proof.
 
-**190:00–225:00, 35 minutes**
+## Slide 14: Change a name and a number card 2
 
-**Prediction:** state how a chosen rule change should alter the result. **Action:** change the rule and compare the predicted and observed result. **Finish line:** show a test that caught or could catch a mistake.
+30 minutes total for this activity, shared across its two cards.
 
-The core upgrades are swapping red and blue destinations and counting the results. Students who finish can choose a new color, a missing reading, or another optional notebook challenge. Do not require every challenge. Keep a copy of the working sorter before changes.
+## Change a name and a number
 
-Swap the typing and predicting roles during the activity. If a pair is stuck, ask it to reduce the test to one object, say its expected destination aloud, and trace the condition. At minute 220, ask each pair to choose the single change and test it will show in the final demonstration.
+Mission `python` · 30 minutes · Read and edit a short Python program before sharing the same program representation with blocks.
 
-**Transition at minute 225:** “Choose who will explain the rule first. Both partners will speak.”
+**Worked example** TEAM stores text in quotes. REPEATS stores a number. print shows text. The indented line runs once for each number.
 
-## Slide 18: Show your factory
+**Predict** What greeting and how many object lines will appear?
 
-**225:00–240:00, 15 minutes**
+**Change** Change TEAM, predict, run. Then change REPEATS to 2, predict, run. Keep indentation.
 
-Allow each of the three pairs about four minutes, leaving three minutes for the closing reflection. One partner explains the changed rule and prediction. The other runs or shows the result and explains one limitation. The pair can use its saved simulation result if a live demonstration would delay the class.
+**Run** Open the Student notebook, save a pair copy and run cells from the top with Shift+Enter. Run the shared Program example in simulation.
 
-Ask: “What did you predict? What happened? What would have made the answer wrong?” Expected examples include an unknown color, missing reading, changed light, moved object, or a rule implemented incorrectly. Look for evidence in the pair's recorded outputs rather than a claim that the code works.
+**Observe** Count output lines and compare the shared Python program JSON with the Blockly exported JSON.
 
-Close with, “What would you improve next?” Connect answers to the cycle: better observation, clearer rule, careful movement, or a stronger check. End at minute 240. Do not present unverified autonomous physical picking as the workshop outcome.
+**Explain** Which edit changed text? Which changed how often a line ran? What stayed in the same order?
+
+**Success check** Both partners make one edit and explain it; shared commands are validated before execution.
+
+**Optional challenge** Change a wait or message in both Python and Blockly and compare command traces.
+
+**Offline route** Run exercises/01_python.py using the prepared Python or trace it on paper. No package downloads.
+
+**Hint 1** Quotes surround text; do not quote the number.
+
+**Hint 2** Four spaces keep print inside the loop.
+
+**Instructor guidance** Original prints three object lines. Changing REPEATS resets the next run; Program simulation is not hardware proof.
+
+## Slide 15: Watch teach inspect return replay card 1
+
+15 minutes total for this activity, shared across its two cards.
+
+## Watch teach inspect return replay
+
+Mission `teach-demo` · 15 minutes · Understand that a recorded stroke needs validated start/end poses and explicit jaw state.
+
+**Worked example** Leader 10°, follower 30°, leader now 15° gives relative request 35°. A request and a measured result are different.
+
+**Predict** Will a replay start safely from any pose? What if the jaw state changed?
+
+**Change** Ask the instructor to change one invented angle; predict before rerunning. Learners do not change physical modes.
+
+**Run** Watch instructor: teach a short empty stroke, stop recording, inspect metadata and path, return safely to its validated start, then replay separately.
+
+**Observe** Name start pose, endpoint, jaw state, identity/calibration and validity evidence. An invented demo recording is never a student-taught physical skill.
+
+**Explain** Why must teaching and playback be separate runs? Why does a changed robot or calibration require reteaching?
+
+**Success check** You can say teach → inspect/validate → return to start → replay, and point to STOP.
+
+**Optional challenge** Predict a relative versus absolute joint request.
+
+**Offline route** Use the invented joint example and paper start/end diagrams. Label evidence DEMO.
+
+**Hint 1** A recording stores movement; it does not plan a safe approach from every pose.
+
+**Hint 2** A screen model can match commands while a physical object slips.
+
+**Instructor guidance** Relative is 35 and absolute 15. Demonstrate only with prepared supervised hardware; if validation fails use paper and report physical gate incomplete.
+
+## Slide 16: Watch teach inspect return replay card 2
+
+15 minutes total for this activity, shared across its two cards.
+
+## Watch teach inspect return replay
+
+Mission `teach-demo` · 15 minutes · Understand that a recorded stroke needs validated start/end poses and explicit jaw state.
+
+**Worked example** Leader 10°, follower 30°, leader now 15° gives relative request 35°. A request and a measured result are different.
+
+**Predict** Will a replay start safely from any pose? What if the jaw state changed?
+
+**Change** Ask the instructor to change one invented angle; predict before rerunning. Learners do not change physical modes.
+
+**Run** Watch instructor: teach a short empty stroke, stop recording, inspect metadata and path, return safely to its validated start, then replay separately.
+
+**Observe** Name start pose, endpoint, jaw state, identity/calibration and validity evidence. An invented demo recording is never a student-taught physical skill.
+
+**Explain** Why must teaching and playback be separate runs? Why does a changed robot or calibration require reteaching?
+
+**Success check** You can say teach → inspect/validate → return to start → replay, and point to STOP.
+
+**Optional challenge** Predict a relative versus absolute joint request.
+
+**Offline route** Use the invented joint example and paper start/end diagrams. Label evidence DEMO.
+
+**Hint 1** A recording stores movement; it does not plan a safe approach from every pose.
+
+**Hint 2** A screen model can match commands while a physical object slips.
+
+**Instructor guidance** Relative is 35 and absolute 15. Demonstrate only with prepared supervised hardware; if validation fails use paper and report physical gate incomplete.
+
+## Slide 17: Explore three stations card 1
+
+45 minutes total for this activity, shared across its two cards.
+
+## Explore three stations
+
+Mission `explore` · 45 minutes · Connect observations, instructions and the robot model.
+
+**Worked example** Three pairs rotate through arm/twin observation, conveyor/observation sequencing, and offline Blockly/Python preparation.
+
+**Predict** At your current station, predict one direction, report or sequence before the instructor or simulator acts.
+
+**Change** Change only one paper angle, report or message; switch driver and observer halfway.
+
+**Run** Each slot is 15 minutes: 2 predict, 7 change/run, 4 observe/explain, 2 save and transition. Use the rotation table.
+
+**Observe** Arm: compare measured joint and twin when available. Conveyor: inspect stopped fixture/report. Offline: compare ordered traces. Label each evidence source.
+
+**Explain** Which part measures, decides or acts? What can your evidence establish?
+
+**Success check** Every pair completes all three positions with one recorded prediction and evidence statement per position.
+
+**Optional challenge** Compare a fresh report with a stale one without guessing missing values.
+
+**Offline route** All three positions have photo, paper and simulation versions; record DEMO/OFFLINE if no measured stream.
+
+**Hint 1** The twin is a model updated from a stream.
+
+**Hint 2** Use the same short sequence at the offline table.
+
+**Instructor guidance** No three physical robots implied. Instructor controls the arm path; preserve transition time.
+
+## Slide 18: Explore three stations card 2
+
+45 minutes total for this activity, shared across its two cards.
+
+## Explore three stations
+
+Mission `explore` · 45 minutes · Connect observations, instructions and the robot model.
+
+**Worked example** Three pairs rotate through arm/twin observation, conveyor/observation sequencing, and offline Blockly/Python preparation.
+
+**Predict** At your current station, predict one direction, report or sequence before the instructor or simulator acts.
+
+**Change** Change only one paper angle, report or message; switch driver and observer halfway.
+
+**Run** Each slot is 15 minutes: 2 predict, 7 change/run, 4 observe/explain, 2 save and transition. Use the rotation table.
+
+**Observe** Arm: compare measured joint and twin when available. Conveyor: inspect stopped fixture/report. Offline: compare ordered traces. Label each evidence source.
+
+**Explain** Which part measures, decides or acts? What can your evidence establish?
+
+**Success check** Every pair completes all three positions with one recorded prediction and evidence statement per position.
+
+**Optional challenge** Compare a fresh report with a stale one without guessing missing values.
+
+**Offline route** All three positions have photo, paper and simulation versions; record DEMO/OFFLINE if no measured stream.
+
+**Hint 1** The twin is a model updated from a stream.
+
+**Hint 2** Use the same short sequence at the offline table.
+
+**Instructor guidance** No three physical robots implied. Instructor controls the arm path; preserve transition time.
+
+## Slide 19: Dispense carry pick and place card 1
+
+45 minutes total for this activity, shared across its two cards.
+
+## Dispense carry pick and place
+
+Mission `integrate` · 45 minutes · Assemble the supervised fixed pickup to fixed destination sequence.
+
+**Worked example** EV3 dispense → conveyor to pickup fixture and stop → named taught skill fixed_pick_place. That skill binds validated approach/open, calibrated grasp, lift/transfer, release and return phases. Missing or uncommissioned qualification blocks physical execution; simulation labels every transfer synthetic.
+
+**Predict** Where must the object and arm be before each next step? What should stop the run?
+
+**Change** First reorder paper cards. In simulation use pick_place_recording named fixed_pick_place and change one message or delay. Physical execution requires instructor-validated phase recordings, measured jaw calibration and the qualification manifest; missing evidence is a blocking result.
+
+**Run** Rotate: supervised integration, offline trace/rehearsal, failure/evidence desk. Each 15-minute slot includes 2 minutes transition. Run dispense, conveyor/stop and the named fixed_pick_place skill only through the existing shared endpoint. Instructor alone enables a qualified physical run; otherwise complete explicit synthetic simulation.
+
+**Observe** Record dispense, stopped fixture arrival, grasp, lift, placement/release and return separately. A completed command does not prove object transfer.
+
+**Explain** Which observation supports each claimed step? Which step remains unverified?
+
+**Success check** Your pair explains the full fixed-fixture sequence and records honest per-step evidence. Physical completion requires observed object transfer; offline completion is labelled rehearsal.
+
+**Optional challenge** After the core succeeds, discuss color-dependent destinations as separately validated taught skills.
+
+**Offline route** Use the same fixed pickup/drop paper layout and named-skill simulation. Its grasp/lift/release outcomes are synthetic assumptions with physical_evidence false. Missing recordings or qualification means physical execution remains incomplete.
+
+**Hint 1** Stop the conveyor before the arm approaches.
+
+**Hint 2** Start/end poses and jaw state of adjacent taught strokes must agree.
+
+**Instructor guidance** Do not substitute demo recordings. Current historical operational notes remain evidence until a new physical rehearsal supersedes them. Never infer payload success from a log.
+
+## Slide 20: Dispense carry pick and place card 2
+
+45 minutes total for this activity, shared across its two cards.
+
+## Dispense carry pick and place
+
+Mission `integrate` · 45 minutes · Assemble the supervised fixed pickup to fixed destination sequence.
+
+**Worked example** EV3 dispense → conveyor to pickup fixture and stop → named taught skill fixed_pick_place. That skill binds validated approach/open, calibrated grasp, lift/transfer, release and return phases. Missing or uncommissioned qualification blocks physical execution; simulation labels every transfer synthetic.
+
+**Predict** Where must the object and arm be before each next step? What should stop the run?
+
+**Change** First reorder paper cards. In simulation use pick_place_recording named fixed_pick_place and change one message or delay. Physical execution requires instructor-validated phase recordings, measured jaw calibration and the qualification manifest; missing evidence is a blocking result.
+
+**Run** Rotate: supervised integration, offline trace/rehearsal, failure/evidence desk. Each 15-minute slot includes 2 minutes transition. Run dispense, conveyor/stop and the named fixed_pick_place skill only through the existing shared endpoint. Instructor alone enables a qualified physical run; otherwise complete explicit synthetic simulation.
+
+**Observe** Record dispense, stopped fixture arrival, grasp, lift, placement/release and return separately. A completed command does not prove object transfer.
+
+**Explain** Which observation supports each claimed step? Which step remains unverified?
+
+**Success check** Your pair explains the full fixed-fixture sequence and records honest per-step evidence. Physical completion requires observed object transfer; offline completion is labelled rehearsal.
+
+**Optional challenge** After the core succeeds, discuss color-dependent destinations as separately validated taught skills.
+
+**Offline route** Use the same fixed pickup/drop paper layout and named-skill simulation. Its grasp/lift/release outcomes are synthetic assumptions with physical_evidence false. Missing recordings or qualification means physical execution remains incomplete.
+
+**Hint 1** Stop the conveyor before the arm approaches.
+
+**Hint 2** Start/end poses and jaw state of adjacent taught strokes must agree.
+
+**Instructor guidance** Do not substitute demo recordings. Current historical operational notes remain evidence until a new physical rehearsal supersedes them. Never infer payload success from a log.
+
+## Slide 21: Find one failure and test a repair card 1
+
+20 minutes total for this activity, shared across its two cards.
+
+## Find one failure and test a repair
+
+Mission `improve` · 20 minutes · Use a controlled change and evidence to improve a sequence.
+
+**Worked example** A missing fixture observation pauses the sequence after one inspected object. Fix the observation path before retrying.
+
+**Predict** What happens when the middle report is None?
+
+**Change** Test one failure: missing report, wrong order, missing recording or STOP. Change one cause only and reset.
+
+**Run** Reproduce in simulation or paper; record expected versus actual. Repair and rerun the same input.
+
+**Observe** Capture the failure message, stopped state and repaired trace. No physical fault injection by learners.
+
+**Explain** Did your test detect the problem? What could still fail on hardware?
+
+**Success check** You show a failing prediction, one repair and a repeated check with its limits.
+
+**Optional challenge** Use the optional color-routing example with three reds and one blue to expose swapped rules.
+
+**Offline route** All failures can be traced with paper command/report cards.
+
+**Hint 1** Choose one input so cause and effect stay clear.
+
+**Hint 2** A successful run alone cannot identify a wrong known report.
+
+**Instructor guidance** Missing report stops after one; avoid relaxing admission or faking a report to pass.
+
+## Slide 22: Find one failure and test a repair card 2
+
+20 minutes total for this activity, shared across its two cards.
+
+## Find one failure and test a repair
+
+Mission `improve` · 20 minutes · Use a controlled change and evidence to improve a sequence.
+
+**Worked example** A missing fixture observation pauses the sequence after one inspected object. Fix the observation path before retrying.
+
+**Predict** What happens when the middle report is None?
+
+**Change** Test one failure: missing report, wrong order, missing recording or STOP. Change one cause only and reset.
+
+**Run** Reproduce in simulation or paper; record expected versus actual. Repair and rerun the same input.
+
+**Observe** Capture the failure message, stopped state and repaired trace. No physical fault injection by learners.
+
+**Explain** Did your test detect the problem? What could still fail on hardware?
+
+**Success check** You show a failing prediction, one repair and a repeated check with its limits.
+
+**Optional challenge** Use the optional color-routing example with three reds and one blue to expose swapped rules.
+
+**Offline route** All failures can be traced with paper command/report cards.
+
+**Hint 1** Choose one input so cause and effect stay clear.
+
+**Hint 2** A successful run alone cannot identify a wrong known report.
+
+**Instructor guidance** Missing report stops after one; avoid relaxing admission or faking a report to pass.
+
+## Slide 23: Show one prediction and result card 1
+
+10 minutes total for this activity, shared across its two cards.
+
+## Show one prediction and result
+
+Mission `share` · 10 minutes · Explain what your program did and what the evidence cannot prove.
+
+**Worked example** Pair A shows prediction, one change, observed result and one limit; then pairs B and C follow.
+
+**Predict** Which single output best supports your claim?
+
+**Change** Shorten your demonstration to one change and one observation.
+
+**Run** Use 1 minute preparation, 3 demonstrations of 2 minutes, 3 minutes shared reflection. Both partners speak.
+
+**Observe** Show saved trace, worksheet or observed supervised step; label simulation, paper or physical.
+
+**Explain** Name one next test that would increase confidence.
+
+**Success check** All three pairs demonstrate and state a specific limitation.
+
+**Optional challenge** Explain how a wrong known color differs from a missing report.
+
+**Offline route** Present the worksheet and paper trace.
+
+**Hint 1** Read your prediction before the result.
+
+**Hint 2** A trace supports instruction order, not physical arrival.
+
+**Instructor guidance** Keep all three demonstrations within ten minutes. Do not require successful hardware to explain evidence.
+
+## Slide 24: Show one prediction and result card 2
+
+10 minutes total for this activity, shared across its two cards.
+
+## Show one prediction and result
+
+Mission `share` · 10 minutes · Explain what your program did and what the evidence cannot prove.
+
+**Worked example** Pair A shows prediction, one change, observed result and one limit; then pairs B and C follow.
+
+**Predict** Which single output best supports your claim?
+
+**Change** Shorten your demonstration to one change and one observation.
+
+**Run** Use 1 minute preparation, 3 demonstrations of 2 minutes, 3 minutes shared reflection. Both partners speak.
+
+**Observe** Show saved trace, worksheet or observed supervised step; label simulation, paper or physical.
+
+**Explain** Name one next test that would increase confidence.
+
+**Success check** All three pairs demonstrate and state a specific limitation.
+
+**Optional challenge** Explain how a wrong known color differs from a missing report.
+
+**Offline route** Present the worksheet and paper trace.
+
+**Hint 1** Read your prediction before the result.
+
+**Hint 2** A trace supports instruction order, not physical arrival.
+
+**Instructor guidance** Keep all three demonstrations within ten minutes. Do not require successful hardware to explain evidence.

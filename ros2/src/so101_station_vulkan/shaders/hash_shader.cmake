@@ -1,0 +1,6 @@
+if(NOT EXISTS "${SPIRV}")
+  message(FATAL_ERROR "SPIR-V output missing")
+endif()
+file(SHA256 "${SPIRV}" DIGEST)
+get_filename_component(NAME "${SPIRV}" NAME)
+file(WRITE "${SPIRV}.sha256" "${DIGEST}  ${NAME}\n")

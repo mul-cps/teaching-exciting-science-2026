@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>so101_station_vulkan</name><version>0.1.0</version>
+  <description>Bounded resident Vulkan RGB-D compute with explicit qualification gates.</description>
+  <maintainer email="bjoern@example.com">Station maintainers</maintainer><license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>ament_index_cpp</depend><depend>rclcpp</depend><depend>rclcpp_components</depend><depend>sensor_msgs</depend><depend>std_msgs</depend><depend>librealsense2</depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>
