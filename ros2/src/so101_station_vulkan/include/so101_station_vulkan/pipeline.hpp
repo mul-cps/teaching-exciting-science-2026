@@ -66,9 +66,18 @@ class Pipeline {
   VkDescriptorSetLayout descriptors_=VK_NULL_HANDLE; VkDescriptorPool descriptor_pool_=VK_NULL_HANDLE;
   VkPipelineLayout layout_=VK_NULL_HANDLE; std::array<VkPipeline,8> kernels_{}; Buffer divisions_;
   std::string backend_,reason_,shader_dir_; void create_gpu(); void destroy_gpu() noexcept;
+  void submit_impl(const FrameLease&,const Buffer* packed_z16);
 public:
   Pipeline(unsigned width,unsigned height,const std::string& mode,const std::string& shader_dir,bool diagnostics=false,bool profile=false);
   ~Pipeline(); FrameLease acquire(){return pool_->acquire();} void submit(const FrameLease&); bool ready(const FrameLease& f)const{return pool_->ready(f);}
+  // Low-level borrowed device buffer. The producer must already have submitted
+  // its compute-write -> transfer-read dependency on this Context's shared queue.
+  // Retain the actual source lease (not just this Buffer reference) through the
+  // core frame fence, then check producer validity/faults before using results.
+  // Copies only RGB from upload; tightly packed Z16 stays device resident.
+  // Pixel count must be divisible by four for Vulkan buffer-copy alignment.
+  void submit_device_depth(const FrameLease&,const Buffer& packed_z16);
+  bool owns(const FrameLease& f)const{return pool_->owns(f);}
   void finish(const FrameLease&); const std::string& backend()const{return backend_;} const std::string& fallback_reason()const{return reason_;}
   std::shared_ptr<Context> context()const{return context_;} unsigned width()const{return pool_->width;} unsigned height()const{return pool_->height;}
 };

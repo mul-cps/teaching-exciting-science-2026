@@ -10,7 +10,7 @@ def test_copyback_is_fused_atomic_work_without_bulk_parent_transfers():
     assert 'copy_canonical_parents' not in source and 'parent_copy' not in source
     assert 'vkCmdCopyBuffer(s.command,s.scratch.buffer,s.scratch.buffer' not in source
     assert 'for(unsigned i=0;i<32;i++){dispatch(3);dispatch(2);}dispatch(3)' in source
-    assert source.count('vkCmdCopyBuffer(') == 3  # upload and bounded/diagnostic outputs
+    assert source.count('vkCmdCopyBuffer(') == 4  # RGB/legacy upload, optional device depth, bounded/diagnostic outputs
     shader = (PACKAGE / 'shaders/resident.slang').read_text()
     start = shader.index('void connect(')
     end = shader.index('\n[numthreads', start)
@@ -31,6 +31,16 @@ def test_scratch_allows_transfer_destination_only_in_cold_pool_construction():
 def test_shader_inventory_and_production_fault_thresholds_are_frozen():
     import hashlib
     shader = (PACKAGE / 'shaders/resident.slang').read_text()
+    # Normalize only the approved shared include and two exact Core quotients.
+    include = '#include "exact_divide.slang"\n'
+    assert shader.count(include) == 1
+    shader = shader.replace(include, '')
+    for exact, original in (
+        ('alignment_divide((float(i%p.width)-p.cx),p.fx)', '(float(i%p.width)-p.cx)/p.fx'),
+        ('alignment_divide((float(i/p.width)-p.cy),p.fy)', '(float(i/p.width)-p.cy)/p.fy'),
+    ):
+        assert shader.count(exact) == 1
+        shader = shader.replace(exact, original)
     start = shader.index('{', shader.index('void connect(')); end = start+1; level = 1
     while level:
         level += (shader[end] == '{') - (shader[end] == '}'); end += 1

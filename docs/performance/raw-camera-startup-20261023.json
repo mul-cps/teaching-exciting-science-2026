@@ -1,0 +1,1026 @@
+{
+  "schema": "raw-camera-startup-archive-v1",
+  "date": "2026-10-23",
+  "scope": "Actual local D435i and AMD Radeon 8060S only; not fwmini4 camera, full geometry, actuation, matched speedup or soak qualification.",
+  "original_reports_sha256": {
+    "workshop-sdk-startup-diagnostic-20261023.md": "0161b515d9427d080d903578fac7262b621b111d8db97a51ce049266a7b3736e",
+    "workshop-sdk-startup-diagnostic-20261023.json": "5d15d3226e66503a22b1f897aa038525eb2c0d8d8e33c3537b7818c0b332e353",
+    "workshop-startup-perf-20261023.md": "49f2171734f1bf09cbc077116997440d14e6601ba309ae37adb1b9c71449100c",
+    "workshop-startup-perf-20261023.json": "5cceecf8dfffa737da0118a6d7bdf550fdd167d93696936e76c6d25ffbd5b131",
+    "workshop-startup-cpu-verification-20261023.md": "7e52f3ece1386270308076dca11c07c4753e354cc3304a7eacd254bf02ca8f90",
+    "workshop-raw-resident-stage2-live-v3-20261023.md": "2a0032ac211e33712afe9afe01f60527f06beb65603875ab3995eec1e10fe92a",
+    "workshop-raw-resident-stage2-live-v3-20261023.json": "11cad86f5bae3c3758078642bbb4a71aaee2c2fd015edaba052c5d6aa76dda01",
+    "workshop-live-collector-review-20261023.md": "f67966861d97aed2f9ae51b85627aac1eea46996c9286a7b37082a6ffbe6b96c",
+    "workshop-live-collector-review-20261023.json": "41790ff6e562c58de00f116ad57b5b4030b4bf9470926dc23dac4f48cb8f018d",
+    "workshop-live-collector-cpu-20261023.md": "ee6b1993e2158e2986b841efe057c0262d719c0a12c0a40b004a3bd876e39a5c",
+    "workshop-raw-resident-stage2-live-v4-20261023.md": "bb86c4e8541af406e001e90f74178e3245f39e9b7385792c26c61de59557e6bf",
+    "workshop-raw-resident-stage2-live-v4-20261023.json": "0ad3a4b76ff6499f719d56f0184bc46da3ac040034215b8003aa1d0b48c242f2",
+    "workshop-raw-camera-checkpoint-review-20261023.md": "53bc9aa5d030c4c79567d612676e764dd8fef185e8cfb4d89bf858d60ab76d49"
+  },
+  "sdk_startup_diagnostic": {
+    "status": "BOUNDED_STARTUP_DIAGNOSTIC_COMPLETE",
+    "camera_starts": 4,
+    "completed_three_second_trials": 3,
+    "completed_cpu_load_trials": 1,
+    "modes": [
+      "capture",
+      "cpu_load",
+      "capture",
+      "cpu_load"
+    ],
+    "gpu_context_created": false,
+    "production_edits": false,
+    "performance_qualification": false,
+    "trials": [
+      {
+        "execution": {
+          "trial": 1,
+          "mode": "capture",
+          "returncode": 0,
+          "timed_out": false,
+          "wall_seconds_process_NOT_frame_timing": 6.270583380013704,
+          "owned_pid_still_present": false,
+          "runtime_library_post_mismatches": [],
+          "source_post_matches": true,
+          "binary_post_matches": true
+        },
+        "rows": 69,
+        "cpu_loads": 0,
+        "bands": {
+          "early_0_to_2s": {
+            "cohorts": 39,
+            "invalid_reasons": {
+              "depth:zero_id": 2
+            },
+            "source_changes": {
+              "depth:repeated_id": 29,
+              "depth:regressed_id": 2
+            }
+          },
+          "late_2_to_3s": {
+            "cohorts": 30,
+            "invalid_reasons": {},
+            "source_changes": {}
+          }
+        },
+        "native_mutations_after_align": 0,
+        "native_mutations_after_core": 0,
+        "frame_number_vs_metadata_counter_differences": 0,
+        "domain_values": [
+          2
+        ]
+      },
+      {
+        "execution": {
+          "trial": 2,
+          "mode": "cpu_load",
+          "returncode": 1,
+          "timed_out": false,
+          "wall_seconds_process_NOT_frame_timing": 2.214680164004676,
+          "owned_pid_still_present": false,
+          "runtime_library_post_mismatches": [],
+          "source_post_matches": true,
+          "binary_post_matches": true
+        },
+        "rows": 0,
+        "cpu_loads": 0,
+        "bands": {
+          "early_0_to_2s": {
+            "cohorts": 0,
+            "invalid_reasons": {},
+            "source_changes": {}
+          },
+          "late_2_to_3s": {
+            "cohorts": 0,
+            "invalid_reasons": {},
+            "source_changes": {}
+          }
+        },
+        "native_mutations_after_align": 0,
+        "native_mutations_after_core": 0,
+        "frame_number_vs_metadata_counter_differences": 0,
+        "domain_values": []
+      },
+      {
+        "execution": {
+          "trial": 3,
+          "mode": "capture",
+          "returncode": 0,
+          "timed_out": false,
+          "wall_seconds_process_NOT_frame_timing": 6.3158769790316,
+          "owned_pid_still_present": false,
+          "runtime_library_post_mismatches": [],
+          "source_post_matches": true,
+          "binary_post_matches": true
+        },
+        "rows": 69,
+        "cpu_loads": 0,
+        "bands": {
+          "early_0_to_2s": {
+            "cohorts": 39,
+            "invalid_reasons": {
+              "depth:zero_id": 2
+            },
+            "source_changes": {
+              "depth:repeated_id": 29,
+              "depth:regressed_id": 2
+            }
+          },
+          "late_2_to_3s": {
+            "cohorts": 30,
+            "invalid_reasons": {},
+            "source_changes": {}
+          }
+        },
+        "native_mutations_after_align": 0,
+        "native_mutations_after_core": 0,
+        "frame_number_vs_metadata_counter_differences": 0,
+        "domain_values": [
+          2
+        ]
+      },
+      {
+        "execution": {
+          "trial": 4,
+          "mode": "cpu_load",
+          "returncode": 0,
+          "timed_out": false,
+          "wall_seconds_process_NOT_frame_timing": 6.27284484996926,
+          "owned_pid_still_present": false,
+          "runtime_library_post_mismatches": [],
+          "source_post_matches": true,
+          "binary_post_matches": true
+        },
+        "rows": 76,
+        "cpu_loads": 75,
+        "bands": {
+          "early_0_to_2s": {
+            "cohorts": 46,
+            "invalid_reasons": {
+              "depth:zero_id": 1
+            },
+            "source_changes": {
+              "depth:regressed_id": 1
+            }
+          },
+          "late_2_to_3s": {
+            "cohorts": 30,
+            "invalid_reasons": {},
+            "source_changes": {}
+          }
+        },
+        "native_mutations_after_align": 0,
+        "native_mutations_after_core": 0,
+        "frame_number_vs_metadata_counter_differences": 0,
+        "domain_values": [
+          2
+        ]
+      }
+    ],
+    "retained_harness_failure": {
+      "trial": 2,
+      "error": "frame calibration generation mismatch",
+      "cause": "Diagnostic set Calibration.generation1 but omitted matching FrameMetadata.calibration_generation; corrected only tracer metadata, source v1/binary preserved. Counts toward four starts; no fifth retry."
+    },
+    "source_frozen_postcheck_mismatches": [],
+    "artifact_sha256": {
+      "analyze.py": "f7bd7a107843a76d9590929f3e7e65b3ea6e1b66f1dcf6af78c8a096ad03ab63",
+      "compile-v2.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile-v2.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preregistered-v2.json": "be6cae79f46ec271e1e932793e433927a0d51bb850fa6dd6d76f6d29e8655bbb",
+      "preregistered.json": "4cdcf2cf06dfe5d29f261c4a448ff4aa4725fed0c7fe1b4896ec9bd0b069c619",
+      "run.py": "2b77d3b407cb0eaa3c93fac068815fcbe0f3118efc0da820ec4778b701fea487",
+      "run_remaining.py": "366466a188a60a746ee8aeb6edfd8f2743828980504bc22fa49328122b37e962",
+      "runner-v2.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runner-v2.stdout": "7994d0579d22abfa4396798ffc8886985353afda9ca2df6ef0f4a64b18161814",
+      "runner.stderr": "2b9020b79a947fe75d895ac74ff184badd61cb0681de46b66d936b27e38b592f",
+      "runner.stdout": "651de2934e52a51c85c2dcb154d2248b781bd7b8c157f334e16479ce63d300ce",
+      "startup": "5828964d50aa2bf852321417f3a5f004f9828eee3a35e7b889d312a8f610d39f",
+      "startup-v1": "3590c1729ec9766efd5107148b7eaa8bb4eece1835e253d7932ee157a4b98f2c",
+      "startup-v1.cpp": "67cf5bc69fdb9c10d864b59e9b668cce0769b4615d4afe53cb5e32d5798cd30e",
+      "startup.cpp": "b288f59926d8c2f43d70b2566e99bbdb42a357b43a1d27f9c492926890f8f56b",
+      "trial-1-capture/execution.json": "51d7bcada1683e7c9fbc2d0c87e5ac406bba570ba8ecd7fb25502e7a005c0cd6",
+      "trial-1-capture/maps.txt": "4d44ddb7756c52e4ef3853c683689dc7dbaddd6866ce5c840da57a07db9fa634",
+      "trial-1-capture/metadata.jsonl": "9119843692eaecddd7bac44e3b9905a501f7cc4170beb411e36d7651a899b049",
+      "trial-1-capture/process.jsonl": "b4d671a66def15abab992cd092f2493eff8c10410e6b6afbb94f24e5ff378200",
+      "trial-1-capture/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "trial-1-capture/stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "trial-2-cpu_load/execution.json": "9d85fde7d6fdfc446e4008399b450090812692fa2fec4b6b0b1d34e9a7efbc5a",
+      "trial-2-cpu_load/maps.txt": "179956e1a0ce9b7f2ad7cfbfe60d495d21f9be752cb70435849d42f5e00f6dc6",
+      "trial-2-cpu_load/metadata.jsonl": "b37fcd8a9cc2effc81fccf18c3e36b5bfebd154e4e490b95c8e83ac79fddec64",
+      "trial-2-cpu_load/process.jsonl": "1f2ff77b55ac0b1b0df43a6e1ffcd315c1b370a458635c0c8f2dfae1275eec42",
+      "trial-2-cpu_load/stderr": "1545c0c0332f17a5cb7d8506bd596589f9cc249993304d411c736526c2556372",
+      "trial-2-cpu_load/stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "trial-3-capture/execution.json": "4816b5d5c4cfc490b7d45a48324e93b270f457691e37b8b27c1375a88a53c822",
+      "trial-3-capture/maps.txt": "f875f3054cf9a5ffde6f52f62c1172c37e2dfdc6ef69e643d5b494727d465986",
+      "trial-3-capture/metadata.jsonl": "c977bdee16874e8d9811885e9eefeed4fd08bfa3d564685f1337573655a99789",
+      "trial-3-capture/process.jsonl": "ecc74401c7cd5035adc7acb0ee5205a82d0f931d7a71fd2e54d6f4c2ca165d3e",
+      "trial-3-capture/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "trial-3-capture/stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "trial-4-cpu_load/execution.json": "6da6b9eb49ff48366147a3f547c29c5cd546c726b822b1c8e6dafc63cf1abcb3",
+      "trial-4-cpu_load/maps.txt": "cf2199af53f3f3bca68dea7dff05ee800cbeddd4b2270226f8e0a28b4294ff88",
+      "trial-4-cpu_load/metadata.jsonl": "7b9005f4c2fc49f6de0e86f2e4e14d8b511c385bc8f7d68473bd81bc0fb84ca8",
+      "trial-4-cpu_load/process.jsonl": "60014aa24536c86100947155baba8b7d41383264785b15809c87364cadae2c9a",
+      "trial-4-cpu_load/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "trial-4-cpu_load/stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "startup_cpu_review": {
+    "schema": "workshop-startup-perf-review-v1",
+    "date": "2026-10-23",
+    "performance_review": "GREEN",
+    "scope": "CPU-only startup gate cost and static steady-path boundaries; not camera/GPU/live performance or physical qualification",
+    "source_sha256": {
+      "ros2/src/so101_station_vulkan/src/camera_component.cpp": "243d437145d503e83855ffa25d3bb2aff934ea996730b061be742a20b8f66b24",
+      "ros2/src/so101_station_vulkan/include/so101_station_vulkan/camera_startup_gate.hpp": "d7c4a01374dbe266829e2fcba1ea0e4e3b0f8119cc565b9c8cbb612e492eb0b4",
+      "ros2/src/so101_station_vulkan/test/camera_startup_perf_benchmark.cpp": "0e5ef931b78d4b4a7cf9efb847d7c7afddc097ccc1d6423d2cefec7d5626cf5f",
+      "tests/test_camera_startup_perf.py": "3b04b4703870697848b24220c19dfed1893927ccd3bcd55ddc7072f0b158c42c"
+    },
+    "frozen_comparison_camera_sha256": "b25cbbf69e4be2f110881192ecae7ec9457d4c08c6cdf0290b88fe69b36644db",
+    "benchmark_binary_sha256": "2638fded8dbd6ba9398322b64e31105bca09d8d546810d51840fa92b9bdcb0a2",
+    "compiler": {
+      "executable": "c++",
+      "version": "16.2.1",
+      "flags": [
+        "-O2",
+        "-std=c++17",
+        "-Wall",
+        "-Wextra",
+        "-Werror"
+      ]
+    },
+    "architecture": "x86_64",
+    "validation": {
+      "initial_new_tests": "4 passed in0.44s",
+      "focused_suite": "19 passed,1 skipped in0.50s",
+      "skip_reason": "combined raw-resident synthetic-driver benchmark requires RAW_BRIDGE_SDK_PREFIX and RAW_BRIDGE_VULKAN_INCLUDE; not set in CPU-only invocation",
+      "diff_check": "PASS",
+      "mutation_guards": [
+        "startup_sleep",
+        "blocking_capture",
+        "gpu_wait",
+        "heap_allocation",
+        "cpu_alignment",
+        "startup_from_tick",
+        "heap_backed_gate_state"
+      ]
+    },
+    "unchanged_hot_bodies": {
+      "void tick()": true,
+      "void capture_pending(": true,
+      "void copy_raw_planes(": true,
+      "void copy_vendor_planes(": true,
+      "void copy_rows(": true,
+      "void original_metadata(": true,
+      "void report_status(": true
+    },
+    "refinement": "Inspection caches metadata in a POD and uses cached finite timestamps, removing the two initially introduced duplicate SDK timestamp getter calls; startup failures stop owned capture before resource unwind.",
+    "findings": [
+      "No new steady image loops, waits, allocations, GPU readback or SDK alignment; actual normal tick/capture/copy/metadata/report bodies unchanged against frozen V2.",
+      "Startup gate is scalar-only and cannot publish/admit or submit bridge work; it is invoked before normal output.",
+      "Actual allocation hooks cover ordinary/array/aligned C++ new; valid and reset startup paths allocate zero. Error construction/refusal paths are outside timing and may allocate."
+    ],
+    "measurement_caveat": "Normal bridge received starts at1 for the actual startup-only baseline. Keep production API unchanged. Qualification must use counter deltas from ready/measurement-window start or collector unique original-source cohorts, not total received as steady offered frames.",
+    "limitations": [
+      "Logical source time, not wall-clock startup wait.",
+      "Includes out-of-line observe call and loop overhead; no claim of isolated instruction latency.",
+      "Excludes SDK metadata getters/processing, capture, ROS/RMW/DDS, copies, Vulkan driver, GPU, control workload and contention.",
+      "Unpinned local CPU; medians of seven trials, not cross-platform regression thresholds.",
+      "No camera, GPU, service, actuator or physical hardware work performed.",
+      "Full CPU/native integration build and live qualification remain separate."
+    ],
+    "microbenchmark": {
+      "schema": "camera-startup-perf-v1",
+      "cycles_per_trial": 20000,
+      "trials": 7,
+      "sequences": [
+        {
+          "name": "valid_advancing",
+          "median_ns_per_observation": 5.45448
+        },
+        {
+          "name": "counter_resets",
+          "median_ns_per_observation": 3.9944
+        }
+      ],
+      "scope": "actual cold gate plus out-of-line call; no SDK, ROS, GPU, image copies, wall wait or control workload"
+    }
+  },
+  "collector_v3_failure": {
+    "status": "STOPPED_COLLECTOR_STARTUP_STATUS_CONTRACT_MISMATCH",
+    "production_startup_admission_verdict": "NOT_ESTABLISHED_ABORTED_BY_COLLECTOR",
+    "steady_performance_qualified": false,
+    "camera_starts_used": 1,
+    "modes_executed": [
+      "cpu"
+    ],
+    "modes_not_executed": [
+      "vulkan",
+      "auto"
+    ],
+    "steady_seconds": 0,
+    "unique_outputs": 0,
+    "frozen_manifest_sha256": "26c435279af6b30d3c2e7c0e64154b67637359802805dd1c2edab3b2855c2625",
+    "resources_released": true
+  },
+  "collector_cpu_review": {
+    "schema": "workshop-live-collector-review-v1",
+    "date": "2026-10-23",
+    "independent_review": "GREEN",
+    "scope": "Qualification collector-only preReady acceptance correction; no camera/Core/library/SPIRV changes, hardware/GPU run or physical qualification",
+    "source_sha256": {
+      "tools/performance/collect_resident_live.py": "f6f42ed3be23045f9d9a5123a6b25f7ea741680fb9d3c0fb6099a361b121ede5",
+      "tools/performance/resident_live_status.py": "43c2d5cdeaa1ff9e13313b897b75ebb537556e2a30755fd3eed0a652b33b1716",
+      "tests/test_resident_live_status.py": "74a7efaaaee7793e23f112cfcb29cda2116a28265cbe4027d1a2c1bcbbc87c75",
+      "tests/test_resident_live_collector_perf.py": "f04eefac9d8be9bec220ca284282a33bd25d07b87025266cb520fcf779f4963a"
+    },
+    "original_collector_sha256": "38b9137b623514bed18216270caac3b4826c120cef4e5d4b3175bbc26531035c",
+    "unchanged_functions_and_methods": {
+      "fields": true,
+      "cpu_ticks": true,
+      "p95": true,
+      "Collector.__init__": true,
+      "Collector.on_measurement": true,
+      "Collector.done": true,
+      "Collector.result": true,
+      "main": true
+    },
+    "ready_begin_and_cpu0_block_ast_unchanged": true,
+    "allowed_diff": "One sibling pure-helper import and on_status validation/false-readiness return only; all other original source functions/methods byte-identical",
+    "acceptance_contract": [
+      "Explicit safe starting status with source_admitted=false and waiting_for_stable_source=true may wait only before readiness and without backend/alignment claims.",
+      "Only experimental ready status with requested backend/alignment and false/unqualified safety fields may start steady measurement.",
+      "Fatal/restart, unsafe/missing fields, unknown/unexpected ready phase, wrong backend, auto CPU fallback and starting after readiness refuse.",
+      "Unknown/failure JSON measurements still record error even before readiness; original on_measurement unchanged.",
+      "Original process CPU source, time-window start/end, deadlines, p95, unique-source ID/generation checking and result computation unchanged."
+    ],
+    "finding_and_refinement": "Initial candidate accepted unknown phase with matching backend. Supervisor chose explicit experimental ready-phase whitelist; owner added four regression cases before final timing. Final helper43c2d5cd reviewed.",
+    "perf_notes": [
+      "New helper reparses the small status string; original on_status keeps its prior field parse for recorded evidence. This is diagnostic status-only work, not per-pixel/camera/container work.",
+      "Microbenchmark measures actual helper plus Python loop and bool summation. No matched old-validator benchmark; do not claim this is a measured delta.",
+      "Python dictionaries/strings allocate normally during parsing; no zero-allocation claim.",
+      "No imports, I/O, logging, sleep, ROS, SDK or GPU calls inside pure helper."
+    ],
+    "behavior_validation": {
+      "result": "11passed,31subtests passed in0.06s",
+      "new_perf_tests": 3,
+      "actual_callback_execution": "AST-extracted actual fields/on_status functions use real final helper; controlled external CPU-reader and monotonic clock establish cold/steady ordering without ROS import.",
+      "mutation_checks": [
+        "removed_false_readiness_return",
+        "helper_io_import",
+        "helper_sleep",
+        "helper_logging"
+      ],
+      "diff_check": "PASS"
+    },
+    "cpu_measurement_contract": "Normal producer initial received=1 is actual startup baseline; comparisons use steady-window counter deltas or collector unique original-source cohorts, not lifetime received.",
+    "prior_failure_preserved": "V3 CPU retry stopped because original collector rejected legitimate starting status; that establishes a collector admission failure, not a steady production-camera failure. No live result was overwritten or reclassified.",
+    "microbenchmark": {
+      "schema": "resident-live-status-microbenchmark-v1",
+      "helper_sha256": "43c2d5cdeaa1ff9e13313b897b75ebb537556e2a30755fd3eed0a652b33b1716",
+      "python_version": "3.12.15",
+      "cases": [
+        {
+          "name": "starting_cpu",
+          "mode": "cpu",
+          "text_bytes": 121,
+          "ready_expected": false,
+          "calls_per_trial": 20000,
+          "trials": 7,
+          "ns_per_call": [
+            704.0128,
+            739.90695,
+            755.23435,
+            756.35995,
+            760.26935,
+            730.9476,
+            729.0355
+          ],
+          "median_ns_per_call": 739.90695
+        },
+        {
+          "name": "starting_vulkan",
+          "mode": "vulkan",
+          "text_bytes": 121,
+          "ready_expected": false,
+          "calls_per_trial": 20000,
+          "trials": 7,
+          "ns_per_call": [
+            730.7552,
+            747.49025,
+            765.97605,
+            749.5627,
+            744.03525,
+            753.32325,
+            745.235
+          ],
+          "median_ns_per_call": 747.49025
+        },
+        {
+          "name": "starting_auto",
+          "mode": "auto",
+          "text_bytes": 121,
+          "ready_expected": false,
+          "calls_per_trial": 20000,
+          "trials": 7,
+          "ns_per_call": [
+            787.5342,
+            752.9871,
+            761.38245,
+            740.46,
+            773.99165,
+            736.0883,
+            746.5064
+          ],
+          "median_ns_per_call": 752.9871
+        },
+        {
+          "name": "ready_cpu",
+          "mode": "cpu",
+          "text_bytes": 403,
+          "ready_expected": true,
+          "calls_per_trial": 20000,
+          "trials": 7,
+          "ns_per_call": [
+            2215.13575,
+            2177.26495,
+            2215.04605,
+            2222.75215,
+            2087.9201,
+            2076.5226,
+            2026.8515
+          ],
+          "median_ns_per_call": 2177.26495
+        },
+        {
+          "name": "ready_vulkan",
+          "mode": "vulkan",
+          "text_bytes": 406,
+          "ready_expected": true,
+          "calls_per_trial": 20000,
+          "trials": 7,
+          "ns_per_call": [
+            2054.25315,
+            2329.77075,
+            2159.76045,
+            2080.967,
+            2211.67725,
+            2199.10455,
+            2244.65685
+          ],
+          "median_ns_per_call": 2199.10455
+        },
+        {
+          "name": "ready_auto",
+          "mode": "auto",
+          "text_bytes": 406,
+          "ready_expected": true,
+          "calls_per_trial": 20000,
+          "trials": 7,
+          "ns_per_call": [
+            2240.6874,
+            2196.54675,
+            2222.6484,
+            2182.69515,
+            2075.2908,
+            1999.75295,
+            1995.9779
+          ],
+          "median_ns_per_call": 2182.69515
+        }
+      ],
+      "scope": "Actual pure status classification + Python loop/bool sum; source dictionaries and strings allocate normally; no ROS, SDK, GPU, /proc reads, clock conversion, publication or pixel work. Seven sequential trials per case, 1000call warmup; unpinned CPU, no concurrent heavy build permitted during isolated measurements."
+    },
+    "limitations": [
+      "Isolated unpinned local CPU; not station-wide CPU headroom, publication latency, capture age, control jitter or hardware throughput.",
+      "Seven sequential trials per input case;1000warmup calls and20000timed calls per trial; no concurrent heavy build permitted in timed phase.",
+      "Canonical full CPU suite assigned to separate worker after timing; that result is not claimed by this report.",
+      "Root must read report and current hashes plus canonical CPU result before any next live release."
+    ]
+  },
+  "cpu_verification": {
+    "native_ctest_passed": 14,
+    "latest_canonical_cpu_passed": 3838,
+    "latest_canonical_cpu_skipped": 136,
+    "latest_subtests_passed": 48,
+    "prior_native_tests_passed": 347,
+    "source_drift": 0
+  },
+  "live_v4": {
+    "status": "PASS_BOUNDED_LOCAL_LIVE_SMOKE_ALL3",
+    "physical_camera_capture": true,
+    "full_station_qualified": false,
+    "execution_eligible": false,
+    "geometry_admission": "unqualified",
+    "not_performance_qualification": true,
+    "scope": "One sequential15-second steady live trial each CPU/strictVulkan/auto; not matched-input/statistical speedup or10minute soak; no actuators",
+    "mode_order": [
+      "cpu",
+      "vulkan",
+      "auto"
+    ],
+    "camera_starts": 3,
+    "source_manifest_sha256": "3c43aead44a707921f99a29b8757a2d2dd4ad0f4a76232bc47fc9aaeea9a9c91",
+    "source_files_count": 148,
+    "source_keys": {
+      "camera_sha256": "243d437145d503e83855ffa25d3bb2aff934ea996730b061be742a20b8f66b24",
+      "startup_gate_sha256": "d7c4a01374dbe266829e2fcba1ea0e4e3b0f8119cc565b9c8cbb612e492eb0b4",
+      "collector_sha256": "f6f42ed3be23045f9d9a5123a6b25f7ea741680fb9d3c0fb6099a361b121ede5",
+      "collector_helper_sha256": "43c2d5cdeaa1ff9e13313b897b75ebb537556e2a30755fd3eed0a652b33b1716",
+      "core_library_sha256": "79376a68ef748e1413eb9945fd14f58a920db693e19f5d9730f573b64705fb86",
+      "alignment_library_sha256": "382de449304e89751cdfb887189cdf8c537989f248269f74fe5f53a496b55e2a",
+      "component_library_sha256": "36b986d663251423d2cfe48eed2c95df8da0f9ab4f6b34f95c9f633122295b0a"
+    },
+    "review_proof": {
+      "source_review_hashes": {
+        "ros2/src/so101_station_vulkan/CMakeLists.txt": "1d73b933cb3f19ab5d025e37a27664bebcec2f5967ca3dd125bc7386be80ae12",
+        "ros2/src/so101_station_vulkan/cmake/alignment.cmake": "1d868671286fe10eac57125e2d3e007d492971001509e8222f9c57d8ba80f1e0",
+        "ros2/src/so101_station_vulkan/cmake/alignment_divide_probe.cmake": "96b387ea5f3fdf17a81b6486b1216946fd1ee0ff4df80ad939bcb74e11e62e8c",
+        "ros2/src/so101_station_vulkan/cmake/geometry.cmake": "9e27cb77a4145c15cee9343d6abc00b33987bb52a19f142ccf553abfe3326a2a",
+        "ros2/src/so101_station_vulkan/cmake/latest_frame.cmake": "43e1aeeaea0f1f58704a2381ad0c5319ce42824eb91643d1167244e9888d2ddc",
+        "ros2/src/so101_station_vulkan/include/so101_station_vulkan/alignment.hpp": "02b0e94de7cc2cb58a9fd377fbc37b01bbc2a0847598ee849554877895a45c14",
+        "ros2/src/so101_station_vulkan/include/so101_station_vulkan/camera_startup_gate.hpp": "d7c4a01374dbe266829e2fcba1ea0e4e3b0f8119cc565b9c8cbb612e492eb0b4",
+        "ros2/src/so101_station_vulkan/include/so101_station_vulkan/frame_adapter.hpp": "b99c297c807abac67b9243071139c18e23c6d51d3601913b0c0028d65c9894ab",
+        "ros2/src/so101_station_vulkan/include/so101_station_vulkan/geometry.hpp": "c980c96fbf800a210cbded3790eaaba9a7bb5ddea704b82912b4bebe82d89cf9",
+        "ros2/src/so101_station_vulkan/include/so101_station_vulkan/latest_frame_queue.hpp": "c7577bf4d57bb6eda49bf4e80685256cba76a90e28882c94c4fc7937ad2b0866",
+        "ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp": "48cc86a081499b61a9b7a816c4c737034abf07908a15fe3d2e996b681b2dcb30",
+        "ros2/src/so101_station_vulkan/include/so101_station_vulkan/raw_camera_admission.hpp": "46a891c1ca571059c4a1fc81cb4fd71e419db744130266b8779e401b948cd43c",
+        "ros2/src/so101_station_vulkan/include/so101_station_vulkan/raw_capture_bridge.hpp": "61d13c6a1f0eecbefa788a68968f6d175902e2f823923b30bc0d67e020c8ffd4",
+        "ros2/src/so101_station_vulkan/include/so101_station_vulkan/video.hpp": "346610232fcaea3ebfb5c93120bddbcc137a0d780bb0fcec91773ba8b04c92f6",
+        "ros2/src/so101_station_vulkan/launch/__pycache__/resident_rgbd.launch.cpython-313.pyc": "1d8d1816a01540cd04c4343d7800e4551d1dcd187dff9ae22738b47a86fbf7aa",
+        "ros2/src/so101_station_vulkan/launch/resident_rgbd.launch.py": "a7b2ef4be033e44f0c7cd93ba16009f3bff1ac6da276ab88354c97ec6e2584b9",
+        "ros2/src/so101_station_vulkan/package.xml": "d137cb9ebd52a1cb811a790409e30037f25686633c5e92de902ac5a5998231a1",
+        "ros2/src/so101_station_vulkan/shaders/alignment.slang": "8848c24e2b3589696337e863faa944e0cb697d172f30115d829a3912011db3b9",
+        "ros2/src/so101_station_vulkan/shaders/exact_divide.slang": "43281d1db2cc83f6d47cedcd56a838301030ce9449d4f99d860d66fd6c228cb3",
+        "ros2/src/so101_station_vulkan/shaders/geometry.slang": "2c8e3f34a07e3efedca035a62fb5ccb97331b28d8c302d788de569625a6694b1",
+        "ros2/src/so101_station_vulkan/shaders/hash_shader.cmake": "addab0cdb7f58789ae60ab3a2c4b46b9d6b4c7a7f0f3d5804612520e58bed4fa",
+        "ros2/src/so101_station_vulkan/shaders/resident.slang": "24069ca4befd10873c40d512f4ec9fa4b0a011ce1ced113860c8e72aa9fa371c",
+        "ros2/src/so101_station_vulkan/shaders/video.slang": "efd169d666832b4c745156a57bd799b96fb45fe47196e32406dab4a2effb68a8",
+        "ros2/src/so101_station_vulkan/src/alignment.cpp": "c2db4830654efc1b28715feb71b8568a68a23a4f50fba9faef6d52ec8bd5ed74",
+        "ros2/src/so101_station_vulkan/src/alignment_reference.cpp": "cc61c14cde19ec8c1de70756059c770561373211e621b25b34537ffbb0979597",
+        "ros2/src/so101_station_vulkan/src/benchmark_rgbd.cpp": "8959b1b72b6f2f0a4797322989ad815b2f574fd3423bce32bbc81b558404c190",
+        "ros2/src/so101_station_vulkan/src/camera_component.cpp": "243d437145d503e83855ffa25d3bb2aff934ea996730b061be742a20b8f66b24",
+        "ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp": "0fd104e5297ef20f318fe872cfc703eacf2846c20e8da5af42b92392cd43e775",
+        "ros2/src/so101_station_vulkan/src/frame_pool.cpp": "d658803a5dbe5f87c78b1827dd24a1ce33d3cb7cadc201191e5e7d620d89c639",
+        "ros2/src/so101_station_vulkan/src/geometry.cpp": "a0c7f10cb958dd3b694187c7923234786c0129cd4a25637dea97e12c17a0809d",
+        "ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp": "274d82d665653b86b42e6ef0bdda7b2aa8f1881898de9f433b78dd102d45e5ba",
+        "ros2/src/so101_station_vulkan/src/host_microbench.cpp": "81a4e14f812d3e20dd920b318aefbcec26aee820311aededc45c34239c1f5e0a",
+        "ros2/src/so101_station_vulkan/src/qualify_video.cpp": "1bb07e775970fb85b5c706bf2a947fda84b3b1f23389779f3573c4fc615f5215",
+        "ros2/src/so101_station_vulkan/src/raw_camera_admission.cpp": "94fbf44d3100e2cae71b25128895138807d7e2b6c651a07a51146cd410b2a891",
+        "ros2/src/so101_station_vulkan/src/raw_capture_bridge.cpp": "50e47ecfa84f62704a7c5c19922f8da3c05202ddeaa968257ea40aaf491047fa",
+        "ros2/src/so101_station_vulkan/src/video.cpp": "6ef14b1a5c6afe9accbc45e4df2749acbb86b76a843138de0878b620ea16d77d",
+        "ros2/src/so101_station_vulkan/src/video_conversion.cpp": "94402b42472ca5db3233240211b2ce8f3d702b63a625b1b431cc06acee5d23af",
+        "ros2/src/so101_station_vulkan/src/video_conversion.hpp": "b796b555437236806a09c2375693568db6e9ef445d99e5305a9ff4a98916bad1",
+        "ros2/src/so101_station_vulkan/src/video_host_microbench.cpp": "5e60dd52a6a5155059dd0927c9685f8ceb46523e8ffbc8dfe970b3071c26a745",
+        "ros2/src/so101_station_vulkan/src/vulkan_context.cpp": "43ff8fc99f456615e0bfaeb7d9889ed2a4b82e009f1b29d9854a1382b32d2ed0",
+        "ros2/src/so101_station_vulkan/test/alignment_divide_cpu_benchmark.cpp": "55c06cf06ae088cd17e48e6e752854c247f10d34cbc22bac7011dbc7058eb282",
+        "ros2/src/so101_station_vulkan/test/alignment_divide_gpu_test.cpp": "8ae9127f0c60ef2d400c458a9027f13fef09ac76d8c54a9d9c5d1045734d706f",
+        "ros2/src/so101_station_vulkan/test/alignment_divide_host_test.cpp": "653b88cd1978333a23c1b148afab758fd4d1aaf0240752cac59edc88fc739bf1",
+        "ros2/src/so101_station_vulkan/test/alignment_divide_probe.slang": "b11a1d2eeb37ef9de244afd054b61ba57dd4082868fe03ad5e771061fe02a8fe",
+        "ros2/src/so101_station_vulkan/test/alignment_oracle.cpp": "c23214f4f5deaf3766b507084348b4100968ebe54b9a6a388fbf7a3337dbfb8d",
+        "ros2/src/so101_station_vulkan/test/camera_startup_gate_test.cpp": "6d8d18eccda6c507b2f2ebff629988e44e3cb523c56c00e08b63fe1e1ae8c518",
+        "ros2/src/so101_station_vulkan/test/camera_startup_perf_benchmark.cpp": "0e5ef931b78d4b4a7cf9efb847d7c7afddc097ccc1d6423d2cefec7d5626cf5f",
+        "ros2/src/so101_station_vulkan/test/cc_convergence_probe.cpp": "32f6ec4b43c701e556dde080ed31aa151a02c8a6e666175f5eb0ce7a13b4d652",
+        "ros2/src/so101_station_vulkan/test/cc_copyback_host_benchmark.cpp": "36c7fc1215be607c069b9ec64ba106fac9c6f3b5691b521c3520a423a5c32654",
+        "ros2/src/so101_station_vulkan/test/context_features_host_test.cpp": "56774977b27bf9e8e7c88d3caa6f35919efe02cf33c7a7d798cce03a369dd0a6",
+        "ros2/src/so101_station_vulkan/test/device_depth_host_test.cpp": "709e9dc0822580a175bbf8c6920df1c158a682ec66016f3632c8a838d925e946",
+        "ros2/src/so101_station_vulkan/test/frame_lease_test.cpp": "9af083b0f96291983d101a18144d7fe15f4fcdcb1e39d592ccb51fd1b08f80d7",
+        "ros2/src/so101_station_vulkan/test/geometry_preparation_contract.cpp": "4bfe5d5248297a503c6e8d2424ba0b3ead719ff3ee578a3b9d6d9f7d020c1d1f",
+        "ros2/src/so101_station_vulkan/test/latest_frame_queue_test.cpp": "6acd0d8027bc485f7cef00ef92af93b36cd6868a1bb8aa6d4ebe025d9273a4d4",
+        "ros2/src/so101_station_vulkan/test/preparation_host_benchmark.cpp": "1958d6c7f73b170538c2d51c4181cc508c4d010b41d39a0652e82b6113bd520f",
+        "ros2/src/so101_station_vulkan/test/qualify_geometry.cpp": "18886a87e6b9dc553ad3c2e78b93b6610e257120c4a72088dfced9c45371fb60",
+        "ros2/src/so101_station_vulkan/test/raw_camera_admission_test.cpp": "e03c3f51d48bf920322e511f31b152ae083f1a01714c39367ee044f97af4b3f9",
+        "ros2/src/so101_station_vulkan/test/raw_capture_bridge_host_test.cpp": "901159e5baeaa8905041aa6bec203b170432dc2ff8baa88c68ca1fad7b0e178d",
+        "ros2/src/so101_station_vulkan/test/raw_resident_perf_benchmark.cpp": "2c92370a0e039231e18cf524845064d99910d388d98bf081401c374414794a6b",
+        "ros2/src/so101_station_vulkan/test/verify_preparation_spirv.py": "a7202390799d7b6a84928e9a744eba4426a44a01660d600604296cf726653c9b",
+        "ros2/src/so101_station_vulkan/test/video_policy_test.cpp": "bfc9b19693266e1b8c2f616a394ac6395a2b25122dd4cad59b7dcee4a6082085",
+        "ros2/src/so101_station_vulkan/test/video_roundtrip_test.cpp": "52399324389bb14123bc3d65489dc8e8e28c93fc5e518f11e1ae02b1d292101e"
+      },
+      "installed_review_hashes": {
+        "include/so101_station_vulkan/alignment.hpp": "02b0e94de7cc2cb58a9fd377fbc37b01bbc2a0847598ee849554877895a45c14",
+        "include/so101_station_vulkan/camera_startup_gate.hpp": "d7c4a01374dbe266829e2fcba1ea0e4e3b0f8119cc565b9c8cbb612e492eb0b4",
+        "include/so101_station_vulkan/frame_adapter.hpp": "b99c297c807abac67b9243071139c18e23c6d51d3601913b0c0028d65c9894ab",
+        "include/so101_station_vulkan/geometry.hpp": "c980c96fbf800a210cbded3790eaaba9a7bb5ddea704b82912b4bebe82d89cf9",
+        "include/so101_station_vulkan/latest_frame_queue.hpp": "c7577bf4d57bb6eda49bf4e80685256cba76a90e28882c94c4fc7937ad2b0866",
+        "include/so101_station_vulkan/pipeline.hpp": "48cc86a081499b61a9b7a816c4c737034abf07908a15fe3d2e996b681b2dcb30",
+        "include/so101_station_vulkan/raw_camera_admission.hpp": "46a891c1ca571059c4a1fc81cb4fd71e419db744130266b8779e401b948cd43c",
+        "include/so101_station_vulkan/raw_capture_bridge.hpp": "61d13c6a1f0eecbefa788a68968f6d175902e2f823923b30bc0d67e020c8ffd4",
+        "include/so101_station_vulkan/video.hpp": "346610232fcaea3ebfb5c93120bddbcc137a0d780bb0fcec91773ba8b04c92f6",
+        "lib/libresident_alignment.so": "382de449304e89751cdfb887189cdf8c537989f248269f74fe5f53a496b55e2a",
+        "lib/libresident_components.so": "36b986d663251423d2cfe48eed2c95df8da0f9ab4f6b34f95c9f633122295b0a",
+        "lib/libresident_geometry.so": "bcc08eed5b96a1c3eef89928231d69d09f0350edd10b57005e837647683f1072",
+        "lib/libresident_rgbd.so": "79376a68ef748e1413eb9945fd14f58a920db693e19f5d9730f573b64705fb86",
+        "lib/libresident_video.so": "55f488fd53516753a30140b317a0a4d94703c9a026fac43433a876265f168996",
+        "lib/so101_station_vulkan/benchmark_rgbd": "2eb44904629f93e8b1943c6ca0a52606bff2b78583eca1b8c8ea2b2da132f53a",
+        "lib/so101_station_vulkan/qualify_alignment": "a33f2b4ab5bcc70f39e6a67e587c382abe7a5b1c680984f1166f569684231c39",
+        "lib/so101_station_vulkan/qualify_video": "52121eff4d5c8cf315d2e9d93619e0f7e3b008c46056772b0ca25094a81a88cd",
+        "lib/so101_station_vulkan/resident_host_microbench": "c8785a7cfc8f404beb1360523a702b6f8be76075e7fd6c2a947eac723f821600",
+        "lib/so101_station_vulkan/resident_lease_test": "427fcfc79ea426e27ec7a93c67c062887995323ce7e83c9000617c5008d58873",
+        "lib/so101_station_vulkan/verify_cc_convergence_fault": "f91b8c82a8352f0b0cc5acac557b0bec587a8ea86946eb6cb5960b416c6949e8",
+        "share/ament_index/resource_index/package_run_dependencies/so101_station_vulkan": "13e876c33b093edea97cbb73aed503bf5627faee21b2b6614fcfa9e46c0a5681",
+        "share/ament_index/resource_index/packages/so101_station_vulkan": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "share/ament_index/resource_index/parent_prefix_path/so101_station_vulkan": "4389099a1b4084c49de76b37aff462de83151838dec0a46c054b6750251e81e7",
+        "share/ament_index/resource_index/rclcpp_components/so101_station_vulkan": "78b164a52a8977678efcd64705f81d56f33896894033eb0cd93765316453c94c",
+        "share/so101_station_vulkan/alignment-shaders/alignment.slang": "8848c24e2b3589696337e863faa944e0cb697d172f30115d829a3912011db3b9",
+        "share/so101_station_vulkan/alignment-shaders/exact_divide.slang": "43281d1db2cc83f6d47cedcd56a838301030ce9449d4f99d860d66fd6c228cb3",
+        "share/so101_station_vulkan/alignment-shaders/finalize.spv": "1a814310811e4772b9f320e6109b9364a20140db3349937de12bb1f56bedb8f6",
+        "share/so101_station_vulkan/alignment-shaders/finalize.spv.sha256": "c4f1691db115daff5c321812f05b893f0c41aab8a0263f651d800717bf68c306",
+        "share/so101_station_vulkan/alignment-shaders/source.sha256": "6973c57c62ae7735a1597dcb9f45ca42c400f1fb6e598866ae21acf42b16c583",
+        "share/so101_station_vulkan/alignment-shaders/splat.spv": "69f12068ac1d900a38b263b3101538f9df0d2b9ce43dafe8026035743c14ff96",
+        "share/so101_station_vulkan/alignment-shaders/splat.spv.sha256": "eab8a2d7261b1fb5e0d784e6918ec0216bdba4e0f34e8d757dcf3920e6a232de",
+        "share/so101_station_vulkan/cmake/ament_cmake_export_dependencies-extras.cmake": "aff1d6dfc436aad1724838a6c6dca19ade3a64638980c740313d16b49a93f0e8",
+        "share/so101_station_vulkan/cmake/ament_cmake_export_targets-extras.cmake": "92c98b31d108a47f5706c05f0af3505a6d0fa29f4f6f813c60956d15dead7027",
+        "share/so101_station_vulkan/cmake/resident_rgbd_targetsExport-release.cmake": "b7fa161c8b092400e86777a5f333dc65d037ffaf939e4de7befbc9ad8d807489",
+        "share/so101_station_vulkan/cmake/resident_rgbd_targetsExport.cmake": "27c84d7cdcd12a9995062ffc422af8a27ab01635c31bf138d1da55352bfd5ed5",
+        "share/so101_station_vulkan/cmake/so101_station_vulkanConfig-version.cmake": "5df7fb3481e154840dd6ac6d1b6eb53c81ed9cadd5e7a00398962383332be7ea",
+        "share/so101_station_vulkan/cmake/so101_station_vulkanConfig.cmake": "a6be995b9c718a9135c2f5e69f9231cd1e494a6b1d37e82fdef7a0e70b378162",
+        "share/so101_station_vulkan/environment/ament_prefix_path.dsv": "c4797d0a0670c70b4d3bcb5b7d47563635c7950595603f3af66f70af546ad57e",
+        "share/so101_station_vulkan/environment/ament_prefix_path.sh": "6658f14efe913e291c0bf2c74059a9e14fb8abdb5a31628bef61d3b41e206679",
+        "share/so101_station_vulkan/environment/path.dsv": "3f2cdf6234ea2525c1670c140b6a03700d98a2408e7a232107791fa96c08b58b",
+        "share/so101_station_vulkan/environment/path.sh": "abe10a0452bc4b93f665fc343a7e6d32fe3f3a2b6beb90d338044a71d2583f18",
+        "share/so101_station_vulkan/geometry-shaders/geometry.slang": "2c8e3f34a07e3efedca035a62fb5ccb97331b28d8c302d788de569625a6694b1",
+        "share/so101_station_vulkan/geometry-shaders/geometry_coordinates.spv": "2d014f6f62d57561ea8ce288dd56de37f7c7659b768b565c5f365fd1a7e2bf84",
+        "share/so101_station_vulkan/geometry-shaders/geometry_coordinates.spv.sha256": "41d98ead1508f45ebbb7ac75d81480d3e814bd4cd9e80cfd69f1a48cc677c30a",
+        "share/so101_station_vulkan/geometry-shaders/geometry_support_offsets.spv": "b208b13263698a1d8b1819ac91a69b47c0d34774a62c2c498d90f00d1762e3dd",
+        "share/so101_station_vulkan/geometry-shaders/geometry_support_offsets.spv.sha256": "8ab5a2d382f419db7bbe94a807a5f441d0f97d5fcb0f3e95b4aab44668604401",
+        "share/so101_station_vulkan/geometry-shaders/geometry_support_scan.spv": "9584291624a1231651fa56ac1829c1ea326f988f86eae59f004ea1d6b4510e2f",
+        "share/so101_station_vulkan/geometry-shaders/geometry_support_scan.spv.sha256": "719acceb42aa485d6d8f776592b7095981854e966f47cb16f5f509b3d4d8fbf1",
+        "share/so101_station_vulkan/geometry-shaders/geometry_support_scatter.spv": "412ab14fe033ad175a29271438be5e2f8f5e59965dfe534589f4cd27411e5927",
+        "share/so101_station_vulkan/geometry-shaders/geometry_support_scatter.spv.sha256": "5015e1f53da238d8cc96690395e05a16cda7a9f1051d2c7c8571dfb80c1a0148",
+        "share/so101_station_vulkan/geometry-shaders/geometry_valid_count.spv": "c41ddcfdd3462963951db7b71730ffbc23bd96cad7aca1191b1b3f30b6120e99",
+        "share/so101_station_vulkan/geometry-shaders/geometry_valid_count.spv.sha256": "df4dc36cb199c26c68be96624abd636bb68376f16381906035742650b36f05f8",
+        "share/so101_station_vulkan/geometry-shaders/source.sha256": "f5757b4ee0da49080be1bcca493220f570bce1f4761ea94ff555f5199671cc26",
+        "share/so101_station_vulkan/launch/__pycache__/resident_rgbd.launch.cpython-313.pyc": "1d8d1816a01540cd04c4343d7800e4551d1dcd187dff9ae22738b47a86fbf7aa",
+        "share/so101_station_vulkan/launch/resident_rgbd.launch.py": "a7b2ef4be033e44f0c7cd93ba16009f3bff1ac6da276ab88354c97ec6e2584b9",
+        "share/so101_station_vulkan/local_setup.bash": "41b30b6c107da94a2478e43953b8cbd0d920f5e8fc1ea847c61a213623d623b0",
+        "share/so101_station_vulkan/local_setup.dsv": "15cda8aa6ecbb74e82e9c7f6f5db1e5be4ccc06c114f400a2b1adca8b0822f48",
+        "share/so101_station_vulkan/local_setup.sh": "bee15690ece984d4dffcf19cf0b866c3c23dede6c4071b01c45a857cdd8013e5",
+        "share/so101_station_vulkan/local_setup.zsh": "56942873096201f4e7fe5e7b9bd87e56cc42ced33fadb53fbc25766fd9149c81",
+        "share/so101_station_vulkan/package.dsv": "936f8c4cbdc4ad81f17d87dcb99fa5fce91340e9a83cd49da97bede8c2d651e7",
+        "share/so101_station_vulkan/package.xml": "d137cb9ebd52a1cb811a790409e30037f25686633c5e92de902ac5a5998231a1",
+        "share/so101_station_vulkan/shaders/candidates.spv": "00c662bcd0e8caab3703cc56d7270950c47d93a7d720c5ea4e14ffa25e01f56c",
+        "share/so101_station_vulkan/shaders/candidates.spv.sha256": "c7cebabdcd90a238387071f05ff846fbd2a52420eab13d3000272e296b614568",
+        "share/so101_station_vulkan/shaders/compress.spv": "0bfe428fd309c1910d846fff31f96851cb7447016eec5b9ef41c0d40625d498e",
+        "share/so101_station_vulkan/shaders/compress.spv.sha256": "00233585554f7dc428b80c2e8bb27fcf38c89234242e652e94dedf97e5dd388c",
+        "share/so101_station_vulkan/shaders/connect.spv": "4e3b9dc500f4ef1727765abd54385f0e3ae8ee86484cc95c57d5e96c106d744b",
+        "share/so101_station_vulkan/shaders/connect.spv.sha256": "4b1290975793b25f5affd6d99aa6d0265a2089ead11977f647252b2037f5a0d2",
+        "share/so101_station_vulkan/shaders/convert.spv": "86ff1501948b13ae8db84734d75edf8a33e5a5a32654ba939ec022095aae8319",
+        "share/so101_station_vulkan/shaders/convert.spv.sha256": "4b884775b9520b46220a364fd6f3d1c15389e031167621f1f8c6995918dc3cbc",
+        "share/so101_station_vulkan/shaders/exact_divide.slang": "43281d1db2cc83f6d47cedcd56a838301030ce9449d4f99d860d66fd6c228cb3",
+        "share/so101_station_vulkan/shaders/gather.spv": "fda7a89aaa457efc4417738a5e80c5ddb35e452d498dc7a4387fe4f7a39ec55c",
+        "share/so101_station_vulkan/shaders/gather.spv.sha256": "bf5ad259f7b1a0521d63314fadb9a59d1b1db8c52adaa26373a47cf30b185339",
+        "share/so101_station_vulkan/shaders/morphology.spv": "c02b9cb0cb248e68de94ac5a5c125ae9a5fc9ac185db7701a360870230127388",
+        "share/so101_station_vulkan/shaders/morphology.spv.sha256": "2265e2f433fcef715cff68335bc960280706cb5863a53194c178a973576a7355",
+        "share/so101_station_vulkan/shaders/provenance.txt": "662482042d0100fdc06ac4749e571f441eb6dcbef37adfec41b8026a10f4a803",
+        "share/so101_station_vulkan/shaders/reduce.spv": "b92de08115e6b10e362ba0eb50f8e09a94164ef6d312b90e80f3731c7ef9b48d",
+        "share/so101_station_vulkan/shaders/reduce.spv.sha256": "cf87e33fd366587f9aae06c6128b99a34ddc7a7e52a3e5479c81aa6332f72285",
+        "share/so101_station_vulkan/shaders/resident.slang": "24069ca4befd10873c40d512f4ec9fa4b0a011ce1ced113860c8e72aa9fa371c",
+        "share/so101_station_vulkan/shaders/tiled_components.spv": "414f3809fc3257a37b874b7743744b76ccc41255046574b07b7619a3c1081e31",
+        "share/so101_station_vulkan/shaders/tiled_components.spv.sha256": "7dcb55893a8835c65f56515cfc5f1c6e5d263c1eda38c385c8eee2299898e2d5",
+        "share/so101_station_vulkan/video-shaders/rgb_to_nv12.spv": "3c30a2713a32d78989d75c3842d704e865e5a0f1a12b9c6a83f8563f60e29a29",
+        "share/so101_station_vulkan/video-shaders/rgb_to_nv12.spv.sha256": "db6bdfeec5fd6e65ac597e849a595b10553002fd2f4e7e0402413a9552c98c7b",
+        "share/so101_station_vulkan/video-shaders/source.sha256": "39baa68b14517d1aa67d9e186d64a881bce24687a795916870069520fd3ecbf3",
+        "share/so101_station_vulkan/video-shaders/video.slang": "efd169d666832b4c745156a57bd799b96fb45fe47196e32406dab4a2effb68a8"
+      },
+      "all17_spv_equal_v2": {
+        "video-shaders/rgb_to_nv12.spv": "3c30a2713a32d78989d75c3842d704e865e5a0f1a12b9c6a83f8563f60e29a29",
+        "geometry-shaders/geometry_coordinates.spv": "2d014f6f62d57561ea8ce288dd56de37f7c7659b768b565c5f365fd1a7e2bf84",
+        "geometry-shaders/geometry_support_scan.spv": "9584291624a1231651fa56ac1829c1ea326f988f86eae59f004ea1d6b4510e2f",
+        "geometry-shaders/geometry_support_offsets.spv": "b208b13263698a1d8b1819ac91a69b47c0d34774a62c2c498d90f00d1762e3dd",
+        "geometry-shaders/geometry_support_scatter.spv": "412ab14fe033ad175a29271438be5e2f8f5e59965dfe534589f4cd27411e5927",
+        "geometry-shaders/geometry_valid_count.spv": "c41ddcfdd3462963951db7b71730ffbc23bd96cad7aca1191b1b3f30b6120e99",
+        "alignment-divide-probe/divide_probe.spv": "54a0bb4320ea043bfa46f46dc7fdf6986b9155bde28ffbaf91f983ef974c6bff",
+        "alignment-shaders/splat.spv": "69f12068ac1d900a38b263b3101538f9df0d2b9ce43dafe8026035743c14ff96",
+        "alignment-shaders/finalize.spv": "1a814310811e4772b9f320e6109b9364a20140db3349937de12bb1f56bedb8f6",
+        "shaders/convert.spv": "86ff1501948b13ae8db84734d75edf8a33e5a5a32654ba939ec022095aae8319",
+        "shaders/candidates.spv": "00c662bcd0e8caab3703cc56d7270950c47d93a7d720c5ea4e14ffa25e01f56c",
+        "shaders/connect.spv": "4e3b9dc500f4ef1727765abd54385f0e3ae8ee86484cc95c57d5e96c106d744b",
+        "shaders/compress.spv": "0bfe428fd309c1910d846fff31f96851cb7447016eec5b9ef41c0d40625d498e",
+        "shaders/reduce.spv": "b92de08115e6b10e362ba0eb50f8e09a94164ef6d312b90e80f3731c7ef9b48d",
+        "shaders/gather.spv": "fda7a89aaa457efc4417738a5e80c5ddb35e452d498dc7a4387fe4f7a39ec55c",
+        "shaders/morphology.spv": "c02b9cb0cb248e68de94ac5a5c125ae9a5fc9ac185db7701a360870230127388",
+        "shaders/tiled_components.spv": "414f3809fc3257a37b874b7743744b76ccc41255046574b07b7619a3c1081e31"
+      },
+      "alignment_elf_equivalence": {
+        "v2_full_sha256": "cb4ced16e37636b3d9f2751268471e401beb8e7ea74dba29326fbf92e3da15c0",
+        "current_installed_full_sha256": "382de449304e89751cdfb887189cdf8c537989f248269f74fe5f53a496b55e2a",
+        "changed_sections": [
+          ".dynstr",
+          ".dynamic"
+        ],
+        "all_other_sections_identical": true
+      },
+      "core_whole_library_sha256": "79376a68ef748e1413eb9945fd14f58a920db693e19f5d9730f573b64705fb86",
+      "collector_sha256": "38b9137b623514bed18216270caac3b4826c120cef4e5d4b3175bbc26531035c"
+    },
+    "modes": {
+      "cpu": {
+        "passed": true,
+        "backend": "cpu",
+        "alignment": "vendor_cpu",
+        "fallback_reason": "",
+        "steady_seconds": 15.003026582067832,
+        "unique_original_cohort_outputs": 449,
+        "unique_output_hz": 29.927294839073422,
+        "container_process_cpu_ms": 6340.0,
+        "container_process_cpu_ms_per_unique_output": 14.120267260579064,
+        "logical_cpu_demand_cores": 0.42258140151386525,
+        "cpu_counter_quantum_ms": 10.0,
+        "cpu_method": "actualcontainerPID /proc stat utime+stime allthreads; startup excluded; driverIRQ/kworker excluded",
+        "collector_host_receipt_age_p95_ms": 15.261318,
+        "age_semantics": "ROS hostreceipt timestamp to collectorreceipt; NOT hardwarecapture age",
+        "steady_peak_rss_kib_passive_sample": 121468,
+        "steady_max_threads_passive_sample": 34,
+        "source_identity": {
+          "unique_pairs": true,
+          "both_original_ids_strictly_increasing": true,
+          "single_calibration_generation": true,
+          "all_geometry_unqualified_execution_ineligible": true,
+          "unknown_or_collector_errors": [],
+          "color_timestamp_domains": [
+            2
+          ],
+          "depth_timestamp_domains": [
+            2
+          ]
+        },
+        "ready_status_counter_baseline": {
+          "received": 1,
+          "completed": 0,
+          "dropped": 0,
+          "replaced": 0,
+          "duplicate_or_regressed": 0
+        },
+        "ready_to_last_status_counter_deltas": {
+          "received": 450,
+          "completed": 450,
+          "dropped": 0,
+          "replaced": 0,
+          "duplicate_or_regressed": 0
+        },
+        "status_counter_observation_seconds": 15.003021352924407,
+        "counter_semantics": "received1 at ready is startupbaseline; deltas span ready\u2192last periodicstatus, collectorunique outputs span actual15s window; distinct async observation points, not required equal",
+        "normal_bytes_per_frame": {
+          "host_plane_copy_bytes": 1536000,
+          "native_upload_bytes": 0,
+          "aligned_d2d_bytes": 0,
+          "alignment_fault_readback_bytes": 0,
+          "core_compact_readback_bytes": 0
+        },
+        "cold_three_live_cohort_gate": {
+          "applies": false,
+          "passed_via_completed_constructor_and_raw_vulkan_ready": false,
+          "cohorts": 0,
+          "sdk_aligned_z16_exact": false,
+          "finite_xyz_error_gate_m": null,
+          "native_and_sdk_aligned_nonzero_coverage_min_per_cohort": null,
+          "compact_equal_independent_cpu": false,
+          "evidence": "frozen Camera cold_live_selfcheck\u2192ColdCameraSelfcheck verify/require_complete before ready; dense maximum error is not separately logged"
+        },
+        "loaded_library_sha256": {
+          "librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+          "libdrm.so.2.134.0": "e2a416f7b7c9e9e46b5f96bf20be71f146426daa6e1e8438adce2ab8e4c0fc0e",
+          "libdrm_amdgpu.so.1.134.0": "a28f07a5f69cd85d5a55b18f436cff5e0e33087181bdc3b8061ac2dec99d1322",
+          "libvulkan.so.1.4.357": "3e728b0f2535a7dc344c76b166fdf28e2561ce7293c68df775aecac5c8c3f37e",
+          "libresident_rgbd.so": "79376a68ef748e1413eb9945fd14f58a920db693e19f5d9730f573b64705fb86",
+          "libresident_alignment.so": "382de449304e89751cdfb887189cdf8c537989f248269f74fe5f53a496b55e2a",
+          "libresident_components.so": "36b986d663251423d2cfe48eed2c95df8da0f9ab4f6b34f95c9f633122295b0a"
+        },
+        "execution": {
+          "passed": true,
+          "errors": [],
+          "launch_returncode": 0,
+          "collector_returncode": 0,
+          "wall_seconds_including_startup_shutdown": 20.95010293694213,
+          "source_postcheck_mismatches": [],
+          "installed_postcheck_mismatches": [],
+          "loaded_postcheck_mismatches": []
+        }
+      },
+      "vulkan": {
+        "passed": true,
+        "backend": "vulkan",
+        "alignment": "raw_vulkan",
+        "fallback_reason": "",
+        "steady_seconds": 15.029740266036242,
+        "unique_original_cohort_outputs": 451,
+        "unique_output_hz": 30.007171914950273,
+        "container_process_cpu_ms": 1710.0,
+        "container_process_cpu_ms_per_unique_output": 3.7915742793791574,
+        "logical_cpu_demand_cores": 0.11377442122963408,
+        "cpu_counter_quantum_ms": 10.0,
+        "cpu_method": "actualcontainerPID /proc stat utime+stime allthreads; startup excluded; driverIRQ/kworker excluded",
+        "collector_host_receipt_age_p95_ms": 4.664705,
+        "age_semantics": "ROS hostreceipt timestamp to collectorreceipt; NOT hardwarecapture age",
+        "steady_peak_rss_kib_passive_sample": 165408,
+        "steady_max_threads_passive_sample": 36,
+        "source_identity": {
+          "unique_pairs": true,
+          "both_original_ids_strictly_increasing": true,
+          "single_calibration_generation": true,
+          "all_geometry_unqualified_execution_ineligible": true,
+          "unknown_or_collector_errors": [],
+          "color_timestamp_domains": [
+            2
+          ],
+          "depth_timestamp_domains": [
+            2
+          ]
+        },
+        "ready_status_counter_baseline": {
+          "received": 1,
+          "completed": 0,
+          "dropped": 0,
+          "replaced": 0,
+          "duplicate_or_regressed": 0
+        },
+        "ready_to_last_status_counter_deltas": {
+          "received": 450,
+          "completed": 450,
+          "dropped": 0,
+          "replaced": 0,
+          "duplicate_or_regressed": 0
+        },
+        "status_counter_observation_seconds": 14.993813163018785,
+        "counter_semantics": "received1 at ready is startupbaseline; deltas span ready\u2192last periodicstatus, collectorunique outputs span actual15s window; distinct async observation points, not required equal",
+        "normal_bytes_per_frame": {
+          "host_plane_copy_bytes": 1536000,
+          "native_upload_bytes": 1536000,
+          "aligned_d2d_bytes": 614400,
+          "alignment_fault_readback_bytes": 4,
+          "core_compact_readback_bytes": 163856
+        },
+        "cold_three_live_cohort_gate": {
+          "applies": true,
+          "passed_via_completed_constructor_and_raw_vulkan_ready": true,
+          "cohorts": 3,
+          "sdk_aligned_z16_exact": true,
+          "finite_xyz_error_gate_m": 1e-07,
+          "native_and_sdk_aligned_nonzero_coverage_min_per_cohort": 24,
+          "compact_equal_independent_cpu": true,
+          "evidence": "frozen Camera cold_live_selfcheck\u2192ColdCameraSelfcheck verify/require_complete before ready; dense maximum error is not separately logged"
+        },
+        "loaded_library_sha256": {
+          "libvulkan_radeon.so": "ecd0604a8f167fe0445715fb7eecc8b81ec0d9513f722a4f846b4a137852b507",
+          "libresident_components.so": "36b986d663251423d2cfe48eed2c95df8da0f9ab4f6b34f95c9f633122295b0a",
+          "libvulkan.so.1.4.357": "3e728b0f2535a7dc344c76b166fdf28e2561ce7293c68df775aecac5c8c3f37e",
+          "libdrm_amdgpu.so.1.134.0": "a28f07a5f69cd85d5a55b18f436cff5e0e33087181bdc3b8061ac2dec99d1322",
+          "librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+          "libresident_alignment.so": "382de449304e89751cdfb887189cdf8c537989f248269f74fe5f53a496b55e2a",
+          "libresident_rgbd.so": "79376a68ef748e1413eb9945fd14f58a920db693e19f5d9730f573b64705fb86",
+          "libdrm.so.2.134.0": "e2a416f7b7c9e9e46b5f96bf20be71f146426daa6e1e8438adce2ab8e4c0fc0e"
+        },
+        "execution": {
+          "passed": true,
+          "errors": [],
+          "launch_returncode": 0,
+          "collector_returncode": 0,
+          "wall_seconds_including_startup_shutdown": 20.97725990100298,
+          "source_postcheck_mismatches": [],
+          "installed_postcheck_mismatches": [],
+          "loaded_postcheck_mismatches": []
+        }
+      },
+      "auto": {
+        "passed": true,
+        "backend": "vulkan",
+        "alignment": "raw_vulkan",
+        "fallback_reason": "",
+        "steady_seconds": 15.002881968044676,
+        "unique_original_cohort_outputs": 451,
+        "unique_output_hz": 30.06089103151018,
+        "container_process_cpu_ms": 1490.0,
+        "container_process_cpu_ms_per_unique_output": 3.303769401330377,
+        "logical_cpu_demand_cores": 0.09931425196663009,
+        "cpu_counter_quantum_ms": 10.0,
+        "cpu_method": "actualcontainerPID /proc stat utime+stime allthreads; startup excluded; driverIRQ/kworker excluded",
+        "collector_host_receipt_age_p95_ms": 4.648585,
+        "age_semantics": "ROS hostreceipt timestamp to collectorreceipt; NOT hardwarecapture age",
+        "steady_peak_rss_kib_passive_sample": 166296,
+        "steady_max_threads_passive_sample": 36,
+        "source_identity": {
+          "unique_pairs": true,
+          "both_original_ids_strictly_increasing": true,
+          "single_calibration_generation": true,
+          "all_geometry_unqualified_execution_ineligible": true,
+          "unknown_or_collector_errors": [],
+          "color_timestamp_domains": [
+            2
+          ],
+          "depth_timestamp_domains": [
+            2
+          ]
+        },
+        "ready_status_counter_baseline": {
+          "received": 1,
+          "completed": 0,
+          "dropped": 0,
+          "replaced": 0,
+          "duplicate_or_regressed": 0
+        },
+        "ready_to_last_status_counter_deltas": {
+          "received": 450,
+          "completed": 450,
+          "dropped": 0,
+          "replaced": 0,
+          "duplicate_or_regressed": 0
+        },
+        "status_counter_observation_seconds": 14.96904706407804,
+        "counter_semantics": "received1 at ready is startupbaseline; deltas span ready\u2192last periodicstatus, collectorunique outputs span actual15s window; distinct async observation points, not required equal",
+        "normal_bytes_per_frame": {
+          "host_plane_copy_bytes": 1536000,
+          "native_upload_bytes": 1536000,
+          "aligned_d2d_bytes": 614400,
+          "alignment_fault_readback_bytes": 4,
+          "core_compact_readback_bytes": 163856
+        },
+        "cold_three_live_cohort_gate": {
+          "applies": true,
+          "passed_via_completed_constructor_and_raw_vulkan_ready": true,
+          "cohorts": 3,
+          "sdk_aligned_z16_exact": true,
+          "finite_xyz_error_gate_m": 1e-07,
+          "native_and_sdk_aligned_nonzero_coverage_min_per_cohort": 24,
+          "compact_equal_independent_cpu": true,
+          "evidence": "frozen Camera cold_live_selfcheck\u2192ColdCameraSelfcheck verify/require_complete before ready; dense maximum error is not separately logged"
+        },
+        "loaded_library_sha256": {
+          "libvulkan_radeon.so": "ecd0604a8f167fe0445715fb7eecc8b81ec0d9513f722a4f846b4a137852b507",
+          "libvulkan.so.1.4.357": "3e728b0f2535a7dc344c76b166fdf28e2561ce7293c68df775aecac5c8c3f37e",
+          "librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+          "libdrm_amdgpu.so.1.134.0": "a28f07a5f69cd85d5a55b18f436cff5e0e33087181bdc3b8061ac2dec99d1322",
+          "libresident_alignment.so": "382de449304e89751cdfb887189cdf8c537989f248269f74fe5f53a496b55e2a",
+          "libresident_rgbd.so": "79376a68ef748e1413eb9945fd14f58a920db693e19f5d9730f573b64705fb86",
+          "libresident_components.so": "36b986d663251423d2cfe48eed2c95df8da0f9ab4f6b34f95c9f633122295b0a",
+          "libdrm.so.2.134.0": "e2a416f7b7c9e9e46b5f96bf20be71f146426daa6e1e8438adce2ab8e4c0fc0e"
+        },
+        "execution": {
+          "passed": true,
+          "errors": [],
+          "launch_returncode": 0,
+          "collector_returncode": 0,
+          "wall_seconds_including_startup_shutdown": 20.98403844702989,
+          "source_postcheck_mismatches": [],
+          "installed_postcheck_mismatches": [],
+          "loaded_postcheck_mismatches": []
+        }
+      }
+    },
+    "runtime_prelaunch_sha256": {
+      "libvulkan_radeon.so": "ecd0604a8f167fe0445715fb7eecc8b81ec0d9513f722a4f846b4a137852b507",
+      "libdrm.so.2": "e2a416f7b7c9e9e46b5f96bf20be71f146426daa6e1e8438adce2ab8e4c0fc0e",
+      "libdrm_amdgpu.so.1": "a28f07a5f69cd85d5a55b18f436cff5e0e33087181bdc3b8061ac2dec99d1322",
+      "radeon_icd.x86_64.json": "d7db9126aec4895d2f2c4d50b74d160547cabc0a84180245e3c6adf21e769a33",
+      "librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d"
+    },
+    "source_postcheck_mismatches": [],
+    "runtime_postcheck_mismatches": [],
+    "resources_released": true,
+    "source_generations_distinct_between_fresh_starts": true
+  },
+  "privacy_policy": {
+    "removed_field_names": [
+      "actual_container_pid",
+      "anomaly_event_locations",
+      "camera_owners_after",
+      "cleanup_actions",
+      "collector_pid",
+      "color_timestamp_domains",
+      "command",
+      "commands",
+      "container_pid",
+      "depth_timestamp_domains",
+      "directory",
+      "focused_command",
+      "launch_pid",
+      "owned_pid",
+      "owners_after",
+      "owners_before",
+      "private_artifact_sha256",
+      "python_executable",
+      "remaining_owned_pids",
+      "samples",
+      "source_generations_distinct_between_fresh_starts"
+    ],
+    "omitted": "Commands, environment, PIDs, serials, UUIDs, calibration values, raw frames, per-frame/status samples and private event paths; original artifact hashes retained. Absolute library map keys use basenames.",
+    "physical_scene_files_included": false
+  },
+  "focused_source_review": {
+    "result": "no_new_source_blocker",
+    "scope": "startup and collector delta; unchanged math and base bridge reviewed separately",
+    "limitations": [
+      "Observed source ordering/count/time does not prove continuous cadence.",
+      "Collector PASS alone has no minimum FPS requirement; measured rates are separate evidence.",
+      "Hung GPU teardown requires an external owned-process watchdog."
+    ]
+  },
+  "offline_reference_reproduction": {
+    "source": "tools/performance/raw_resident_reference.cpp",
+    "sha256": "31c0165049c236731a1950fe45c78304a1f429217828046597bd2cf8e3a396c5",
+    "byte_identical_to_v2_qualification_driver": true,
+    "fresh_archived_source_cpu_cases_passed": 8,
+    "new_gpu_execution": false
+  }
+}

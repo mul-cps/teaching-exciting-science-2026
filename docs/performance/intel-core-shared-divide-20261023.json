@@ -1,0 +1,1838 @@
+{
+  "schema": "intel-core-shared-divide-archive-v1",
+  "date": "2026-10-23",
+  "original_reports_sha256": {
+    "workshop-intel-prealigned-shared-divide-20261023.md": "c07a4230dd292d9fa726471219fda6623a5abf5e47903909c3169da211d12c46",
+    "workshop-intel-prealigned-shared-divide-20261023.json": "95d6c27c707aea2c07c2c155a0ccfacf3891fa8a33c06042e44ee4c84ca92c1b"
+  },
+  "evidence": {
+    "scope": "CURRENT_PREALIGNED_CORE_ONLY_NO_CAMERA_RAW_ALIGNMENT_FULL_GEOMETRY_OR_STATION",
+    "current_source": {
+      "headroom_source_sha256": "5ee654202683a86a411bf9888c19c5caaaea29cde607a2a7e2c47f2113cc95ad",
+      "binary_sha256": {
+        "headroom": "116c36508db0db45afbaba3c233efdf034c12378da4188fc8dee3fe8cdf30c84",
+        "benchmark_rgbd": "eec342dc617028125229dad741065dd2faccf250036cd05e0e90c8bf08202cad"
+      },
+      "fixture_sha256": {
+        "depth.bin": "6ae95a9891fe5b0c31c5bfa85921e1461b9c486e297312b33575dd4afe31896d",
+        "case.json": "8aaaa452477b53c78dac66c5f5aab3b3d842051308b1816840ce4cece87cd23f",
+        "rgb.bin": "3ae9b084f90bd0b4a6e7cb1602460402c3bbfba8c19124440ca0b30e29a87f8f"
+      },
+      "native_manifest": {
+        "review_manifest_matched": true,
+        "review_hash_entries": 30,
+        "files": {
+          "alignment-divide-probe/divide_probe.spv": "54a0bb4320ea043bfa46f46dc7fdf6986b9155bde28ffbaf91f983ef974c6bff",
+          "alignment-divide-probe/divide_probe.spv.sha256": "a97fcd84d378481311a1528dd55a89caeb5ed99c565a91ee6484d3f11b6641e9",
+          "alignment-divide-probe/provenance.txt": "ad938bdde4b96d90d7d145730c5d615730e07698814cc2d6bfc94400553ef8ea",
+          "alignment-shaders/finalize.spv": "1a814310811e4772b9f320e6109b9364a20140db3349937de12bb1f56bedb8f6",
+          "alignment-shaders/finalize.spv.sha256": "c4f1691db115daff5c321812f05b893f0c41aab8a0263f651d800717bf68c306",
+          "alignment-shaders/source.sha256": "6973c57c62ae7735a1597dcb9f45ca42c400f1fb6e598866ae21acf42b16c583",
+          "alignment-shaders/splat.spv": "69f12068ac1d900a38b263b3101538f9df0d2b9ce43dafe8026035743c14ff96",
+          "alignment-shaders/splat.spv.sha256": "eab8a2d7261b1fb5e0d784e6918ec0216bdba4e0f34e8d757dcf3920e6a232de",
+          "expected-input-sha256.json": "21d5628216380590268255d4211ce6468e070677e1439f4c354eaafde207eda5",
+          "expected-inputs/case-0-calibration.json": "53fb5e3ad85ebcdacd6bf7fc0a9688013ebd2ee1035a6376a7f195a78dc174de",
+          "expected-inputs/case-0-raw-z16.bin": "9c14d90578cefb23f383ac60bf9ca5c6ec62846d4276ae5f37e5074fd233db2d",
+          "expected-inputs/case-0-rgb.bin": "05b14f4083b8e0da833243419c48324bc00ec0fdbaf566a93727c4a809bdf56c",
+          "expected-inputs/case-0-sdk-z16.bin": "9c14d90578cefb23f383ac60bf9ca5c6ec62846d4276ae5f37e5074fd233db2d",
+          "expected-inputs/case-1-calibration.json": "a9c80146c82ab9abd64b110520dbbafd7c31cc0793e41ab36e653eb937e5bb9b",
+          "expected-inputs/case-1-raw-z16.bin": "539a0f173cbce15ea770c6c7be68adb2317b349b72c4ff27a9dec82922da53e9",
+          "expected-inputs/case-1-rgb.bin": "05b14f4083b8e0da833243419c48324bc00ec0fdbaf566a93727c4a809bdf56c",
+          "expected-inputs/case-1-sdk-z16.bin": "3cc6e472e572bc46d5979693cd000db384e4a16c2879eef1c46a6a906d32052c",
+          "expected-inputs/case-2-calibration.json": "4acfaa62dbdb213be92bccf8097e00a98b1d566a772184a1c0e9c56a1317de3a",
+          "expected-inputs/case-2-raw-z16.bin": "539a0f173cbce15ea770c6c7be68adb2317b349b72c4ff27a9dec82922da53e9",
+          "expected-inputs/case-2-rgb.bin": "05b14f4083b8e0da833243419c48324bc00ec0fdbaf566a93727c4a809bdf56c",
+          "expected-inputs/case-2-sdk-z16.bin": "3732ec1714cf654d92e32a43f30322ae9917a6dc6a2bb923548fb3899e36320c",
+          "expected-inputs/case-3-calibration.json": "28692598ff1c51f67a7567d143c907a5b06c6b0983c421418ee54a629ad257bd",
+          "expected-inputs/case-3-raw-z16.bin": "539a0f173cbce15ea770c6c7be68adb2317b349b72c4ff27a9dec82922da53e9",
+          "expected-inputs/case-3-rgb.bin": "05b14f4083b8e0da833243419c48324bc00ec0fdbaf566a93727c4a809bdf56c",
+          "expected-inputs/case-3-sdk-z16.bin": "7f5c098fc840c0e20087a761616f40ee9c10449f32d51fee820216d1f86ba654",
+          "expected-inputs/case-4-calibration.json": "b6520f49b5f9fcb77119bc2eaec3c0889d30a559cbde9dafb9f4453693e6b1b1",
+          "expected-inputs/case-4-raw-z16.bin": "57a28c03460d7c03e68810e5548925f409c56a7a5e300f51c8da805a1e864c92",
+          "expected-inputs/case-4-rgb.bin": "05b14f4083b8e0da833243419c48324bc00ec0fdbaf566a93727c4a809bdf56c",
+          "expected-inputs/case-4-sdk-z16.bin": "2470fa10431fa4a81193377cd31838013c1b37a82e04e7055db63d4e0ec74952",
+          "expected-inputs/case-5-calibration.json": "82d82d7cd4c9803a356500f7812b945836edaf28adc4c694adfdae168421fe8a",
+          "expected-inputs/case-5-raw-z16.bin": "539a0f173cbce15ea770c6c7be68adb2317b349b72c4ff27a9dec82922da53e9",
+          "expected-inputs/case-5-rgb.bin": "05b14f4083b8e0da833243419c48324bc00ec0fdbaf566a93727c4a809bdf56c",
+          "expected-inputs/case-5-sdk-z16.bin": "9273c270cadcc6cab7df5bad2e1b94c6de01244a0be33c725b01b74a0f980e51",
+          "expected-inputs/case-6-calibration.json": "96bcc5fa144d7aa03fea2b92a6403b917a16fb85c4773fe7ea8cc077384f9d8b",
+          "expected-inputs/case-6-raw-z16.bin": "34c69899504b36f13e8b22120cf0fd894e61fcd6b046fb8535b79cc491fa3b3f",
+          "expected-inputs/case-6-rgb.bin": "05b14f4083b8e0da833243419c48324bc00ec0fdbaf566a93727c4a809bdf56c",
+          "expected-inputs/case-6-sdk-z16.bin": "34c69899504b36f13e8b22120cf0fd894e61fcd6b046fb8535b79cc491fa3b3f",
+          "expected-inputs/case-7-calibration.json": "4d17f225f6560d27e6ffd9be874d30dccc5e53ad8897b490eaed0c4bcc99b582",
+          "expected-inputs/case-7-raw-z16.bin": "6f1bf43be64204bd696b8af65ec606efdf82ea95baa06ee8b9c8afca84cfa259",
+          "expected-inputs/case-7-rgb.bin": "05b14f4083b8e0da833243419c48324bc00ec0fdbaf566a93727c4a809bdf56c",
+          "expected-inputs/case-7-sdk-z16.bin": "4dcfd2fffd54466dc5da1f28812243cdd48c746ee7655f1f7be47a2653c99e89",
+          "expected-inputs/summary.json": "eb17a7e4b8079046daa5b815fc394fe5df4edb4394775c330872f7f3242f889c",
+          "geometry-shaders/geometry_coordinates.spv": "2d014f6f62d57561ea8ce288dd56de37f7c7659b768b565c5f365fd1a7e2bf84",
+          "geometry-shaders/geometry_coordinates.spv.sha256": "41d98ead1508f45ebbb7ac75d81480d3e814bd4cd9e80cfd69f1a48cc677c30a",
+          "geometry-shaders/geometry_support_offsets.spv": "b208b13263698a1d8b1819ac91a69b47c0d34774a62c2c498d90f00d1762e3dd",
+          "geometry-shaders/geometry_support_offsets.spv.sha256": "8ab5a2d382f419db7bbe94a807a5f441d0f97d5fcb0f3e95b4aab44668604401",
+          "geometry-shaders/geometry_support_scan.spv": "9584291624a1231651fa56ac1829c1ea326f988f86eae59f004ea1d6b4510e2f",
+          "geometry-shaders/geometry_support_scan.spv.sha256": "719acceb42aa485d6d8f776592b7095981854e966f47cb16f5f509b3d4d8fbf1",
+          "geometry-shaders/geometry_support_scatter.spv": "412ab14fe033ad175a29271438be5e2f8f5e59965dfe534589f4cd27411e5927",
+          "geometry-shaders/geometry_support_scatter.spv.sha256": "5015e1f53da238d8cc96690395e05a16cda7a9f1051d2c7c8571dfb80c1a0148",
+          "geometry-shaders/geometry_valid_count.spv": "c41ddcfdd3462963951db7b71730ffbc23bd96cad7aca1191b1b3f30b6120e99",
+          "geometry-shaders/geometry_valid_count.spv.sha256": "df4dc36cb199c26c68be96624abd636bb68376f16381906035742650b36f05f8",
+          "geometry-shaders/source.sha256": "f5757b4ee0da49080be1bcca493220f570bce1f4761ea94ff555f5199671cc26",
+          "headless": "150da54a76a0c28a40a8cadb887fad54244374c9df0cdffe2104b104ff74eb86",
+          "headless.cpp": "31c0165049c236731a1950fe45c78304a1f429217828046597bd2cf8e3a396c5",
+          "lib/libresident_alignment.so": "cb4ced16e37636b3d9f2751268471e401beb8e7ea74dba29326fbf92e3da15c0",
+          "lib/libresident_components.so": "7dbde1b7a62d3ee811c00f224ed1787b52038bc511b4c5d4089a662718da7af8",
+          "lib/libresident_rgbd.so": "79376a68ef748e1413eb9945fd14f58a920db693e19f5d9730f573b64705fb86",
+          "qualify_alignment_divide": "1ecbc8aae6c4854c26c8cff68e4ee12d987cb2bfb3874ee8bcacd46b405dd4cf",
+          "review-provenance.json": "a8c6b500c0ba3ca88ccad468a8e0e92d81976ae36c985e3953d39e9b99c66cd6",
+          "shaders/candidates.spv": "00c662bcd0e8caab3703cc56d7270950c47d93a7d720c5ea4e14ffa25e01f56c",
+          "shaders/candidates.spv.sha256": "c7cebabdcd90a238387071f05ff846fbd2a52420eab13d3000272e296b614568",
+          "shaders/compress.spv": "0bfe428fd309c1910d846fff31f96851cb7447016eec5b9ef41c0d40625d498e",
+          "shaders/compress.spv.sha256": "00233585554f7dc428b80c2e8bb27fcf38c89234242e652e94dedf97e5dd388c",
+          "shaders/connect.spv": "4e3b9dc500f4ef1727765abd54385f0e3ae8ee86484cc95c57d5e96c106d744b",
+          "shaders/connect.spv.sha256": "4b1290975793b25f5affd6d99aa6d0265a2089ead11977f647252b2037f5a0d2",
+          "shaders/convert.spv": "86ff1501948b13ae8db84734d75edf8a33e5a5a32654ba939ec022095aae8319",
+          "shaders/convert.spv.sha256": "4b884775b9520b46220a364fd6f3d1c15389e031167621f1f8c6995918dc3cbc",
+          "shaders/gather.spv": "fda7a89aaa457efc4417738a5e80c5ddb35e452d498dc7a4387fe4f7a39ec55c",
+          "shaders/gather.spv.sha256": "bf5ad259f7b1a0521d63314fadb9a59d1b1db8c52adaa26373a47cf30b185339",
+          "shaders/morphology.spv": "c02b9cb0cb248e68de94ac5a5c125ae9a5fc9ac185db7701a360870230127388",
+          "shaders/morphology.spv.sha256": "2265e2f433fcef715cff68335bc960280706cb5863a53194c178a973576a7355",
+          "shaders/provenance.txt": "662482042d0100fdc06ac4749e571f441eb6dcbef37adfec41b8026a10f4a803",
+          "shaders/reduce.spv": "b92de08115e6b10e362ba0eb50f8e09a94164ef6d312b90e80f3731c7ef9b48d",
+          "shaders/reduce.spv.sha256": "cf87e33fd366587f9aae06c6128b99a34ddc7a7e52a3e5479c81aa6332f72285",
+          "shaders/tiled_components.spv": "414f3809fc3257a37b874b7743744b76ccc41255046574b07b7619a3c1081e31",
+          "shaders/tiled_components.spv.sha256": "7dcb55893a8835c65f56515cfc5f1c6e5d263c1eda38c385c8eee2299898e2d5",
+          "source/CMakeLists.txt": "8cab13372739209d6f06fabedb74c1e347414adbe2708b54ea759ca429aebf2c",
+          "source/cmake/alignment.cmake": "1d868671286fe10eac57125e2d3e007d492971001509e8222f9c57d8ba80f1e0",
+          "source/cmake/alignment_divide_probe.cmake": "96b387ea5f3fdf17a81b6486b1216946fd1ee0ff4df80ad939bcb74e11e62e8c",
+          "source/cmake/geometry.cmake": "9e27cb77a4145c15cee9343d6abc00b33987bb52a19f142ccf553abfe3326a2a",
+          "source/cmake/latest_frame.cmake": "43e1aeeaea0f1f58704a2381ad0c5319ce42824eb91643d1167244e9888d2ddc",
+          "source/include/so101_station_vulkan/alignment.hpp": "02b0e94de7cc2cb58a9fd377fbc37b01bbc2a0847598ee849554877895a45c14",
+          "source/include/so101_station_vulkan/frame_adapter.hpp": "b99c297c807abac67b9243071139c18e23c6d51d3601913b0c0028d65c9894ab",
+          "source/include/so101_station_vulkan/geometry.hpp": "c980c96fbf800a210cbded3790eaaba9a7bb5ddea704b82912b4bebe82d89cf9",
+          "source/include/so101_station_vulkan/latest_frame_queue.hpp": "c7577bf4d57bb6eda49bf4e80685256cba76a90e28882c94c4fc7937ad2b0866",
+          "source/include/so101_station_vulkan/pipeline.hpp": "48cc86a081499b61a9b7a816c4c737034abf07908a15fe3d2e996b681b2dcb30",
+          "source/include/so101_station_vulkan/raw_camera_admission.hpp": "46a891c1ca571059c4a1fc81cb4fd71e419db744130266b8779e401b948cd43c",
+          "source/include/so101_station_vulkan/raw_capture_bridge.hpp": "61d13c6a1f0eecbefa788a68968f6d175902e2f823923b30bc0d67e020c8ffd4",
+          "source/include/so101_station_vulkan/video.hpp": "346610232fcaea3ebfb5c93120bddbcc137a0d780bb0fcec91773ba8b04c92f6",
+          "source/launch/resident_rgbd.launch.py": "a7b2ef4be033e44f0c7cd93ba16009f3bff1ac6da276ab88354c97ec6e2584b9",
+          "source/package.xml": "d137cb9ebd52a1cb811a790409e30037f25686633c5e92de902ac5a5998231a1",
+          "source/shaders/alignment.slang": "8848c24e2b3589696337e863faa944e0cb697d172f30115d829a3912011db3b9",
+          "source/shaders/exact_divide.slang": "43281d1db2cc83f6d47cedcd56a838301030ce9449d4f99d860d66fd6c228cb3",
+          "source/shaders/geometry.slang": "2c8e3f34a07e3efedca035a62fb5ccb97331b28d8c302d788de569625a6694b1",
+          "source/shaders/hash_shader.cmake": "addab0cdb7f58789ae60ab3a2c4b46b9d6b4c7a7f0f3d5804612520e58bed4fa",
+          "source/shaders/resident.slang": "24069ca4befd10873c40d512f4ec9fa4b0a011ce1ced113860c8e72aa9fa371c",
+          "source/shaders/video.slang": "efd169d666832b4c745156a57bd799b96fb45fe47196e32406dab4a2effb68a8",
+          "source/src/alignment.cpp": "c2db4830654efc1b28715feb71b8568a68a23a4f50fba9faef6d52ec8bd5ed74",
+          "source/src/alignment_reference.cpp": "cc61c14cde19ec8c1de70756059c770561373211e621b25b34537ffbb0979597",
+          "source/src/benchmark_rgbd.cpp": "8959b1b72b6f2f0a4797322989ad815b2f574fd3423bce32bbc81b558404c190",
+          "source/src/camera_component.cpp": "b25cbbf69e4be2f110881192ecae7ec9457d4c08c6cdf0290b88fe69b36644db",
+          "source/src/cpu_pipeline.cpp": "0fd104e5297ef20f318fe872cfc703eacf2846c20e8da5af42b92392cd43e775",
+          "source/src/frame_pool.cpp": "d658803a5dbe5f87c78b1827dd24a1ce33d3cb7cadc201191e5e7d620d89c639",
+          "source/src/geometry.cpp": "a0c7f10cb958dd3b694187c7923234786c0129cd4a25637dea97e12c17a0809d",
+          "source/src/gpu_pipeline.cpp": "274d82d665653b86b42e6ef0bdda7b2aa8f1881898de9f433b78dd102d45e5ba",
+          "source/src/host_microbench.cpp": "81a4e14f812d3e20dd920b318aefbcec26aee820311aededc45c34239c1f5e0a",
+          "source/src/qualify_video.cpp": "1bb07e775970fb85b5c706bf2a947fda84b3b1f23389779f3573c4fc615f5215",
+          "source/src/raw_camera_admission.cpp": "94fbf44d3100e2cae71b25128895138807d7e2b6c651a07a51146cd410b2a891",
+          "source/src/raw_capture_bridge.cpp": "50e47ecfa84f62704a7c5c19922f8da3c05202ddeaa968257ea40aaf491047fa",
+          "source/src/video.cpp": "6ef14b1a5c6afe9accbc45e4df2749acbb86b76a843138de0878b620ea16d77d",
+          "source/src/video_conversion.cpp": "94402b42472ca5db3233240211b2ce8f3d702b63a625b1b431cc06acee5d23af",
+          "source/src/video_conversion.hpp": "b796b555437236806a09c2375693568db6e9ef445d99e5305a9ff4a98916bad1",
+          "source/src/video_host_microbench.cpp": "5e60dd52a6a5155059dd0927c9685f8ceb46523e8ffbc8dfe970b3071c26a745",
+          "source/src/vulkan_context.cpp": "43ff8fc99f456615e0bfaeb7d9889ed2a4b82e009f1b29d9854a1382b32d2ed0",
+          "source/test/alignment_divide_cpu_benchmark.cpp": "55c06cf06ae088cd17e48e6e752854c247f10d34cbc22bac7011dbc7058eb282",
+          "source/test/alignment_divide_gpu_test.cpp": "8ae9127f0c60ef2d400c458a9027f13fef09ac76d8c54a9d9c5d1045734d706f",
+          "source/test/alignment_divide_host_test.cpp": "653b88cd1978333a23c1b148afab758fd4d1aaf0240752cac59edc88fc739bf1",
+          "source/test/alignment_divide_probe.slang": "b11a1d2eeb37ef9de244afd054b61ba57dd4082868fe03ad5e771061fe02a8fe",
+          "source/test/alignment_oracle.cpp": "c23214f4f5deaf3766b507084348b4100968ebe54b9a6a388fbf7a3337dbfb8d",
+          "source/test/cc_convergence_probe.cpp": "32f6ec4b43c701e556dde080ed31aa151a02c8a6e666175f5eb0ce7a13b4d652",
+          "source/test/cc_copyback_host_benchmark.cpp": "36c7fc1215be607c069b9ec64ba106fac9c6f3b5691b521c3520a423a5c32654",
+          "source/test/context_features_host_test.cpp": "56774977b27bf9e8e7c88d3caa6f35919efe02cf33c7a7d798cce03a369dd0a6",
+          "source/test/device_depth_host_test.cpp": "709e9dc0822580a175bbf8c6920df1c158a682ec66016f3632c8a838d925e946",
+          "source/test/frame_lease_test.cpp": "9af083b0f96291983d101a18144d7fe15f4fcdcb1e39d592ccb51fd1b08f80d7",
+          "source/test/geometry_preparation_contract.cpp": "4bfe5d5248297a503c6e8d2424ba0b3ead719ff3ee578a3b9d6d9f7d020c1d1f",
+          "source/test/latest_frame_queue_test.cpp": "6acd0d8027bc485f7cef00ef92af93b36cd6868a1bb8aa6d4ebe025d9273a4d4",
+          "source/test/preparation_host_benchmark.cpp": "1958d6c7f73b170538c2d51c4181cc508c4d010b41d39a0652e82b6113bd520f",
+          "source/test/qualify_geometry.cpp": "18886a87e6b9dc553ad3c2e78b93b6610e257120c4a72088dfced9c45371fb60",
+          "source/test/raw_camera_admission_test.cpp": "e03c3f51d48bf920322e511f31b152ae083f1a01714c39367ee044f97af4b3f9",
+          "source/test/raw_capture_bridge_host_test.cpp": "901159e5baeaa8905041aa6bec203b170432dc2ff8baa88c68ca1fad7b0e178d",
+          "source/test/raw_resident_perf_benchmark.cpp": "2c92370a0e039231e18cf524845064d99910d388d98bf081401c374414794a6b",
+          "source/test/verify_preparation_spirv.py": "a7202390799d7b6a84928e9a744eba4426a44a01660d600604296cf726653c9b",
+          "source/test/video_policy_test.cpp": "bfc9b19693266e1b8c2f616a394ac6395a2b25122dd4cad59b7dcee4a6082085",
+          "source/test/video_roundtrip_test.cpp": "52399324389bb14123bc3d65489dc8e8e28c93fc5e518f11e1ae02b1d292101e",
+          "video-shaders/rgb_to_nv12.spv": "3c30a2713a32d78989d75c3842d704e865e5a0f1a12b9c6a83f8563f60e29a29",
+          "video-shaders/rgb_to_nv12.spv.sha256": "db6bdfeec5fd6e65ac597e849a595b10553002fd2f4e7e0402413a9552c98c7b",
+          "video-shaders/source.sha256": "39baa68b14517d1aa67d9e186d64a881bce24687a795916870069520fd3ecbf3",
+          "vulkan-sdk/vk_video/vulkan_video_codec_av1std.h": "9b4ebcef0d6844b226803fa91b4c4c8bf9eb941aa31b19cea48ded0886a8f9e2",
+          "vulkan-sdk/vk_video/vulkan_video_codec_av1std_decode.h": "f03abf49fcaf2bd179d48d768164f9494264b58401b98899e8860ba297a1e7aa",
+          "vulkan-sdk/vk_video/vulkan_video_codec_av1std_encode.h": "40f84c98d0341246ead3e864e1378df47d861505c5c139da5ed85c352d5e2300",
+          "vulkan-sdk/vk_video/vulkan_video_codec_h264std.h": "f6691f82e4637adda20e56d56951c673cc1ecdf2fa77e09cc8eba4b1f45118c1",
+          "vulkan-sdk/vk_video/vulkan_video_codec_h264std_decode.h": "8c4682860954d6bfc603e200d9e12586bc57265bd37b73a12b1ecf0c1ad42721",
+          "vulkan-sdk/vk_video/vulkan_video_codec_h264std_encode.h": "75cc54e489b1ec7e3c635680cabaf7c9c2ddd4071a485440e5368e76ede30a85",
+          "vulkan-sdk/vk_video/vulkan_video_codec_h265std.h": "01b5f3d0fd9d273a68ed90f898ba94c05c0305280a753bf95fab60d60727c22e",
+          "vulkan-sdk/vk_video/vulkan_video_codec_h265std_decode.h": "926a24d94afed2b1ab030e81c3b9e2e6730cca530f7a5a5bd821e7b896b93a41",
+          "vulkan-sdk/vk_video/vulkan_video_codec_h265std_encode.h": "8a56e0c78496affa84eca39ec0f5636df681c04623dd0291aeeadd012df324be",
+          "vulkan-sdk/vk_video/vulkan_video_codec_vp9std.h": "e18e20b197945929d5871836bfde923e38b350b09e1cbe430f1bd802d9eda34e",
+          "vulkan-sdk/vk_video/vulkan_video_codec_vp9std_decode.h": "c3929bbdd0ab79128c7f9bfb9641c9a017b3983529315b771caaafc74fdbb89a",
+          "vulkan-sdk/vk_video/vulkan_video_codecs_common.h": "be6d2495d19e96aca6aa5c11e5c418d1cd72beac23fe19eb9169c06e2843f0af",
+          "vulkan-sdk/vulkan/layer/vk_layer_settings.h": "437c864cdb447de492b7425da26d610770a090199e792df9fb93299bec387d79",
+          "vulkan-sdk/vulkan/layer/vk_layer_settings.hpp": "25f5d304e6d47c1aa788dd1da25d2fe6af4d4f9e223b9d65b7bc329c7f7a6f10",
+          "vulkan-sdk/vulkan/utility/vk_concurrent_unordered_map.hpp": "1f7e600ebe38f833fb99c5441cd40d54ad146c84ebc9b3c926f131c750a0e8fd",
+          "vulkan-sdk/vulkan/utility/vk_dispatch_table.h": "3954249d78549fed412658afcb0366aef2f9086a7681bba1422855a44f55216a",
+          "vulkan-sdk/vulkan/utility/vk_format_utils.h": "bdeb4cb113d8145e9b1084cdfb6b3df4fb4e5a11d98b85db8c898502e245110a",
+          "vulkan-sdk/vulkan/utility/vk_safe_struct.hpp": "dd3d34c16dc798d4c5e7c45cbe1cb1158fb9ea25c36f1c495710bc104d58f8f6",
+          "vulkan-sdk/vulkan/utility/vk_safe_struct_utils.hpp": "f0a9841c556ccdd5773aa6ca935c24ce0ad2cca9cad323b56c27e9a41f8e6160",
+          "vulkan-sdk/vulkan/utility/vk_small_containers.hpp": "8a7752668228b254fafb3a5b13d139bf0155e95a2c8da40a5727cc797b5ea134",
+          "vulkan-sdk/vulkan/utility/vk_sparse_range_map.hpp": "e391c16df50cd12780a428b5ecd05b7690d86c1c41df6ac0ebfc0595c4742ed8",
+          "vulkan-sdk/vulkan/utility/vk_struct_helper.hpp": "596d388df414bd40f8545ffa5073a89c8aaa1cb245c12c44de2a052500aa165c",
+          "vulkan-sdk/vulkan/vk_enum_string_helper.h": "4de1ebddf2c69ab4dfa1c62dddedc0ea609e907cc43b2e5ef0568d1ad1e5b651",
+          "vulkan-sdk/vulkan/vk_icd.h": "15d092840ca6d45fca3ccdc50cf021943e6c88aefe2a730c391f26d60bba9018",
+          "vulkan-sdk/vulkan/vk_layer.h": "bfe6804d3f527138fcfebb0845c1c0077c5718725bf338be09b0f9be3e8dede5",
+          "vulkan-sdk/vulkan/vk_platform.h": "949d517bb83e1d88fd4f1cef02bd3cb9ab50d44e8354cc68227cf2dccfdd3307",
+          "vulkan-sdk/vulkan/vulkan.cppm": "785393060b75fdd24444ae64ced6092a65768e794d27a7f66b8b8ac33f70198f",
+          "vulkan-sdk/vulkan/vulkan.h": "72b952cc6de70ee12d118d3095e80346b42ff01cfc6f2bbb37ec01800eab1da6",
+          "vulkan-sdk/vulkan/vulkan.hpp": "704c9abb07352598a1596adb20e971fd6b086243be649fdf2e9c666c22564794",
+          "vulkan-sdk/vulkan/vulkan_android.h": "49cd5e53156cb9e36fa03d81a5f1b8c1e93428e3499698309398d66dc3872948",
+          "vulkan-sdk/vulkan/vulkan_beta.h": "0c8306cc75db2a51fe5c29654afde8587f44fc84c2d123eaadf538e86dd0541c",
+          "vulkan-sdk/vulkan/vulkan_core.h": "03964df1e28a162285726ec7cf9098e5e0271cb1df21933e7bfef9f6fa08937f",
+          "vulkan-sdk/vulkan/vulkan_directfb.h": "4c6be34ee27f2fce4870c4046304b0c53f1fe62b13a4c21da8d537ec4cf8b965",
+          "vulkan-sdk/vulkan/vulkan_enums.hpp": "590a0d467210c9e0a0cea42677cb2636981599a9b18736a06a5010b2b8c341c3",
+          "vulkan-sdk/vulkan/vulkan_extension_inspection.hpp": "f6d4742873ecf881050fb0c3c1ca3637963b768fa1e5e576f640a3ecd4ed4dab",
+          "vulkan-sdk/vulkan/vulkan_format_traits.hpp": "e1d4fe2ce31a0b24c581a1391d51c6e2485e5a1e149d7caf4eebd5539dec9475",
+          "vulkan-sdk/vulkan/vulkan_fuchsia.h": "8a7a0c52e8c1ab41ede66bdabc32057255a7b385441d67dd4023121de5801194",
+          "vulkan-sdk/vulkan/vulkan_funcs.hpp": "981b95abecaecbdcadb7b251e1313f6efb4153ddef42e62e323cabc98b894127",
+          "vulkan-sdk/vulkan/vulkan_ggp.h": "97cb1776742a4d8aae9f258ce908da76d0466da8864a5036aaca834af5f62e8d",
+          "vulkan-sdk/vulkan/vulkan_handles.hpp": "53215792f7ff00783d80ee8770126b2a54f8d0ac39dfa80699628177ae5ad2a3",
+          "vulkan-sdk/vulkan/vulkan_hash.hpp": "6032b801ae4640ba56d3348dcb8d03b355a18d4f0f69f54332d2cb00aba75aa0",
+          "vulkan-sdk/vulkan/vulkan_hpp_macros.hpp": "960ed4e577d933a59cb9f6c0db2ff2d43e05f4314423e804fb559aac672586a8",
+          "vulkan-sdk/vulkan/vulkan_ios.h": "8bb052cc162b4086c0f1cd29a5ed11ccf921b8ee83551194394b86efd249c572",
+          "vulkan-sdk/vulkan/vulkan_macos.h": "00f532e9b7229488ac9932c2b391d74e9e8566ed91d0dbbad10e15dc356c9293",
+          "vulkan-sdk/vulkan/vulkan_metal.h": "8f84536896b8d3c6c49883ce34242f8922840617d0b184b338c0f83da5bfaaaa",
+          "vulkan-sdk/vulkan/vulkan_ohos.h": "9da9b4f1a23adc0b705450ce4b5c934dff2fd1eb8cdf4ac3273465420fc9475a",
+          "vulkan-sdk/vulkan/vulkan_raii.hpp": "1de9f9dfb4dea737a2febaa0fc35ece77c861b414e4d7a4b237764bf355480d4",
+          "vulkan-sdk/vulkan/vulkan_screen.h": "ffe2e63fbea5f0a9a7948a998eb7e1085e1f7cd5fd55b3d9a0146fe1aa8307bd",
+          "vulkan-sdk/vulkan/vulkan_shared.hpp": "49e6f0e1f8432e57045b4ad3b771db4897e6f791960f1f4e9c9a99b4005e379c",
+          "vulkan-sdk/vulkan/vulkan_static_assertions.hpp": "746cc209cd7e8d7fda8d3a44094235da57d437aa278919be48870069a15aa866",
+          "vulkan-sdk/vulkan/vulkan_structs.hpp": "050b1c13b1f37664623917c34efe9a52e39983b95270b78d349e87b85c809c2b",
+          "vulkan-sdk/vulkan/vulkan_to_string.hpp": "2f315979dbbd56e6ba9bc2ab5e7e552ee61b767a209c9f41a5801e26b5ca5f08",
+          "vulkan-sdk/vulkan/vulkan_vi.h": "8caacbb6eccae5946fb367145ba5222b85d4747a3f8b30632fdfca0503f0c339",
+          "vulkan-sdk/vulkan/vulkan_video.cppm": "9a310e34fb0c552d759716e239c249678f15521611b8aa28bc6329cad033d8a3",
+          "vulkan-sdk/vulkan/vulkan_video.hpp": "7a8753b16780ec90831fff5bf5c0ebc80ccdab73d793e5c0f0ba5ba5c1dea172",
+          "vulkan-sdk/vulkan/vulkan_wayland.h": "d43ca1c45cd4b2e1119c168b780e2864205ad8119e5f42d9d99aa29d2654a3f2",
+          "vulkan-sdk/vulkan/vulkan_win32.h": "0b11442e7efa0d5b6732b9964edf6dbdf3f6cf1dd58afe7572cc9b7f6de24317",
+          "vulkan-sdk/vulkan/vulkan_xcb.h": "1e1525fc64826ab3ea9e8a6ee6a618ef14db3e27397fcf8fb070bb1ddaf00c0b",
+          "vulkan-sdk/vulkan/vulkan_xlib.h": "82346aaa80a5c984b6a26f55c7c363c65be43029da539ba0fbdfea9840051cca",
+          "vulkan-sdk/vulkan/vulkan_xlib_xrandr.h": "da5d5311bcffa49c614e9f397784e44668466890aeaf4e54c2e0064c20259089"
+        }
+      },
+      "libraries_sha256": {
+        "artifact:libresident_rgbd.so": "79376a68ef748e1413eb9945fd14f58a920db693e19f5d9730f573b64705fb86",
+        "artifact:libvulkan.so.1": "3e728b0f2535a7dc344c76b166fdf28e2561ce7293c68df775aecac5c8c3f37e",
+        "artifact:libstdc++.so.6": "10f0d3c46c070acd4abea2ccf2500ff0ec77e9b90154b82ea2720dba05510cb9",
+        "artifact:libm.so.6": "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0",
+        "artifact:libgcc_s.so.1": "5444fbe71e8cfe3bd05cdf2b44bd8c2e553e6e7e276977089b5e4e1a1ceed531",
+        "artifact:libc.so.6": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+        "artifact:libdl.so.2": "c2994527172cc23b7fb0f7d611b71e00a37da27af12c2e5e9e0dc1a742886c96",
+        "artifact:libpthread.so.0": "90491a21ce44efcf3bd4b65ec82501c091d7ebe7f8d9b341dd01d721001d9ecd",
+        "artifact:libvulkan_intel.so": "01a6aa501cf9f4cb87ea0b3c9465317e783ff58d1c021b5b59d09f8e6ecde857",
+        "artifact:intel_icd.json": "09e7ca55461c3f2d65e5df6a6b8f06a7ce2c86fc58a93a18d2dbe3575623de83"
+      }
+    },
+    "unpaced": {
+      "dense": {
+        "vulkan": {
+          "median_trial_p95_ms": 42.147575,
+          "trial_p95_ms": [
+            42.084025,
+            42.147575,
+            42.156715
+          ],
+          "gpu_stage_mean_ms_average": {
+            "upload": 0.31976166666666667,
+            "convert": 1.1734743333333333,
+            "cuts": 0.6028733333333333,
+            "tiled_boundary_cc": 27.182989000000003,
+            "reduce": 7.295138666666666,
+            "morphology": 4.538066,
+            "gather": 0.49091233333333334,
+            "readback": 0.036565
+          },
+          "dense_readback": false,
+          "frames_per_trial": 60,
+          "raw": [
+            {
+              "backend": "vulkan",
+              "fallback_reason": "",
+              "device": "Intel(R) Graphics (ADL-N)",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 163856,
+              "p50_ms": 41.899662,
+              "p95_ms": 42.084025,
+              "p99_ms": 42.13668,
+              "gpu_stage_mean_ms": {
+                "upload": 0.319617,
+                "convert": 1.170279,
+                "cuts": 0.603354,
+                "tiled_boundary_cc": 27.176348,
+                "reduce": 7.293758,
+                "morphology": 4.538026,
+                "gather": 0.464045,
+                "readback": 0.036553
+              }
+            },
+            {
+              "backend": "vulkan",
+              "fallback_reason": "",
+              "device": "Intel(R) Graphics (ADL-N)",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 163856,
+              "p50_ms": 41.913016,
+              "p95_ms": 42.147575,
+              "p99_ms": 42.203268,
+              "gpu_stage_mean_ms": {
+                "upload": 0.319701,
+                "convert": 1.175297,
+                "cuts": 0.602859,
+                "tiled_boundary_cc": 27.182791,
+                "reduce": 7.298603,
+                "morphology": 4.538327,
+                "gather": 0.491768,
+                "readback": 0.036558
+              }
+            },
+            {
+              "backend": "vulkan",
+              "fallback_reason": "",
+              "device": "Intel(R) Graphics (ADL-N)",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 163856,
+              "p50_ms": 41.964135,
+              "p95_ms": 42.156715,
+              "p99_ms": 42.191723,
+              "gpu_stage_mean_ms": {
+                "upload": 0.319967,
+                "convert": 1.174847,
+                "cuts": 0.602407,
+                "tiled_boundary_cc": 27.189828,
+                "reduce": 7.293055,
+                "morphology": 4.537845,
+                "gather": 0.516924,
+                "readback": 0.036584
+              }
+            }
+          ]
+        },
+        "cpu": {
+          "median_trial_p95_ms": 25.134667,
+          "trial_p95_ms": [
+            25.134667,
+            25.613053,
+            25.117517
+          ],
+          "gpu_stage_mean_ms_average": {},
+          "dense_readback": false,
+          "frames_per_trial": 60,
+          "raw": [
+            {
+              "backend": "cpu",
+              "fallback_reason": "",
+              "device": "native CPU",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 0,
+              "p50_ms": 24.034228,
+              "p95_ms": 25.134667,
+              "p99_ms": 25.157496
+            },
+            {
+              "backend": "cpu",
+              "fallback_reason": "",
+              "device": "native CPU",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 0,
+              "p50_ms": 25.017536,
+              "p95_ms": 25.613053,
+              "p99_ms": 25.833218
+            },
+            {
+              "backend": "cpu",
+              "fallback_reason": "",
+              "device": "native CPU",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 0,
+              "p50_ms": 23.660019,
+              "p95_ms": 25.117517,
+              "p99_ms": 25.211235
+            }
+          ]
+        }
+      },
+      "recorded": {
+        "vulkan": {
+          "median_trial_p95_ms": 13.92602,
+          "trial_p95_ms": [
+            13.988297,
+            13.92602,
+            13.920466
+          ],
+          "gpu_stage_mean_ms_average": {
+            "upload": 0.3205556666666666,
+            "convert": 1.1703183333333333,
+            "cuts": 0.207836,
+            "tiled_boundary_cc": 10.229484,
+            "reduce": 0.14732433333333336,
+            "morphology": 0.8291696666666667,
+            "gather": 0.62588,
+            "readback": 0.036736333333333336
+          },
+          "dense_readback": false,
+          "frames_per_trial": 60,
+          "raw": [
+            {
+              "backend": "vulkan",
+              "fallback_reason": "",
+              "device": "Intel(R) Graphics (ADL-N)",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 163856,
+              "p50_ms": 13.809491,
+              "p95_ms": 13.988297,
+              "p99_ms": 14.030634,
+              "gpu_stage_mean_ms": {
+                "upload": 0.320646,
+                "convert": 1.169633,
+                "cuts": 0.208392,
+                "tiled_boundary_cc": 10.229142,
+                "reduce": 0.147299,
+                "morphology": 0.829722,
+                "gather": 0.626743,
+                "readback": 0.037272
+              }
+            },
+            {
+              "backend": "vulkan",
+              "fallback_reason": "",
+              "device": "Intel(R) Graphics (ADL-N)",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 163856,
+              "p50_ms": 13.807039,
+              "p95_ms": 13.92602,
+              "p99_ms": 13.97814,
+              "gpu_stage_mean_ms": {
+                "upload": 0.320416,
+                "convert": 1.173352,
+                "cuts": 0.208086,
+                "tiled_boundary_cc": 10.231308,
+                "reduce": 0.147327,
+                "morphology": 0.828967,
+                "gather": 0.628052,
+                "readback": 0.036607
+              }
+            },
+            {
+              "backend": "vulkan",
+              "fallback_reason": "",
+              "device": "Intel(R) Graphics (ADL-N)",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 163856,
+              "p50_ms": 13.808935,
+              "p95_ms": 13.920466,
+              "p99_ms": 13.930562,
+              "gpu_stage_mean_ms": {
+                "upload": 0.320605,
+                "convert": 1.16797,
+                "cuts": 0.20703,
+                "tiled_boundary_cc": 10.228002,
+                "reduce": 0.147347,
+                "morphology": 0.82882,
+                "gather": 0.622845,
+                "readback": 0.03633
+              }
+            }
+          ]
+        },
+        "cpu": {
+          "median_trial_p95_ms": 5.148913,
+          "trial_p95_ms": [
+            5.186378,
+            5.101558,
+            5.148913
+          ],
+          "gpu_stage_mean_ms_average": {},
+          "dense_readback": false,
+          "frames_per_trial": 60,
+          "raw": [
+            {
+              "backend": "cpu",
+              "fallback_reason": "",
+              "device": "native CPU",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 0,
+              "p50_ms": 5.133828,
+              "p95_ms": 5.186378,
+              "p99_ms": 5.215294
+            },
+            {
+              "backend": "cpu",
+              "fallback_reason": "",
+              "device": "native CPU",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 0,
+              "p50_ms": 5.080756,
+              "p95_ms": 5.101558,
+              "p99_ms": 5.10673
+            },
+            {
+              "backend": "cpu",
+              "fallback_reason": "",
+              "device": "native CPU",
+              "frames": 60,
+              "width": 640,
+              "height": 480,
+              "dense_readback": false,
+              "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+              "full_station_qualified": false,
+              "hot_path_vulkan_allocations": 0,
+              "upload_bytes_per_frame": 1536000,
+              "readback_bytes_per_frame": 0,
+              "p50_ms": 5.096126,
+              "p95_ms": 5.148913,
+              "p99_ms": 5.362809
+            }
+          ]
+        }
+      }
+    },
+    "paced": {
+      "dense": {
+        "vulkan": {
+          "trials": 3,
+          "offered": 1800,
+          "completed": 1384,
+          "fps_over_aggregate_steady_wall": 23.06677092578013,
+          "cpu_ms_per_completed": 2.221101521676301,
+          "cpu_ms_per_offered": 1.7077802811111111,
+          "aggregate_process_cpu_ms": 3074.004506,
+          "aggregate_steady_wall_s": 59.999728807,
+          "logical_cpu_demand": 0.051233640003408895,
+          "replaced": 413,
+          "no_slot": 0,
+          "skipped_source": 0,
+          "inflight_at_end_total": 3,
+          "pending_at_end_total": 0,
+          "median_trial_p95_latency_ms": 44.009945,
+          "median_trial_p95_frame_age_ms": 76.901299,
+          "trial_p95_latency_ms": [
+            44.00831,
+            44.038951,
+            44.009945
+          ],
+          "trial_completed": [
+            462,
+            460,
+            462
+          ],
+          "gpu_stage_median_of_trial_p95_ms": {
+            "cc_with_copyback": 27.39239516457367,
+            "convert": 1.2075520538520812,
+            "cuts": 0.6232291514511108,
+            "gather": 0.7140103992347717,
+            "morphology": 4.559791555343628,
+            "readback": 0.04656249886322022,
+            "reduce": 7.3835935697364805,
+            "upload": 0.32265624212265015
+          },
+          "all_measurements_valid": true
+        },
+        "cpu": {
+          "trials": 3,
+          "offered": 1800,
+          "completed": 1800,
+          "fps_over_aggregate_steady_wall": 30.0000110930041,
+          "cpu_ms_per_completed": 24.72468754722222,
+          "cpu_ms_per_offered": 24.72468754722222,
+          "aggregate_process_cpu_ms": 44504.437585,
+          "aggregate_steady_wall_s": 59.999977814000005,
+          "logical_cpu_demand": 0.741740900687727,
+          "replaced": 0,
+          "no_slot": 0,
+          "skipped_source": 0,
+          "inflight_at_end_total": 0,
+          "pending_at_end_total": 0,
+          "median_trial_p95_latency_ms": 25.855938,
+          "median_trial_p95_frame_age_ms": 27.611281,
+          "trial_p95_latency_ms": [
+            25.855938,
+            25.860604,
+            25.851242
+          ],
+          "trial_completed": [
+            600,
+            600,
+            600
+          ],
+          "gpu_stage_median_of_trial_p95_ms": {
+            "cc_with_copyback": 0.0,
+            "convert": 0.0,
+            "cuts": 0.0,
+            "gather": 0.0,
+            "morphology": 0.0,
+            "readback": 0.0,
+            "reduce": 0.0,
+            "upload": 0.0
+          },
+          "all_measurements_valid": true
+        }
+      },
+      "recorded": {
+        "vulkan": {
+          "trials": 3,
+          "offered": 1800,
+          "completed": 1800,
+          "fps_over_aggregate_steady_wall": 29.99999247250189,
+          "cpu_ms_per_completed": 1.6195090694444445,
+          "cpu_ms_per_offered": 1.6195090694444445,
+          "aggregate_process_cpu_ms": 2915.116325,
+          "aggregate_steady_wall_s": 60.000015055,
+          "logical_cpu_demand": 0.04858525989248187,
+          "replaced": 0,
+          "no_slot": 0,
+          "skipped_source": 0,
+          "inflight_at_end_total": 0,
+          "pending_at_end_total": 0,
+          "median_trial_p95_latency_ms": 23.811872,
+          "median_trial_p95_frame_age_ms": 24.953485,
+          "trial_p95_latency_ms": [
+            23.830717,
+            23.811872,
+            23.788878
+          ],
+          "trial_completed": [
+            600,
+            600,
+            600
+          ],
+          "gpu_stage_median_of_trial_p95_ms": {
+            "cc_with_copyback": 17.178489163936614,
+            "convert": 1.8089582891693115,
+            "cuts": 0.3258854087104797,
+            "gather": 0.4496874890213013,
+            "morphology": 1.3806770496253968,
+            "readback": 0.06177083182525635,
+            "reduce": 0.24635416065216065,
+            "upload": 0.5319270703468323
+          },
+          "all_measurements_valid": true
+        },
+        "cpu": {
+          "trials": 3,
+          "offered": 1800,
+          "completed": 1800,
+          "fps_over_aggregate_steady_wall": 29.999981993010806,
+          "cpu_ms_per_completed": 6.111718617777777,
+          "cpu_ms_per_offered": 6.111718617777777,
+          "aggregate_process_cpu_ms": 11001.093512,
+          "aggregate_steady_wall_s": 60.000036014,
+          "logical_cpu_demand": 0.1833514484796822,
+          "replaced": 0,
+          "no_slot": 0,
+          "skipped_source": 0,
+          "inflight_at_end_total": 0,
+          "pending_at_end_total": 0,
+          "median_trial_p95_latency_ms": 5.753275,
+          "median_trial_p95_frame_age_ms": 7.421257,
+          "trial_p95_latency_ms": [
+            5.675481,
+            5.753275,
+            5.788883
+          ],
+          "trial_completed": [
+            600,
+            600,
+            600
+          ],
+          "gpu_stage_median_of_trial_p95_ms": {
+            "cc_with_copyback": 0.0,
+            "convert": 0.0,
+            "cuts": 0.0,
+            "gather": 0.0,
+            "morphology": 0.0,
+            "readback": 0.0,
+            "reduce": 0.0,
+            "upload": 0.0
+          },
+          "all_measurements_valid": true
+        }
+      }
+    },
+    "historical": {
+      "unpaced": {
+        "dense": {
+          "vulkan": {
+            "median_trial_p95_ms": 41.977849,
+            "trial_p95_ms": [
+              41.986177,
+              41.925691,
+              41.977849
+            ],
+            "gpu_stage_mean_ms_average": {
+              "upload": 0.319166,
+              "convert": 1.037823,
+              "cuts": 0.6042299999999999,
+              "tiled_boundary_cc": 27.196980999999997,
+              "reduce": 7.290437333333333,
+              "morphology": 4.538411,
+              "gather": 0.46607366666666666,
+              "readback": 0.036784000000000004
+            },
+            "dense_readback": false,
+            "frames_per_trial": 60,
+            "raw": [
+              {
+                "backend": "vulkan",
+                "fallback_reason": "",
+                "device": "Intel(R) Graphics (ADL-N)",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 163856,
+                "p50_ms": 41.797887,
+                "p95_ms": 41.986177,
+                "p99_ms": 42.072237,
+                "gpu_stage_mean_ms": {
+                  "upload": 0.319373,
+                  "convert": 1.038449,
+                  "cuts": 0.60751,
+                  "tiled_boundary_cc": 27.18957,
+                  "reduce": 7.286256,
+                  "morphology": 4.538041,
+                  "gather": 0.476612,
+                  "readback": 0.036562
+                }
+              },
+              {
+                "backend": "vulkan",
+                "fallback_reason": "",
+                "device": "Intel(R) Graphics (ADL-N)",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 163856,
+                "p50_ms": 41.70129,
+                "p95_ms": 41.925691,
+                "p99_ms": 41.951,
+                "gpu_stage_mean_ms": {
+                  "upload": 0.31927,
+                  "convert": 1.038484,
+                  "cuts": 0.602468,
+                  "tiled_boundary_cc": 27.20084,
+                  "reduce": 7.289128,
+                  "morphology": 4.538076,
+                  "gather": 0.453885,
+                  "readback": 0.036219
+                }
+              },
+              {
+                "backend": "vulkan",
+                "fallback_reason": "",
+                "device": "Intel(R) Graphics (ADL-N)",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 163856,
+                "p50_ms": 41.800168,
+                "p95_ms": 41.977849,
+                "p99_ms": 42.029954,
+                "gpu_stage_mean_ms": {
+                  "upload": 0.318855,
+                  "convert": 1.036536,
+                  "cuts": 0.602712,
+                  "tiled_boundary_cc": 27.200533,
+                  "reduce": 7.295928,
+                  "morphology": 4.539116,
+                  "gather": 0.467724,
+                  "readback": 0.037571
+                }
+              }
+            ]
+          },
+          "cpu": {
+            "median_trial_p95_ms": 25.287031,
+            "trial_p95_ms": [
+              25.298036,
+              25.080816,
+              25.287031
+            ],
+            "gpu_stage_mean_ms_average": {},
+            "dense_readback": false,
+            "frames_per_trial": 60,
+            "raw": [
+              {
+                "backend": "cpu",
+                "fallback_reason": "",
+                "device": "native CPU",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 0,
+                "p50_ms": 24.656897,
+                "p95_ms": 25.298036,
+                "p99_ms": 25.655687
+              },
+              {
+                "backend": "cpu",
+                "fallback_reason": "",
+                "device": "native CPU",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 0,
+                "p50_ms": 23.382665,
+                "p95_ms": 25.080816,
+                "p99_ms": 25.337162
+              },
+              {
+                "backend": "cpu",
+                "fallback_reason": "",
+                "device": "native CPU",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 0,
+                "p50_ms": 24.117071,
+                "p95_ms": 25.287031,
+                "p99_ms": 25.557207
+              }
+            ]
+          }
+        },
+        "recorded": {
+          "vulkan": {
+            "median_trial_p95_ms": 13.812418,
+            "trial_p95_ms": [
+              13.811473,
+              13.812418,
+              13.818404
+            ],
+            "gpu_stage_mean_ms_average": {
+              "upload": 0.319114,
+              "convert": 0.9840643333333334,
+              "cuts": 0.20851633333333333,
+              "tiled_boundary_cc": 10.232131333333333,
+              "reduce": 0.14785833333333334,
+              "morphology": 0.8284419999999999,
+              "gather": 0.7244069999999999,
+              "readback": 0.038209
+            },
+            "dense_readback": false,
+            "frames_per_trial": 60,
+            "raw": [
+              {
+                "backend": "vulkan",
+                "fallback_reason": "",
+                "device": "Intel(R) Graphics (ADL-N)",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 163856,
+                "p50_ms": 13.736684,
+                "p95_ms": 13.811473,
+                "p99_ms": 13.826435,
+                "gpu_stage_mean_ms": {
+                  "upload": 0.318898,
+                  "convert": 0.980993,
+                  "cuts": 0.207937,
+                  "tiled_boundary_cc": 10.228076,
+                  "reduce": 0.148682,
+                  "morphology": 0.828461,
+                  "gather": 0.702711,
+                  "readback": 0.03672
+                }
+              },
+              {
+                "backend": "vulkan",
+                "fallback_reason": "",
+                "device": "Intel(R) Graphics (ADL-N)",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 163856,
+                "p50_ms": 13.770873,
+                "p95_ms": 13.812418,
+                "p99_ms": 13.826066,
+                "gpu_stage_mean_ms": {
+                  "upload": 0.31893,
+                  "convert": 0.989253,
+                  "cuts": 0.208012,
+                  "tiled_boundary_cc": 10.228308,
+                  "reduce": 0.147475,
+                  "morphology": 0.828452,
+                  "gather": 0.75778,
+                  "readback": 0.038633
+                }
+              },
+              {
+                "backend": "vulkan",
+                "fallback_reason": "",
+                "device": "Intel(R) Graphics (ADL-N)",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 163856,
+                "p50_ms": 13.787794,
+                "p95_ms": 13.818404,
+                "p99_ms": 13.82334,
+                "gpu_stage_mean_ms": {
+                  "upload": 0.319514,
+                  "convert": 0.981947,
+                  "cuts": 0.2096,
+                  "tiled_boundary_cc": 10.24001,
+                  "reduce": 0.147418,
+                  "morphology": 0.828413,
+                  "gather": 0.71273,
+                  "readback": 0.039274
+                }
+              }
+            ]
+          },
+          "cpu": {
+            "median_trial_p95_ms": 5.118044,
+            "trial_p95_ms": [
+              5.095474,
+              5.127784,
+              5.118044
+            ],
+            "gpu_stage_mean_ms_average": {},
+            "dense_readback": false,
+            "frames_per_trial": 60,
+            "raw": [
+              {
+                "backend": "cpu",
+                "fallback_reason": "",
+                "device": "native CPU",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 0,
+                "p50_ms": 5.033557,
+                "p95_ms": 5.095474,
+                "p99_ms": 5.107367
+              },
+              {
+                "backend": "cpu",
+                "fallback_reason": "",
+                "device": "native CPU",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 0,
+                "p50_ms": 5.065838,
+                "p95_ms": 5.127784,
+                "p99_ms": 5.239655
+              },
+              {
+                "backend": "cpu",
+                "fallback_reason": "",
+                "device": "native CPU",
+                "frames": 60,
+                "width": 640,
+                "height": 480,
+                "dense_readback": false,
+                "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+                "full_station_qualified": false,
+                "hot_path_vulkan_allocations": 0,
+                "upload_bytes_per_frame": 1536000,
+                "readback_bytes_per_frame": 0,
+                "p50_ms": 5.075981,
+                "p95_ms": 5.118044,
+                "p99_ms": 5.119488
+              }
+            ]
+          }
+        }
+      },
+      "paced": {
+        "dense": {
+          "vulkan": {
+            "trials": 3,
+            "offered": 1800,
+            "completed": 1402,
+            "fps_over_aggregate_steady_wall": 23.3667048743447,
+            "cpu_ms_per_completed": 2.156684728245364,
+            "cpu_ms_per_offered": 1.6798177716666667,
+            "aggregate_process_cpu_ms": 3023.671989,
+            "aggregate_steady_wall_s": 59.999901892,
+            "logical_cpu_demand": 0.05039461555191571,
+            "replaced": 393,
+            "no_slot": 0,
+            "skipped_source": 0,
+            "inflight_at_end_total": 3,
+            "pending_at_end_total": 2,
+            "median_trial_p95_latency_ms": 44.024714,
+            "median_trial_p95_frame_age_ms": 76.233027,
+            "trial_p95_latency_ms": [
+              44.031512,
+              44.024714,
+              44.007705
+            ],
+            "trial_completed": [
+              467,
+              466,
+              469
+            ],
+            "gpu_stage_median_of_trial_p95_ms": {
+              "cc_with_copyback": 27.39093683127594,
+              "convert": 1.0848958068466186,
+              "cuts": 0.618020818244934,
+              "gather": 0.7001562329063415,
+              "morphology": 4.559374888687134,
+              "readback": 0.04624999887084961,
+              "reduce": 7.379062319847107,
+              "upload": 0.322916658782959
+            },
+            "all_measurements_valid": true
+          },
+          "cpu": {
+            "trials": 3,
+            "offered": 1800,
+            "completed": 1800,
+            "fps_over_aggregate_steady_wall": 29.999984295008222,
+            "cpu_ms_per_completed": 24.448020084444444,
+            "cpu_ms_per_offered": 24.448020084444444,
+            "aggregate_process_cpu_ms": 44006.436152,
+            "aggregate_steady_wall_s": 60.00003141,
+            "logical_cpu_demand": 0.733440218577379,
+            "replaced": 0,
+            "no_slot": 0,
+            "skipped_source": 0,
+            "inflight_at_end_total": 0,
+            "pending_at_end_total": 0,
+            "median_trial_p95_latency_ms": 25.85318,
+            "median_trial_p95_frame_age_ms": 27.613108,
+            "trial_p95_latency_ms": [
+              25.85318,
+              25.851432,
+              25.868854
+            ],
+            "trial_completed": [
+              600,
+              600,
+              600
+            ],
+            "gpu_stage_median_of_trial_p95_ms": {
+              "cc_with_copyback": 0.0,
+              "convert": 0.0,
+              "cuts": 0.0,
+              "gather": 0.0,
+              "morphology": 0.0,
+              "readback": 0.0,
+              "reduce": 0.0,
+              "upload": 0.0
+            },
+            "all_measurements_valid": true
+          }
+        },
+        "recorded": {
+          "vulkan": {
+            "trials": 3,
+            "offered": 1800,
+            "completed": 1800,
+            "fps_over_aggregate_steady_wall": 29.99996218254767,
+            "cpu_ms_per_completed": 1.664820641111111,
+            "cpu_ms_per_offered": 1.664820641111111,
+            "aggregate_process_cpu_ms": 2996.677154,
+            "aggregate_steady_wall_s": 60.000075635,
+            "logical_cpu_demand": 0.049944556274058104,
+            "replaced": 0,
+            "no_slot": 0,
+            "skipped_source": 0,
+            "inflight_at_end_total": 0,
+            "pending_at_end_total": 0,
+            "median_trial_p95_latency_ms": 23.751738,
+            "median_trial_p95_frame_age_ms": 24.868417,
+            "trial_p95_latency_ms": [
+              23.737816,
+              23.808189,
+              23.751738
+            ],
+            "trial_completed": [
+              600,
+              600,
+              600
+            ],
+            "gpu_stage_median_of_trial_p95_ms": {
+              "cc_with_copyback": 17.182968330493928,
+              "convert": 1.4694270474586486,
+              "cuts": 0.3268749920196533,
+              "gather": 0.46255207204055787,
+              "morphology": 1.3797916329803466,
+              "readback": 0.06161458182907104,
+              "reduce": 0.24604166065979005,
+              "upload": 0.5321354036750794
+            },
+            "all_measurements_valid": true
+          },
+          "cpu": {
+            "trials": 3,
+            "offered": 1800,
+            "completed": 1800,
+            "fps_over_aggregate_steady_wall": 30.000012926005567,
+            "cpu_ms_per_completed": 6.1415502222222225,
+            "cpu_ms_per_offered": 6.1415502222222225,
+            "aggregate_process_cpu_ms": 11054.7904,
+            "aggregate_steady_wall_s": 59.99997414800001,
+            "logical_cpu_demand": 0.184246586052379,
+            "replaced": 0,
+            "no_slot": 0,
+            "skipped_source": 0,
+            "inflight_at_end_total": 0,
+            "pending_at_end_total": 0,
+            "median_trial_p95_latency_ms": 5.743614,
+            "median_trial_p95_frame_age_ms": 7.424959,
+            "trial_p95_latency_ms": [
+              5.743614,
+              5.720996,
+              5.769458
+            ],
+            "trial_completed": [
+              600,
+              600,
+              600
+            ],
+            "gpu_stage_median_of_trial_p95_ms": {
+              "cc_with_copyback": 0.0,
+              "convert": 0.0,
+              "cuts": 0.0,
+              "gather": 0.0,
+              "morphology": 0.0,
+              "readback": 0.0,
+              "reduce": 0.0,
+              "upload": 0.0
+            },
+            "all_measurements_valid": true
+          }
+        }
+      }
+    },
+    "comparisons": {
+      "dense": {
+        "gpu_process_cpu_reduction_per_completed_pct": 91.01666495305888,
+        "gpu_process_cpu_reduction_per_offered_pct": 93.09281349724083,
+        "historical_gpu_unpaced_p95_change_ms": 0.16972600000000426,
+        "historical_gpu_convert_mean_change_ms": 0.13565133333333335
+      },
+      "recorded": {
+        "gpu_process_cpu_reduction_per_completed_pct": 73.50157671307684,
+        "gpu_process_cpu_reduction_per_offered_pct": 73.50157671307684,
+        "historical_gpu_unpaced_p95_change_ms": 0.1136020000000002,
+        "historical_gpu_convert_mean_change_ms": 0.18625399999999992
+      }
+    },
+    "control": {
+      "trials": 12,
+      "all_measurements_valid": true,
+      "missed_deadlines": 0,
+      "skipped_ticks": 0,
+      "worst_trial_lateness_p95_ms": 0.310067,
+      "worst_lateness_ms": 0.388556,
+      "scope": "125Hz synthetic2048integer work scheduler proxy, no physical control claim"
+    },
+    "postcheck": {
+      "source_mismatches": [],
+      "library_mismatches": [],
+      "binary_mismatches": [],
+      "fixture_mismatches": []
+    },
+    "execution": [
+      {
+        "names": [
+          "0-dense-vulkan"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 3.119437179004308
+      },
+      {
+        "names": [
+          "0-dense-cpu"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 1.8102350009721704
+      },
+      {
+        "names": [
+          "0-recorded-vulkan"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 1.1078759210067801
+      },
+      {
+        "names": [
+          "0-recorded-cpu"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 0.503397224994842
+      },
+      {
+        "names": [
+          "1-dense-vulkan"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 3.1201688359724358
+      },
+      {
+        "names": [
+          "1-dense-cpu"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 1.9104397500050254
+      },
+      {
+        "names": [
+          "1-recorded-vulkan"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 1.107455466000829
+      },
+      {
+        "names": [
+          "1-recorded-cpu"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 0.5033421969856136
+      },
+      {
+        "names": [
+          "2-dense-vulkan"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 3.1195132110151462
+      },
+      {
+        "names": [
+          "2-dense-cpu"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 1.8102083569974639
+      },
+      {
+        "names": [
+          "2-recorded-vulkan"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 1.107794813986402
+      },
+      {
+        "names": [
+          "2-recorded-cpu"
+        ],
+        "returncodes": [
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 0.5034601140068844
+      },
+      {
+        "names": [
+          "0-dense-vulkan",
+          "0-dense-vulkan-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.10317616001703
+      },
+      {
+        "names": [
+          "0-dense-cpu",
+          "0-dense-cpu-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.071743047970813
+      },
+      {
+        "names": [
+          "0-recorded-vulkan",
+          "0-recorded-vulkan-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.10771198599832
+      },
+      {
+        "names": [
+          "0-recorded-cpu",
+          "0-recorded-cpu-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.082564606971573
+      },
+      {
+        "names": [
+          "1-dense-vulkan",
+          "1-dense-vulkan-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.10064592404524
+      },
+      {
+        "names": [
+          "1-dense-cpu",
+          "1-dense-cpu-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.070574349025264
+      },
+      {
+        "names": [
+          "1-recorded-vulkan",
+          "1-recorded-vulkan-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.106986269995105
+      },
+      {
+        "names": [
+          "1-recorded-cpu",
+          "1-recorded-cpu-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.082971847965382
+      },
+      {
+        "names": [
+          "2-dense-vulkan",
+          "2-dense-vulkan-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.10295401001349
+      },
+      {
+        "names": [
+          "2-dense-cpu",
+          "2-dense-cpu-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.07372410799144
+      },
+      {
+        "names": [
+          "2-recorded-vulkan",
+          "2-recorded-vulkan-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.10873127001105
+      },
+      {
+        "names": [
+          "2-recorded-cpu",
+          "2-recorded-cpu-control"
+        ],
+        "returncodes": [
+          0,
+          0
+        ],
+        "timed_out": false,
+        "wall_seconds_including_setup_drain": 24.085904425999615
+      }
+    ],
+    "artifact_sha256": {
+      "README.md": "faa18910d02e1ee26f08a15ac1f5dd7afa809b21bfe5d0c6605a565dcfe865f3",
+      "benchmark_rgbd": "eec342dc617028125229dad741065dd2faccf250036cd05e0e90c8bf08202cad",
+      "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "execution.json": "05137dfa525e84fe6f0352597cb4708db43e66750758437f118a35dd93422bc8",
+      "headroom": "116c36508db0db45afbaba3c233efdf034c12378da4188fc8dee3fe8cdf30c84",
+      "local-artifacts.json": "fa0a82254e85169d5292aba175096126c59e22a10fc1eef152ea3f55bbc70363",
+      "paced/0-dense-cpu-config.json": "dbd8604031b0d21dae401e842cd487a199471aba28fe5286ea0a1dd4c6ab6549",
+      "paced/0-dense-cpu-control-config.json": "74c50afd2857747e6ba51178420e74408541f7911b3a0e4db5f0e3294b72a488",
+      "paced/0-dense-cpu-control-maps.txt": "cd2f23b5c819aec56bb3c0676c2a2dabad1bbd060ada83c01cd76e33c4bf53e0",
+      "paced/0-dense-cpu-control.json": "9392e8024d5e2ce36718be6160228488ef276e896b8f2f0db3b422dc4edfc3db",
+      "paced/0-dense-cpu-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/0-dense-cpu-control.stdout": "19cb03899852e3f4e36ce5daedd1c18ef42932dafeb0ee5f172efcbbdebac6e4",
+      "paced/0-dense-cpu-maps.txt": "93d4fb5819682c11a43af516140d5bc7cdb9f4f416d27d3aed8399917e5bed3a",
+      "paced/0-dense-cpu-process.jsonl": "117979433caf45dd9acbb4fc326f1c676b8e1808ebc2718d1550d6e64ac53f2a",
+      "paced/0-dense-cpu.json": "2571998dcb75d403ac01a361469924d593e33e5c5c46bfa2572c637dec43683e",
+      "paced/0-dense-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/0-dense-cpu.stdout": "65001f4f791257e936ec85e828ee54f1c8eff38350176e335d13ac23513de626",
+      "paced/0-dense-vulkan-config.json": "4fd3221e17ed1b2a966a436026b3abd738d1c9af65f82cbca1a22046d9dda0c0",
+      "paced/0-dense-vulkan-control-config.json": "fda17bd261cc0688e49ba976c809e47fb995aa31ef80cb7e92ec1cfb55cf0696",
+      "paced/0-dense-vulkan-control-maps.txt": "fbaed2df297fe003a2cbdae04cb33b3ce729c24f5a4374d99dd20798af02cfd5",
+      "paced/0-dense-vulkan-control.json": "7df81445352ec158dca9f2cb8aa9131a6af22eadf62eca117674dcb8d55180b4",
+      "paced/0-dense-vulkan-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/0-dense-vulkan-control.stdout": "6e44e3c33e500ff11ff9c2b8a125e47859e3f1938d112a51f65c32f8433cb926",
+      "paced/0-dense-vulkan-maps.txt": "f1ad9791a6273ca6b02496642da2e0632c314ebc57d1e8a1be08249cdb40ad01",
+      "paced/0-dense-vulkan-process.jsonl": "52aff782fa6d9fac70fd04fc44063bfd1940cb7a2753ebf2a27464245a5f0282",
+      "paced/0-dense-vulkan.json": "b6db630cea73710c39f6fbc2a0c30aeccbeafddb8217d9edc550123bc9ce0218",
+      "paced/0-dense-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/0-dense-vulkan.stdout": "36ae0411c8ccc1c78db630027c1917a9073f6e06fae76790b105853b768fd40a",
+      "paced/0-recorded-cpu-config.json": "c2f3b3bd17fc3ebea74162f451dbeacaed535eb43b5399b583079ad7e7a1fe0f",
+      "paced/0-recorded-cpu-control-config.json": "cc52d53fe947130e4f776b9202a0e8cf4141dc44278dbb8f95a93fb042f2a3a9",
+      "paced/0-recorded-cpu-control-maps.txt": "1fcf68117dd2f3e0ea73db68957c42d5c83c94a605d026047c403a537334f306",
+      "paced/0-recorded-cpu-control.json": "b67094abef84175bf7b3f1496b3790fd337e529aac440598a6aca85d2fd83d0b",
+      "paced/0-recorded-cpu-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/0-recorded-cpu-control.stdout": "a327fdbf7db68c90c39e09657332b6373060715e6749b64d09861e444d3521a6",
+      "paced/0-recorded-cpu-maps.txt": "e0ee8f9a59ed91405a98c16db16c72dd0e48708bb5a8bb2d799084da14aa3794",
+      "paced/0-recorded-cpu-process.jsonl": "d216faef48e65a83d5864f948ef2eb8dae0f284b062a4c8e678de69d440def8c",
+      "paced/0-recorded-cpu.json": "56344eff763c0f38b3eab4a94b206fedf6cf6e69435e92dd1f6c4336609fca71",
+      "paced/0-recorded-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/0-recorded-cpu.stdout": "9bd086569e578f919adf039958374a7559b0382deb95705fae9546f644798419",
+      "paced/0-recorded-vulkan-config.json": "38a2c7262f24a47017400970b60ec4233c056cb25da1ae30428d5daf9b2a6810",
+      "paced/0-recorded-vulkan-control-config.json": "0aad24ccf223f1249b8f24e9f097c54eee8c6960b68915c636fb40bd4a853498",
+      "paced/0-recorded-vulkan-control-maps.txt": "7e8371b1da19e456c76b80022efd496d29b865939ace750ccd3139abb945f834",
+      "paced/0-recorded-vulkan-control.json": "f2a855f978f700a0254c32e2097703dbbed6c5ac7224d2a7946cc753f4640d41",
+      "paced/0-recorded-vulkan-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/0-recorded-vulkan-control.stdout": "2b039fe5bf78bc3f6f650c296e51ab7731b2275aa5f044b9f91676485a3a99e5",
+      "paced/0-recorded-vulkan-maps.txt": "e8d9c5463ccaf2376add2e6c58dd6fb131e3a57fd11a637b1c6ef23f8d6bfdba",
+      "paced/0-recorded-vulkan-process.jsonl": "7730c8f3da3acef60d56cf2c965c3580339c6819a237c9b9542f9ff2dbd8aa8f",
+      "paced/0-recorded-vulkan.json": "2aa5f446eef3ee09c5c7ff222319f3bb989e5983ae94e5729dc2b55739a4fee4",
+      "paced/0-recorded-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/0-recorded-vulkan.stdout": "91798a53e42defa1728bffa083240f060561bb70a9bf06371ac3d547d7adaecf",
+      "paced/1-dense-cpu-config.json": "ec1a42d61813e523b400b66a04cf567788bdef1645fc1ac2686155e7d5cbae17",
+      "paced/1-dense-cpu-control-config.json": "5074fc53f1b7e9bb38229a5061705f71ef5c0f6785ee6eb26ea7a36cddd7ef7b",
+      "paced/1-dense-cpu-control-maps.txt": "95c18cf93bc491ee5f15e30c23cf268900175f873d7db23c80ab416172fd10e3",
+      "paced/1-dense-cpu-control.json": "6976e818db9d7d3570875b997479e7c694f5cef61c751d3ed3df388a1d3e61ee",
+      "paced/1-dense-cpu-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/1-dense-cpu-control.stdout": "9b9b32a92d3e76adae9c462fc4d009c21cd144556e96973a9a95c6d084c4f0ad",
+      "paced/1-dense-cpu-maps.txt": "cafbbbd897dab703632b38e154122600bc4994c1bdeb99a2f7e2c59708cea91c",
+      "paced/1-dense-cpu-process.jsonl": "bfb2d1e90cc5d91fc0ba81307b75c7ffb6584f5e1676b90a193396588d6e280d",
+      "paced/1-dense-cpu.json": "46791ec24a8eb90208ece97d76d4a3866e078ca83c9c1dbabd7ae542bc7b9ea4",
+      "paced/1-dense-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/1-dense-cpu.stdout": "c1be8f25168d9810751a541e2ac36bf6003be00f4d9fb3c082b201cca0d501eb",
+      "paced/1-dense-vulkan-config.json": "9cfe95c4d4a023c7c66f439bb4789619390ded570de916955eac0dc7f137e0b5",
+      "paced/1-dense-vulkan-control-config.json": "052062b2e350094e26c736fb52d9ae2ffc32776155c4f6c2aa7bea7feb7f313f",
+      "paced/1-dense-vulkan-control-maps.txt": "a753d5b02511886b7afb15673c3a03241e32e00c9b07ebb7e681067f3293a6a0",
+      "paced/1-dense-vulkan-control.json": "23b8a18531049646792bb09f66c988c81d1b76acfd0e7f41d4aa4a838aca0878",
+      "paced/1-dense-vulkan-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/1-dense-vulkan-control.stdout": "925020a68995733693fcb4155ea3d24ec66c3cde1a973097b58c8aa22b18a9e2",
+      "paced/1-dense-vulkan-maps.txt": "778cef82b4ff8d68468e02721b0adfebb0624fd0397c3ed0c8fd5e356a9b4a5c",
+      "paced/1-dense-vulkan-process.jsonl": "274adfbc8a821f83c5c8b431c6a31b2b8029a50f780a19b6642c872e5cda8bc5",
+      "paced/1-dense-vulkan.json": "6eb5c8fa7c5ce916c0d901207c4a6134f7a5d8325df6e1ca98ce2c674703cc22",
+      "paced/1-dense-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/1-dense-vulkan.stdout": "1fcb86e40ea8ec3d7626f58a071cc5228ca56ed9cb25b973d3ac7d880a6591e8",
+      "paced/1-recorded-cpu-config.json": "c34b4c183f510ca5b8499415dccac5e06540b2e8ae3db56095873f10cefae535",
+      "paced/1-recorded-cpu-control-config.json": "d12a8fff00dc12ba1748d715a0a367b3360fd58f5b114d89773dde53298691af",
+      "paced/1-recorded-cpu-control-maps.txt": "6d79db87fdec1c7b09c4c8b3dc82381c57ad202604216618f906991b2955b65c",
+      "paced/1-recorded-cpu-control.json": "59143ca1a44b35829b79d5bc6975703049e1a4c18eb873d530de871a8b5406c0",
+      "paced/1-recorded-cpu-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/1-recorded-cpu-control.stdout": "a6c70d9385113f763311828224acd6cd212f1315c31e64354e7c569cf23198ea",
+      "paced/1-recorded-cpu-maps.txt": "fab8ed0374e4f66dde8bbb5a9b3265358062a044b5e2b69a30f8fa8040a0df04",
+      "paced/1-recorded-cpu-process.jsonl": "70249ab57d3b6c619c884e6c473db66a56097d7162166370a9fc6952deafbdaa",
+      "paced/1-recorded-cpu.json": "1dbc1788ffabdab5d2fdcea07e1f8d52eb45a52e2ca17cf59a23e50aa5ea4fe3",
+      "paced/1-recorded-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/1-recorded-cpu.stdout": "d9b58f7517f69c6a1d4f3d5e9eb62c1bdd676055b59a766a8e45f9ef40c47103",
+      "paced/1-recorded-vulkan-config.json": "6592405f2fbe3f4f98a510e06afe231044bf0b744768d6173063ca53abe7e769",
+      "paced/1-recorded-vulkan-control-config.json": "d3305ead32a5e0ec144d94230547dc8a3839b48a5a9e1211e30cad3a73d5fc77",
+      "paced/1-recorded-vulkan-control-maps.txt": "2b7af4fae7bb19e3827ccd1b5a316e3b7943d667245dbc16e2e1cd77948433df",
+      "paced/1-recorded-vulkan-control.json": "a61d12bc8b1d849c2277fc13526b3e412c187f7c24f03df9ee2817feabf04b4e",
+      "paced/1-recorded-vulkan-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/1-recorded-vulkan-control.stdout": "038227156d6bb477b30212ce6c5376520e8af0fd430dfd3a17126a0b461bcc5a",
+      "paced/1-recorded-vulkan-maps.txt": "51f3082ac3ba9702bdc72ae48cc760388021c015f2d5952d0b4395956052b45e",
+      "paced/1-recorded-vulkan-process.jsonl": "af487fbebdaad99112ed1930d27cd843407e558321453502433eb8d35f872561",
+      "paced/1-recorded-vulkan.json": "56dadc3e797e8f698f648936f2b526e78439c11b1fcbf1e529cb240bf2e6f8f6",
+      "paced/1-recorded-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/1-recorded-vulkan.stdout": "dacd0d72c59c75925a59c79d352be91e414a6afc48e19074aa70a7053f806606",
+      "paced/2-dense-cpu-config.json": "e80ba8fa6f53798169f03bf17bf79cfd63bd5fe46c3f98dc4f178cb8469ed618",
+      "paced/2-dense-cpu-control-config.json": "39cedb086ff03ed15cf9c82f23c0ed4812cd35052b15e14377642f1ba9e0701c",
+      "paced/2-dense-cpu-control-maps.txt": "9a1a7aed52dedd4e696ad4e32ab547c6b977cfa34eeb0f0722b40a12c3e38722",
+      "paced/2-dense-cpu-control.json": "88400d9414f0a0174baada14ee44fe6ab9d132e6af5455bce73f1f1742caeaf9",
+      "paced/2-dense-cpu-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/2-dense-cpu-control.stdout": "0077d5010ee7c4c6b4661daa7ee8df74a138a15ea01c3e44b2b18813314c42e5",
+      "paced/2-dense-cpu-maps.txt": "e2d0cb78450f707e978c679873665befbd2cf64c35c1d2fc77dfab12985203b8",
+      "paced/2-dense-cpu-process.jsonl": "91ef8f4203d4ffc884c59cd7fe2bf34f161bd47d07ddd67848a340f516ebcbfb",
+      "paced/2-dense-cpu.json": "6c702b12a3f5723de40cf7ad1e01dc5d2c9201709abbb0d6c2e5e9f244e08317",
+      "paced/2-dense-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/2-dense-cpu.stdout": "9c833464b7574c594688d7384a683cd97a520d796b7e729f6d400833d98f3276",
+      "paced/2-dense-vulkan-config.json": "9cdfc6beedfa7fb391ca8d8a0c755639d0e4447d9177b9653fdff0883da5e725",
+      "paced/2-dense-vulkan-control-config.json": "af2312fae816689e6f3c94d2dc069caa48c94b6354b72fbd2949e377d19238a8",
+      "paced/2-dense-vulkan-control-maps.txt": "e60050099de0991e856d98fbef0b992d607a0712b2bb3dc3150434688e339b55",
+      "paced/2-dense-vulkan-control.json": "10e595e47faa1407fa38d44b891bbcc9886be286129c1accd0a08980eb41e755",
+      "paced/2-dense-vulkan-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/2-dense-vulkan-control.stdout": "a1d91216c92480d1e05d5bc8d892f6172af26ab46182a6526286a609f3247bd3",
+      "paced/2-dense-vulkan-maps.txt": "454bff9c773257616ae67da30fa437774d26720e346d16a010d921c59ed65b1e",
+      "paced/2-dense-vulkan-process.jsonl": "9aee2e098477595f01d85c313d100485292dadaf19773ce3b72a3830176d64e7",
+      "paced/2-dense-vulkan.json": "5ad1adacd31c138f9a5f44f0d3c4b2ec0c544efb1e03546b705cef82b51b8dcc",
+      "paced/2-dense-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/2-dense-vulkan.stdout": "678d0430de975a170365cadcdf55a7e87c23b74302a199bfa8b209f3b71053c3",
+      "paced/2-recorded-cpu-config.json": "e176696a790916d33655b73a7cadeb91a2c906908caa98241886c47e080d1260",
+      "paced/2-recorded-cpu-control-config.json": "cb0521975157d1645a4732130033253ddb6f72aaaddaf35e7d5a51786265cc24",
+      "paced/2-recorded-cpu-control-maps.txt": "41c5ec7c45b62d88d78db2456c1096fbeb8498f4e1db765e4d5ffba56ec3dbb7",
+      "paced/2-recorded-cpu-control.json": "20fc7868c511e61e57dadf6395e2d4e5048b9afd7121afb84de67533481c48ef",
+      "paced/2-recorded-cpu-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/2-recorded-cpu-control.stdout": "1b61996aee61eb54178f316533c9811bca86d5286b64c7af08ef5a9937af0163",
+      "paced/2-recorded-cpu-maps.txt": "5046cbaa487efbbde29ad81eb378da66f9eb4e95e8b18a4dbd8323fb4b063a84",
+      "paced/2-recorded-cpu-process.jsonl": "cfa87ef7a11add712d7aa736f7de95d8ef2e7285e43e8da924377429545517d6",
+      "paced/2-recorded-cpu.json": "60be3a61b60550e3cabf9a7a0266a6b5aaffb25b8fc3eacaa00e707e9c755078",
+      "paced/2-recorded-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/2-recorded-cpu.stdout": "d108d62ffc420302307f819dd82428679b819690c22d5b51dee9ce5cf9252007",
+      "paced/2-recorded-vulkan-config.json": "854c4200c448d5e2b543fae3e20bdcaf1976af3e0b3b7651ea2f871399f1e602",
+      "paced/2-recorded-vulkan-control-config.json": "7aa15e3a062d59e03185b820c62268f939893b0d3f7f69ddc4fa3140d6483efa",
+      "paced/2-recorded-vulkan-control-maps.txt": "984162d16c6910a47423876817ed6e3b068e443d62d91d67cdf8a53590c7662c",
+      "paced/2-recorded-vulkan-control.json": "0743431f60e9e20e20edd37e981184cfc83b477e47ea74dcf83998f5259acc64",
+      "paced/2-recorded-vulkan-control.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/2-recorded-vulkan-control.stdout": "208659c8f42f0293322d70d59fb10224761787d302da2bd037f56b840b2b3563",
+      "paced/2-recorded-vulkan-maps.txt": "e40c678db490b57c713efc0d6d6a3d235523ea036d3f3a55cc4e4923902bcb07",
+      "paced/2-recorded-vulkan-process.jsonl": "f0ed3d587993b5f52f2b44738a073eeb51d4443cc767186e5cbd58eb4ebc58b4",
+      "paced/2-recorded-vulkan.json": "95523e313fc527e05d7542186730423e7ed0c4e385b543c41d7cfab331029b27",
+      "paced/2-recorded-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "paced/2-recorded-vulkan.stdout": "6cbf7638276d8095d19624cf17bdb2e8746177f664568a31ba447fb7b0bc32cb",
+      "postcheck.json": "47468ccd3fb552940fd54f09dd9d09de8e4c102577ec50c8e122e8af17dc7f01",
+      "prepare_remote.py": "8c584266bf93f6855aa86c619c8dca79a159685770774eb79cab8b6b73e5c97a",
+      "preregistered.json": "e5757c5f4ab56f998bfdf41a4c25b26ed4c8b3f83cc75647027be13d5a3abc19",
+      "progress.json": "9c8fd089a50d238cd3424d9cb02c3a975f4558796f1ca51ae20325fbeef4ecd5",
+      "resident_headroom.cpp": "5ee654202683a86a411bf9888c19c5caaaea29cde607a2a7e2c47f2113cc95ad",
+      "run_remote.py": "5caec0a9d7718372536ade60db40a1b8af700e374deddb6bebfff50d9c650117",
+      "runner.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runner.stdout": "8285b2d0247fa6a3a904154fd699f3d326b5d3ae6ec0fccdd82926875d985c8f",
+      "unpaced/0-dense-cpu-maps.txt": "13f0edef0bbea72c84af403540e772c0d6c2d7642218ad762fdb3ceb7abddeb1",
+      "unpaced/0-dense-cpu-process.jsonl": "a5368fede2a94033bb42c4fae524df1245c35d429ad960574e0013b1b81bce56",
+      "unpaced/0-dense-cpu.json": "8a7acb6ccb53cf1641dae2c952e128d4250126bf57e218cc8c21ca7af44a735a",
+      "unpaced/0-dense-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/0-dense-cpu.stdout": "8a7acb6ccb53cf1641dae2c952e128d4250126bf57e218cc8c21ca7af44a735a",
+      "unpaced/0-dense-vulkan-maps.txt": "153d2e3ba066c3649f1622755951e6410b181589318a4ce784e043fad7073624",
+      "unpaced/0-dense-vulkan-process.jsonl": "f1aa6211fb732ca1251975fdd648dd9d92e93c12a6c3bdb36808ff52e3a369f6",
+      "unpaced/0-dense-vulkan.json": "083a93ce7a1e69c6d8e4b126f290fbe19994c2aab68fc08ef194055b0437ce61",
+      "unpaced/0-dense-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/0-dense-vulkan.stdout": "083a93ce7a1e69c6d8e4b126f290fbe19994c2aab68fc08ef194055b0437ce61",
+      "unpaced/0-recorded-cpu-maps.txt": "10242201221567952fce82a6b349eaa02e1d697e18b07fe7c4698775e318acab",
+      "unpaced/0-recorded-cpu-process.jsonl": "19f9283f7c9f480edbebe1f60ee9a6c278985395403b182b94d88620063ce0b5",
+      "unpaced/0-recorded-cpu.json": "ce5b5a27aab541c69da36f897556ba6e3af8beed7ea1696a34f5dd1da7a6b14b",
+      "unpaced/0-recorded-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/0-recorded-cpu.stdout": "ce5b5a27aab541c69da36f897556ba6e3af8beed7ea1696a34f5dd1da7a6b14b",
+      "unpaced/0-recorded-vulkan-maps.txt": "052d7836056f2b5d5ea08eef473212e9933cf2c21a57cb52901285f63134d740",
+      "unpaced/0-recorded-vulkan-process.jsonl": "82becd45b79a57a0b85a631ae17d75c848885bd4b6625e8c6a7feb14a49d667e",
+      "unpaced/0-recorded-vulkan.json": "9a137344e4e5b68403e6d2a49ad8bf7573271d6776dbf9b2558d9068ca4f9c2a",
+      "unpaced/0-recorded-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/0-recorded-vulkan.stdout": "9a137344e4e5b68403e6d2a49ad8bf7573271d6776dbf9b2558d9068ca4f9c2a",
+      "unpaced/1-dense-cpu-maps.txt": "91e1d26495cab3e335fe09f1f48a5f8d47333fc7956aef2fdfaaaacc7ed4a24c",
+      "unpaced/1-dense-cpu-process.jsonl": "8695208bb8872cf62477da16cc489d2efd8da38a35101d6e7f05eb9bd56b0a44",
+      "unpaced/1-dense-cpu.json": "b7c52972e497fe9511b627765ea05f58d81a43e3448b30cbfc77a7c8b9ff0a21",
+      "unpaced/1-dense-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/1-dense-cpu.stdout": "b7c52972e497fe9511b627765ea05f58d81a43e3448b30cbfc77a7c8b9ff0a21",
+      "unpaced/1-dense-vulkan-maps.txt": "04e4bc3783e267c26a3e260c4d7e34b1d6a0085167cc2928df8c90244e8d680f",
+      "unpaced/1-dense-vulkan-process.jsonl": "db7a4f7bf6a4d6350f98db22d33e8af61881d95a95d28ef4b3a08f1fc95f840c",
+      "unpaced/1-dense-vulkan.json": "5ca279862268528aba1f616d45ae8ee54187151039841158a0a60fdf0b2634a5",
+      "unpaced/1-dense-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/1-dense-vulkan.stdout": "5ca279862268528aba1f616d45ae8ee54187151039841158a0a60fdf0b2634a5",
+      "unpaced/1-recorded-cpu-maps.txt": "dc9845074883f92104db4d82ee1c492fe3df74887af47c6c2c1df2e1678f694b",
+      "unpaced/1-recorded-cpu-process.jsonl": "616f324800ea453a552732537c6249d2e69a5320a249bd9f3ff35a7df4453355",
+      "unpaced/1-recorded-cpu.json": "d15302d4f68a90eee0ebfaada4ad9b618dd10fda89b73d3c85bfb76f61e4bafe",
+      "unpaced/1-recorded-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/1-recorded-cpu.stdout": "d15302d4f68a90eee0ebfaada4ad9b618dd10fda89b73d3c85bfb76f61e4bafe",
+      "unpaced/1-recorded-vulkan-maps.txt": "0c7fb42891b04b7d1bef4aaba3121aa84e036b6376d9f330adb7f937cc526cc9",
+      "unpaced/1-recorded-vulkan-process.jsonl": "a385e1fb4a146e9f7680945f117b0a25b4c18ef06a56a6a9b3e260bbfffb128d",
+      "unpaced/1-recorded-vulkan.json": "a15217be09316caa66f7bbee014463772fd5b54668033c218ee777ca5c3f6d77",
+      "unpaced/1-recorded-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/1-recorded-vulkan.stdout": "a15217be09316caa66f7bbee014463772fd5b54668033c218ee777ca5c3f6d77",
+      "unpaced/2-dense-cpu-maps.txt": "7d52cea4afb00f6e325904693794688d72a17d13ed886142a6f276fbb8aca092",
+      "unpaced/2-dense-cpu-process.jsonl": "2567681a79e74e0c060629ab6216669af6b2a5c23513e03f68e3bc4839a27533",
+      "unpaced/2-dense-cpu.json": "9801d71dbba4291b86c62ed5e488383534eebf6732236dcf6ec6593ea336f15d",
+      "unpaced/2-dense-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/2-dense-cpu.stdout": "9801d71dbba4291b86c62ed5e488383534eebf6732236dcf6ec6593ea336f15d",
+      "unpaced/2-dense-vulkan-maps.txt": "09d051b6dc6ecd9aaa5e9eee94a1da34e93a6cd3c944e47ed0aa9b8b86798d1e",
+      "unpaced/2-dense-vulkan-process.jsonl": "f561f7c8f562a476807facde4bbf5d3d12a4bc7c23723076dbe94b0057c66b8b",
+      "unpaced/2-dense-vulkan.json": "3bd7a2a911aa23b6f0170a57c31168d9d9bc24badbc76f17cfe26321607cf9ab",
+      "unpaced/2-dense-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/2-dense-vulkan.stdout": "3bd7a2a911aa23b6f0170a57c31168d9d9bc24badbc76f17cfe26321607cf9ab",
+      "unpaced/2-recorded-cpu-maps.txt": "4d92c3b7324d721f097c90c7b8dedf358e9e64dc865ffb2d0353a2ae93ea7888",
+      "unpaced/2-recorded-cpu-process.jsonl": "79a87efd2eea459abbb484ec40b182a8dd8a755e6be8a52561f5e54d29246595",
+      "unpaced/2-recorded-cpu.json": "727446760a60987d961b46161b96848996c3e7c046db8fd954c7cf618538cb63",
+      "unpaced/2-recorded-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/2-recorded-cpu.stdout": "727446760a60987d961b46161b96848996c3e7c046db8fd954c7cf618538cb63",
+      "unpaced/2-recorded-vulkan-maps.txt": "6a8c6661802422677fd1fb7c9e5f27637a537bb192d595944329ed61e348a08c",
+      "unpaced/2-recorded-vulkan-process.jsonl": "01abf54bad34c22949deb95c6d4796a9a3ac2ce3070d5a66da4d242ba1ffbddd",
+      "unpaced/2-recorded-vulkan.json": "8f629bf483c8da36a3044589c326c9f0f76b897ac73b31311a9237fb7203b490",
+      "unpaced/2-recorded-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unpaced/2-recorded-vulkan.stdout": "8f629bf483c8da36a3044589c326c9f0f76b897ac73b31311a9237fb7203b490"
+    },
+    "private_manifest_sha256": "e5757c5f4ab56f998bfdf41a4c25b26ed4c8b3f83cc75647027be13d5a3abc19"
+  },
+  "runtime_identity": {
+    "device_model": "Intel ADL-N",
+    "mesa": "25.2.8",
+    "vendor_id": 32902,
+    "device_id": 18129,
+    "driver_version": 104865800,
+    "driver_sha256": "01a6aa501cf9f4cb87ea0b3c9465317e783ff58d1c021b5b59d09f8e6ecde857"
+  },
+  "privacy_review": {
+    "finding": "Supplied aggregate still contained command arrays and owned process IDs; these were removed independently of its calibration-redaction note.",
+    "removed_fields": [
+      "/execution/0/commands",
+      "/execution/0/owned_pids",
+      "/execution/0/owned_pids_still_present",
+      "/execution/1/commands",
+      "/execution/1/owned_pids",
+      "/execution/1/owned_pids_still_present",
+      "/execution/2/commands",
+      "/execution/2/owned_pids",
+      "/execution/2/owned_pids_still_present",
+      "/execution/3/commands",
+      "/execution/3/owned_pids",
+      "/execution/3/owned_pids_still_present",
+      "/execution/4/commands",
+      "/execution/4/owned_pids",
+      "/execution/4/owned_pids_still_present",
+      "/execution/5/commands",
+      "/execution/5/owned_pids",
+      "/execution/5/owned_pids_still_present",
+      "/execution/6/commands",
+      "/execution/6/owned_pids",
+      "/execution/6/owned_pids_still_present",
+      "/execution/7/commands",
+      "/execution/7/owned_pids",
+      "/execution/7/owned_pids_still_present",
+      "/execution/8/commands",
+      "/execution/8/owned_pids",
+      "/execution/8/owned_pids_still_present",
+      "/execution/9/commands",
+      "/execution/9/owned_pids",
+      "/execution/9/owned_pids_still_present",
+      "/execution/10/commands",
+      "/execution/10/owned_pids",
+      "/execution/10/owned_pids_still_present",
+      "/execution/11/commands",
+      "/execution/11/owned_pids",
+      "/execution/11/owned_pids_still_present",
+      "/execution/12/commands",
+      "/execution/12/owned_pids",
+      "/execution/12/owned_pids_still_present",
+      "/execution/13/commands",
+      "/execution/13/owned_pids",
+      "/execution/13/owned_pids_still_present",
+      "/execution/14/commands",
+      "/execution/14/owned_pids",
+      "/execution/14/owned_pids_still_present",
+      "/execution/15/commands",
+      "/execution/15/owned_pids",
+      "/execution/15/owned_pids_still_present",
+      "/execution/16/commands",
+      "/execution/16/owned_pids",
+      "/execution/16/owned_pids_still_present",
+      "/execution/17/commands",
+      "/execution/17/owned_pids",
+      "/execution/17/owned_pids_still_present",
+      "/execution/18/commands",
+      "/execution/18/owned_pids",
+      "/execution/18/owned_pids_still_present",
+      "/execution/19/commands",
+      "/execution/19/owned_pids",
+      "/execution/19/owned_pids_still_present",
+      "/execution/20/commands",
+      "/execution/20/owned_pids",
+      "/execution/20/owned_pids_still_present",
+      "/execution/21/commands",
+      "/execution/21/owned_pids",
+      "/execution/21/owned_pids_still_present",
+      "/execution/22/commands",
+      "/execution/22/owned_pids",
+      "/execution/22/owned_pids_still_present",
+      "/execution/23/commands",
+      "/execution/23/owned_pids",
+      "/execution/23/owned_pids_still_present",
+      "/private_command_manifest"
+    ],
+    "policy": "No commands, environment, process IDs, serials, GPU UUIDs, calibration values, input images or per-frame sample payloads included. SHA256 identifiers and per-trial numeric aggregates retained. Absolute file identities normalized to artifact basenames; original hashes preserve provenance.",
+    "physical_scene_files_included": false
+  }
+}

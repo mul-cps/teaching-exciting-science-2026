@@ -62,3 +62,46 @@ oracle, and the offered/completed/replaced/in-flight counts are reported togethe
 `CLOCK_PROCESS_CPUTIME_ID` measures perception-process CPU demand. The separate
 control task is a scheduler proxy; it does not establish physical control timing,
 whole-host CPU savings, live-camera throughput or full-station qualification.
+
+## Raw resident synthetic SDK reference driver
+
+[raw_resident_reference.cpp](raw_resident_reference.cpp) is the unchanged eight-case
+combined Alignment/Core driver used for the [offline two-host qualification](../../docs/performance/raw-resident-20261023.md).
+Its SHA256 is `31c0165049c236731a1950fe45c78304a1f429217828046597bd2cf8e3a396c5`.
+It uses SDK software frames and synthetic calibration/identity; it does not acquire
+an actual camera or change camera options. This is correctness evidence, not timing.
+
+Build inside the native station wrapper environment, using ABI-consistent installed
+headers/libraries plus Vulkan, librealsense SDK and nlohmann JSON headers. Substitute
+reviewed absolute locations and the appropriate host Vulkan loader:
+
+```sh
+task_install=/absolute/reviewed-install
+task_build=/absolute/reviewed-build
+task_source=/absolute/checkout/tools/performance/raw_resident_reference.cpp
+"${CXX:-c++}" -O2 -std=c++17 -ffp-contract=off \
+  -I"$task_install/include" -I"$task_build/vulkan-sdk" -I"$CONDA_PREFIX/include" \
+  "$task_source" -o /tmp/raw-resident-reference \
+  -L"$task_install/lib" -Wl,-rpath,"$task_install/lib" \
+  -lresident_alignment -lresident_rgbd -lrealsense2 /usr/lib64/libvulkan.so.1 -pthread
+```
+
+The argument contract is `BINARY --cpu|--vulkan CORE_SHADERS ALIGNMENT_SHADERS OUTPUT_DIRECTORY`.
+Create a fresh private output directory first: the driver requires it to exist and
+writes eight synthetic input/calibration/SDK-output sets plus `summary.json`.
+Use the Core and Alignment shaders belonging to the same reviewed source snapshot.
+For example, inside the same native environment:
+
+```sh
+task_output=$(mktemp -d /tmp/raw-resident-reference.XXXXXX)
+chmod 700 "$task_output"
+/tmp/raw-resident-reference --cpu \
+  /absolute/reviewed/core-shaders /absolute/reviewed/alignment-shaders "$task_output"
+```
+
+CPU mode exercises all eight SDK/reference cases without GPU dispatch. Vulkan mode
+also checks the typed bridge, fences and Core outputs; run it with an external
+process watchdog that bounds the entire process lifecycle. The driver's ten-second
+poll deadline does not bound a blocked GPU driver/destructor drain. GPU selection
+and process-local driver environment must match the reviewed host configuration.
+Do not interpret qualification duration or these diagnostic array writes as normal-path latency.

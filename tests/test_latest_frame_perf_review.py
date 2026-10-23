@@ -38,20 +38,31 @@ def test_accepted_source_identity_is_original_and_receipt_precedes_alignment():
     camera=(PACKAGE/'src/camera_component.cpp').read_text()
     capture=body(camera,'void capture_pending(')
     tick=body(camera,'void tick()')
+    metadata=body(camera,'void original_metadata(')
     for field,source,method in (
-        ('frame_number','original_color','get_frame_number'),
-        ('depth_frame_number','original_depth','get_frame_number'),
-        ('hardware_timestamp_ms','original_color','get_timestamp'),
-        ('depth_hardware_timestamp_ms','original_depth','get_timestamp'),
-        ('timestamp_domain','original_color','get_frame_timestamp_domain'),
-        ('depth_timestamp_domain','original_depth','get_frame_timestamp_domain'),
+        ('frame_number','color','get_frame_number'),
+        ('depth_frame_number','depth','get_frame_number'),
+        ('hardware_timestamp_ms','color','get_timestamp'),
+        ('depth_hardware_timestamp_ms','depth','get_timestamp'),
+        ('timestamp_domain','color','get_frame_timestamp_domain'),
+        ('depth_timestamp_domain','depth','get_frame_timestamp_domain'),
     ):
-        assert re.search(r'slot\.metadata\.'+field+r'\s*=\s*(?:int\()?'+source+r'\.'+method+r'\(\)',capture)
-    assert 'slot.metadata.timestamp_ns = received_ros_ns;' in capture
+        assert re.search(r'm\.'+field+r'\s*=\s*(?:int\()?'+source+r'\.'+method+r'\(\)',metadata)
+    assert 'auto color=native.get_color_frame();auto depth=native.get_depth_frame();' in metadata
+    assert 'm.timestamp_ns=receipt;' in metadata
+    assert 'now()' not in metadata
+    assert capture.index('original_metadata(last_input_,native,received_ros_ns)') < capture.index('copy_raw_planes(')
+    assert capture.index('original_metadata(last_input_,native,received_ros_ns)') < capture.index('copy_vendor_planes(')
     assert 'now()' not in capture
-    assert capture.index('accept_source(')<capture.index('discard_pending(')<capture.index('compute_->acquire(')<capture.index('alignment_.process(')
-    assert tick.index('compute_->finish(')<tick.index('poll_for_frames(')<tick.index('capture_pending(')<tick.index('dispatch_pending(')
+    assert capture.index('accept_source(')<capture.index('discard_pending(')<capture.index('bridge_->acquire(')<capture.index('copy_raw_planes(')
+    assert capture.index('bridge_->acquire(')<capture.index('copy_vendor_planes(')
+    assert tick.index('bridge_->collect(')<tick.index('poll_for_frames(')<tick.index('now().nanoseconds()')<tick.index('capture_pending(')<tick.index('dispatch_pending(')
     assert 'return;' not in tick
-    assert camera.index('strict Vulkan camera refused')<camera.index('camera_.start(')
+    constructor=body(camera,'explicit CameraComponent(')
+    assert constructor.index('probe_loaded_sdk_alignment(')<constructor.index('raw_admission_failure(')<constructor.index('camera_.start(')
+    assert constructor.index('require_raw_or_cpu_fallback(mode,fallback_reason_)')<constructor.index('camera_.start(')
+    assert constructor.index('cold_live_selfcheck(')<constructor.index('publication_gate().admit(')<constructor.index('create_wall_timer(')
+    objects=body(camera,'class ObjectsComponent')
+    assert objects.index('publication_gate().publish(')<objects.index('measurements_->publish(')
     # Both node callbacks retain their default mutually exclusive groups.
     assert 'Reentrant' not in camera and 'create_callback_group' not in camera

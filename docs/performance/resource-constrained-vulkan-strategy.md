@@ -35,6 +35,12 @@ Current whole-camera performance after that correction is **unmeasured**.
 Source: [native paired latency](resident-20261023.md#native-paired-latency).
 These are medians of trial p95s, exclude upload memcpy, and are not complete frame latency.
 
+The [current Intel Core remeasurement](intel-core-shared-divide-20261023.md) after shared exact division
+records 13.926/42.148 ms GPU p95 for recorded/dense input. Process CPU cost per completed output
+is 73.50%/91.02% lower than native CPU, but dense GPU delivery is 23.07 fps (1,384/1,800).
+This remains a prealigned Core subset; the historical comparison does not isolate helper cost
+and supplies no live-camera performance result.
+
 ## Optimize the measured hot stage
 
 Earlier attribution put connected components near 85% of the GPU interval despite only 444 active

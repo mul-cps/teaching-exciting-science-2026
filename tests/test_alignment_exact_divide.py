@@ -14,7 +14,10 @@ SHADER = PACKAGE / 'shaders/alignment.slang'
 class ExactAlignmentDivideTest(unittest.TestCase):
     def test_shared_helper_against_hardware_and_integer_oracles(self):
         source = SHADER.read_text()
-        match = re.search(r'// BEGIN EXACT ALIGNMENT DIVISION\n(.*?)// END EXACT ALIGNMENT DIVISION', source, re.S)
+        for parent in ('alignment.slang', 'resident.slang'):
+            self.assertEqual((PACKAGE / 'shaders' / parent).read_text().count('#include "exact_divide.slang"'), 1)
+        canonical = (PACKAGE / 'shaders/exact_divide.slang').read_text()
+        match = re.search(r'// BEGIN EXACT ALIGNMENT DIVISION\n(.*?)// END EXACT ALIGNMENT DIVISION', canonical, re.S)
         self.assertIsNotNone(match, 'actual shader must contain extractable exact division helper')
         helper = match.group(1)
         self.assertNotRegex(helper, r'\b(double|uint64_t|uint64|int64_t|int64|new|malloc|while|wait|Interlocked|GroupMemoryBarrier)\b')

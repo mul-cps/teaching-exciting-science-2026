@@ -1,4 +1,4 @@
-"""Experimental composed acquisition; strict raw-camera Vulkan is gated closed."""
+"""Experimental acquisition; raw Vulkan requires cold SDK/source selfchecks."""
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration

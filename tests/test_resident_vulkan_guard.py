@@ -17,7 +17,7 @@ def body(file, symbol):
 
 
 def test_frame_hot_paths_never_allocate_or_wait_for_device():
-    for file, symbol in [('src/gpu_pipeline.cpp', 'void Pipeline::submit('),
+    for file, symbol in [('src/gpu_pipeline.cpp', 'void Pipeline::submit_impl('),
                          ('src/gpu_pipeline.cpp', 'void Pipeline::finish('),
                          ('src/gpu_pipeline.cpp', 'void decode_compact('),
                          ('src/frame_pool.cpp', 'FrameLease FramePool::acquire('),
@@ -30,7 +30,7 @@ def test_frame_hot_paths_never_allocate_or_wait_for_device():
 
 
 def test_submission_host_synchronization_and_bounded_readback():
-    code = body('src/gpu_pipeline.cpp', 'void Pipeline::submit(')
+    code = body('src/gpu_pipeline.cpp', 'void Pipeline::submit_impl(')
     assert 'command_lock(c.command_mutex)' in code
     assert 'queue_lock(c.queue_mutex)' in code
     # Dense download is available solely behind explicit diagnostic mode.
@@ -93,7 +93,7 @@ def test_tile_all_lanes_and_immutable_pingpong_cover_bounded_local_graph():
     assert 'if(!converged&&local==0)' in tile
     connect = body('shaders/resident.slang', 'void connect(')
     assert 'uint(nx)/16==x/16&&uint(ny)/16==y/16' in connect
-    submit = body('src/gpu_pipeline.cpp', 'void Pipeline::submit(')
+    submit = body('src/gpu_pipeline.cpp', 'void Pipeline::submit_impl(')
     assert 'dispatch(7);for(unsigned i=0;i<32;i++){dispatch(3);dispatch(2);}dispatch(3)' in submit
     assert 'if(i==7)vkCmdDispatch(s.command,(p.width+15)/16,(p.height+15)/16,1)' in submit
 
@@ -106,7 +106,7 @@ def test_closing_preserves_overlapping_roots_and_original_piece_borders():
     assert 'if(nx<x0||nx>x1||ny<y0||ny>y1)continue' in code
     assert 'if(p.round!=0)scratch.Store' in code
     assert 'scratch.InterlockedAdd(a+32,1,ignored)' in code
-    assert 'dispatch(4);dispatch(6);dispatch(5)' in re.sub(r'stamp\(\d+\);', '', body('src/gpu_pipeline.cpp', 'void Pipeline::submit('))
+    assert 'dispatch(4);dispatch(6);dispatch(5)' in re.sub(r'stamp\(\d+\);', '', body('src/gpu_pipeline.cpp', 'void Pipeline::submit_impl('))
 
 
 def test_frozen_canonical_labels_remove_morphology_atomic_reads():
@@ -115,7 +115,7 @@ def test_frozen_canonical_labels_remove_morphology_atomic_reads():
         assert 'root(' not in code
         assert not re.search(r'(?<![A-Za-z])parent\(', code)
         assert 'canonicalParent(' in code
-    submit = body('src/gpu_pipeline.cpp', 'void Pipeline::submit(')
+    submit = body('src/gpu_pipeline.cpp', 'void Pipeline::submit_impl(')
     assert 'dispatch(3);dispatch(2);' in submit
     assert 'dispatch(4);dispatch(6);dispatch(5)' in re.sub(r'stamp\(\d+\);', '', submit)
 
@@ -142,7 +142,7 @@ def test_pixel_count_walk_bound_covers_long_immutable_chains():
 
 
 def test_optional_timestamp_profiling_never_waits_or_allocates_per_frame():
-    submit = body('src/gpu_pipeline.cpp', 'void Pipeline::submit(')
+    submit = body('src/gpu_pipeline.cpp', 'void Pipeline::submit_impl(')
     finish = body('src/gpu_pipeline.cpp', 'void Pipeline::finish(')
     assert 'if(s.timestamps)vkCmdResetQueryPool' in submit
     assert 'VK_QUERY_RESULT_WAIT_BIT' not in finish

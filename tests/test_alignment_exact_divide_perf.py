@@ -22,7 +22,7 @@ def body(source, signature):
 
 def test_exact_helper_bounded_cost_and_callsite_association():
     source = (PACKAGE / 'shaders/alignment.slang').read_text()
-    helper = source.split('// BEGIN EXACT ALIGNMENT DIVISION\n')[1].split('// END EXACT ALIGNMENT DIVISION')[0]
+    helper = (PACKAGE / 'shaders/exact_divide.slang').read_text().split('// BEGIN EXACT ALIGNMENT DIVISION\n')[1].split('// END EXACT ALIGNMENT DIVISION')[0]
     assert not re.search(r'\b(?:while|double|uint64|int64|new|malloc|Interlocked\w*|\w*Barrier\w*)\b', helper)
     assert re.findall(r'for\s*\(([^)]*)\)', helper) == [
         'uint correction=0;correction<4;++correction', 'int bit=22;bit>=0;--bit',
@@ -44,7 +44,24 @@ def test_exact_helper_bounded_cost_and_callsite_association():
     assert 'tx=((p.r0*x+p.r3*y)+p.r6*z)+p.t0;ty=((p.r1*x+p.r4*y)+p.r7*z)+p.t1;tz=((p.r2*x+p.r5*y)+p.r8*z)+p.t2;' in project
     assert 'u=((tx/tz)*p.fx+p.cx)+0.5,v=((ty/tz)*p.fy+p.cy)+0.5' in project
     assert 'x=z*((float(i%640)-p.cx)/p.fx),y=z*((float(i/640)-p.cy)/p.fy)' in point
-    assert source.count('alignment_divide(') == 5  # definition plus exactly four sites
+    assert helper.count('float alignment_divide(') == 1
+    assert source.count('alignment_divide(') == 4
+    core = (PACKAGE / 'shaders/resident.slang').read_text()
+    for parent in (source, core):
+        assert parent.count('#include "exact_divide.slang"') == 1
+        assert 'float alignment_divide(' not in parent
+        assert 'alignment_divide_bits' not in parent
+    assert core.count('alignment_divide(') == 2
+    convert = body(core, 'void convert(')
+    for expression, original in (
+        ('alignment_divide((float(i%p.width)-p.cx),p.fx)', '(float(i%p.width)-p.cx)/p.fx'),
+        ('alignment_divide((float(i/p.width)-p.cy),p.fy)', '(float(i/p.width)-p.cy)/p.fy'),
+    ):
+        assert convert.count(expression) == 1
+        convert = convert.replace(expression, original)
+    import hashlib
+    assert hashlib.sha256(convert.encode()).hexdigest() == '2dce81cf33e863b1e7f05ce3081cf593727f58252973fa265edaf5e9ff9d95bf'
+    assert 'alignment_divide' not in (PACKAGE / 'src/cpu_pipeline.cpp').read_text()
     assert 'alignment_divide' not in (PACKAGE / 'src/alignment_reference.cpp').read_text()
     assert 'alignment_divide' not in (PACKAGE / 'src/alignment.cpp').read_text()
 
@@ -66,7 +83,7 @@ def test_normal_host_path_no_new_wait_allocation_or_readback():
 
 def test_actual_helper_cpu_microbenchmark():
     source = (PACKAGE / 'shaders/alignment.slang').read_text()
-    helper = source.split('// BEGIN EXACT ALIGNMENT DIVISION\n')[1].split('// END EXACT ALIGNMENT DIVISION')[0]
+    helper = (PACKAGE / 'shaders/exact_divide.slang').read_text().split('// BEGIN EXACT ALIGNMENT DIVISION\n')[1].split('// END EXACT ALIGNMENT DIVISION')[0]
     compiler = shutil.which('c++')
     assert compiler
     with tempfile.TemporaryDirectory(prefix='alignment-divide-perf-') as directory:
@@ -94,9 +111,9 @@ def test_offline_alignment_has_only_32bit_capabilities():
     if not slang or not (tools / 'spirv-dis').exists() or not (tools / 'spirv-val').exists():
         pytest.skip('offline shader toolchain unavailable')
     with tempfile.TemporaryDirectory(prefix='alignment-divide-spirv-') as directory:
-        for entry in ('splat', 'finalize'):
+        for parent, entry in (('alignment.slang', 'splat'), ('alignment.slang', 'finalize'), ('resident.slang', 'convert')):
             output = Path(directory) / (entry + '.spv')
-            subprocess.run([slang, str(PACKAGE / 'shaders/alignment.slang'), '-entry', entry,
+            subprocess.run([slang, str(PACKAGE / 'shaders' / parent), '-entry', entry,
                             '-stage', 'compute', '-target', 'spirv', '-profile', 'sm_6_0',
                             '-fp-mode', 'precise', '-O2', '-o', str(output)], check=True,
                            capture_output=True, text=True)
@@ -109,3 +126,46 @@ def test_offline_alignment_has_only_32bit_capabilities():
             decorated = set(re.findall(r'OpDecorate\s+(%\w+)\s+NoContraction', assembly))
             assert arithmetic <= decorated
             assert ' Fma ' not in assembly
+
+
+def test_core_deprojection_causal_vectors_match_native_division():
+    # Unchanged fixture 1 observations from the independent AMD/Intel cause
+    # report, not a second arithmetic implementation. Keep division then depth
+    # multiplication; the old reciprocal model crosses the existing 1e-7 gate.
+    fixture = r'''
+#include <cstdint>
+#include <cstring>
+#include <cmath>
+using uint = uint32_t;
+uint asuint(float f) {uint u;std::memcpy(&u,&f,4);return u;}
+float asfloat(uint u) {float f;std::memcpy(&f,&u,4);return f;}
+#include "alignment_divide_shared.h"
+int main() {
+ struct Case {uint numerator,depth,quotient,cpu,gpu;float focal;};
+ const Case cases[] = {
+  {0xc398599au,0x404e872cu,0xbeffbf8au,0xbfce532bu,0xbfce532cu,610.0f},
+  {0x436acccdu,0x404d6042u,0x3ec6b4efu,0x3f9f699au,0x3f9f699bu,605.0f},
+ };
+ for(const auto& c:cases) {
+  volatile float a=asfloat(c.numerator),b=c.focal,d=asfloat(c.depth);
+  volatile float quotient=a/b;
+  volatile float expected=quotient*d;
+  volatile float actual=alignment_divide(a,b)*d;
+  volatile float reciprocal=1.0f/b;
+  volatile float old_quotient=a*reciprocal;
+  volatile float old=old_quotient*d;
+  if(asuint(quotient)!=c.quotient || asuint(expected)!=c.cpu ||
+     asuint(actual)!=c.cpu || asuint(old)!=c.gpu ||
+     std::fabs(old-expected)<=1e-7f) return 1;
+ }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='core-divide-regression-') as directory:
+        directory = Path(directory)
+        (directory / 'alignment_divide_shared.h').write_bytes((PACKAGE / 'shaders/exact_divide.slang').read_bytes())
+        (directory / 'fixture.cpp').write_text(fixture)
+        binary = directory / 'fixture'
+        subprocess.run([shutil.which('c++'), '-O2', '-std=c++17', '-ffp-contract=off',
+                        '-fno-fast-math', str(directory / 'fixture.cpp'), '-o', str(binary)],
+                       check=True, capture_output=True, text=True)
+        subprocess.run([str(binary)], check=True)

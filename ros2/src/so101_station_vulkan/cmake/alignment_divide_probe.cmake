@@ -4,7 +4,7 @@ if(BUILD_TESTING)
   set(DIVIDE_PROBE_DIR "${CMAKE_CURRENT_BINARY_DIR}/alignment-divide-probe")
   file(MAKE_DIRECTORY "${DIVIDE_PROBE_DIR}")
   set(DIVIDE_PROBE_PROVENANCE "entry=divide_probe\nflags=-target spirv -profile sm_6_0 -fp-mode precise -O2\ncompiler=${SLANGC_EXECUTABLE}\n")
-  foreach(SOURCE shaders/alignment.slang test/alignment_divide_probe.slang)
+  foreach(SOURCE shaders/alignment.slang shaders/exact_divide.slang test/alignment_divide_probe.slang)
    file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/${SOURCE}" SOURCE_HASH)
    string(APPEND DIVIDE_PROBE_PROVENANCE "${SOURCE}=${SOURCE_HASH}\n")
    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${SOURCE}")
@@ -13,7 +13,7 @@ if(BUILD_TESTING)
   add_custom_command(OUTPUT "${DIVIDE_PROBE_DIR}/divide_probe.spv" "${DIVIDE_PROBE_DIR}/divide_probe.spv.sha256"
    COMMAND "${SLANGC_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/alignment_divide_probe.slang" -entry divide_probe -stage compute -target spirv -profile sm_6_0 -fp-mode precise -O2 -o "${DIVIDE_PROBE_DIR}/divide_probe.spv"
    COMMAND "${CMAKE_COMMAND}" "-DSPIRV=${DIVIDE_PROBE_DIR}/divide_probe.spv" -P "${CMAKE_CURRENT_SOURCE_DIR}/shaders/hash_shader.cmake"
-   DEPENDS test/alignment_divide_probe.slang shaders/alignment.slang shaders/hash_shader.cmake VERBATIM)
+   DEPENDS test/alignment_divide_probe.slang shaders/alignment.slang shaders/exact_divide.slang shaders/hash_shader.cmake VERBATIM)
   add_custom_target(alignment_divide_probe_spirv DEPENDS "${DIVIDE_PROBE_DIR}/divide_probe.spv" "${DIVIDE_PROBE_DIR}/divide_probe.spv.sha256")
   add_executable(qualify_alignment_divide test/alignment_divide_gpu_test.cpp)
   target_link_libraries(qualify_alignment_divide PRIVATE resident_rgbd)

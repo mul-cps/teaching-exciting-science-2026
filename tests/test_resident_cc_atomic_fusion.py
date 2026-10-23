@@ -38,10 +38,10 @@ def test_active_flatten_is_atomic_before_boundary_lane_early_return():
 
 def test_submission_has_no_parent_copy_or_extra_copy_barriers():
     source=(PACKAGE/'src/gpu_pipeline.cpp').read_text()
-    submit=function(source,'void Pipeline::submit(')
+    submit=function(source,'void Pipeline::submit_impl(')
     assert 'copy_canonical_parents' not in submit and 'parent_copy' not in submit
     assert 'for(unsigned i=0;i<32;i++){dispatch(3);dispatch(2);}dispatch(3)' in submit
-    assert submit.count('vkCmdCopyBuffer(')==3  # upload, compact, explicit diagnostics only
+    assert submit.count('vkCmdCopyBuffer(')==4  # RGB/legacy upload, optional device depth, compact, diagnostics
     assert 'vkCmdCopyBuffer(s.command,s.scratch.buffer,s.scratch.buffer' not in submit
     assert submit.count('VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,')==0
     assert 'VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT|VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT' in submit

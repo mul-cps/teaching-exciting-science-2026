@@ -1,3 +1,4 @@
+#include "exact_divide.slang"
 // RGB8/Z16 aligned input. Source pixel centers; no +0.5 deprojection offset.
 // Binding layout is deliberately identical for every offline-compiled entry.
 [[vk::binding(0,0)]] ByteAddressBuffer input;
@@ -42,7 +43,7 @@ void convert(uint3 tid:SV_DispatchThreadID){
  uint i=tid.x;if(i>=p.count)return;uint at=3*p.count+2*i;uint raw=byteAt(at)|(byteAt(at+1)<<8);
  precise float d=float(raw)*p.scale;
  scratch.Store(4*i,maskAt(i));scratch.Store(4*(p.count+i),asuint(d));
- precise float x=(float(i%p.width)-p.cx)/p.fx;precise float y=(float(i/p.width)-p.cy)/p.fy;
+ precise float x=alignment_divide((float(i%p.width)-p.cx),p.fx);precise float y=alignment_divide((float(i/p.width)-p.cy),p.fy);
  scratch.Store4(4*(2*p.count+4*i),asuint(float4(x*d,y*d,d,raw!=0?1.0:0.0)));
  // per-root reductions: count,xmin,ymin,xmax,ymax,zmin,zmax,color,pad
  uint a=4*(8*p.count+9*i);scratch.Store(a,0);scratch.Store(a+4,0xffffffff);scratch.Store(a+8,0xffffffff);

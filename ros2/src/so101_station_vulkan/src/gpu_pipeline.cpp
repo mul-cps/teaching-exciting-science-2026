@@ -51,11 +51,23 @@ void Pipeline::create_gpu(){
   for(unsigned i=0;i<4;i++){ws[i].sType=VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;ws[i].dstSet=s.descriptors;ws[i].dstBinding=i;ws[i].descriptorCount=1;ws[i].descriptorType=VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;ws[i].pBufferInfo=&infos[i];}vkUpdateDescriptorSets(c.device,ws.size(),ws.data(),0,nullptr);
  }
 }
-void Pipeline::submit(const FrameLease& f){
+void Pipeline::submit(const FrameLease& f){submit_impl(f,nullptr);}
+void Pipeline::submit_device_depth(const FrameLease& f,const Buffer& packed_z16){submit_impl(f,&packed_z16);}
+void Pipeline::submit_impl(const FrameLease& f,const Buffer* packed_z16){
  if(!pool_->owns(f))throw std::invalid_argument("foreign or empty frame lease");auto& s=f.slot();if(s.submitted)throw std::logic_error("frame already submitted");
  const auto& calibration=s.calibration;
  if(!std::isfinite(calibration.fx)||!std::isfinite(calibration.fy)||!std::isfinite(calibration.depth_scale)||calibration.fx<=0||calibration.fy<=0||calibration.depth_scale<=0||!std::isfinite(calibration.cx)||!std::isfinite(calibration.cy))throw std::invalid_argument("invalid frame calibration");
  if(s.metadata.calibration_generation!=calibration.generation)throw std::invalid_argument("frame calibration generation mismatch");
+ if(packed_z16){
+  if(backend_!="vulkan")throw std::invalid_argument("device depth requires Vulkan backend");
+  const size_t n=size_t(width())*height(),rgb_bytes=3*n,depth_bytes=2*n;
+  if(n%4)throw std::invalid_argument("device depth copies require a four-byte aligned pixel count");
+  if(s.metadata.width!=width()||s.metadata.height!=height())throw std::invalid_argument("device depth frame dimensions mismatch");
+  if(packed_z16->owner!=context_.get()||packed_z16->buffer==VK_NULL_HANDLE||packed_z16->size!=depth_bytes)throw std::invalid_argument("invalid device depth source");
+  if(packed_z16->buffer==s.input.buffer||packed_z16->buffer==s.upload.buffer||
+     (packed_z16->memory!=VK_NULL_HANDLE&&(packed_z16->memory==s.input.memory||packed_z16->memory==s.upload.memory)))throw std::invalid_argument("device depth source aliases core storage");
+  if(rgb_bytes>s.upload.size||rgb_bytes>s.input.size||depth_bytes>s.input.size-rgb_bytes)throw std::invalid_argument("device depth input range exceeds storage");
+ }
  if(backend_=="cpu"){cpu_reference(s,width(),height());s.submitted=true;return;}
  // The shared command pool requires host serialization while recording. This
  // mutex never waits for the device; independent frame fences retain overlap.
@@ -63,7 +75,9 @@ void Pipeline::submit(const FrameLease& f){
  VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;check(vkBeginCommandBuffer(s.command,&begin),"begin frame");
  if(s.timestamps)vkCmdResetQueryPool(s.command,s.timestamps,0,9);
  auto stamp=[&](unsigned i){if(s.timestamps)vkCmdWriteTimestamp(s.command,VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,s.timestamps,i);};stamp(0);
- VkBufferCopy copy{0,0,s.input.size};vkCmdCopyBuffer(s.command,s.upload.buffer,s.input.buffer,1,&copy);vkCmdFillBuffer(s.command,s.compact.buffer,0,s.compact.size,0);
+ VkBufferCopy copy{0,0,packed_z16?size_t(width())*height()*3:s.input.size};vkCmdCopyBuffer(s.command,s.upload.buffer,s.input.buffer,1,&copy);
+ if(packed_z16){VkBufferCopy depth_copy{0,size_t(width())*height()*3,packed_z16->size};vkCmdCopyBuffer(s.command,packed_z16->buffer,s.input.buffer,1,&depth_copy);}
+ vkCmdFillBuffer(s.command,s.compact.buffer,0,s.compact.size,0);
  barrier(s.command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT);
  Parameters p{width(),height(),width()*height(),kMaxComponents,s.calibration.depth_scale,s.calibration.fx,s.calibration.fy,s.calibration.cx,s.calibration.cy,1.2f,.012f,pool_->diagnostics?1u:0u};
  vkCmdBindDescriptorSets(s.command,VK_PIPELINE_BIND_POINT_COMPUTE,layout_,0,1,&s.descriptors,0,nullptr);vkCmdPushConstants(s.command,layout_,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof(p),&p);

@@ -30,6 +30,9 @@ class Alignment {
  std::shared_ptr<AlignmentState> state_;
 public:
  Alignment(std::shared_ptr<Context>,AlignmentCalibration,const std::string& shader_dir,bool diagnostics=false);
+ bool owns(const AlignmentLease&)const;
+ std::shared_ptr<Context> context()const;
+ const AlignmentCalibration& calibration()const;
  AlignmentLease acquire(); void submit(const AlignmentLease&); bool ready(const AlignmentLease&)const;
 };
 }

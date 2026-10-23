@@ -11,6 +11,7 @@ def main():
     parser.add_argument('--build', type=Path, required=True)
     args = parser.parse_args()
     expected = {
+        'shaders': {'convert': False},
         'alignment-shaders': {'splat': False, 'finalize': False},
         'geometry-shaders': {'geometry_coordinates': True, 'geometry_support_scan': False,
                              'geometry_support_offsets': False, 'geometry_support_scatter': True,
@@ -29,6 +30,9 @@ def main():
                 raise AssertionError(f'{entry}: fused arithmetic is not reference qualified')
             if ('OpCapability Float64' in text) != needs_fp64:
                 raise AssertionError(f'{entry}: unexpected FP64 capability')
+            if entry == 'convert':
+                assert set(re.findall(r'OpCapability (\w+)', text)) == {'Shader'}
+                assert not re.search(r'OpType(?:Int|Float) 64\b', text)
             print(f'{entry}: validation PASS; {len(arithmetic)} arithmetic IDs all NoContraction; Float64={needs_fp64}')
 
 
