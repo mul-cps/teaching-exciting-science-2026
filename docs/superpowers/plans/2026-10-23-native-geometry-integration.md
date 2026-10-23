@@ -132,20 +132,54 @@ correctness or the station budgets does not become the default backend.
 
 ## 4. Specify and implement resident evidence, not diagnostic downloads
 
-Define a typed, bounded per-frame evidence lease that retains its source through
-the final consumer fence. Include original parents, depth children, local support,
-observed membership, ordinary resident closed membership and deterministic order.
-Keep calibration/configuration generation and computational crop origins explicit.
+The first original-color parent boundary is implemented and checked in the
+[resident-parent checkpoint](../../performance/resident-parents-20261023.md).
+`ParentPreparation` borrows the completed producer's original known-color mask,
+including colored pixels with invalid depth. Exact eight-connected parents use
+true minimum 2×2 block keys and color-segmented GRANA IDs for **all** parents
+before the area filter. The full label map remains resident; bounded ordered
+compact records preserve those IDs. Positive thresholds above image area remain
+valid and emit no compact records. No RGB reclassification or depth-cut child
+roots stand in for original parents.
+
+`ParentLease` retains the actual source and its metadata through its consumers;
+its weak pool token reserves no source slot. Three source-index arenas, immutable
+root-walk snapshots, explicit compact overflow/nonconvergence faults, and guarded
+map/record accessors preserve the bounded ownership contract. A 4096-record cap
+and 32 hook/flatten rounds are budgets, not universal scene/convergence proofs.
+The ordinary path reads back only compact results. The cold transfer-source
+capability enables a separate explicit diagnostic; it does not add an ordinary
+dense host download.
+
+Thirty-four recorded AMD/Intel processes pass exact full-parent map/count/record
+comparison or the required unusable gates: thirty normal results and four
+invalid-mask/overflow results. CPU/native, independent resource reviews, full
+build/CTest/install and source/runtime/SPV seals accompany that evidence. This
+closes only the recorded original-parent preparation boundary, not performance,
+child/support/report parity, a physical source or the full station release.
+
+Next retain and verify depth children, local support, observed membership and
+ordinary resident closed membership. Freeze the retained splitter's actual
+**default** CCL labels/order on the exact tight parent crop, including odd sizes
+and both crop-origin parities. Parent global GRANA/block ordering cannot be used
+as a substitute for crop-local child labels. Preserve the finite inclusive depth
+range, strict depth-jump predicate, removal of both bad-edge endpoints, child
+area gate and post-child clipped support halo. Separate source/algorithm evidence
+from complete crop/halo/membership fixtures and actual runtime qualification.
 
 Current Core normal morphology stores closed counts; dense closed memberships are
-diagnostic-only. Separate ordinary resident retention from diagnostic readback.
-Do not enable dense diagnostic downloads to make the geometry consumer work.
-Preserve three-slot ownership, latest pending replacement, bounded capacities,
-explicit overflow/nonconvergence faults and zero frame-time allocation/device waits.
+still diagnostic-only. Do not enable dense diagnostic downloads to make the
+geometry consumer work. Keep calibration/configuration generations and
+computational crop origins explicit. Preserve three-slot ownership, latest
+pending replacement, bounded capacities, explicit faults and zero frame-time
+allocation/device waits. Future consumers must retain their lease through their
+own fence, not merely through producer readiness.
 
-Verify every intermediate against the frozen parent/child/support/contour matrix
-before implementing accepted object reports. Unsupported configurations must fail
-visibly instead of silently using different depth/area thresholds.
+Verify every intermediate against the frozen child/support/contour matrix before
+implementing accepted object reports. Pool identity is a storage-owner guard;
+node-level source health/order, epochs, freshness and timestamped transform/world
+admission remain separate. Unsupported configurations must fail visibly instead
+of silently using different depth/area thresholds.
 
 ## 5. Implement the complete estimator and publication contract
 

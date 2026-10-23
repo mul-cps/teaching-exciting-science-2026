@@ -369,3 +369,112 @@ baseline/speedup; native/software AMD comparison was descriptive without DVFS
 isolation. The [measured header snapshot](../../docs/performance/geometry-preparation-timing-20261023.md#measured-source-and-current-tree)
 predates the intentional `FramePoolToken` API addition; current transitive sources
 must not be presented as the historical measured version.
+
+## Resident original-color parent diagnostic
+
+The [parent checkpoint](../../docs/performance/resident-parents-20261023.md)
+qualifies only the recorded original-color parent maps, counts and ordered
+records. It does not qualify children, objects, camera sources, world coordinates
+or performance. The [factory/comparator](../qualify_native_parents.py) needs only
+Python, NumPy and OpenCV; preparing CPU expectations does not need ROS or a
+Vulkan installation. It uses the committed eight-witness fixture and explicit
+full-mask `CCL_GRANA` per color. It refuses an existing fixture directory and
+never generates expectations from a native/GPU output.
+
+Run from the repository root with the reviewed Python environment:
+
+```bash
+task_parent_prefix=$(mktemp -d "${TMPDIR:-/tmp}/parent-diagnostic.XXXXXX")
+task_parent_fixtures="$task_parent_prefix/fixtures"
+python tools/qualify_native_parents.py prepare --output "$task_parent_fixtures"
+python tools/qualify_native_parents.py verify "$task_parent_fixtures"
+```
+
+The seventeen cases include the eight literal witnesses, exact block-edge and
+four-color cases, a 640×480 parent, 4096 isolated records, positive area thresholds
+above image area, and invalid-mask/overflow negatives. PARENTQv1 stores a 48-byte
+little-endian header followed by N U32 mask words. Calibration/configuration
+values 17/23 and all source timestamps/tags are procedural test metadata.
+
+Manually compile [qualify_parents.cpp](qualify_parents.cpp) against the exact
+reviewed `resident_parents` and `resident_rgbd` libraries and their current
+headers. There is deliberately no GPU CTest or new qualifier CMake target.
+Choose the native compiler, SDK headers and actual Vulkan loader consistently
+with that runtime. Pin and inspect the resolved libraries; a source tag does not
+substitute for an ABI-consistent build or loaded-library evidence.
+
+```bash
+task_parent_cxx=${PARENT_CXX:-c++}
+task_parent_libdir=${PARENT_LIBRARY_DIR:?reviewed native parent and Core libraries}
+task_parent_sdk=${PARENT_VULKAN_INCLUDE:?reviewed directory containing Vulkan headers}
+task_parent_loader=${PARENT_VULKAN_LIBRARY:?reviewed actual Vulkan loader file}
+task_parent_loader_dir=$(dirname -- "$task_parent_loader")
+task_parent_shaders=${PARENT_SHADER_DIR:?validated nine-entry parent shader directory}
+task_parent_qualifier_sha=$(python -c 'import hashlib; from pathlib import Path; print(hashlib.sha256(Path("tools/performance/qualify_parents.cpp").read_bytes()).hexdigest())')
+task_parent_module_sha=$(python -c 'import hashlib; from pathlib import Path; print(hashlib.sha256(Path("ros2/src/so101_station_vulkan/src/parents.cpp").read_bytes()).hexdigest())')
+"$task_parent_cxx" -std=c++17 -O2 -pthread \
+  -Iros2/src/so101_station_vulkan/include -I"$task_parent_sdk" \
+  tools/performance/qualify_parents.cpp \
+  "-DPARENT_QUALIFIER_SOURCE_SHA256=\"$task_parent_qualifier_sha\"" \
+  "-DPARENT_MODULE_SOURCE_SHA256=\"$task_parent_module_sha\"" \
+  -L"$task_parent_libdir" "-Wl,-rpath,$task_parent_libdir" \
+  "-Wl,-rpath,$task_parent_loader_dir" \
+  -lresident_parents -lresident_rgbd "$task_parent_loader" -ldl \
+  -o "$task_parent_prefix/qualify_parents"
+ldd "$task_parent_prefix/qualify_parents"
+```
+
+Keep the nine SPV hashes, `source.sha256`, compiler hash/version/flags and
+`provenance.txt` with the runtime. Parent shaders need only Shader capability;
+neither Float64 nor Int64 is an admission requirement. The native package can
+build `resident_parents parent_spirv` in the reviewed station environment using
+`SLANGC_EXECUTABLE` or a matching `PRECOMPILED_PARENT_SHADER_DIR`; compiler/cache
+identity checks must remain enabled. Do not stamp an older library with the
+current source hash without rebuilding/verifying its actual source identity.
+
+This invocation parses and hashes the bounded fixture, without creating a
+Vulkan Context. Its optional fresh prefix writes only `.offline.json`:
+
+```bash
+task_parent_case=four-colors-2x2
+"$task_parent_prefix/qualify_parents" --offline \
+  "$task_parent_fixtures/$task_parent_case.parentq" \
+  "$task_parent_prefix/parser-only"
+```
+
+For a newly reviewed GPU run, construct this argument vector. This block does
+not launch it:
+
+```bash
+task_parent_gpu_args=(
+  "$task_parent_prefix/qualify_parents" --vulkan
+  "$task_parent_fixtures/$task_parent_case.parentq" "$task_parent_shaders"
+  "$task_parent_prefix/$task_parent_case-result" --external-watchdog-ack
+)
+```
+
+Have the released, reviewed **external process-group watchdog** execute the
+vector with a finite whole-process deadline, TERM/KILL/drain ownership, immutable
+inputs, actual loader/ICD/critical-library pre/post seals and no-children checks.
+The accepted protocol used 90 seconds per process and stopped on first failure.
+The acknowledgment argument alone is not a watchdog. The qualifier's ten-second
+source/transfer fences and parent polls cannot bound blocked cold driver calls or
+teardown. Select the hardware ICD and loader for that child only; do not install
+global overrides. Use fresh output prefixes. No camera, actuator, service or ROS
+node is involved.
+
+After the external owner has accepted a successful child, compare its entire
+label map, counts and every ordered record against the independent CPU arrays:
+
+```bash
+python tools/qualify_native_parents.py compare "$task_parent_fixtures" \
+  "$task_parent_case" "$task_parent_prefix/$task_parent_case-result"
+```
+
+Run all seventeen cases separately on each reviewed device/runtime. For either
+negative case, `finish` and all computed-output accessors must reject, and no
+label/count/record files may be published. Retain raw JSON, binary hashes,
+comparison payloads and runtime/source identities. CPU fixture regeneration is
+reproducibility support; it cannot replace the recorded GPU outputs with new
+"GPU goldens". Diagnostic dense readback is outside the ordinary resident path,
+and neither these runs nor modeled root-read reductions establish FPS or speedup.
