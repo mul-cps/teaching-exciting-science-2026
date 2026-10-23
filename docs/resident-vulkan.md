@@ -17,7 +17,7 @@ Offline Slang compilation emits SPIR-V for eight entry points. The source/compil
 | Reduction | Compact >=24-pixel component count, root, color, pixel bounds, min/max depth | Capacity 4096; overflow fails, never truncates silently |
 | Per-piece morphology | Exact tight-bbox 3×3 closing implemented with separate overlapping root memberships, original OpenCV borders, max nine source roots per pixel | Exact per-pixel memberships/counts match native CPU and retained OpenCV on both AMD/Intel bounded offline matrix; full geometry remains open |
 | Support/contours/geometry | Preparation only: FP64 cached coordinates, known-hue vivid 7×7 preparation and row-major stride 8 | AMD eight-fixture preparation passes at 1e-12; Intel rejects unsupported FP64. RANSAC, support contours, PCA and complete object reports are not implemented |
-| Raw alignment | Separate Alignment API implemented for zero distortion, checked against scalar SDK oracle | Exact GPU Z16 RED case 2 has AMD 160 / Intel 216 mismatches against the scalar SDK oracle; no camera adapter or strict-camera qualification |
+| Raw alignment | Separate Alignment API implemented for zero distortion, checked against scalar SDK oracle | [Exact alignment qualification](performance/alignment-20261023.md) now passes all eight CPU/SDK/GPU cases on AMD and Intel: exact Z16, maximum XYZ error 0 m, unchanged outer 1e-7 m gate; current 640×480 zero-coefficient profile/loaded SDK only. [Machine evidence](performance/alignment-20261023.json); no camera adapter or strict-camera qualification |
 | Encoding/recording | Shared-device GPU conversion and H.264 implemented; see [resident video](resident-video.md) | AMD 60 encoded / 60 CPU-decoded / 60 hardware-decoded frames pass hashes and luma; Intel first packet is corrupt and uses CPU fallback. No caller recording-service integration |
 | Occupancy mapping | Not implemented | No free-space evidence or OctoMap qualification |
 
@@ -66,7 +66,7 @@ Median-of-three native trial p95 is AMD dense/recorded 1.059647/0.482329 ms and 
 
 Intel recorded uses 1.664821 ms process CPU/completed frame versus CPU mode 6.141550 ms (72.89% less); dense uses 2.156685 versus 24.448020 ms, with different delivered throughput. These are perception-process metrics, not whole-host capacity. Separate 125 Hz control trials are synthetic, not physical control qualification. Normal upload/readback remain 1,536,000/163,856 B per frame; diagnostics read back 34,570,256 B.
 
-The latest-frame software policy retains one active and one replaceable pending frame within three leases, publishes unique completed cohorts, and preserves original source hardware metadata and pre-alignment receipt time. Its CPU review does not establish live camera throughput. Raw alignment, video integration, full geometry, live camera/unique-frame freshness, complete station CPU reduction, soak and physical acceptance remain unqualified; there is no canonical deployment.
+The latest-frame software policy retains one active and one replaceable pending frame within three leases, publishes unique completed cohorts, and preserves original source hardware metadata and pre-alignment receipt time. Its CPU review does not establish live camera throughput. Raw camera alignment integration and normal alignment timing, video integration, full geometry, live camera/unique-frame freshness, complete station CPU reduction, soak and physical acceptance remain unqualified; there is no canonical deployment.
 
 ## Historical seven-stage qualification baseline, 2026-10-22
 

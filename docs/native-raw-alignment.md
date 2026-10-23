@@ -38,8 +38,14 @@ build. A deployment must repeat the oracle with the exact loaded SDK binary.
 The Slang shader explicitly implements ties-to-even rather than assuming the
 meaning of HLSL `round`. It compiles offline with `-fp-mode precise`, and preserves
 association. GPU division precision still requires exact rasterization tests on
-each device. The acceptance check is zero differing Z16 pixels and at most
-1 micrometre XYZ error; no existing geometry gate is relaxed.
+each device. The executable retains its inner acceptance cap of zero differing Z16 pixels and
+1e-6 m XYZ error. The required outer `alignment_result` gate remains 1e-7 m;
+passing the inner cap alone is insufficient. The [exact alignment report](performance/alignment-20261023.md)
+and [machine evidence](performance/alignment-20261023.json) record all eight CPU/SDK/GPU
+cases on both AMD and Intel with exact Z16 and current maximum XYZ error 0 m.
+The integer-verified RNE division fix covers both projection and XYZ sites without
+FP64/Int64 or relaxed thresholds. This is the current 640×480 zero-coefficient
+profile only; repeat the oracle for another loaded SDK build or profile.
 
 ## Ownership and transfers
 

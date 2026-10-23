@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <thread>
 using namespace so101_station_vulkan;
@@ -26,7 +27,21 @@ std::vector<uint16_t> sdk_align(const AlignmentCalibration& k,std::vector<uint16
  }
  ds.stop();cs.stop();ds.close();cs.close();if(output.empty())throw std::runtime_error("software device did not synchronize");return output;
 }
+void observe_xyz_error(double& maximum,float expected,float actual){
+ if(!std::isfinite(expected)||!std::isfinite(actual))throw std::runtime_error("nonfinite XYZ coordinate");
+ const float error=std::abs(expected-actual);
+ if(!std::isfinite(error))throw std::runtime_error("nonfinite XYZ error");
+ maximum=std::max(maximum,double(error));
+}
+void xyz_error_rejection_tests(){
+ double maximum=0;observe_xyz_error(maximum,1.f,1.f);if(maximum!=0)throw std::runtime_error("equal XYZ error changed maximum");
+ const float small=1e-8f;observe_xyz_error(maximum,small,0.f);if(maximum!=double(small))throw std::runtime_error("finite XYZ error changed maximum");
+ auto reject=[](float expected,float actual){double maximum=0;bool threw=false;try{observe_xyz_error(maximum,expected,actual);}catch(const std::runtime_error&){threw=true;}if(!threw)throw std::runtime_error("nonfinite XYZ error accepted");};
+ for(float invalid:{std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity(),-std::numeric_limits<float>::infinity()}){reject(0.f,invalid);reject(invalid,0.f);}
+ reject(std::numeric_limits<float>::max(),-std::numeric_limits<float>::max());
+}
 void rejection_tests(){
+ xyz_error_rejection_tests();
  AlignmentCalibration k;k.depth={640,480,319,239,600,600,RS2_DISTORTION_NONE,{0,0,0,0,0}};k.color=k.depth;k.depth_to_color={{1,0,0,0,1,0,0,0,1},{0,0,0}};k.convention=AlignmentConvention::Scalar;
  auto reject=[&](AlignmentCalibration bad){bool threw=false;try{validate_alignment(bad);}catch(const std::invalid_argument&){threw=true;}if(!threw)throw std::runtime_error("invalid calibration accepted");};
  auto bad=k;bad.convention=AlignmentConvention::Unknown;reject(bad);bad=k;bad.depth.coeffs[0]=.01f;reject(bad);bad=k;bad.depth_units=0;reject(bad);bad=k;bad.depth_to_color.translation[0]=NAN;reject(bad);bad=k;bad.color.fx=INFINITY;reject(bad);bad=k;bad.depth.width=641;reject(bad);
@@ -47,8 +62,8 @@ int main(int argc,char** argv)try{
   if(mismatch)throw std::runtime_error("Pinned scalar CPU SDK convention mismatch case="+std::to_string(fixture)+" pixels="+std::to_string(mismatch));
   std::cout<<"case="<<fixture<<" convention="<<uint32_t(k.convention)<<" corners="<<alignment_uses_corners(k)<<" cpu_sdk_mismatch=0\n";
   // Independent SDK aligned-pixel deprojection; metric tolerance unchanged 1um.
-  for(size_t i=0;i<N;i++){float pixel[2]{float(i%640),float(i/640)},point[3];rs2_deproject_pixel_to_point(point,&k.color,pixel,oracle[i]*k.depth_units);for(unsigned a=0;a<3;a++)max_xyz=std::max(max_xyz,double(std::abs(point[a]-xyz[4*i+a])));}
-  if(gpu){Alignment pipeline(Context::shared(),k,ALIGNMENT_SHADER_DIR,true);auto frame=pipeline.acquire();std::memcpy(frame.upload(),raw.data(),N*2);frame.metadata().frame_number=91;frame.metadata().depth_frame_number=90;frame.metadata().timestamp_ns=12345678;pipeline.submit(frame);auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);while(!pipeline.ready(frame)){if(std::chrono::steady_clock::now()>deadline)throw std::runtime_error("GPU alignment deadline");std::this_thread::yield();}mismatch=0;auto aligned=frame.diagnostic_depth();auto actual_xyz=frame.diagnostic_xyz();for(size_t i=0;i<N;i++){mismatch+=aligned[i]!=oracle[i];for(unsigned a=0;a<3;a++)max_xyz=std::max(max_xyz,double(std::abs(xyz[i*4+a]-actual_xyz[i*4+a])));}if(mismatch)throw std::runtime_error("GPU SDK mismatch case="+std::to_string(fixture)+" pixels="+std::to_string(mismatch));if(frame.metadata().timestamp_ns!=12345678||frame.metadata().depth_frame_number!=90||frame.metadata().calibration_generation!=17)throw std::runtime_error("frame provenance lost");auto b=pipeline.acquire(),c=pipeline.acquire();if(!b||!c||pipeline.acquire())throw std::runtime_error("alignment pool bound");auto retained=frame;frame={};if(pipeline.acquire())throw std::runtime_error("copied lease lost ownership");}
+  for(size_t i=0;i<N;i++){float pixel[2]{float(i%640),float(i/640)},point[3];rs2_deproject_pixel_to_point(point,&k.color,pixel,oracle[i]*k.depth_units);for(unsigned a=0;a<3;a++)observe_xyz_error(max_xyz,point[a],xyz[4*i+a]);}
+  if(gpu){Alignment pipeline(Context::shared(),k,ALIGNMENT_SHADER_DIR,true);auto frame=pipeline.acquire();std::memcpy(frame.upload(),raw.data(),N*2);frame.metadata().frame_number=91;frame.metadata().depth_frame_number=90;frame.metadata().timestamp_ns=12345678;pipeline.submit(frame);auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);while(!pipeline.ready(frame)){if(std::chrono::steady_clock::now()>deadline)throw std::runtime_error("GPU alignment deadline");std::this_thread::yield();}mismatch=0;auto aligned=frame.diagnostic_depth();auto actual_xyz=frame.diagnostic_xyz();for(size_t i=0;i<N;i++){mismatch+=aligned[i]!=oracle[i];for(unsigned a=0;a<3;a++)observe_xyz_error(max_xyz,xyz[i*4+a],actual_xyz[i*4+a]);}if(mismatch)throw std::runtime_error("GPU SDK mismatch case="+std::to_string(fixture)+" pixels="+std::to_string(mismatch));if(frame.metadata().timestamp_ns!=12345678||frame.metadata().depth_frame_number!=90||frame.metadata().calibration_generation!=17)throw std::runtime_error("frame provenance lost");auto b=pipeline.acquire(),c=pipeline.acquire();if(!b||!c||pipeline.acquire())throw std::runtime_error("alignment pool bound");auto retained=frame;frame={};if(pipeline.acquire())throw std::runtime_error("copied lease lost ownership");}
   cases++;
  }
  if(max_xyz>1e-6)throw std::runtime_error("metric deprojection exceeds 1um");std::cout<<"PASS cases="<<cases<<" max_xyz_error_m="<<max_xyz<<" gpu="<<gpu<<" physical=false\n";return 0;
