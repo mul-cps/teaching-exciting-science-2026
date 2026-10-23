@@ -107,7 +107,7 @@ def make_docx(filename, source, *, worksheet=False):
             if line[3:] == "Optional color destinations extension" and filename == "student-handbook.docx":
                 d.add_page_break()
             if line[3:] in mission_titles:
-                if filename in ("activity-cards.docx", "instructor-guide.docx", "student-handbook.docx") or (worksheet and mission_index % 2 == 0):
+                if filename in ("activity-cards.docx", "instructor-guide.docx", "student-handbook.docx") or (worksheet and (mission_index % 2 == 0 or mission_index == 5)):
                     d.add_page_break()
                 mission_index += 1
             if filename == "student-handbook.docx" and line.startswith(("## A ", "## B ", "## C ", "## D ", "## E ", "## A ·", "## B ·", "## C ·", "## D ·", "## E ·")):
@@ -116,8 +116,21 @@ def make_docx(filename, source, *, worksheet=False):
         elif line.startswith("- [ ] "):
             runs(d.add_paragraph(), "[ ] " + line[6:])
         else:
-            p = d.add_paragraph()
-            runs(p, line, code=code)
+            # Station predictions and evidence need a full handwriting line.
+            # Keep each long canonical label with its intentionally separate rule.
+            if worksheet and mission_index == 5 and " — " in line and "_" in line:
+                label, rule = line.rsplit(" ", 1)
+                p = d.add_paragraph()
+                p.paragraph_format.keep_with_next = True
+                runs(p, label)
+                p = d.add_paragraph()
+                p.paragraph_format.space_after = Pt(6)
+                runs(p, rule)
+            else:
+                p = d.add_paragraph()
+                if worksheet and "_" in line:
+                    p.paragraph_format.space_after = Pt(6)
+                runs(p, line, code=code)
     d.core_properties.title = next(line[2:] for line in lines if line.startswith("# "))
     d.core_properties.subject = "22 October 2026 workshop"
     footer = sec.footer.paragraphs[0]
