@@ -2,7 +2,7 @@
 
 # Local Blockly robot factory
 
-Start `python tools/run_blockly_station.py`, then open http://127.0.0.1:8877. Choose a mission, predict, edit one thing, run, inspect and explain. Save your workspace before changing missions. STOP ends the program; later blocks must not run. Reset simulation state between experiments. Missing recordings are a reason to inspect and prepare, never a reason to invent a physical success.
+Start `python tools/run_blockly_station.py`, then open http://127.0.0.1:8877. Choose a mission, predict, edit one thing, run, inspect and explain. Save your workspace before changing missions. STOP ends the program; later blocks must not run. Use **Reset simulation** between experiments. Missing recordings are a reason to inspect and prepare, never a reason to invent a physical success.
 
 Simulation, paper, reports and measured physical outcomes are separate evidence. Never claim a grasp or placement from a command log alone. Unknown or stale observations require pause and inspection.
 
@@ -16,7 +16,7 @@ Mission `blocks` · 25 minutes · Put instructions in order and repeat a small s
 
 **Change** Change Ready to your pair name. Add repeat 2 around a message, then around one tested short sequence.
 
-**Run** Open local Blockly simulation; select this mission; run the starter once. Use STOP and Reset before a different test. Save your workspace.
+**Run** Open local Blockly simulation; select this mission; run the starter once. Use STOP and **Reset simulation** before a different test. Save your workspace.
 
 **Observe** Read the command log and model state. Compare the repeated messages with your prediction.
 

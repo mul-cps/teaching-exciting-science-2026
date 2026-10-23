@@ -49,7 +49,7 @@ Mission `blocks` · 25 minutes · Put instructions in order and repeat a small s
 
 **Change** Change Ready to your pair name. Add repeat 2 around a message, then around one tested short sequence.
 
-**Run** Open local Blockly simulation; select this mission; run the starter once. Use STOP and Reset before a different test. Save your workspace.
+**Run** Open local Blockly simulation; select this mission; run the starter once. Use STOP and **Reset simulation** before a different test. Save your workspace.
 
 **Observe** Read the command log and model state. Compare the repeated messages with your prediction.
 
@@ -103,7 +103,7 @@ Mission `python` · 30 minutes · Read and edit a short Python program before sh
 
 **Run** Open the Student notebook, save a pair copy and run cells from the top with Shift+Enter. Run the shared Program example in simulation.
 
-**Observe** Count output lines and compare the shared Python program JSON with the Blockly exported JSON.
+**Observe** Count output lines. Open **View executable Python** in Blockly and compare the command rows in its `program` list with `program.program` in the shared Python example. JSON is text that stores the instruction list. **Save blocks** saves the workspace to reopen the editor; it is a different file.
 
 **Explain** Which edit changed text? Which changed how often a line ran? What stayed in the same order?
 
@@ -147,7 +147,7 @@ Mission `teach-demo` · 15 minutes · Understand that a recorded stroke needs va
 
 Mission `explore` · 45 minutes · Connect observations, instructions and the robot model.
 
-**Worked example** Three pairs rotate through arm/twin observation, conveyor/observation sequencing, and offline Blockly/Python preparation.
+**Worked example** Completed SIMULATION sample using the earlier invented joint calculation: our prediction was 35° relative. We changed LEADER_NOW from 10° to 15°, keeping LEADER_START = 10° and FOLLOWER_START = 30°. The model calculation 30 + 15 - 10 printed 35° relative and 15° absolute. This is arithmetic, not a measured physical joint or evidence of safe motion. For arm observation use the existing Teach demo example (Watch teach inspect return replay) and Live notebook. For conveyor reports use the Observe and decide example (Separate the object from its report). For offline preparation use the shared Program example under Change a name and a number.
 
 **Predict** At your current station, predict one direction, report or sequence before the instructor or simulator acts.
 
@@ -225,7 +225,7 @@ Mission `improve` · 20 minutes · Use a controlled change and evidence to impro
 
 Mission `share` · 10 minutes · Explain what your program did and what the evidence cannot prove.
 
-**Worked example** Pair A shows prediction, one change, observed result and one limit; then pairs B and C follow.
+**Worked example** Completed SIMULATION sample from the earlier Blockly message exercise: we predicted Ready would appear twice. We changed the repeat count from 1 to 2 around the Ready message. The simulated command log showed Ready twice. This checks message repetition only; it does not prove physical conveyor arrival or a grasp.
 
 **Predict** Which single output best supports your claim?
 

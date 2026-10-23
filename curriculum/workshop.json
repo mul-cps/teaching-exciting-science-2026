@@ -136,7 +136,7 @@
       "worked_example": "Ready \u2192 dispense \u2192 belt to pickup endpoint \u2192 inspect. In simulation each command changes a model; no physical object is verified.",
       "predict": "Which message appears first? Where should the object model stop?",
       "change": "Change Ready to your pair name. Add repeat 2 around a message, then around one tested short sequence.",
-      "run": "Open local Blockly simulation; select this mission; run the starter once. Use STOP and Reset before a different test. Save your workspace.",
+      "run": "Open local Blockly simulation; select this mission; run the starter once. Use STOP and **Reset simulation** before a different test. Save your workspace.",
       "observe": "Read the command log and model state. Compare the repeated messages with your prediction.",
       "explain": "Why do instruction order and a stopped belt matter before pickup?",
       "success": "Your pair can trace the order, predict a repeat count and explain one corrected sequence.",
@@ -181,7 +181,7 @@
         "worked_example": "Ready \u2192 dispense \u2192 belt to pickup \u2192 inspect. Simulation is a model.",
         "predict": "Which instruction runs first? Where should the model stop?",
         "change": "Change Ready to your pair name. Repeat one tested message twice.",
-        "run": "Run the local Blockly starter once. Reset between experiments.",
+        "run": "Run the local Blockly starter once. Use Reset simulation between experiments.",
         "observe": "Compare command order, model position and repeated messages.",
         "explain": "Why must the conveyor stop before the arm approaches?",
         "success": "Trace the order, predict repeat count and explain one correction.",
@@ -267,7 +267,7 @@
       "predict": "What greeting and how many object lines will appear?",
       "change": "Change TEAM, predict, run. Then change REPEATS to 2, predict, run. Keep indentation.",
       "run": "Open the Student notebook, save a pair copy and run cells from the top with Shift+Enter. Run the shared Program example in simulation.",
-      "observe": "Count output lines and compare the shared Python program JSON with the Blockly exported JSON.",
+      "observe": "Count output lines. Open **View executable Python** in Blockly and compare the command rows in its `program` list with `program.program` in the shared Python example. JSON is text that stores the instruction list. **Save blocks** saves the workspace to reopen the editor; it is a different file.",
       "explain": "Which edit changed text? Which changed how often a line ran? What stayed in the same order?",
       "success": "Both partners make one edit and explain it; shared commands are validated before execution.",
       "hints": [
@@ -299,7 +299,7 @@
         "predict": "What greeting and how many object lines will appear?",
         "change": "Change TEAM. Run. Then predict and change REPEATS to 2.",
         "run": "Save a pair notebook copy; run from the top with Shift+Enter.",
-        "observe": "Count lines. Compare Program JSON with the Blockly export.",
+        "observe": "Count lines. Compare program.program command rows with the program list in View executable Python.",
         "explain": "Which edit changed text? Which changed the number of repetitions?",
         "success": "Both partners make and explain one edit; share the same validated commands.",
         "hints": [
@@ -368,7 +368,7 @@
       "minutes": 45,
       "goal": "Connect observations, instructions and the robot model.",
       "example_id": "joint",
-      "worked_example": "Three pairs rotate through arm/twin observation, conveyor/observation sequencing, and offline Blockly/Python preparation.",
+      "worked_example": "Completed SIMULATION sample using the earlier invented joint calculation: our prediction was 35\u00b0 relative. We changed LEADER_NOW from 10\u00b0 to 15\u00b0, keeping LEADER_START = 10\u00b0 and FOLLOWER_START = 30\u00b0. The model calculation 30 + 15 - 10 printed 35\u00b0 relative and 15\u00b0 absolute. This is arithmetic, not a measured physical joint or evidence of safe motion. For arm observation use the existing Teach demo example (Watch teach inspect return replay) and Live notebook. For conveyor reports use the Observe and decide example (Separate the object from its report). For offline preparation use the shared Program example under Change a name and a number.",
       "predict": "At your current station, predict one direction, report or sequence before the instructor or simulator acts.",
       "change": "Change only one paper angle, report or message; switch driver and observer halfway.",
       "run": "Each slot is 15 minutes: 2 predict, 7 change/run, 4 observe/explain, 2 save and transition. Use the rotation table.",
@@ -382,10 +382,14 @@
       "extension": "Compare a fresh report with a stale one without guessing missing values.",
       "offline_route": "All three positions have photo, paper and simulation versions; record DEMO/OFFLINE if no measured stream.",
       "worksheet_prompts": [
-        "Our prediction was ...",
-        "We changed ...",
-        "Our evidence was ...",
-        "This does not prove ..."
+        "Arm and twin observation \u2014 our prediction",
+        "Arm and twin observation \u2014 run and observed evidence",
+        "Conveyor and observation sequencing \u2014 our prediction",
+        "Conveyor and observation sequencing \u2014 run and observed evidence",
+        "Offline Blockly and Python preparation \u2014 our prediction",
+        "Offline Blockly and Python preparation \u2014 run and observed evidence",
+        "We changed one thing",
+        "Explain the result and one limit"
       ],
       "instructor_notes": "No three physical robots implied. Instructor controls the arm path; preserve transition time.",
       "starter": [
@@ -403,7 +407,7 @@
         "Recordings"
       ],
       "slide_card": {
-        "worked_example": "Three pairs: arm/twin; conveyor/observations; offline preparation.",
+        "worked_example": "SIMULATION: changed leader now 10\u00b0\u219215\u00b0; predicted and calculated relative 30 + 15 - 10 = 35\u00b0. No physical joint was measured.",
         "predict": "Predict one direction, report or instruction order at this station.",
         "change": "Change one angle, report or message. Swap driver and observer.",
         "run": "15 minutes: 2 predict, 7 change/run, 4 observe/explain, 2 transition.",
@@ -438,10 +442,15 @@
       "extension": "After the core succeeds, discuss color-dependent destinations as separately validated taught skills.",
       "offline_route": "Use the same fixed pickup/drop paper layout and named-skill simulation. Its grasp/lift/release outcomes are synthetic assumptions with physical_evidence false. Missing recordings or qualification means physical execution remains incomplete.",
       "worksheet_prompts": [
-        "Our prediction was ...",
-        "We changed ...",
-        "Our evidence was ...",
-        "This does not prove ..."
+        "Our overall prediction",
+        "We changed one thing",
+        "Dispense \u2014 observed evidence",
+        "Arrival stopped at pickup fixture \u2014 observed evidence",
+        "Grasp \u2014 observed evidence",
+        "Lift \u2014 observed evidence",
+        "Place and release \u2014 observed evidence",
+        "Return \u2014 observed evidence",
+        "Explain the result and one limit"
       ],
       "instructor_notes": "Do not substitute demo recordings. Current historical operational notes remain evidence until a new physical rehearsal supersedes them. Never infer payload success from a log.",
       "starter": [
@@ -555,7 +564,7 @@
       "minutes": 10,
       "goal": "Explain what your program did and what the evidence cannot prove.",
       "example_id": "failure",
-      "worked_example": "Pair A shows prediction, one change, observed result and one limit; then pairs B and C follow.",
+      "worked_example": "Completed SIMULATION sample from the earlier Blockly message exercise: we predicted Ready would appear twice. We changed the repeat count from 1 to 2 around the Ready message. The simulated command log showed Ready twice. This checks message repetition only; it does not prove physical conveyor arrival or a grasp.",
       "predict": "Which single output best supports your claim?",
       "change": "Shorten your demonstration to one change and one observation.",
       "run": "Use 1 minute preparation, 3 demonstrations of 2 minutes, 3 minutes shared reflection. Both partners speak.",
@@ -585,7 +594,7 @@
         "Messages"
       ],
       "slide_card": {
-        "worked_example": "Show prediction, one change, observed result and one limit.",
+        "worked_example": "SIMULATION: repeat count 1\u21922. Predicted Ready twice; log showed Ready twice. This checks messages, not physical arrival or grasp.",
         "predict": "Which saved output best supports your claim?",
         "change": "Choose one change and one observation for the demonstration.",
         "run": "1 minute prepare; 3 \u00d7 2-minute pair demos; 3 minutes reflection.",

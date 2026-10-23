@@ -23,13 +23,13 @@ Pair names: __________________  Driver first: __________  Observer first: ______
 
 Put instructions in order and repeat a small section.
 
-Predict: ______________________________
+Our prediction was ...: ______________________________
 
-One change: ___________________________
+We changed ...: ______________________________
 
-Run and observed evidence: ______________________________
+Our evidence was ...: ______________________________
 
-Explain and limit: ______________________________
+This does not prove ...: ______________________________
 
 Evidence source (circle): PAPER / SIMULATION / PHYSICAL
 
@@ -39,13 +39,13 @@ Success check: Your pair can trace the order, predict a repeat count and explain
 
 Recognise missing and incorrect observations.
 
-Predict: ______________________________
+Our prediction was ...: ______________________________
 
-One change: ___________________________
+We changed ...: ______________________________
 
-Run and observed evidence: ______________________________
+Our evidence was ...: ______________________________
 
-Explain and limit: ______________________________
+This does not prove ...: ______________________________
 
 Evidence source (circle): PAPER / SIMULATION / PHYSICAL
 
@@ -55,13 +55,13 @@ Success check: You identify one missing and one wrong report and choose pause/in
 
 Read and edit a short Python program before sharing the same program representation with blocks.
 
-Predict: ______________________________
+Our prediction was ...: ______________________________
 
-One change: ___________________________
+We changed ...: ______________________________
 
-Run and observed evidence: ______________________________
+Our evidence was ...: ______________________________
 
-Explain and limit: ______________________________
+This does not prove ...: ______________________________
 
 Evidence source (circle): PAPER / SIMULATION / PHYSICAL
 
@@ -71,13 +71,13 @@ Success check: Both partners make one edit and explain it; shared commands are v
 
 Understand that a recorded stroke needs validated start/end poses and explicit jaw state.
 
-Predict: ______________________________
+Our prediction was ...: ______________________________
 
-One change: ___________________________
+We changed ...: ______________________________
 
-Run and observed evidence: ______________________________
+Our evidence was ...: ______________________________
 
-Explain and limit: ______________________________
+This does not prove ...: ______________________________
 
 Evidence source (circle): PAPER / SIMULATION / PHYSICAL
 
@@ -87,13 +87,21 @@ Success check: You can say teach → inspect/validate → return to start → re
 
 Connect observations, instructions and the robot model.
 
-Predict: ______________________________
+Arm and twin observation — our prediction: ______________________________
 
-One change: ___________________________
+Arm and twin observation — run and observed evidence: ______________________________
 
-Run and observed evidence: ______________________________
+Conveyor and observation sequencing — our prediction: ______________________________
 
-Explain and limit: ______________________________
+Conveyor and observation sequencing — run and observed evidence: ______________________________
+
+Offline Blockly and Python preparation — our prediction: ______________________________
+
+Offline Blockly and Python preparation — run and observed evidence: ______________________________
+
+We changed one thing: ______________________________
+
+Explain the result and one limit: ______________________________
 
 Evidence source (circle): PAPER / SIMULATION / PHYSICAL
 
@@ -103,13 +111,23 @@ Success check: Every pair completes all three positions with one recorded predic
 
 Assemble the supervised fixed pickup to fixed destination sequence.
 
-Predict: ______________________________
+Our overall prediction: ______________________________
 
-One change: ___________________________
+We changed one thing: ______________________________
 
-Run and observed evidence: ______________________________
+Dispense — observed evidence: ______________________________
 
-Explain and limit: ______________________________
+Arrival stopped at pickup fixture — observed evidence: ______________________________
+
+Grasp — observed evidence: ______________________________
+
+Lift — observed evidence: ______________________________
+
+Place and release — observed evidence: ______________________________
+
+Return — observed evidence: ______________________________
+
+Explain the result and one limit: ______________________________
 
 Evidence source (circle): PAPER / SIMULATION / PHYSICAL
 
@@ -119,13 +137,13 @@ Success check: Your pair explains the full fixed-fixture sequence and records ho
 
 Use a controlled change and evidence to improve a sequence.
 
-Predict: ______________________________
+Our prediction was ...: ______________________________
 
-One change: ___________________________
+We changed ...: ______________________________
 
-Run and observed evidence: ______________________________
+Our evidence was ...: ______________________________
 
-Explain and limit: ______________________________
+This does not prove ...: ______________________________
 
 Evidence source (circle): PAPER / SIMULATION / PHYSICAL
 
@@ -135,13 +153,13 @@ Success check: You show a failing prediction, one repair and a repeated check wi
 
 Explain what your program did and what the evidence cannot prove.
 
-Predict: ______________________________
+Our prediction was ...: ______________________________
 
-One change: ___________________________
+We changed ...: ______________________________
 
-Run and observed evidence: ______________________________
+Our evidence was ...: ______________________________
 
-Explain and limit: ______________________________
+This does not prove ...: ______________________________
 
 Evidence source (circle): PAPER / SIMULATION / PHYSICAL
 

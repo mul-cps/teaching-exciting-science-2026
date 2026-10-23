@@ -132,3 +132,80 @@ def test_final_core_starter_named_skill_is_simulation_not_physical_evidence():
     assert skill['physical_evidence'] is False
     assert skill['name']=='fixed_pick_place'
     assert all(skill[k] is False for k in ('pickup_verified','lift_verified','release_verified'))
+
+
+@pytest.mark.parametrize('prompts', [None, [], 'Predict', [None], [''], ['   '], [42], {'predict': 'value'}])
+def test_malformed_worksheet_prompts_rejected(prompts):
+    c = copy.deepcopy(load_curriculum())
+    c['missions'][0]['worksheet_prompts'] = prompts
+    with pytest.raises(ValueError, match='worksheet'):
+        validate_curriculum(c)
+
+
+def test_worksheet_uses_each_canonical_prompt_in_order():
+    from tools.build_notebooks import outputs
+    c = copy.deepcopy(load_curriculum())
+    c['missions'][0]['worksheet_prompts'] = ['Predict a unique direction', 'Record a unique observation']
+    worksheet = outputs(c)['docs/student-worksheet.md']
+    section = worksheet.split('## '+c['missions'][0]['title']+'\n\n', 1)[1].split('\n\n## ', 1)[0]
+    assert 'Predict a unique direction: ______' in section
+    assert 'Record a unique observation: ______' in section
+    assert section.index('Predict a unique direction') < section.index('Record a unique observation')
+    assert 'Our prediction was' not in section
+    assert 'Evidence source (circle): PAPER / SIMULATION / PHYSICAL' in section
+    assert 'Success check: '+c['missions'][0]['success'] in section
+    assert 'Pair names:' in worksheet
+
+
+def test_worksheet_records_each_rotation_position_and_integration_step():
+    c = load_curriculum()
+    missions = {m['id']: m for m in c['missions']}
+    prompts = missions['explore']['worksheet_prompts']
+    assert len(prompts) == 8
+    for station in c['rotations'][0]['stations']:
+        rows = [p.lower() for p in prompts if station in p]
+        assert len(rows) == 2
+        assert any('predict' in p for p in rows)
+        assert any('run' in p and 'observed evidence' in p for p in rows)
+    integration = missions['integrate']['worksheet_prompts']
+    assert len(integration) == 9
+    evidence = [p.lower() for p in integration if 'observed evidence' in p.lower()]
+    assert len(evidence) == 6
+    for step in ('dispense', 'arrival', 'grasp', 'lift', 'place', 'return'):
+        assert sum(step in p for p in evidence) == 1
+    assert any('stopped' in p and 'pickup' in p for p in evidence)
+    assert any('place' in p and 'release' in p for p in evidence)
+
+
+def test_beginner_comparison_names_the_command_list_view_and_reset():
+    missions = {m['id']: m for m in load_curriculum()['missions']}
+    assert '**Reset simulation**' in missions['blocks']['run']
+    observe = missions['python']['observe']
+    assert '**View executable Python**' in observe
+    assert '`program.program`' in observe and '`program`' in observe
+    assert 'JSON is text' in observe
+    assert '**Save blocks**' in observe and 'reopen' in observe
+    assert 'View executable Python' in missions['python']['slide_card']['observe']
+
+
+def test_rotation_and_share_have_completed_simulation_examples(capsys):
+    from workshop.blockly_client import simulate_program
+    c = load_curriculum()
+    missions = {m['id']: m for m in c['missions']}
+    namespace = {}
+    exec(c['examples']['joint']['code'], namespace)
+    assert 'Relative prediction: 35 degrees' in capsys.readouterr().out
+    example = missions['explore']['worked_example']
+    for marker in ('SIMULATION', 'prediction', 'changed', '35', '30 + 15 - 10', 'Teach demo', 'Observe and decide'):
+        assert marker in example
+    assert 'physical' in example.lower()
+    result = simulate_program([{'op':'repeat','count':2,'body':[{'op':'log','message':'Ready'}]}])
+    assert result['simulation'] is True
+    assert result['events'].count('Ready') == 2
+    sample = missions['share']['worked_example']
+    for marker in ('SIMULATION', 'predicted', '1 to 2', 'Ready', 'twice', 'physical'):
+        assert marker in sample
+    for mission_id in ('explore', 'share'):
+        card = missions[mission_id]['slide_card']['worked_example']
+        assert 'SIMULATION' in card
+        assert ('35' if mission_id=='explore' else 'twice') in card
