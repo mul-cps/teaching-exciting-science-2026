@@ -101,6 +101,10 @@ Root traversal has a monotone pixel-count bound with atomic path splitting;32uni
 
 All raw alignment/distortion, full geometry, live30Hz/unique frame/publish-age, >=20Hz/p95<100ms complete station, >=30%stationCPU reduction, video/recording,10min soak and physical sorting gates remain open. No camera or robot was started for these offline tests.
 
+## Compute-feature prerequisite and CPU geometry contract, 2026-10-23
+
+The [baseline checkpoint](performance/compute-feature-baseline-20261023.md) records supported FP64 preserved independently of optional video, the final 3,868-test CPU pass and separate offline GPU/provenance outcomes. The [12-case retained CPU matrix](../tools/native_geometry_matrix.py), [procedural golden](../tests/fixtures/native_geometry/matrix-v1.json) and [native geometry integration plan](superpowers/plans/2026-10-23-native-geometry-integration.md) define the next contract. Strict provenance identity and cross-runtime payload compatibility remain separate, with unchanged numerical/array tolerances. Native plane fitting, contours, PCA and complete reports are not implemented; Intel hardware FP64 remains unsupported and its verified refusal is not geometry success.
+
 ## Current offline build boundary
 
 A deployment compiler is optional: `-DPRECOMPILED_SHADER_DIR=/absolute/offline/shaders` requires the current parent/helper composite SHA256 (`resident.slang` plus `exact_divide.slang`) in `provenance.txt`, exactly eight expected compute `.spv` files and matching per-binary `.spv.sha256` sidecars. Wrong source or output digest fails configuration. `CMAKE_CONFIGURE_DEPENDS` refreshes provenance when parent or included helper source changes. The historical isolated Intel seven-stage build and offline comparisons passed; its wrapper uses absolute isolated package paths and a process-only `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` while the existing deployment's custom GID middleware has no development CMake config. No deployment or service changes are authorized by this package.

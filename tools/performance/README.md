@@ -105,3 +105,60 @@ process watchdog that bounds the entire process lifecycle. The driver's ten-seco
 poll deadline does not bound a blocked GPU driver/destructor drain. GPU selection
 and process-local driver environment must match the reviewed host configuration.
 Do not interpret qualification duration or these diagnostic array writes as normal-path latency.
+
+## Offline optional-video feature mask
+
+[video_feature_mask.c](video_feature_mask.c) preserves the reviewed diagnostic
+source byte-for-byte (SHA256 `61dafad9997d0d556bcb27359aff74e4cdfdb82115745ddae7f023115f776275`).
+Build the C11 source inside the native SDK environment:
+
+```sh
+task_source=/absolute/checkout/tools/performance/video_feature_mask.c
+task_vulkan_headers=/absolute/reviewed-build/vulkan-sdk
+cc -x c -std=c11 -shared -fPIC -O2 -I"$task_vulkan_headers" \
+  "$task_source" -o /tmp/video-feature-mask.so -ldl
+```
+
+The shim resolves the real Vulkan Features2 query once, forwards it unchanged, then
+masks only a returned maintenance1 node's videoMaintenance1 flag. Other chain bytes,
+physical API, FP64 and extension inventory remain real. Counters distinguish query
+calls from actual true-to-false masks. It is not a station startup configuration.
+
+Use process-local LD_PRELOAD only for explicit offline qualification applications;
+never apply it to station startup, a shell session or a service. Run a real-driver
+capability probe first: the tested AMD contract was actual API 1.4, physical/enabled
+FP64 true, video false, exactly one query and one mask. This injects feature failure;
+it does not qualify natural video absence or a physical API 1.2 GPU. Keep Intel
+unmasked when verifying unsupported-FP64 refusal.
+
+Freeze source/binary, ICD-resolved driver, snapshot/runtime libraries and implicit-layer
+closure hashes before running; verify actual child mappings and posthashes. Use an
+owned external process watchdog covering driver/destructor drain. The
+[baseline archive](../../docs/performance/compute-feature-baseline-20261023.md)
+retains earlier prehash failures and the later five-app pass separately. This helper
+provides no performance, codec, full-geometry or station qualification.
+
+## Physical precision metadata
+
+[physical_precision_features.cpp](physical_precision_features.cpp) is the unchanged
+instance-only audit source, SHA256
+`939e141b23c19f6d441677e781a65a6b1ea3d59a0e5bec6536d7383181c86a58`.
+It creates an instance, queries one matching hardware vendor and destroys the instance.
+It creates no logical device, shader or command buffer. Physical support, enabled
+logical-device features and qualified arithmetic remain separate evidence.
+
+Compile inside the native environment; use the reviewed Vulkan loader path for the host
+(`/usr/lib64` on the measured AMD workstation, `/usr/lib/x86_64-linux-gnu` on fwmini4):
+
+```sh
+task_source=/absolute/checkout/tools/performance/physical_precision_features.cpp
+task_vulkan_headers=/absolute/reviewed-build/vulkan-sdk
+c++ -std=c++17 -O2 -I"$task_vulkan_headers" "$task_source" \
+  /usr/lib64/libvulkan.so.1 -o /tmp/physical-precision-features
+```
+
+Run the binary with `0x1002` for AMD or `0x8086` for Intel in the process-scoped
+reviewed ICD environment. Standard output contains JSON physical feature scalars;
+standard error contains process maps, which belong in the private evidence directory.
+The [metadata findings](../../docs/performance/compute-feature-baseline-20261023.md#physical-support-and-the-next-precision-path)
+show Int64 support on both tested GPUs and FP64 support only on AMD.

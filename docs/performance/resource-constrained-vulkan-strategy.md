@@ -25,7 +25,10 @@ Lower process CPU time alone does not establish lower power use or improved cont
 Source: [resident paced trials](resident-20261023.md#paced-cpu-headroom-and-delivery).
 These figures precede the latest shared exact-division Core correction.
 They cover a prealigned subset, excluding alignment and complete geometry; they are not current Core timings.
-Current whole-camera performance after that correction is **unmeasured**.
+A matched whole-camera CPU/GPU comparison remains unmeasured. A later
+[local AMD camera smoke](raw-camera-startup-20261023.md) observed about 30 unique outputs/s
+in CPU, strict Vulkan and auto, one 15-second run each. Those sequential observations
+remain provisional and do not establish a matched-input speedup or station qualification.
 
 | Historical native workload | Intel CPU / GPU p95 ms | AMD CPU / GPU p95 ms |
 |---|---:|---:|
@@ -76,14 +79,24 @@ rounding caused exact Z16 rectangle and Core XYZ discrepancies; a correctly roun
 alone did not repair the demonstrated Core error. Preserve thresholds and far-depth output semantics.
 The canonical float32 helper verifies an integer quotient from a native seed, corrects at most
 four times, then falls back to 23 restoring steps; it needs neither FP64 nor Int64 on Intel.
-The current Core convert SPIR-V grew about 3.05×, so GPU performance must be remeasured.
+The Core convert SPIR-V grew about 3.05×; its subsequent GPU remeasurement is linked above.
 CPU helper nanoseconds and correctness-loop duration cannot predict frame latency or FPS.
 Sources: [exact alignment](alignment-20261023.md) and [raw resident companion](raw-resident-20261023.md).
 Both GPUs passed eight SDK full raw-bridge fixtures with exact arrays and 65,536 division bit cases.
-That offline result coexists with a failed live CPU prototype: depth ID regressed 4 → 0 within
-about 0.5 s, before a valid steady window. No live CPU/GPU performance comparison exists.
-Qualify startup and synchronization before timing; a warmup hypothesis is not an established cause.
+The first live CPU prototype rejected depth ID 4 → 0 before a valid steady window.
+Native SDK traces reproduced startup resets before alignment/processing. A bounded observed
+stability phase then enabled the three-mode [live smoke](raw-camera-startup-20261023.md).
+Keep that failure and its resolution distinct from the later timing observations.
 Do not weaken steady provenance, regression, or unknown/restart-required failure gates.
+
+Distinguish physical support from features enabled on the logical device. Optional video
+negotiation must not erase independent compute capabilities: the
+[compute-feature correction](compute-feature-baseline-20261023.md) preserves supported FP64
+without granting unsupported FP64 to Intel. Probe driver-specific test controls before relying
+on them; the generic Mesa version override was not implemented by this RADV version.
+Inventory individual physical features before designing an emulation path: both tested GPUs
+support Int64 even though Intel lacks FP64. Its compute-only logical device currently leaves
+Int64 disabled. Capability, enablement and qualified arithmetic are three separate facts.
 
 ## Account for camera and system work
 

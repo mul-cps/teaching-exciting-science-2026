@@ -34,6 +34,9 @@ Context::Context(){
     for(uint32_t q=0;q<qn;q++)if(qs[q].queueFlags&VK_QUEUE_COMPUTE_BIT){physical=p;family=q;timestamp_bits=qs[q].timestampValidBits;properties=props;break;}if(physical)break;
   }
   if(!physical)throw std::runtime_error("no hardware Vulkan compute device (software adapters refused)");
+  // Compute capabilities do not depend on optional video negotiation.
+  VkPhysicalDeviceFeatures supported_compute{};vkGetPhysicalDeviceFeatures(physical,&supported_compute);
+  VkPhysicalDeviceFeatures baseline{};baseline.shaderFloat64=supported_compute.shaderFloat64;
   float priority=1;
   // Optional video is negotiated on this same device before any compute consumer
   // obtains it. Unsupported or failed negotiation retains the compute lane.
@@ -67,9 +70,10 @@ Context::Context(){
   for(auto& extension:enabled_extensions)extensions.push_back(extension.c_str());
   VkDeviceCreateInfo d{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};d.queueCreateInfoCount=queues.size();d.pQueueCreateInfos=queues.data();
   if(video_capable){d.pNext=&enabled_features;d.enabledExtensionCount=extensions.size();d.ppEnabledExtensionNames=extensions.data();}
+  else d.pEnabledFeatures=&baseline;
   auto result=vkCreateDevice(physical,&d,nullptr,&device);
-  if(result!=VK_SUCCESS&&video_capable){video_reason="optional video device negotiation failed: "+std::to_string(result);video_capable=false;enabled_extensions.clear();video_queues.clear();d.pNext=nullptr;d.enabledExtensionCount=0;d.ppEnabledExtensionNames=nullptr;d.queueCreateInfoCount=1;result=vkCreateDevice(physical,&d,nullptr,&device);}
-  if(!video_capable){enabled_features={VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};enabled11={VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES};enabled12={VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};enabled13={VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};enabled_video_maintenance1={VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_1_FEATURES_KHR};}
+  if(result!=VK_SUCCESS&&video_capable){video_reason="optional video device negotiation failed: "+std::to_string(result);video_capable=false;enabled_extensions.clear();video_queues.clear();d.pNext=nullptr;d.pEnabledFeatures=&baseline;d.enabledExtensionCount=0;d.ppEnabledExtensionNames=nullptr;d.queueCreateInfoCount=1;result=vkCreateDevice(physical,&d,nullptr,&device);}
+  if(!video_capable){enabled_features={VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};enabled_features.features=baseline;enabled11={VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES};enabled12={VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};enabled13={VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};enabled_video_maintenance1={VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_1_FEATURES_KHR};}
   check(result,"vkCreateDevice");vkGetDeviceQueue(device,family,0,&queue);
   VkCommandPoolCreateInfo cp{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};cp.queueFamilyIndex=family;cp.flags=VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;check(vkCreateCommandPool(device,&cp,nullptr,&commands),"vkCreateCommandPool");
  }catch(...){if(device)vkDestroyDevice(device,nullptr);if(instance)vkDestroyInstance(instance,nullptr);throw;}

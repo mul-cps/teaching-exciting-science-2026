@@ -1,0 +1,1186 @@
+{
+  "schema": "compute-feature-baseline-archive-v1",
+  "date": "2026-10-23",
+  "scope": "Prerequisite compute-feature baseline, CPU geometry contract and bounded offline capability/preparation correctness only. No full native geometry, station or performance qualification.",
+  "original_reports_sha256": {
+    "workshop-compute-features-perf-20261023.md": "442ccffb7a28b484ac3358987ccab16a76ac2018eb86ffff167eff4f962cf09e",
+    "workshop-compute-features-perf-20261023.json": "cf94b232be9cc44e9dcbffee0bd5d63ce3fcd5acde8202c59e637482b8027216",
+    "workshop-compute-features-cpu-20261023.md": "435784124c2117467de6ef986694f9489a6bb6d6fc3b0375e75cacf360f06279",
+    "workshop-compute-features-cpu-20261023.json": "2260173c320da530af83c358ba89c059f004c1cf571cf26667662f6137b03fed",
+    "workshop-compute-features-gpu-20261023.md": "1ffcab0cf11da9d0736e296be67c8db6741f2d66eaf73acf252d271dda887809",
+    "workshop-compute-features-gpu-20261023.json": "0a1b37450c218dc20eefe3927775da7ccb48de905b17c45d76dc57c7f2295073",
+    "workshop-compute-features-fallback-gpu-20261023.md": "e15e1ea1ba2f34e47e0744e3b7efca5bef74b063c4c6b862286faf0b882ea17a",
+    "workshop-compute-features-fallback-gpu-20261023.json": "2c34bc20cedf8e3551ba4b041680e3caffc7907cab8941687f9c20738751b10d",
+    "workshop-compute-features-remainder-gpu-20261023.md": "94a6421682fb2e8178f97ab3ddc184f387a5bcc91f14e4eedc98eb2451067dab",
+    "workshop-compute-features-remainder-gpu-20261023.json": "1c84b0ddcacdee338d0b05b34f618149026bf66a86b812bf4c795c6308f9d0c1",
+    "workshop-video-feature-mask-review-20261023.md": "76d87067c097dc6edd666bfcd8617841c0fbbedc4e3a0759538c3581e099c6f2",
+    "workshop-video-feature-mask-review-20261023.json": "54f66bb2e94a33740281561b84988ed7c9db236380a95e5f420c828193f48d58",
+    "workshop-compute-feature-override-cause-20261023.md": "0cc7c3bcc1fbab39f5367d8e39b231f5baeca9f69aa93a405bcd9186bceefa4f",
+    "workshop-geometry-oracle-matrix-20261023.md": "0f8e334f26cbf949c49528b0c94f36b35f14c6db3454ee2cacc9c3da2450fd8f",
+    "workshop-geometry-matrix-portability-20261023.md": "637ac93b8a9e60a559b6778e482b6f56e98504aad8c0ce495e59daede871d0e9",
+    "workshop-geometry-matrix-portability-20261023.json": "881cfd28d4849a9e83367a6017b3dc57b7d78c95623219fe9ce3baec31568dbd",
+    "workshop-physical-precision-capabilities-20261023.md": "5010036517f3bffe11efc39ba7ee3b04c06f409b87d1c4f105669c835f509e87",
+    "workshop-physical-precision-capabilities-20261023.json": "063ad6aba75ab99ccf1ddeb7388ab61cc871813a3cc8743ebbdc28df69d32788"
+  },
+  "reports": {
+    "compute-features-perf": {
+      "schema": "workshop-compute-features-perf-review-v1",
+      "date": "2026-10-23",
+      "independent_performance_review": "GREEN",
+      "scope": "Cold compute-feature negotiation and cached Context acquisition under synthetic Vulkan entrypoints; no Vulkan loader/device/driver/GPU, physical capture or actuation",
+      "baseline_commit": "be3219a1529a461ed12128c67ded84582e991ec7",
+      "source_sha256": {
+        "ros2/src/so101_station_vulkan/src/vulkan_context.cpp": "ddc535619de1edc6879908d50674e2f6c7325b2f5d6bb47eac4cd3c0a5006384",
+        "ros2/src/so101_station_vulkan/test/context_features_host_test.cpp": "6db792e4cdd0475c2fe3231389c9e22d52da230b821bfdb084c2ebe4095a4052",
+        "ros2/src/so101_station_vulkan/test/context_features_perf_benchmark.cpp": "9c296516fcba6229b6de681155495797d8f07dfd99890a65a5a077a10eea5f43"
+      },
+      "guard_test_sha256": "a1fac5ecaf420325ad697be6b3178578b558bfd8ab7caaabf021f80cfa7382f1",
+      "unchanged_methods": {
+        "Buffer::reset()": true,
+        "Buffer::create(": true,
+        "Context::~Context()": true,
+        "Context::shared()": true
+      },
+      "normal_video_negotiation_block_unchanged": true,
+      "normal_video_device_features2_chain_unchanged": true,
+      "geometry_source_and_fp64_refusal_guard_unchanged": true,
+      "feature_contract": [
+        "Exactly one physical core-feature query after hardware compute selection, before optional video negotiation.",
+        "Legacy compute requests only supported shaderFloat64; every other baseline feature remainsfalse.",
+        "Video uses the existing Features2 chain and null legacy enabled-feature pointer. Legacy compute/fallback uses nullpNext and the baseline legacy pointer.",
+        "Failed optional-video device creation retries legacy compute with supported FP64 rather than losing it.",
+        "Reported enabled_features.features matches the baseline actually requested, includingfalse for unsupported FP64.",
+        "Physical API1.2 is exercised synthetically, independently of optional API1.3 video features.",
+        "Unchanged geometry constructor still refuses when shaderFloat64 was not enabled; unsupported Intel FP64 is not manufactured or qualified by these CPU tests."
+      ],
+      "benchmark": {
+        "schema": "context-features-perf-v1",
+        "trials": 7,
+        "scenarios": [
+          {
+            "name": "physical_api12_fp64",
+            "fp64_supported_and_enabled": true,
+            "video_enabled": false,
+            "cold_feature_queries": 1,
+            "cold_features2_queries": 0,
+            "cold_device_creates": 1,
+            "hot_acquisitions_per_trial": 200000,
+            "hot_heap_allocations": 0,
+            "hot_vulkan_calls": 0,
+            "hot_feature_queries": 0,
+            "hot_device_creates": 0,
+            "hot_waits": 0,
+            "median_hot_ns": 8.28716,
+            "median_cold_context_ns": 104.617,
+            "cold_contexts_per_trial": 1000,
+            "hot_samples_ns": [
+              15.0525,
+              11.8795,
+              14.6885,
+              8.28716,
+              8.24307,
+              8.22855,
+              8.2308
+            ],
+            "cold_samples_ns": [
+              111.329,
+              104.497,
+              104.517,
+              104.507,
+              104.677,
+              104.617,
+              104.647
+            ]
+          },
+          {
+            "name": "physical_api12_no_fp64",
+            "fp64_supported_and_enabled": false,
+            "video_enabled": false,
+            "cold_feature_queries": 1,
+            "cold_features2_queries": 0,
+            "cold_device_creates": 1,
+            "hot_acquisitions_per_trial": 200000,
+            "hot_heap_allocations": 0,
+            "hot_vulkan_calls": 0,
+            "hot_feature_queries": 0,
+            "hot_device_creates": 0,
+            "hot_waits": 0,
+            "median_hot_ns": 8.41199,
+            "median_cold_context_ns": 106.34,
+            "cold_contexts_per_trial": 1000,
+            "hot_samples_ns": [
+              8.27223,
+              8.35218,
+              8.9491,
+              8.3927,
+              8.41775,
+              8.41199,
+              8.42923
+            ],
+            "cold_samples_ns": [
+              107.492,
+              105.95,
+              106.52,
+              108.174,
+              106.34,
+              106.33,
+              106.24
+            ]
+          },
+          {
+            "name": "missing_video_extension_fp64",
+            "fp64_supported_and_enabled": true,
+            "video_enabled": false,
+            "cold_feature_queries": 1,
+            "cold_features2_queries": 1,
+            "cold_device_creates": 1,
+            "hot_acquisitions_per_trial": 200000,
+            "hot_heap_allocations": 0,
+            "hot_vulkan_calls": 0,
+            "hot_feature_queries": 0,
+            "hot_device_creates": 0,
+            "hot_waits": 0,
+            "median_hot_ns": 8.50962,
+            "median_cold_context_ns": 161.354,
+            "cold_contexts_per_trial": 1000,
+            "hot_samples_ns": [
+              8.45998,
+              8.50031,
+              8.50211,
+              8.50962,
+              8.58848,
+              8.51428,
+              8.53518
+            ],
+            "cold_samples_ns": [
+              162.516,
+              161.354,
+              161.504,
+              165.863,
+              161.203,
+              161.094,
+              161.173
+            ]
+          },
+          {
+            "name": "video_fp64",
+            "fp64_supported_and_enabled": true,
+            "video_enabled": true,
+            "cold_feature_queries": 1,
+            "cold_features2_queries": 1,
+            "cold_device_creates": 1,
+            "hot_acquisitions_per_trial": 200000,
+            "hot_heap_allocations": 0,
+            "hot_vulkan_calls": 0,
+            "hot_feature_queries": 0,
+            "hot_device_creates": 0,
+            "hot_waits": 0,
+            "median_hot_ns": 8.57806,
+            "median_cold_context_ns": 356.371,
+            "cold_contexts_per_trial": 1000,
+            "hot_samples_ns": [
+              8.55902,
+              8.57154,
+              8.59779,
+              8.57806,
+              8.57806,
+              8.55952,
+              8.94159
+            ],
+            "cold_samples_ns": [
+              484.041,
+              354.789,
+              355.189,
+              358.575,
+              356.371,
+              356.371,
+              361.221
+            ]
+          },
+          {
+            "name": "video_create_fallback_fp64",
+            "fp64_supported_and_enabled": true,
+            "video_enabled": false,
+            "cold_feature_queries": 1,
+            "cold_features2_queries": 1,
+            "cold_device_creates": 2,
+            "hot_acquisitions_per_trial": 200000,
+            "hot_heap_allocations": 0,
+            "hot_vulkan_calls": 0,
+            "hot_feature_queries": 0,
+            "hot_device_creates": 0,
+            "hot_waits": 0,
+            "median_hot_ns": 8.67193,
+            "median_cold_context_ns": 391.597,
+            "cold_contexts_per_trial": 1000,
+            "hot_samples_ns": [
+              8.69126,
+              8.70614,
+              8.69102,
+              8.67193,
+              8.66572,
+              8.65049,
+              8.66362
+            ],
+            "cold_samples_ns": [
+              392.229,
+              391.928,
+              390.495,
+              389.474,
+              391.597,
+              389.484,
+              392.259
+            ]
+          }
+        ],
+        "scope": "actual Context; synthetic Vulkan only; no loader, driver, SDK, GPU, image work or contention"
+      },
+      "aggregate_counts": {
+        "retained_owner_hot_acquisitions": 7000000,
+        "cold_contexts_excluding_five_initial_owners": 35000,
+        "hot_heap_allocations": 0,
+        "hot_vulkan_calls": 0,
+        "hot_feature_queries": 0,
+        "hot_device_creates": 0,
+        "hot_waits": 0
+      },
+      "compiler": {
+        "version": "16.2.1"
+      },
+      "benchmark_binary_sha256": "d2309f5cccf684238daf8f186f866f126e52eb750207d78aba67c5edabc80143",
+      "validation": {
+        "new_perf_tests": "2passed in1.12s (isolated timed run)",
+        "focused_result": "8passed in1.19s",
+        "existing_context_features_host_fixture": "PASS actual cold Context: maintenance1 success, absent feature/extension, device-create fallback, supported/unsupported compute FP64; no Vulkan driver",
+        "mutations_rejected": [
+          "feature_query_in_cache",
+          "device_wait_in_cache",
+          "allocation_before_cache_miss",
+          "supported_fp64_omitted_actual_context_runtime"
+        ],
+        "compiled_omitted_fp64_mutation_error": "enabled unsupported/unrelated feature or omitted FP64",
+        "diff_check": "PASS",
+        "ldd": "Only libstdc++,libm,libgcc_s,libc and standard loader; no libvulkan/driver/SDK dependency"
+      },
+      "limitations": [
+        "Unpinned uncontended single-thread CPU and synthetic API; hot includes shared_ptr/mutex/refcount/check/loop overhead.",
+        "Cold includes actual host allocations, negotiation logic and synthetic API calls/destruction; doesnot measure driverfeaturequery/devicecreation latency.",
+        "No matched old/new cold timing; one additional query is measured by count, not a claimed driver-time delta.",
+        "No GPU shader timing, hardware capability, image throughput, video correctness, CPUheadroom, control safety or physical station acceptance follows.",
+        "Enabling supported FP64 may affect real device configuration; actual AMD compute-only qualification with a process-local Mesa API override is a separate laterroot release.",
+        "Full canonical CPU/native checks are separate; heavyCPU workers were released only after isolated timingfinished."
+      ],
+      "no_hardware_or_gpu_execution": true,
+      "no_production_or_cmake_edits": true,
+      "no_commit": true
+    },
+    "compute-features-cpu": {
+      "schema": "compute-features-cpu-verification-v1",
+      "source_cpp_sha256": "ddc535619de1edc6879908d50674e2f6c7325b2f5d6bb47eac4cd3c0a5006384",
+      "host_test_sha256": "6db792e4cdd0475c2fe3231389c9e22d52da230b821bfdb084c2ebe4095a4052",
+      "native_steps": [
+        {
+          "name": "configure",
+          "args": [
+            "[local-artifact]",
+            "run",
+            "cmake",
+            "-S",
+            "[local-artifact]",
+            "-B",
+            "[local-artifact]",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DBUILD_TESTING=ON",
+            "-DRMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
+            "-DSLANGC_EXECUTABLE=[local-artifact]",
+            "-DCMAKE_CXX_COMPILER=[local-artifact]",
+            "-DCMAKE_INSTALL_PREFIX=[local-artifact]",
+            "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+          ],
+          "exit": 0,
+          "seconds": 1.9295685230754316,
+          "log": "[local-artifact]"
+        },
+        {
+          "name": "build",
+          "args": [
+            "[local-artifact]",
+            "run",
+            "cmake",
+            "--build",
+            "[local-artifact]",
+            "-j2"
+          ],
+          "exit": 0,
+          "seconds": 25.671643004054204,
+          "log": "[local-artifact]"
+        },
+        {
+          "name": "install",
+          "args": [
+            "[local-artifact]",
+            "run",
+            "cmake",
+            "--install",
+            "[local-artifact]"
+          ],
+          "exit": 0,
+          "seconds": 0.6528782580280676,
+          "log": "[local-artifact]"
+        },
+        {
+          "name": "ctest-metadata",
+          "args": [
+            "[local-artifact]",
+            "run",
+            "ctest",
+            "--test-dir",
+            "[local-artifact]",
+            "--show-only=json-v1"
+          ],
+          "exit": 0,
+          "seconds": 0.6272233510389924,
+          "log": "[local-artifact]"
+        },
+        {
+          "name": "ctest-cpu",
+          "args": [
+            "[local-artifact]",
+            "run",
+            "ctest",
+            "--test-dir",
+            "[local-artifact]",
+            "-R",
+            "^(alignment_divide_probe_cpu_contract|raw_capture_bridge_host|resident_alignment_sdk_oracle|resident_camera_startup_gate|resident_cc_copyback_host_paths|resident_context_features_host|resident_cpu_reference|resident_frame_leases|resident_geometry_host_contract|resident_latest_frame_queue|resident_preparation_host_paths|resident_raw_camera_admission|resident_video_cpu_roundtrip|resident_video_policy)$",
+            "--output-on-failure"
+          ],
+          "exit": 0,
+          "seconds": 23.659527348005213,
+          "log": "[local-artifact]"
+        },
+        {
+          "name": "canonical-native",
+          "args": [
+            "[local-artifact]",
+            "tools/test_cpu.py",
+            "--native"
+          ],
+          "exit": 0,
+          "seconds": 32.450557322008535,
+          "log": "[local-artifact]"
+        }
+      ],
+      "cpu_ctests_passed": 14,
+      "native_ros_tests_passed": 347,
+      "native_ros_warnings": 2,
+      "package_source_files": 62,
+      "package_source_drift": 0,
+      "installed_files": 83,
+      "spirv_count": 17,
+      "spirv_unchanged": true,
+      "canonical_cpu_state": "passed",
+      "hardware_gpu_execution": false,
+      "source_edits": false,
+      "build": "[local-artifact]",
+      "install": "[local-artifact]",
+      "matrix_sources_sha256": {
+        "tools/native_geometry_matrix.py": "660806cb17eafa889146f2e8f52a3c6f0456661bbf5068e43f92fbd4b41d8eae",
+        "tests/test_native_geometry_matrix.py": "c82506b6ee335dcea8cd779a6628a6c797229c52305ba114d10bab9bb4a341b6",
+        "tests/fixtures/native_geometry/matrix-v1.json": "7f9feb3f53353a301f575805762391a3bd7f9fb9c55571f0d098c7d711028625"
+      },
+      "canonical_cpu_execution": {
+        "name": "canonical-cpu-portability-final",
+        "args": [
+          "[local-artifact]",
+          "tools/test_cpu.py"
+        ],
+        "exit": 0,
+        "seconds": 65.2510856660083,
+        "log": "[local-artifact]"
+      },
+      "canonical_cpu_counts": {
+        "passed": 3868,
+        "skipped": 136,
+        "subtests": 48
+      },
+      "matrix_source_drift": false,
+      "final_package_source_drift": 0,
+      "passed": true
+    },
+    "compute-features-gpu": {
+      "schema": "compute-features-gpu-qualification-v1",
+      "passed": false,
+      "status": "stopped-first-unexpected-failure",
+      "physical": false,
+      "geometry_preparation_only": true,
+      "performance_claim": false,
+      "preregister_sha256": "72c655af42a0a5125e065b64f1e44478bbf7fcb7f7054982c69bd77bbfae1df3",
+      "preregistered_apps": 23,
+      "passed_apps": 10,
+      "first_failure": {
+        "name": "amd-compute12-capability",
+        "app_exit": 0,
+        "reason": "API1.2 and video=false required; actual API1.4 and video=true",
+        "actual": {
+          "api_major": 1,
+          "api_minor": 4,
+          "physical_fp64": true,
+          "enabled_fp64": true,
+          "video_capable": true,
+          "vendor": 4098,
+          "device_type": 1
+        }
+      },
+      "unexecuted_apps": 12,
+      "amd_default": {
+        "capability": {
+          "api_major": 1,
+          "api_minor": 4,
+          "physical_fp64": true,
+          "enabled_fp64": true,
+          "video_capable": true,
+          "vendor": 4098,
+          "device_type": 1
+        },
+        "preparation_cases": 8,
+        "max_coordinate_error_m": 2.7755575615628914e-17,
+        "exact_flags_pixels_order_counts": true,
+        "raw_sdk_core_alignment_cases": 8,
+        "raw_all_mismatches_zero": true,
+        "raw_alignment_max_xyz_error_m": 0.0
+      },
+      "forced_compute_preparation": "not executed",
+      "forced_compute_raw": "not executed",
+      "intel": "not executed after first failure",
+      "source_drift": [],
+      "frozen_input_drift": [],
+      "local_prehashed_runtime_drift": [],
+      "remote_frozen_drift": [],
+      "owned_remaining_processes": [],
+      "limitations": [
+        "ICD and linked runtime hashes were frozen before GPU, but actual Radeon ICD library path was omitted from pre-runtime hash manifest. Its actual mapping and post-run hash are retained; full pre/post driver hash provenance is incomplete.",
+        "Only the capability probe self-recorded complete actual maps; raw-reference child maps sampled separately. Wrapper watchdog map logs primarily captured wrapper mappings."
+      ],
+      "private_evidence_sha256": "b1a89e4d60d45075048edf39c9d24922dfa875340d1ad2a8197617910bbaa40d"
+    },
+    "compute-features-fallback-gpu": {
+      "schema": "compute-feature-fallback-gpu-v1",
+      "passed": false,
+      "status": "stopped-first-unexpected-failure",
+      "physical": false,
+      "performance_claim": false,
+      "injected_feature_failure": true,
+      "natural_video_absence": false,
+      "physical_api12_qualification": false,
+      "preregister_sha256": "46f16678fae177a6762a0d15fc51611a6d3ffb3f69c2160f4b3ecc73337e754e",
+      "registered_apps": 6,
+      "attempted_apps": 1,
+      "remaining_apps_unexecuted": 5,
+      "first_failure": {
+        "name": "amd-injected-capability",
+        "app_exit": 0,
+        "failure_type": "runtime-provenance-gate",
+        "reason": "Actual implicit Mesa device-selection layer mapped without a pre-run hash",
+        "capability_semantic_gate_passed": true,
+        "actual_context": {
+          "api_major": 1,
+          "api_minor": 4,
+          "physical_fp64": true,
+          "enabled_fp64": true,
+          "video_capable": false,
+          "vendor": 4098,
+          "device_type": 1,
+          "injected": true,
+          "mask_count": 1,
+          "query_count": 1
+        }
+      },
+      "actual_child_mapping_sampled": true,
+      "actual_driver_mapping_matched": true,
+      "actual_context_library_mapping_matched": true,
+      "shim_mapping_matched": true,
+      "source_drift": [],
+      "frozen_artifact_drift": [],
+      "local_prehashed_runtime_drift": [],
+      "remote_prehashed_runtime_drift": [],
+      "owned_remaining_processes": [],
+      "limitations": [
+        "Implicit Mesa device-selection layer was omitted from runtime prehash manifest. Post-run hash retained; no retroactive prehash claim.",
+        "Old API-override failure and its missing Radeon pre-run hash remain preserved independently."
+      ],
+      "previous_report": "[local-artifact]"
+    },
+    "compute-features-remainder-gpu": {
+      "schema": "compute-features-remainder-gpu-v1",
+      "passed": true,
+      "scope": "offline correctness and capability only",
+      "physical": false,
+      "performance_claim": false,
+      "full_geometry_qualification": false,
+      "preregister_sha256": "62d94c512688368787ec8b0f0fce2ca601c800e7f3ffa9cac6e36693b2ff1c63",
+      "registered_apps": 5,
+      "passed_apps": 5,
+      "amd_masked_preparation": {
+        "case": "all_valid",
+        "max_coordinate_error_m": 0.0,
+        "valid_count": 307200,
+        "support_count": 4800,
+        "physical": false
+      },
+      "raw": {
+        "amd_injected": {
+          "cases": 8,
+          "all_original_checks_passed": true,
+          "max_alignment_xyz_error_m": 0.0,
+          "all_sdk_depth_and_core_mismatches_zero": true
+        },
+        "intel_default": {
+          "cases": 8,
+          "all_original_checks_passed": true,
+          "max_alignment_xyz_error_m": 0.0,
+          "all_sdk_depth_and_core_mismatches_zero": true
+        }
+      },
+      "intel_default_capability": {
+        "api_major": 1,
+        "api_minor": 4,
+        "physical_fp64": false,
+        "enabled_fp64": false,
+        "video_capable": false,
+        "vendor": 32902,
+        "device_type": 1,
+        "injected": false,
+        "mask_count": 0,
+        "query_count": 0
+      },
+      "intel_explicit_fp64_refusal": true,
+      "actual_child_mappings_checked_all": true,
+      "all_critical_runtime_identities_matched": true,
+      "new_standard_dependencies_without_prehash_count": 0,
+      "new_mapped_loader_cache_without_prehash_observations": 2,
+      "source_drift": [],
+      "frozen_artifact_drift": [],
+      "runtime_drift": {
+        "local": [],
+        "remote": []
+      },
+      "owned_remaining_process_count": 0,
+      "aggregate_prior_evidence": {
+        "amd_default": {
+          "preparation_scenes_passed": 8,
+          "raw_sdk_core_alignment_cases_passed": 8,
+          "max_preparation_coordinate_error_m": 2.7755575615628914e-17,
+          "limitation": "Prior Radeon ICD driver prehash was missing; original report remains unchanged."
+        },
+        "amd_injected_capability": {
+          "semantic_gate_passed": true,
+          "actual": {
+            "api_major": 1,
+            "api_minor": 4,
+            "physical_fp64": true,
+            "enabled_fp64": true,
+            "video_capable": false,
+            "vendor": 4098,
+            "device_type": 1,
+            "injected": true,
+            "mask_count": 1,
+            "query_count": 1
+          },
+          "limitation": "Prior implicit layer prehash was missing; semantic capability result reused, not rerun. Prior six-app protocol remains stopped/red."
+        },
+        "old_api_override": {
+          "failed": true,
+          "actual_api": "1.4",
+          "expected_api": "1.2",
+          "preserved": true
+        }
+      },
+      "injection_label": "AMD optional-video feature failure injected with reviewed temporary mask; not natural video absence or API1.2 platform evidence",
+      "reports_preserved": [
+        "[local-artifact]",
+        "[local-artifact]"
+      ]
+    },
+    "video-feature-mask-review": {
+      "schema": "workshop-video-feature-mask-independent-review-v1",
+      "date": "2026-10-23",
+      "independent_cpu_review": "GREEN",
+      "scope": "TMP-only capability fault-injection shim and CPU mock tests; no repo/production change and no real Vulkan/GPU execution by reviewer",
+      "source_binary_hashes": {
+        "mask.c": "61dafad9997d0d556bcb27359aff74e4cdfdb82115745ddae7f023115f776275",
+        "mock.c": "c19380454826c8b2792159f403d9fb956d84d72cf327c3c173e9289dbf763b3c",
+        "test.c": "f7f70157a687d4fa94f97f9b979b4a694e32176423c58894b3dc962a3a8927e7",
+        "libvideo_mask.so": "3d8bf895930b18adc617c616f0c8178568113bd3b4e41a071e602f44340886ac",
+        "libmock.so": "412d1f1153d885236f5af25b54a518728042c992ffb4a1e11cccc27055772843",
+        "test": "06c80efa950afe20fb64064a4322edf3ebb49e705759920ecf2f376566ec236a"
+      },
+      "proposed_protocol_sha256": "d45ffd39956853fbc7996526bf87a3f0c9e23883aca08173d748c81ab58ed786",
+      "forwarding_contract": [
+        "The real vkGetPhysicalDeviceFeatures2 address resolves once with dlsym(RTLD_NEXT) at process load; absence exits127 before queries.",
+        "The real query is invoked first with the unchanged physical handle and original features pointer.",
+        "Only returned VkPhysicalDeviceVideoMaintenance1FeaturesKHR.videoMaintenance1 is setVK_FALSE, and only when it was nonzero.",
+        "Every other feature field, sType, pNext link and neighboring struct byte remains unchanged. Physical API/properties, extension inventory and core FP64 queries are never interposed.",
+        "Relaxed host atomic counters track total intercepted queries and actual true-to-false masks. No GPU synchronization or per-frame hook."
+      ],
+      "cpu_test": {
+        "manifest_entries_checked": 13,
+        "manifest_matches": true,
+        "input_hashes": {
+          "mask.c": "61dafad9997d0d556bcb27359aff74e4cdfdb82115745ddae7f023115f776275",
+          "mock.c": "c19380454826c8b2792159f403d9fb956d84d72cf327c3c173e9289dbf763b3c",
+          "test.c": "f7f70157a687d4fa94f97f9b979b4a694e32176423c58894b3dc962a3a8927e7",
+          "libvideo_mask.so": "3d8bf895930b18adc617c616f0c8178568113bd3b4e41a071e602f44340886ac",
+          "libmock.so": "412d1f1153d885236f5af25b54a518728042c992ffb4a1e11cccc27055772843",
+          "test": "06c80efa950afe20fb64064a4322edf3ebb49e705759920ecf2f376566ec236a"
+        },
+        "independent_cpu_returncode": 0,
+        "independent_cpu_stdout": "PASS CPU scenarios=4 real_queries=4 shim_queries=4 masks=2 heap_operations=0 waits=0 no_gpu=true",
+        "source_and_binary_posthashes_match": true,
+        "symbols_unexpected_io_heap_wait_api": false,
+        "scope": "CPU test uses only libmock+libc, no Vulkan loader, SDK, driver, device, capture or actuation"
+      },
+      "cpu_scenarios": [
+        "Target in middle: real mock first writes maintenance1true, shim masksfalse; root/core and surrounding structs byte-compared.",
+        "No target: real root writes preserved, no mask counted, all chain bytes preserved.",
+        "Alreadyfalse target: real reportsfalse, no mask counted and all bytes preserved.",
+        "Target at tail: following disconnected struct untouched, exact true-to-false mask counted."
+      ],
+      "hot_path_review": [
+        "Query hook contains cached indirect real call, host atomic increments and a linear validpNext-chain walk only; no dlsym, allocation, I/O or Vulkan wait in query body.",
+        "Resolution uses dynamic loader machinery once at load; loader-time allocation/work is expressly excluded from zero-query-allocation claim.",
+        "All defined/undefined dynamic symbols inspected: the only shim imports are dlsym and _exit besides standard weakruntime symbols; no heap/I/O/wait/extension/property APIs.",
+        "Prior actual Context shared7M-acquisition zero-hot-Vulkan-call review remains unchanged; this shim executes only when a cold feature query actually occurs."
+      ],
+      "boundedness": "No arbitrary hardnodecap is added. Work is linear in valid null-terminated caller-owned pNext chains. The reviewed Context builds at most4nodes (11,12,13,maintenance1), and capability probe uses that same Context. Invalid/cyclic pNext input is not supported by this temporary shim or Vulkan API contract; this is not a production general-purpose interceptor.",
+      "protocol_scope": [
+        "Exactly6proposed qualification apps; only the first3AMD apps preload the shim, the3Intel apps explicitly unsetLD_PRELOAD.",
+        "No version override remains; actual physical API is unchanged. This tests an injected missing-maintenance1 feature, not natural video absence or actual API1.2 hardware.",
+        "Capability app checks injectedtrue/querycount1/maskcount1, actual physical/enabledFP64true and videofalse; otherApps retain original numerical/refusal gates.",
+        "Root still must validate complete artifact/runtime/ICD realpath hashes, app-child mappings, process-group timeout/cleanup and explicit release before any GPU run."
+      ],
+      "limitations": [
+        "CPU mock byteproof is not GPU/driver correctness, hardware capability or video qualification.",
+        "Real driver query internals may allocate; CPU zeroheap result covers intercepted helper plus mock query only after loader resolution.",
+        "No host/GPU timing, throughput, CPUheadroom, control safety, camera or physical station claim.",
+        "CPU mock allocator instrumentation uses glibc-specific test hooks; shim itself does not depend on those hooks.",
+        "No install, API lie, extension filtering, supportedfeature fabrication, persistent env, devicewait or station integration."
+      ],
+      "prior_absent_shim_red_log_retained": "[local-artifact]",
+      "original_failed_version_override_evidence_preserved": "[local-artifact]",
+      "no_gpu_or_hardware_executed": true,
+      "no_repo_edits_or_commits": true
+    },
+    "geometry-matrix-portability": {
+      "schema": "native-geometry-matrix-runtime-characterization-v1",
+      "golden_sha256": "809f4e46c5515b26db8f69d59174b86a9ada145d72e2ed9dfa112f4199a3e0a1",
+      "expected_runtime": {
+        "python": "3.13.12",
+        "numpy": "2.5.4",
+        "opencv": "4.14.0",
+        "scipy": "1.17.1"
+      },
+      "actual_runtime": {
+        "python": "3.12.15",
+        "numpy": "2.5.4",
+        "opencv": "5.0.0",
+        "scipy": "1.16.2"
+      },
+      "cases": [
+        {
+          "name": "base",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "invalid-hole",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "touching-depth-children",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "nonplanar-two-face",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "sensor-edge",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "sparse-concave",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "partial-observation-roi",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "partial-pickup-roi",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "distortion-4",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "distortion-5",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "distortion-8",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        },
+        {
+          "name": "large-gray-support",
+          "name_equal": true,
+          "inputs_equal": true,
+          "source_hashes_equal": true,
+          "array_manifest_equal": true,
+          "oracle_manifest_sha256_equal": false,
+          "report_pass": true,
+          "pieces_pass": true,
+          "array_hash_differences": [],
+          "all_array_values_at_existing_ray_tolerance": true,
+          "array_value_failures": []
+        }
+      ],
+      "strict_matrix_failure": "('base.provenance.python', '3.13.12', '3.12.15')",
+      "golden_unchanged": true,
+      "payload_contract_followup": {
+        "method": "full frozen oracle snapshot canonical SHA256 after removing only provenance python/numpy/opencv/scipy version strings; strict identity comparator unchanged",
+        "upgrade_proof": "[local-artifact]",
+        "old_golden_sha256": "809f4e46c5515b26db8f69d59174b86a9ada145d72e2ed9dfa112f4199a3e0a1",
+        "new_golden_sha256": "7f9feb3f53353a301f575805762391a3bd7f9fb9c55571f0d098c7d711028625",
+        "original_reports_pieces_arrays_inputs_provenance_preserved": true,
+        "metadata_only_new_payload_hashes_and_generator_selfhash": true,
+        "strict_function_byte_unchanged": true,
+        "cpu_focused_tests_passed": 42,
+        "native_focused_tests_passed": 42,
+        "native_test_plugin_autoload_disabled_process_only": true,
+        "new_native_frozen_manifest": "[local-artifact]",
+        "new_native_payload_comparison": "PASS",
+        "new_native_strict_comparison_failure": "('base.provenance.python', '3.13.12', '3.12.15')",
+        "new_native_case_payload_hashes_match": true,
+        "final_sha256": {
+          "tools/native_geometry_matrix.py": "660806cb17eafa889146f2e8f52a3c6f0456661bbf5068e43f92fbd4b41d8eae",
+          "tests/test_native_geometry_matrix.py": "c82506b6ee335dcea8cd779a6628a6c797229c52305ba114d10bab9bb4a341b6",
+          "tests/fixtures/native_geometry/matrix-v1.json": "7f9feb3f53353a301f575805762391a3bd7f9fb9c55571f0d098c7d711028625"
+        }
+      }
+    }
+  },
+  "runtime_artifact_hashes": {
+    "local-runtime-pre.json": {
+      "original_sha256": "efc5a6b7878eed779f4c6836f2fecfd5f56f63eb655f2e15cf9c7c722c3ed236",
+      "hash_leaves": {
+        "/runtime/artifact:libLLVM.so.22.1": "2e9c27457d4ecaf51257c8afcc039d661f688133d93694811690b2432a61eefb",
+        "/runtime/artifact:libSPIRV-Tools.so": "0b554745cae9bd85ebc61b8d48627be41e3b66b4fbc414986d04fc66e762c4e3",
+        "/runtime/artifact:libX11-xcb.so.1.0.0": "c89b4356a5ea9832e4e9542e4fab5aa729a81f8cfec36663666d66ba34cdc805",
+        "/runtime/artifact:libXau.so.6.0.0": "dcc7de4960c165b97b5faa8b3bdeb4dfc2439b5066f1f9b2f2e3aca9478267ff",
+        "/runtime/artifact:libXdmcp.so.6.0.0": "dcdabcb94e17c6b1057a751e43574882ba44bf9b0fa0ff0e75dbf7b30f9e3b63",
+        "/runtime/artifact:libelf-0.194.so": "fd027bfab3a91a07fc633ae2fd56ff48891fe3003f0bb11b9236e975910a2b7a",
+        "/runtime/artifact:libexpat.so.1.12.5": "8b61b41a8f5bee8d8d336e8bc5318233d6b435d482a7510f4e01788b618a6598",
+        "/runtime/artifact:libffi.so.8.4.0": "4d28902e78d7ed5e1d825e0e038286a5e4dc7ef14d789ff4992336bbfc315ca4",
+        "/runtime/artifact:libgcc_s.so.1": "5444fbe71e8cfe3bd05cdf2b44bd8c2e553e6e7e276977089b5e4e1a1ceed531",
+        "/runtime/artifact:libiconv.so.2.7.0": "59b942b8a9dfabcfec7d65ff2be1de2e59902765837768ca37468cef5dca9571",
+        "/runtime/artifact:libicudata.so.78.3": "6d963e31d9aa02a078854d6352f78625241fa489cdd6a4d308f1cb0d0eafc273",
+        "/runtime/artifact:libicuuc.so.78.3": "b1b20f42ec765c7dc4c75e05cc62cd750d7e92c32f2e0416c450338dac46458b",
+        "/runtime/artifact:librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+        "/runtime/artifact:libstdc++.so.6.0.36": "10f0d3c46c070acd4abea2ccf2500ff0ec77e9b90154b82ea2720dba05510cb9",
+        "/runtime/artifact:libudev.so.1.7.15": "fba77cb5e6f3a83859f18af8e7c7a65ebb770c9c5fa2cc3b49d20af9e300245c",
+        "/runtime/artifact:libusb-1.0.so.0.6.0": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373",
+        "/runtime/artifact:libvulkan.so.1.4.357": "3e728b0f2535a7dc344c76b166fdf28e2561ce7293c68df775aecac5c8c3f37e",
+        "/runtime/artifact:libwayland-client.so.0.26.0": "4e1299fe06af47b94abe7e9af2ca69c94606bf005d584feed41e0269e835fdb3",
+        "/runtime/artifact:libxcb-dri3.so.0.1.0": "eeae4c0815883ebb451dae3d48dde1ee2cecfa30a187b0a95531f37ad9823f0d",
+        "/runtime/artifact:libxcb-present.so.0.0.0": "61b9d3c1ffc4929fa1505529d287b9a7d86cdd2b9460eff2e53ed694ffc9801a",
+        "/runtime/artifact:libxcb-randr.so.0.1.0": "7fbbbc9f5679421e6b185ce8669634b663d53cefeb672e84c668c6fb299fb7a6",
+        "/runtime/artifact:libxcb-shm.so.0.0.0": "d560624e0f4a720eb68179b90c37bb0d5939cefecd2ef7c1aaaeae38ea3fe890",
+        "/runtime/artifact:libxcb-sync.so.1.0.0": "202ef4ca6d145173527af10b453df76429a80a45d36d8684a86036149be88fea",
+        "/runtime/artifact:libxcb-xfixes.so.0.0.0": "f7e7fb8ce09b4c438ae76299dd02694c29c0d2606beb4df09c30ab29a1a65237",
+        "/runtime/artifact:libxcb.so.1.1.0": "504faa0ca490d23e89505bb430892f18992979a7856869e776ae711fcaab79d7",
+        "/runtime/artifact:libxml2.so.16.1.4": "a32f04d52ebb257b28e19e76454914c0e0d4b225dd9203dc69a15466d2950696",
+        "/runtime/artifact:libxshmfence.so.1.0.0": "465230077bab283c2725c8ea05b340bd6efb885787e4e31022ba9e4c004e789e",
+        "/runtime/artifact:libz.so.1.3.2": "3c6fd78e248a60e45081bcc77031204a7cb64a88ff2e27fc786ef12ae7e91fca",
+        "/runtime/artifact:libzstd.so.1.5.7": "b0e2bad8c117a3ad7d344d7924272d12b8e363956efb91b5074e43d4e201a08d",
+        "/runtime/artifact:capability": "1b104e254889293f4d8bf8fb33331178baae76063a9eba8b1eb4b682d6993b23",
+        "/runtime/artifact:libresident_alignment.so": "06092f6d26536dbf8aaf4c4174e6decf5f898db76f91aae9e6591a1517a5d1b6",
+        "/runtime/artifact:libresident_components.so": "26f68782f8f48c11872511c08e8d92086c1f7e97a24a10804760d5cab3c8c790",
+        "/runtime/artifact:libresident_geometry.so": "976c18ebf68da814c4994c55387279dbd4b248e6f071ecb16daa49a1fded94cc",
+        "/runtime/artifact:libresident_rgbd.so": "5dc63b67ad6d822ea3f013704a2cd58ed302b78102be240627d6e6cc4e7069cd",
+        "/runtime/artifact:libresident_video.so": "2e1bffc9eb5620bcf1a0776808b093801d1cb9fac01c968c9209015dfc2a6a9b",
+        "/runtime/artifact:libvideo_mask.so": "3d8bf895930b18adc617c616f0c8178568113bd3b4e41a071e602f44340886ac",
+        "/runtime/artifact:qualify_geometry": "1d102d659a51e575751175b66df9a6118a721a248c6dba3d912cd019790b1731",
+        "/runtime/artifact:raw_reference": "11769890cfa66c611ff3721b48ce29512d7bf9b9a37c4295cc525c0e4c77b92d",
+        "/runtime/artifact:libvulkan_radeon.so": "ecd0604a8f167fe0445715fb7eecc8b81ec0d9513f722a4f846b4a137852b507",
+        "/runtime/artifact:ld-linux-x86-64.so.2": "4e5d39355699e90fa29313d3100e82af4a23290028c58c364d6a249ef6a78e5e",
+        "/runtime/artifact:libc.so.6": "a5c5ad9d59d3c69eda93aa8f82930ba06cc4e893a113e66c85ad6e96243d53c8",
+        "/runtime/artifact:libdisplay-info.so.0.3.0": "2744bd4b6f456e67f24a37f79c43ed2d3fd73b87802ab677dd3a5ad4c5ad5a7d",
+        "/runtime/artifact:libdl.so.2": "54d56c0f10466a05cc92685f8062ee6a2eaf59c62fb6f724217e984fcfbb5031",
+        "/runtime/artifact:libdrm.so.2.134.0": "e2a416f7b7c9e9e46b5f96bf20be71f146426daa6e1e8438adce2ab8e4c0fc0e",
+        "/runtime/artifact:libdrm_amdgpu.so.1.134.0": "a28f07a5f69cd85d5a55b18f436cff5e0e33087181bdc3b8061ac2dec99d1322",
+        "/runtime/artifact:libm.so.6": "16a03ce6d24c8a46742206d4a9c1d35bb6577ae2384f153dc6ef4a4b62b5357f",
+        "/runtime/artifact:libpthread.so.0": "41cad1a2bda56ff226e0b08db7edfaf4ec47d876ab1414a979fd157467b6c39d",
+        "/runtime/artifact:librt.so.1": "3a23e51370381b0ab993932341fd69643ade24869936e471e1dde2e62398d9f7",
+        "/runtime/artifact:radeon_icd.x86_64.json": "d7db9126aec4895d2f2c4d50b74d160547cabc0a84180245e3c6adf21e769a33"
+      }
+    },
+    "remote-runtime-pre.json": {
+      "original_sha256": "e984a677379aeff69e0691a37f71e523e63470d25b0f9a2772c2b85fc30f17c6",
+      "hash_leaves": {
+        "/runtime/artifact:libX11-xcb.so.1.0.0": "c89b4356a5ea9832e4e9542e4fab5aa729a81f8cfec36663666d66ba34cdc805",
+        "/runtime/artifact:libXau.so.6.0.0": "dcc7de4960c165b97b5faa8b3bdeb4dfc2439b5066f1f9b2f2e3aca9478267ff",
+        "/runtime/artifact:libXdmcp.so.6.0.0": "dcdabcb94e17c6b1057a751e43574882ba44bf9b0fa0ff0e75dbf7b30f9e3b63",
+        "/runtime/artifact:libdrm.so.2.129.0": "79478753f163ce9757714c791bd2740dc59d6ed26222b629cc9c17910bdac18f",
+        "/runtime/artifact:libexpat.so.1.12.5": "8b61b41a8f5bee8d8d336e8bc5318233d6b435d482a7510f4e01788b618a6598",
+        "/runtime/artifact:libffi.so.8.4.0": "4d28902e78d7ed5e1d825e0e038286a5e4dc7ef14d789ff4992336bbfc315ca4",
+        "/runtime/artifact:libgcc_s.so.1": "5444fbe71e8cfe3bd05cdf2b44bd8c2e553e6e7e276977089b5e4e1a1ceed531",
+        "/runtime/artifact:librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+        "/runtime/artifact:libstdc++.so.6.0.36": "10f0d3c46c070acd4abea2ccf2500ff0ec77e9b90154b82ea2720dba05510cb9",
+        "/runtime/artifact:libudev.so.1.7.15": "7b7738e83bd3a167c7bcb21170c7a8864e9e35032d119d53af97b3bbbf903786",
+        "/runtime/artifact:libusb-1.0.so.0.6.0": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373",
+        "/runtime/artifact:libvulkan.so.1.4.357": "3e728b0f2535a7dc344c76b166fdf28e2561ce7293c68df775aecac5c8c3f37e",
+        "/runtime/artifact:libwayland-client.so.0.26.0": "4e1299fe06af47b94abe7e9af2ca69c94606bf005d584feed41e0269e835fdb3",
+        "/runtime/artifact:libxcb-dri3.so.0.1.0": "eeae4c0815883ebb451dae3d48dde1ee2cecfa30a187b0a95531f37ad9823f0d",
+        "/runtime/artifact:libxcb-present.so.0.0.0": "61b9d3c1ffc4929fa1505529d287b9a7d86cdd2b9460eff2e53ed694ffc9801a",
+        "/runtime/artifact:libxcb-randr.so.0.1.0": "7fbbbc9f5679421e6b185ce8669634b663d53cefeb672e84c668c6fb299fb7a6",
+        "/runtime/artifact:libxcb-shm.so.0.0.0": "d560624e0f4a720eb68179b90c37bb0d5939cefecd2ef7c1aaaeae38ea3fe890",
+        "/runtime/artifact:libxcb-sync.so.1.0.0": "202ef4ca6d145173527af10b453df76429a80a45d36d8684a86036149be88fea",
+        "/runtime/artifact:libxcb-xfixes.so.0.0.0": "f7e7fb8ce09b4c438ae76299dd02694c29c0d2606beb4df09c30ab29a1a65237",
+        "/runtime/artifact:libxcb.so.1.1.0": "504faa0ca490d23e89505bb430892f18992979a7856869e776ae711fcaab79d7",
+        "/runtime/artifact:libxshmfence.so.1.0.0": "465230077bab283c2725c8ea05b340bd6efb885787e4e31022ba9e4c004e789e",
+        "/runtime/artifact:libz.so.1.3.2": "3c6fd78e248a60e45081bcc77031204a7cb64a88ff2e27fc786ef12ae7e91fca",
+        "/runtime/artifact:libzstd.so.1.5.7": "b0e2bad8c117a3ad7d344d7924272d12b8e363956efb91b5074e43d4e201a08d",
+        "/runtime/artifact:capability": "1b104e254889293f4d8bf8fb33331178baae76063a9eba8b1eb4b682d6993b23",
+        "/runtime/artifact:libresident_alignment.so": "06092f6d26536dbf8aaf4c4174e6decf5f898db76f91aae9e6591a1517a5d1b6",
+        "/runtime/artifact:libresident_components.so": "26f68782f8f48c11872511c08e8d92086c1f7e97a24a10804760d5cab3c8c790",
+        "/runtime/artifact:libresident_geometry.so": "976c18ebf68da814c4994c55387279dbd4b248e6f071ecb16daa49a1fded94cc",
+        "/runtime/artifact:libresident_rgbd.so": "5dc63b67ad6d822ea3f013704a2cd58ed302b78102be240627d6e6cc4e7069cd",
+        "/runtime/artifact:libresident_video.so": "2e1bffc9eb5620bcf1a0776808b093801d1cb9fac01c968c9209015dfc2a6a9b",
+        "/runtime/artifact:libvideo_mask.so": "3d8bf895930b18adc617c616f0c8178568113bd3b4e41a071e602f44340886ac",
+        "/runtime/artifact:qualify_geometry": "1d102d659a51e575751175b66df9a6118a721a248c6dba3d912cd019790b1731",
+        "/runtime/artifact:raw_reference": "11769890cfa66c611ff3721b48ce29512d7bf9b9a37c4295cc525c0e4c77b92d",
+        "/runtime/artifact:ld-linux-x86-64.so.2": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+        "/runtime/artifact:libc.so.6": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+        "/runtime/artifact:libdl.so.2": "c2994527172cc23b7fb0f7d611b71e00a37da27af12c2e5e9e0dc1a742886c96",
+        "/runtime/artifact:libm.so.6": "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0",
+        "/runtime/artifact:libpthread.so.0": "90491a21ce44efcf3bd4b65ec82501c091d7ebe7f8d9b341dd01d721001d9ecd",
+        "/runtime/artifact:librt.so.1": "6d072187d88e092e81561a44c03a4a41397319022c6d43519757cc051c576d82",
+        "/runtime/artifact:libvulkan_intel.so": "01a6aa501cf9f4cb87ea0b3c9465317e783ff58d1c021b5b59d09f8e6ecde857",
+        "/runtime/artifact:intel_icd.json": "09e7ca55461c3f2d65e5df6a6b8f06a7ce2c86fc58a93a18d2dbe3575623de83"
+      }
+    },
+    "local-layer-pre-remainder.json": {
+      "original_sha256": "ec455e544ab703b192c16155c7419b47ea9c9bdbf19ff2cbf2e8ca3c7072e603",
+      "hash_leaves": {
+        "/hashes/artifact:steamfossilize_i386.json": "3032b389f0358f98b557d6618d6167f3c58e16ca28a37db594bfa4923ae9c91a",
+        "/hashes/artifact:steamfossilize_x86_64.json": "09639a04cbc76e43b785df886d6760e97b3e5a5b27660de3ab63a7e311376675",
+        "/hashes/artifact:steamoverlay_i386.json": "5671b3a9ab26351cde81f4b7f9b2cc80e48f5396c0f98d71622b384255b656ab",
+        "/hashes/artifact:steamoverlay_x86_64.json": "4acccec03c26f21ee60398fb1f1a11845084e4e0ea0ddc858a148b3256182fe3",
+        "/hashes/artifact:libXau.so.6.0.0": "dcc7de4960c165b97b5faa8b3bdeb4dfc2439b5066f1f9b2f2e3aca9478267ff",
+        "/hashes/artifact:libXdmcp.so.6.0.0": "dcdabcb94e17c6b1057a751e43574882ba44bf9b0fa0ff0e75dbf7b30f9e3b63",
+        "/hashes/artifact:libffi.so.8.4.0": "4d28902e78d7ed5e1d825e0e038286a5e4dc7ef14d789ff4992336bbfc315ca4",
+        "/hashes/artifact:libwayland-client.so.0.26.0": "4e1299fe06af47b94abe7e9af2ca69c94606bf005d584feed41e0269e835fdb3",
+        "/hashes/artifact:libxcb-dri3.so.0.1.0": "eeae4c0815883ebb451dae3d48dde1ee2cecfa30a187b0a95531f37ad9823f0d",
+        "/hashes/artifact:libxcb.so.1.1.0": "504faa0ca490d23e89505bb430892f18992979a7856869e776ae711fcaab79d7",
+        "/hashes/artifact:libVkLayer_MESA_anti_lag.so": "079ca17aa14f0e7b9ba6c16f7cf3a968d00b7629b37a1f5851e409b24f0a260d",
+        "/hashes/artifact:libVkLayer_MESA_device_select.so": "83128aaf34e9a5ef595d7e047c93f5efb1683dc1cf41c1e78e7e255667419bf1",
+        "/hashes/artifact:ld-linux-x86-64.so.2": "4e5d39355699e90fa29313d3100e82af4a23290028c58c364d6a249ef6a78e5e",
+        "/hashes/artifact:libc.so.6": "a5c5ad9d59d3c69eda93aa8f82930ba06cc4e893a113e66c85ad6e96243d53c8",
+        "/hashes/artifact:libdrm.so.2.134.0": "e2a416f7b7c9e9e46b5f96bf20be71f146426daa6e1e8438adce2ab8e4c0fc0e",
+        "/hashes/artifact:libdrm_amdgpu.so.1.134.0": "a28f07a5f69cd85d5a55b18f436cff5e0e33087181bdc3b8061ac2dec99d1322",
+        "/hashes/artifact:libpthread.so.0": "41cad1a2bda56ff226e0b08db7edfaf4ec47d876ab1414a979fd157467b6c39d",
+        "/hashes/artifact:librt.so.1": "3a23e51370381b0ab993932341fd69643ade24869936e471e1dde2e62398d9f7",
+        "/hashes/artifact:VkLayer_MESA_anti_lag.json": "5d3f5dd3131e06f3100654f37e7821af6a3cfff1b6953c589c4cd39c540baff8",
+        "/hashes/artifact:VkLayer_MESA_device_select.json": "7ac622df81dc317e8a6666a774fd7411cb73d09952efda556ceccfb6f8c91857"
+      }
+    },
+    "remote-layer-pre-remainder.json": {
+      "original_sha256": "ad6303a3ab1e932c415fe6dbf282e1b0e9308d289329eaef27893b7e5a2b8b13",
+      "hash_leaves": {
+        "/hashes/artifact:libXau.so.6.0.0": "dcc7de4960c165b97b5faa8b3bdeb4dfc2439b5066f1f9b2f2e3aca9478267ff",
+        "/hashes/artifact:libXdmcp.so.6.0.0": "dcdabcb94e17c6b1057a751e43574882ba44bf9b0fa0ff0e75dbf7b30f9e3b63",
+        "/hashes/artifact:libdrm.so.2.129.0": "79478753f163ce9757714c791bd2740dc59d6ed26222b629cc9c17910bdac18f",
+        "/hashes/artifact:libffi.so.8.4.0": "4d28902e78d7ed5e1d825e0e038286a5e4dc7ef14d789ff4992336bbfc315ca4",
+        "/hashes/artifact:libwayland-client.so.0.26.0": "4e1299fe06af47b94abe7e9af2ca69c94606bf005d584feed41e0269e835fdb3",
+        "/hashes/artifact:libxcb-dri3.so.0.1.0": "eeae4c0815883ebb451dae3d48dde1ee2cecfa30a187b0a95531f37ad9823f0d",
+        "/hashes/artifact:libxcb.so.1.1.0": "504faa0ca490d23e89505bb430892f18992979a7856869e776ae711fcaab79d7",
+        "/hashes/artifact:ld-linux-x86-64.so.2": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+        "/hashes/artifact:libVkLayer_MESA_device_select.so": "3d960f263ec9dc0f4da64dc06d75bd71005202759a02f834b74b26fe5930a000",
+        "/hashes/artifact:libc.so.6": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+        "/hashes/artifact:libpthread.so.0": "90491a21ce44efcf3bd4b65ec82501c091d7ebe7f8d9b341dd01d721001d9ecd",
+        "/hashes/artifact:librt.so.1": "6d072187d88e092e81561a44c03a4a41397319022c6d43519757cc051c576d82",
+        "/hashes/artifact:VkLayer_MESA_device_select.json": "7cf0e893f7da6c36f19bddb526d9fc1da417a8ea40971b34b0f85dae1700352b"
+      }
+    },
+    "local-remainder-runtime-post.json": {
+      "original_sha256": "fd14625650d5981c92ef7383f1e751a78c850368772322c3a93d5a2708afc858",
+      "hash_leaves": {
+        "/artifact:libLLVM.so.22.1": "2e9c27457d4ecaf51257c8afcc039d661f688133d93694811690b2432a61eefb",
+        "/artifact:libSPIRV-Tools.so": "0b554745cae9bd85ebc61b8d48627be41e3b66b4fbc414986d04fc66e762c4e3",
+        "/artifact:libX11-xcb.so.1.0.0": "c89b4356a5ea9832e4e9542e4fab5aa729a81f8cfec36663666d66ba34cdc805",
+        "/artifact:libXau.so.6.0.0": "dcc7de4960c165b97b5faa8b3bdeb4dfc2439b5066f1f9b2f2e3aca9478267ff",
+        "/artifact:libXdmcp.so.6.0.0": "dcdabcb94e17c6b1057a751e43574882ba44bf9b0fa0ff0e75dbf7b30f9e3b63",
+        "/artifact:libelf-0.194.so": "fd027bfab3a91a07fc633ae2fd56ff48891fe3003f0bb11b9236e975910a2b7a",
+        "/artifact:libexpat.so.1.12.5": "8b61b41a8f5bee8d8d336e8bc5318233d6b435d482a7510f4e01788b618a6598",
+        "/artifact:libffi.so.8.4.0": "4d28902e78d7ed5e1d825e0e038286a5e4dc7ef14d789ff4992336bbfc315ca4",
+        "/artifact:libgcc_s.so.1": "5444fbe71e8cfe3bd05cdf2b44bd8c2e553e6e7e276977089b5e4e1a1ceed531",
+        "/artifact:libiconv.so.2.7.0": "59b942b8a9dfabcfec7d65ff2be1de2e59902765837768ca37468cef5dca9571",
+        "/artifact:libicudata.so.78.3": "6d963e31d9aa02a078854d6352f78625241fa489cdd6a4d308f1cb0d0eafc273",
+        "/artifact:libicuuc.so.78.3": "b1b20f42ec765c7dc4c75e05cc62cd750d7e92c32f2e0416c450338dac46458b",
+        "/artifact:librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+        "/artifact:libstdc++.so.6.0.36": "10f0d3c46c070acd4abea2ccf2500ff0ec77e9b90154b82ea2720dba05510cb9",
+        "/artifact:libudev.so.1.7.15": "fba77cb5e6f3a83859f18af8e7c7a65ebb770c9c5fa2cc3b49d20af9e300245c",
+        "/artifact:libusb-1.0.so.0.6.0": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373",
+        "/artifact:libvulkan.so.1.4.357": "3e728b0f2535a7dc344c76b166fdf28e2561ce7293c68df775aecac5c8c3f37e",
+        "/artifact:libwayland-client.so.0.26.0": "4e1299fe06af47b94abe7e9af2ca69c94606bf005d584feed41e0269e835fdb3",
+        "/artifact:libxcb-dri3.so.0.1.0": "eeae4c0815883ebb451dae3d48dde1ee2cecfa30a187b0a95531f37ad9823f0d",
+        "/artifact:libxcb-present.so.0.0.0": "61b9d3c1ffc4929fa1505529d287b9a7d86cdd2b9460eff2e53ed694ffc9801a",
+        "/artifact:libxcb-randr.so.0.1.0": "7fbbbc9f5679421e6b185ce8669634b663d53cefeb672e84c668c6fb299fb7a6",
+        "/artifact:libxcb-shm.so.0.0.0": "d560624e0f4a720eb68179b90c37bb0d5939cefecd2ef7c1aaaeae38ea3fe890",
+        "/artifact:libxcb-sync.so.1.0.0": "202ef4ca6d145173527af10b453df76429a80a45d36d8684a86036149be88fea",
+        "/artifact:libxcb-xfixes.so.0.0.0": "f7e7fb8ce09b4c438ae76299dd02694c29c0d2606beb4df09c30ab29a1a65237",
+        "/artifact:libxcb.so.1.1.0": "504faa0ca490d23e89505bb430892f18992979a7856869e776ae711fcaab79d7",
+        "/artifact:libxml2.so.16.1.4": "a32f04d52ebb257b28e19e76454914c0e0d4b225dd9203dc69a15466d2950696",
+        "/artifact:libxshmfence.so.1.0.0": "465230077bab283c2725c8ea05b340bd6efb885787e4e31022ba9e4c004e789e",
+        "/artifact:libz.so.1.3.2": "3c6fd78e248a60e45081bcc77031204a7cb64a88ff2e27fc786ef12ae7e91fca",
+        "/artifact:libzstd.so.1.5.7": "b0e2bad8c117a3ad7d344d7924272d12b8e363956efb91b5074e43d4e201a08d",
+        "/artifact:capability": "1b104e254889293f4d8bf8fb33331178baae76063a9eba8b1eb4b682d6993b23",
+        "/artifact:libresident_alignment.so": "06092f6d26536dbf8aaf4c4174e6decf5f898db76f91aae9e6591a1517a5d1b6",
+        "/artifact:libresident_components.so": "26f68782f8f48c11872511c08e8d92086c1f7e97a24a10804760d5cab3c8c790",
+        "/artifact:libresident_geometry.so": "976c18ebf68da814c4994c55387279dbd4b248e6f071ecb16daa49a1fded94cc",
+        "/artifact:libresident_rgbd.so": "5dc63b67ad6d822ea3f013704a2cd58ed302b78102be240627d6e6cc4e7069cd",
+        "/artifact:libresident_video.so": "2e1bffc9eb5620bcf1a0776808b093801d1cb9fac01c968c9209015dfc2a6a9b",
+        "/artifact:libvideo_mask.so": "3d8bf895930b18adc617c616f0c8178568113bd3b4e41a071e602f44340886ac",
+        "/artifact:qualify_geometry": "1d102d659a51e575751175b66df9a6118a721a248c6dba3d912cd019790b1731",
+        "/artifact:raw_reference": "11769890cfa66c611ff3721b48ce29512d7bf9b9a37c4295cc525c0e4c77b92d",
+        "/artifact:libvulkan_radeon.so": "ecd0604a8f167fe0445715fb7eecc8b81ec0d9513f722a4f846b4a137852b507",
+        "/artifact:ld-linux-x86-64.so.2": "4e5d39355699e90fa29313d3100e82af4a23290028c58c364d6a249ef6a78e5e",
+        "/artifact:libc.so.6": "a5c5ad9d59d3c69eda93aa8f82930ba06cc4e893a113e66c85ad6e96243d53c8",
+        "/artifact:libdisplay-info.so.0.3.0": "2744bd4b6f456e67f24a37f79c43ed2d3fd73b87802ab677dd3a5ad4c5ad5a7d",
+        "/artifact:libdl.so.2": "54d56c0f10466a05cc92685f8062ee6a2eaf59c62fb6f724217e984fcfbb5031",
+        "/artifact:libdrm.so.2.134.0": "e2a416f7b7c9e9e46b5f96bf20be71f146426daa6e1e8438adce2ab8e4c0fc0e",
+        "/artifact:libdrm_amdgpu.so.1.134.0": "a28f07a5f69cd85d5a55b18f436cff5e0e33087181bdc3b8061ac2dec99d1322",
+        "/artifact:libm.so.6": "16a03ce6d24c8a46742206d4a9c1d35bb6577ae2384f153dc6ef4a4b62b5357f",
+        "/artifact:libpthread.so.0": "41cad1a2bda56ff226e0b08db7edfaf4ec47d876ab1414a979fd157467b6c39d",
+        "/artifact:librt.so.1": "3a23e51370381b0ab993932341fd69643ade24869936e471e1dde2e62398d9f7",
+        "/artifact:radeon_icd.x86_64.json": "d7db9126aec4895d2f2c4d50b74d160547cabc0a84180245e3c6adf21e769a33",
+        "/artifact:steamfossilize_i386.json": "3032b389f0358f98b557d6618d6167f3c58e16ca28a37db594bfa4923ae9c91a",
+        "/artifact:steamfossilize_x86_64.json": "09639a04cbc76e43b785df886d6760e97b3e5a5b27660de3ab63a7e311376675",
+        "/artifact:steamoverlay_i386.json": "5671b3a9ab26351cde81f4b7f9b2cc80e48f5396c0f98d71622b384255b656ab",
+        "/artifact:steamoverlay_x86_64.json": "4acccec03c26f21ee60398fb1f1a11845084e4e0ea0ddc858a148b3256182fe3",
+        "/artifact:libVkLayer_MESA_anti_lag.so": "079ca17aa14f0e7b9ba6c16f7cf3a968d00b7629b37a1f5851e409b24f0a260d",
+        "/artifact:libVkLayer_MESA_device_select.so": "83128aaf34e9a5ef595d7e047c93f5efb1683dc1cf41c1e78e7e255667419bf1",
+        "/artifact:VkLayer_MESA_anti_lag.json": "5d3f5dd3131e06f3100654f37e7821af6a3cfff1b6953c589c4cd39c540baff8",
+        "/artifact:VkLayer_MESA_device_select.json": "7ac622df81dc317e8a6666a774fd7411cb73d09952efda556ceccfb6f8c91857"
+      }
+    },
+    "remote-remainder-runtime-post.json": {
+      "original_sha256": "e38ad31c9b37dd6c34a2f689e58e16f4f8259e934aafb87379efbb7122980899",
+      "hash_leaves": {
+        "/artifact:libX11-xcb.so.1.0.0": "c89b4356a5ea9832e4e9542e4fab5aa729a81f8cfec36663666d66ba34cdc805",
+        "/artifact:libXau.so.6.0.0": "dcc7de4960c165b97b5faa8b3bdeb4dfc2439b5066f1f9b2f2e3aca9478267ff",
+        "/artifact:libXdmcp.so.6.0.0": "dcdabcb94e17c6b1057a751e43574882ba44bf9b0fa0ff0e75dbf7b30f9e3b63",
+        "/artifact:libdrm.so.2.129.0": "79478753f163ce9757714c791bd2740dc59d6ed26222b629cc9c17910bdac18f",
+        "/artifact:libexpat.so.1.12.5": "8b61b41a8f5bee8d8d336e8bc5318233d6b435d482a7510f4e01788b618a6598",
+        "/artifact:libffi.so.8.4.0": "4d28902e78d7ed5e1d825e0e038286a5e4dc7ef14d789ff4992336bbfc315ca4",
+        "/artifact:libgcc_s.so.1": "5444fbe71e8cfe3bd05cdf2b44bd8c2e553e6e7e276977089b5e4e1a1ceed531",
+        "/artifact:librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+        "/artifact:libstdc++.so.6.0.36": "10f0d3c46c070acd4abea2ccf2500ff0ec77e9b90154b82ea2720dba05510cb9",
+        "/artifact:libudev.so.1.7.15": "7b7738e83bd3a167c7bcb21170c7a8864e9e35032d119d53af97b3bbbf903786",
+        "/artifact:libusb-1.0.so.0.6.0": "ed5fe64ff8f890bd5b5bc29fe2204cfdcd1f25ab36c86d02f9ddfbff28aff373",
+        "/artifact:libvulkan.so.1.4.357": "3e728b0f2535a7dc344c76b166fdf28e2561ce7293c68df775aecac5c8c3f37e",
+        "/artifact:libwayland-client.so.0.26.0": "4e1299fe06af47b94abe7e9af2ca69c94606bf005d584feed41e0269e835fdb3",
+        "/artifact:libxcb-dri3.so.0.1.0": "eeae4c0815883ebb451dae3d48dde1ee2cecfa30a187b0a95531f37ad9823f0d",
+        "/artifact:libxcb-present.so.0.0.0": "61b9d3c1ffc4929fa1505529d287b9a7d86cdd2b9460eff2e53ed694ffc9801a",
+        "/artifact:libxcb-randr.so.0.1.0": "7fbbbc9f5679421e6b185ce8669634b663d53cefeb672e84c668c6fb299fb7a6",
+        "/artifact:libxcb-shm.so.0.0.0": "d560624e0f4a720eb68179b90c37bb0d5939cefecd2ef7c1aaaeae38ea3fe890",
+        "/artifact:libxcb-sync.so.1.0.0": "202ef4ca6d145173527af10b453df76429a80a45d36d8684a86036149be88fea",
+        "/artifact:libxcb-xfixes.so.0.0.0": "f7e7fb8ce09b4c438ae76299dd02694c29c0d2606beb4df09c30ab29a1a65237",
+        "/artifact:libxcb.so.1.1.0": "504faa0ca490d23e89505bb430892f18992979a7856869e776ae711fcaab79d7",
+        "/artifact:libxshmfence.so.1.0.0": "465230077bab283c2725c8ea05b340bd6efb885787e4e31022ba9e4c004e789e",
+        "/artifact:libz.so.1.3.2": "3c6fd78e248a60e45081bcc77031204a7cb64a88ff2e27fc786ef12ae7e91fca",
+        "/artifact:libzstd.so.1.5.7": "b0e2bad8c117a3ad7d344d7924272d12b8e363956efb91b5074e43d4e201a08d",
+        "/artifact:capability": "1b104e254889293f4d8bf8fb33331178baae76063a9eba8b1eb4b682d6993b23",
+        "/artifact:libresident_alignment.so": "06092f6d26536dbf8aaf4c4174e6decf5f898db76f91aae9e6591a1517a5d1b6",
+        "/artifact:libresident_components.so": "26f68782f8f48c11872511c08e8d92086c1f7e97a24a10804760d5cab3c8c790",
+        "/artifact:libresident_geometry.so": "976c18ebf68da814c4994c55387279dbd4b248e6f071ecb16daa49a1fded94cc",
+        "/artifact:libresident_rgbd.so": "5dc63b67ad6d822ea3f013704a2cd58ed302b78102be240627d6e6cc4e7069cd",
+        "/artifact:libresident_video.so": "2e1bffc9eb5620bcf1a0776808b093801d1cb9fac01c968c9209015dfc2a6a9b",
+        "/artifact:libvideo_mask.so": "3d8bf895930b18adc617c616f0c8178568113bd3b4e41a071e602f44340886ac",
+        "/artifact:qualify_geometry": "1d102d659a51e575751175b66df9a6118a721a248c6dba3d912cd019790b1731",
+        "/artifact:raw_reference": "11769890cfa66c611ff3721b48ce29512d7bf9b9a37c4295cc525c0e4c77b92d",
+        "/artifact:ld-linux-x86-64.so.2": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+        "/artifact:libc.so.6": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+        "/artifact:libdl.so.2": "c2994527172cc23b7fb0f7d611b71e00a37da27af12c2e5e9e0dc1a742886c96",
+        "/artifact:libm.so.6": "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0",
+        "/artifact:libpthread.so.0": "90491a21ce44efcf3bd4b65ec82501c091d7ebe7f8d9b341dd01d721001d9ecd",
+        "/artifact:librt.so.1": "6d072187d88e092e81561a44c03a4a41397319022c6d43519757cc051c576d82",
+        "/artifact:libvulkan_intel.so": "01a6aa501cf9f4cb87ea0b3c9465317e783ff58d1c021b5b59d09f8e6ecde857",
+        "/artifact:intel_icd.json": "09e7ca55461c3f2d65e5df6a6b8f06a7ce2c86fc58a93a18d2dbe3575623de83",
+        "/artifact:libVkLayer_MESA_device_select.so": "3d960f263ec9dc0f4da64dc06d75bd71005202759a02f834b74b26fe5930a000",
+        "/artifact:VkLayer_MESA_device_select.json": "7cf0e893f7da6c36f19bddb526d9fc1da417a8ea40971b34b0f85dae1700352b"
+      }
+    },
+    "hashes.json": {
+      "original_sha256": "fbba6380deca031172a904155582d1865d4d428d8b0b7b0db9825a8726403fe0",
+      "hash_leaves": {
+        "/compile-command.json": "0c9c8de16b39bb24187c4adf3e3059bac8ebdc6fa01148b5731a73d89dcd34d7",
+        "/shim-disassembly.txt": "8903b98738f314eab55e371de689749c7d435645205fca8efc77e7d44a465a76",
+        "/shim-symbols.txt": "6eb9c548970bb921eb1a48fa25276aef2e6b4eb148daa95664eb1676eb1d13ba",
+        "/shim-ldd.txt": "48f46ad102d8acbbe322f8acca1be0d6bb3b35fcbff4d8524bb684f7f77eb824",
+        "/test-ldd.txt": "aeb3f3ea57d0bbc57fc5effc41c9b017a8d867beece986ce64ff943e0ed325e3",
+        "/green.log": "5aebff209aa40bde64678787b0d0d8c9a93344dbadb2783521565d5058e42a2c",
+        "/libvideo_mask.so": "3d8bf895930b18adc617c616f0c8178568113bd3b4e41a071e602f44340886ac",
+        "/mask.c": "61dafad9997d0d556bcb27359aff74e4cdfdb82115745ddae7f023115f776275",
+        "/red.log": "529709b916113aa918377634547a999d70fb2bd03c00dda744dddea89debf9a1",
+        "/test": "06c80efa950afe20fb64064a4322edf3ebb49e705759920ecf2f376566ec236a",
+        "/libmock.so": "412d1f1153d885236f5af25b54a518728042c992ffb4a1e11cccc27055772843",
+        "/test.c": "f7f70157a687d4fa94f97f9b979b4a694e32176423c58894b3dc962a3a8927e7",
+        "/mock.c": "c19380454826c8b2792159f403d9fb956d84d72cf327c3c173e9289dbf763b3c"
+      }
+    }
+  },
+  "cpu_summary": {
+    "canonical_passed": 3868,
+    "skipped": 136,
+    "subtests_passed": 48,
+    "native_ctests_passed": 14,
+    "native_ros_passed": 347,
+    "focused_passed_each_python_environment": 42
+  },
+  "context_sha256": "ddc535619de1edc6879908d50674e2f6c7325b2f5d6bb47eac4cd3c0a5006384",
+  "mask_source_sha256": "61dafad9997d0d556bcb27359aff74e4cdfdb82115745ddae7f023115f776275",
+  "privacy_policy": {
+    "removed_fields": [
+      "commands_reviewed",
+      "compile_command",
+      "executable",
+      "focused_command",
+      "independent_cpu_command",
+      "private_scratch"
+    ],
+    "omitted": "Commands, environment, PIDs, serials, UUIDs, calibration values, raw samples/private vectors and event paths; source/runtime/input/artifact hashes retained. Absolute identities normalized.",
+    "raw_physical_scene_files_included": false
+  },
+  "physical_precision_metadata": {
+    "scope": "instance and physical-feature queries only; no logical device or shader",
+    "amd": {
+      "vendor_device": "1002:1586",
+      "physical_api": "1.4.354",
+      "shaderFloat64": true,
+      "shaderInt64": true,
+      "shaderInt16": true
+    },
+    "intel": {
+      "vendor_device": "8086:46d1",
+      "physical_api": "1.4.318",
+      "shaderFloat64": false,
+      "shaderInt64": true,
+      "shaderInt16": true
+    },
+    "enabled_int64_runtime": "unmeasured",
+    "current_compute_only_source_baseline": "copies only supported shaderFloat64; shaderInt64 remains disabled",
+    "software_arithmetic_qualified": false,
+    "probe_source_sha256": "939e141b23c19f6d441677e781a65a6b1ea3d59a0e5bec6536d7383181c86a58",
+    "archived_probe_source": "tools/performance/physical_precision_features.cpp"
+  }
+}
