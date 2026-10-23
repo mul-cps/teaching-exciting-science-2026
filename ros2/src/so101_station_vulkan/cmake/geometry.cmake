@@ -70,3 +70,5 @@ option(ENABLE_SOFTWARE_GEOMETRY "Build opt-in software binary64 geometry prepara
 if(ENABLE_SOFTWARE_GEOMETRY)
  include("${CMAKE_CURRENT_LIST_DIR}/software_geometry.cmake")
 endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/geometry_benchmark.cmake")

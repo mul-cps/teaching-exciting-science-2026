@@ -102,8 +102,25 @@ Inventory individual physical features before designing an emulation path: both 
 support Int64 even though Intel lacks FP64. The historical committed compute-only baseline
 at `c53d8d5` left Int64 disabled. The later [explicit software binary64 prototype](software-binary64-20261023.md#bounded-gpu-conformance-and-preparation) enables supported Int64 and passes bounded
 primitive/preparation accuracy on both tested GPUs, including Intel without Float64.
-Transfer-inclusive GPU cost and latency remain unmeasured, so it is not the default path.
+Initial [isolated preparation timing](geometry-preparation-timing-20261023.md) now records host latency and process CPU demand. Transfer-inclusive fresh-input/full-pipeline cost, unique delivery and age remain unmeasured, so it is not the default path.
 Capability, enablement, accuracy and useful performance are separate evidence.
+
+## Interpret isolated preparation budgets
+
+The [two-case preparation experiment](geometry-preparation-timing-20261023.md#timing-and-process-cpu-demand)
+used one already-resident synthetic 640×480 source, serial reuse, eight warmups and three 32-sample trials.
+For full XYZ rotation, median trial p95 was 0.318740 ms software AMD, 0.218732 ms native AMD
+and 13.101365 ms software Intel. Median whole-trial process CPU divided by 32 was 0.011474,
+0.010819 and 0.478461 ms respectively. These separate latency/CPU budgets do not measure
+capture, new input transfers, unique delivery, complete geometry or control QoS.
+Do not add Core/alignment/preparation p95s from separate experiments to derive FPS.
+
+Calibration structure belongs in the test matrix: axis-aligned sign/unit coefficients exercise
+different arithmetic paths from a proper XYZ rotation with all nine coefficients nonzero/nonunit.
+Retain both cases and their source identities; one calibration is not a general workload model.
+Requested 50 µs polling produced about 99–104 µs observed sleep intervals, so sub-millisecond
+host-observed tails include polling/scheduling granularity. The experiment did not isolate
+DVFS causality or supply a CPU baseline; native/software AMD comparisons remain descriptive.
 
 ## Account for camera and system work
 

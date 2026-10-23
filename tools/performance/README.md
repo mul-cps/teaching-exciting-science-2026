@@ -168,8 +168,10 @@ show Int64 support on both tested GPUs and FP64 support only on AMD.
 [qualify_soft_binary64.cpp](qualify_soft_binary64.cpp) and
 [soft_binary64_probe.slang](soft_binary64_probe.slang) provide a separate arithmetic
 diagnostic. The [evidence checkpoint](../../docs/performance/software-binary64-20261023.md)
-records CPU checks, source/artifact identities and remaining gates. Performance,
-complete geometry, default camera admission and physical operation remain unqualified.
+records CPU checks, source/artifact identities and remaining gates. Separate
+[isolated preparation timing](../../docs/performance/geometry-preparation-timing-20261023.md)
+is available; transfer-inclusive/full-pipeline performance, complete geometry,
+default camera admission and physical operation remain unqualified.
 Run the examples from the repository root in Bash; choose a fresh task directory.
 
 CPU corpus generation/validation needs a C++17 compiler and no Vulkan headers,
@@ -267,3 +269,103 @@ both physical and actually enabled Int64, processes at most 16,384 rows per batc
 and compares four output words per row exactly. Preserve nonzero exits and partial
 artifacts. Even a successful primitive run does not qualify preparation coordinates,
 transfer-inclusive performance, full object reports or station operation.
+
+## Geometry preparation timing
+
+[benchmark_geometry.cpp](../../ros2/src/so101_station_vulkan/test/benchmark_geometry.cpp)
+measures one retained resident source through the real submit/ready/finish API.
+The [timing archive](../../docs/performance/geometry-preparation-timing-20261023.md)
+records two synthetic 640×480 cases, native Float64 on AMD and explicit software
+binary64 on AMD/Intel. It is not a unique-output, camera, frame-age, full-pipeline
+or performance-acceptance test. No default camera/backend selection changes.
+
+Run the following **offline** preparation/build steps from the repository root
+inside the reviewed native station environment. The factory computes independent
+CPU geometry/counts; it never uses software-helper arithmetic or GPU output as
+an oracle. Both frozen cases expect 307,200 valid pixels and 4,800 support points.
+Use a fresh prefix; fixture/output creation refuses existing destinations.
+
+```bash
+task_geometry_prefix=$(mktemp -d "${TMPDIR:-/tmp}/geometry-preparation.XXXXXX")
+task_geometry_build="$task_geometry_prefix/build"
+task_geometry_fixtures="$task_geometry_prefix/fixtures"
+task_slang=${SLANGC_EXECUTABLE:?set the reviewed native Slang compiler}
+RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ros2/conda/so101-conda.sh run python \
+  tools/performance/prepare_geometry_benchmark.py --output "$task_geometry_fixtures"
+RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ros2/conda/so101-conda.sh run cmake \
+  -S ros2/src/so101_station_vulkan -B "$task_geometry_build" \
+  -DRMW_IMPLEMENTATION=rmw_cyclonedds_cpp -DCMAKE_BUILD_TYPE=Release \
+  -DSLANGC_EXECUTABLE="$task_slang" -DENABLE_SOFTWARE_GEOMETRY=ON
+RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ros2/conda/so101-conda.sh run cmake \
+  --build "$task_geometry_build" \
+  --target benchmark_geometry qualify_geometry software_geometry_spirv
+```
+
+The CMake target generates a meaningful nondefault
+`GEOMETRY_BENCHMARK_PROVENANCE` stamp with source/compiler hashes and flags,
+including `-ffp-contract=off -fno-fast-math -frounding-math`. Real run mode refuses
+the fallback `unrecorded` stamp. Manual builds need equivalent reviewed provenance
+and ABI-consistent libraries; do not replace the stamp with a dummy value.
+Runtime JSON records the actual fixture and five SPV hashes. Preserve compiler
+identity, exact flags, parent/helper dependencies and module validation results.
+
+This command validates the fixture, expected-count bounds and software SPV profile
+without creating a Vulkan Context/device or collecting timing samples:
+
+```bash
+"$task_geometry_build/benchmark_geometry" --offline --software-binary64 \
+  "$task_geometry_fixtures/full_xyz_rotation.bin" \
+  "$task_geometry_build/software-geometry-shaders" \
+  "$task_geometry_prefix/full-xyz-offline.json" \
+  --expected-valid 307200 --expected-support 4800
+```
+
+Use `--native-float64` with `geometry-shaders` for native-profile offline validation.
+A future real run requires both physical and actually enabled Int64 for software,
+or Float64 for native; unsupported native Float64 remains refused. The measured
+native run was AMD only.
+
+Before timing a new source/runtime/calibration version, freeze inputs and run the
+existing `qualify_geometry` plus unchanged `qualify_native_preparation.py compare`
+on the independent NPZ. Require the unchanged absolute 1e-12/exact discrete and
+lease/fence/generation contracts. Never obtain expected counts from a first GPU run.
+The historical full-XYZ case passed these gates in all three measured mode/device
+combinations; a new version is a new qualification scope.
+
+For a separately reviewed GPU run, construct the explicit argument vector below.
+This block **does not launch it**. Have the reviewed external process-group owner
+launch that vector with a 90-second deadline, TERM/KILL/drain ownership, immutable
+inputs and stop-first-failure behavior. The owner must also pin the actual loader
+per executable, hardware ICD/driver, all critical DRM/core libraries, source,
+helper, SPVs and fixture; archive actual maps and post-critical identities before
+mapping validation. Unrelated nonexecuting/nonlibrary/nonpinned data is diagnostic,
+not a home/cache-directory gate. The acknowledgment alone is not a watchdog.
+
+```bash
+task_geometry_precision=--software-binary64
+task_geometry_shaders="$task_geometry_build/software-geometry-shaders"
+task_geometry_case=full_xyz_rotation
+task_geometry_gpu_args=(
+  env GEOMETRY_BENCHMARK_EXTERNAL_WATCHDOG=1
+  "$task_geometry_build/benchmark_geometry" --run "$task_geometry_precision"
+  "$task_geometry_fixtures/$task_geometry_case.bin" "$task_geometry_shaders"
+  "$task_geometry_prefix/$task_geometry_case-timing.json"
+  --expected-valid 307200 --expected-support 4800
+  --warmup 8 --trials 3 --iterations 32 --poll-us 50 --cpu-budget-ms 2000
+)
+```
+
+Select one reviewed hardware ICD only for that child process; do not export driver
+selection or feature masks globally. Native AMD uses `--native-float64` and
+`geometry-shaders`. Input uploads, setup, eight warmups and drain are excluded.
+A finite ten-second operation/source-fence deadline does not replace the external
+owner for blocked driver/destructor calls. Preserve nonzero exits/partial evidence.
+
+Report nearest-rank p95 within each 32-sample trial (rank 31), then median of three
+trial p95s, never pooled tails. Keep raw samples, whole-trial process CPU/32,
+ordinary-C++new/station Buffer counter scope and requested/observed polling sleep
+separate. Do not infer FPS, add these tails to Core/alignment tails or claim a CPU
+baseline/speedup; native/software AMD comparison was descriptive without DVFS
+isolation. The [measured header snapshot](../../docs/performance/geometry-preparation-timing-20261023.md#measured-source-and-current-tree)
+predates the intentional `FramePoolToken` API addition; current transitive sources
+must not be presented as the historical measured version.
