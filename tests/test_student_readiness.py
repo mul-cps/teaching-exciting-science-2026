@@ -172,9 +172,26 @@ try:
     post('/api/program/run',{'program':program,'admission':app.status()['admission']})
     app.thread.join(3);assert app.status()['job']['state']=='complete'
     assert app.backend.events[-1]=='published current endpoint'
-    exported=post('/api/python',{'program':[{'op':'pick_place_recording','name':'fixed_pick_place','speed':.5}]})
-    compile(exported['python'],'<published export>','exec')
-    assert 'physical=False' in exported['python']
+    export_program=[{'op':'pick_place_recording','name':'fixed_pick_place','speed':.5}]
+    exported=post('/api/python',{'program':export_program})
+    export_path=root/'student_export.py'
+    export_path.write_text(exported['python'],encoding='utf-8')
+    import subprocess
+    executed=subprocess.run([sys.executable,'-S',str(export_path)],cwd=root,
+                            check=True,capture_output=True,text=True,timeout=10)
+    captured=json.loads(executed.stdout)
+    from workshop.blockly_program import ProgramRunner,SimulationBackend
+    backend=SimulationBackend({'demo':{'schema':'simulation-only'}})
+    expected=ProgramRunner(backend).execute(export_program,threading.Event())
+    assert captured=={**expected,'simulation':True,'events':backend.events,'status':backend.status()}
+    assert captured['complete'] is True and captured['simulation'] is True
+    assert captured['status']['physical'] is False
+    assert captured['status']['simulation_state']['segment']=='pick_place_recording:fixed_pick_place'
+    assert len(captured['taught_skills'])==1
+    skill=captured['taught_skills'][0]
+    assert skill['name']=='fixed_pick_place' and skill['simulation'] is True
+    assert skill['physical_evidence'] is False
+    assert all(skill[key] is False for key in ('pickup_verified','lift_verified','release_verified'))
 finally:
     server.shutdown();server.server_close();thread.join(3);app.close()
 '''
