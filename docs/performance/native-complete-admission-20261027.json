@@ -1,0 +1,3098 @@
+{
+  "schema": "so101-native-complete-admission-checkpoint-v1",
+  "date": "2026-10-27",
+  "result": "PASS",
+  "scope": "offline CPU and retained synthetic-provider actual ROS node/executor/CDR qualification only",
+  "worktree": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022",
+  "branch": "feat/beginner-vulkan-20261022",
+  "source_commit": "af3aaecfa23f4755fdcb82af6186d30032b4ebf9",
+  "metadata_baseline_commit": "aa446ed66d71a91ed8cc5d44806af2b708d7f3dc",
+  "frozen_cpu_publication_source": "443cd8f82ae19dbb1468088dbf33d9bed6851aaa",
+  "shared_main_expected": "7e0a646f86a9a07a09f38bc654e6540ccc78a2cd",
+  "shared_main_modified": false,
+  "production_test_tool_sha256": {
+    "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
+    "ros2/src/so101_station_objects/so101_station_objects/native_complete_report.py": "f566dcb87f3b3849a3e684c923d6dfc9bfc81e47ebabde954a2f622fa10bcd8c",
+    "tests/test_native_complete_report_ros.py": "8b5710c66d03bf2d4edbac099bd72a7ea68e5a8aadc013ce9f16eaa48faddc73",
+    "tests/test_object_timing_diagnostic.py": "784466b901129672aa8b317b8c04dd4cfc57d83c098a1ca930b1864ff982d9b2",
+    "tests/fixtures/complete_report_admission/cpu_baseline.json": "1a95eccf560bc89c2d23a6d316c1c8e1592e0d952ac0ed1c68369f9d2d812e5a",
+    "tools/performance/benchmark_complete_report_admission.py": "d2cb56da148c7cea1d34ce9d94a245ea716ac2c29552035f07e17db625e3aeb2",
+    "tools/performance/benchmark_native_complete_report.py": "fae2746fab3edd6bc67d52496d87e912f8e315440620ba4ee8540be871b87cbc",
+    "tests/test_complete_report_resources.py": "dd15c060b0f6f760ce1ff8564b6bfa1eabf6d56ebc6cf630f3943e0c595fa04b",
+    "tests/test_native_complete_report_resources.py": "9b4bdfe759bb69bbf5ddb91119cfead38fb4886458364c903bbbbc266d0f2e8a",
+    "tests/test_native_complete_report.py": "20dac0794c6d4591fd830a300173105e13027f556e0fb16ced150b5694e0944e",
+    "tests/test_complete_report_admission.py": "a096a0c4b19ed3cefc63ffbfa76c1ff6edee4edbda703c88cc906d4335b3f40c",
+    "tests/test_derived_aligned_ros.py": "d96a16934e16ee9900d2a54ce22703597a45729e8ace46c4c487aeca21ca6ce7",
+    "tools/test_cpu.py": "b1d550acbe4d2542a21d500a2c0975b2bb0ceff34121671bdd038abd49e9af8f",
+    "tools/test_perception_supervisor.sh": "32871b387898698600acbf94eb6e7b57a8502baf33058843d94584c270031969",
+    "tests/native177.json": "053c452c4d035376b7ee2f4461ff645fe1124f172f550f3adfd7755030c25bdd",
+    "tools/native_geometry_oracle.py": "a9ccdbb8c207a5522b69096b2b00dff9ff9f85047c4595ce8d8c4956796ec166",
+    "tools/native_geometry_matrix.py": "266c3277caeda285ce0d2a761c1b85387d9215eaae98046dbcdf95eabe207732",
+    "tests/test_object_fresh_scheduler.py": "91490ab78dc70880373c3f67282c7ec137aa3670104d9dfeb409fde69b768637",
+    "tests/test_object_result_delivery.py": "7b54843872ebddc82c934f36b4174c1d2c7e90394b53986abede1ef2ae7786c9",
+    "tests/test_alignment_extents.py": "9cabc9cfaca7a39a2fc0f912b37264f4a07fa9041ab2b72293367430b1c3f788",
+    "tests/test_camera_resolution_profiles.py": "b23076b5c221a225530854f9d333dab592190fee4bca7f46298594912e4406cd",
+    "tests/test_raw_capture_bridge.py": "4898a3a47c6faa52d58f08c73b59c8dfda3e3d55c9cd134500b209d91f02a2c3",
+    "tests/test_raw_resident_perf.py": "8f91eb2592154415a58458b4be35996c4c98c766e7f8d1f981ce2ce21e5e7372"
+  },
+  "fixture_sha256": {
+    "tests/fixtures/native_geometry/child-evidence-v1.json": "00f5d69f2a297ff876ce1848fdfaa42abebf5dbe503284b33258de052e1a9ab0",
+    "tests/fixtures/native_geometry/matrix-v1.json": "7f9feb3f53353a301f575805762391a3bd7f9fb9c55571f0d098c7d711028625",
+    "tests/fixtures/native_geometry/matrix-v2.json": "f0c1cf16458d5e8a1a7cd412b152d3daa2344c99ee09e6384376847cf66d0417",
+    "tests/fixtures/native_geometry/observed-children-v1.json": "4e6d34310c69c29c11db6d8f5d743867d6622d9f982e967cb12e74f1c38b3fea",
+    "tests/fixtures/native_geometry/observed-children-v2.json": "edd7bbc8296dcfcbe9d7b3b4755c2dbff0537a2fb3d1ba0e48c8ca68c098f795",
+    "tests/fixtures/native_geometry/parent-order-v1.json": "73b0893b4747eee8804e2fec53de650495225eb7d87eea313d7b80c3964b7201",
+    "tests/fixtures/native_geometry/procedural-v1.json": "efebf08df0141b87f3d335a25edf22ed30b9d446fcb59ee704ff8d90f63d6ec6",
+    "tests/fixtures/native_geometry/procedural-v2.json": "83f88ddf78db7cee442189546aa599551cf5565304f55117b895a8c17fbef527"
+  },
+  "metadata_proof": {
+    "cases": 12,
+    "complete_npy_files_byte_exact": 561,
+    "v1_files_byte_exact": 5,
+    "v1_sha256": {
+      "tests/fixtures/native_geometry/child-evidence-v1.json": "00f5d69f2a297ff876ce1848fdfaa42abebf5dbe503284b33258de052e1a9ab0",
+      "tests/fixtures/native_geometry/matrix-v1.json": "7f9feb3f53353a301f575805762391a3bd7f9fb9c55571f0d098c7d711028625",
+      "tests/fixtures/native_geometry/observed-children-v1.json": "4e6d34310c69c29c11db6d8f5d743867d6622d9f982e967cb12e74f1c38b3fea",
+      "tests/fixtures/native_geometry/parent-order-v1.json": "73b0893b4747eee8804e2fec53de650495225eb7d87eea313d7b80c3964b7201",
+      "tests/fixtures/native_geometry/procedural-v1.json": "efebf08df0141b87f3d335a25edf22ed30b9d446fcb59ee704ff8d90f63d6ec6"
+    },
+    "all_fixture_path_inventory_exact": true,
+    "input_array_inventory_exact": true,
+    "all_nonmetadata_numbers_types_and_list_order_exact": true,
+    "independent_nonnode_definitions_exact": [
+      "_repository_root",
+      "SupportPlaneUnavailable",
+      "cached_marker_should_clear",
+      "camera_points",
+      "transform_points",
+      "_orient_plane_up",
+      "_fit_world_support",
+      "_plane_world_to_camera",
+      "_split_elongated_contours",
+      "_component_geometry",
+      "_validate_roi",
+      "_inside_roi",
+      "_visible_component_geometry",
+      "analyze_rgbd",
+      "StableObjectTracker",
+      "matrix_quaternion",
+      "grasp_pose_rotation",
+      "transform_from_msg",
+      "elevated_pose_copy",
+      "pregrasp_position",
+      "main"
+    ],
+    "metadata_changes": [
+      {
+        "path": "tests/fixtures/native_geometry/procedural-v2.json",
+        "baseline_sha256": "ecca48a192c828c755e52a05ec7a69df90840d0dbb40ace5a4a40a054b89469b",
+        "resealed_sha256": "83f88ddf78db7cee442189546aa599551cf5565304f55117b895a8c17fbef527",
+        "allowlist": [
+          "sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]"
+        ],
+        "nonmetadata_type_sensitive_exact": true
+      },
+      {
+        "path": "tests/fixtures/native_geometry/matrix-v2.json",
+        "baseline_sha256": "e537a5e6561894dfdf44c11c4674f983ae42e84fba0b9a820780a36c9583af6b",
+        "resealed_sha256": "f0c1cf16458d5e8a1a7cd412b152d3daa2344c99ee09e6384376847cf66d0417",
+        "allowlist": [
+          "cases[0].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[0].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[0].oracle_manifest_sha256",
+          "cases[0].oracle_payload_manifest_sha256",
+          "cases[1].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[1].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[1].oracle_manifest_sha256",
+          "cases[1].oracle_payload_manifest_sha256",
+          "cases[2].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[2].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[2].oracle_manifest_sha256",
+          "cases[2].oracle_payload_manifest_sha256",
+          "cases[3].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[3].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[3].oracle_manifest_sha256",
+          "cases[3].oracle_payload_manifest_sha256",
+          "cases[4].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[4].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[4].oracle_manifest_sha256",
+          "cases[4].oracle_payload_manifest_sha256",
+          "cases[5].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[5].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[5].oracle_manifest_sha256",
+          "cases[5].oracle_payload_manifest_sha256",
+          "cases[6].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[6].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[6].oracle_manifest_sha256",
+          "cases[6].oracle_payload_manifest_sha256",
+          "cases[7].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[7].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[7].oracle_manifest_sha256",
+          "cases[7].oracle_payload_manifest_sha256",
+          "cases[8].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[8].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[8].oracle_manifest_sha256",
+          "cases[8].oracle_payload_manifest_sha256",
+          "cases[9].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[9].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[9].oracle_manifest_sha256",
+          "cases[9].oracle_payload_manifest_sha256",
+          "cases[10].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[10].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[10].oracle_manifest_sha256",
+          "cases[10].oracle_payload_manifest_sha256",
+          "cases[11].provenance.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[11].reference.sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]",
+          "cases[11].oracle_manifest_sha256",
+          "cases[11].oracle_payload_manifest_sha256"
+        ],
+        "nonmetadata_type_sensitive_exact": true
+      },
+      {
+        "path": "tests/fixtures/native_geometry/observed-children-v2.json",
+        "baseline_sha256": "face697a22b0add3d47c8d8d2f9223ae91b93b26fa56339d378ebb26847d03ec",
+        "resealed_sha256": "edd7bbc8296dcfcbe9d7b3b4755c2dbff0537a2fb3d1ba0e48c8ca68c098f795",
+        "allowlist": [
+          "sources[ros2/src/so101_station_objects/so101_station_objects/objects.py]"
+        ],
+        "nonmetadata_type_sensitive_exact": true
+      }
+    ],
+    "baseline_runtime_strings_retained": true,
+    "existing_payload_helper": "tools.native_geometry_matrix._oracle_payload_sha256",
+    "strict_payload_comparator_pass": true,
+    "raw_proof": {
+      "path": "/tmp/native-complete-checkpoint-20261027/metadata-proof.json",
+      "sha256": "a9e6ef3bd45fbca3d8edd84b1071b75ef2692aab2d8ff6dfb6702b48eabb2e64",
+      "bytes": 226372
+    },
+    "no_numerical_source_mismatch": true,
+    "private_script_errors_retained": [
+      "replay-script-syntax-red.log",
+      "definition-script-red.log"
+    ]
+  },
+  "replay": {
+    "launcher": [
+      "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "/tmp/native-complete-checkpoint-20261027/replay_reseal.py"
+    ],
+    "baseline_child": [
+      "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "tools/native_geometry_matrix.py",
+      "--output",
+      "/tmp/native-complete-checkpoint-20261027/baseline-replay"
+    ],
+    "current_api": "tools.native_geometry_matrix.freeze_matrix",
+    "current_output": "/tmp/native-complete-checkpoint-20261027/current-replay",
+    "baseline_output": "/tmp/native-complete-checkpoint-20261027/baseline-replay",
+    "runtime": {
+      "python": "3.13.12",
+      "numpy": "2.5.4",
+      "opencv": "4.14.0",
+      "scipy": "1.17.1"
+    }
+  },
+  "retained_validation": {
+    "focused_cpu": {
+      "passed": 180,
+      "skipped": 11,
+      "log": {
+        "path": "/tmp/native-complete-resource-20261027/cpu-final.log",
+        "sha256": "90a3b1ecb90bbaf140f863dae228d011e88b2fe562403e2363e639bd97d00bd1",
+        "bytes": 272
+      }
+    },
+    "actual_ros": {
+      "passed": 89,
+      "failed": 0,
+      "skipped": 0,
+      "warnings": 2,
+      "command": [
+        "tools/test_perception_supervisor.sh",
+        "-q",
+        "tests/test_native_complete_report_ros.py",
+        "tests/test_object_result_delivery_ros.py",
+        "tests/test_derived_aligned_ros.py",
+        "tests/test_object_timing_diagnostic_ros.py",
+        "tests/test_complete_report_admission.py",
+        "tests/test_colored_tracking_acquisition.py"
+      ],
+      "additional_environment": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "ROS_DOMAIN_ID": "177",
+        "ROS_LOCALHOST_ONLY": "1"
+      },
+      "original_initial_result": {
+        "passed": 87,
+        "failed": 2,
+        "skipped": 0,
+        "cause": "CPU SimpleNamespace stand-in lacked _native_mode; corrected scaffold only"
+      },
+      "same_production_sha256": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
+      "scope": "real node/default serialized executor/real ROS message CDR; in-process capture, no DDS subscriber transport"
+    },
+    "retained_publication_baseline": {
+      "directory": "/tmp/complete-report-publication-baseline-20261027",
+      "batches": 5,
+      "messages": 25,
+      "parity": "exact fields/types/order/original stamps and CDR; includes cached/visible/rejection/locked/attached cases; original-TF request stamps retained"
+    },
+    "resource_review": "PASS for exact 1-object/1-track/1-grasp/1-contact fixture capacity",
+    "review_receipts": [
+      {
+        "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/.superpowers/sdd/2026-10-27-complete-report-admission/task-1-supervisor-review-final.txt",
+        "sha256": "c367d4f57b5af1a4e8075bab3673d9a1a3a3723afb6da03d15731a4c0a920020",
+        "bytes": 38299
+      },
+      {
+        "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/.superpowers/sdd/2026-10-27-complete-report-admission/task-2-supervisor-review.txt",
+        "sha256": "ee87424c67cd3a66081ce45402d1246cf48eb30524e2faeb00c921cfbf12df00",
+        "bytes": 39988
+      },
+      {
+        "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/.superpowers/sdd/2026-10-27-complete-report-admission/task-3-source-review.txt",
+        "sha256": "59b3a03d9353131f27ec5a0acb50640dceeb10f314d969774fecfdc83ab7c8b0",
+        "bytes": 33079
+      },
+      {
+        "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/.superpowers/sdd/2026-10-27-complete-report-admission/task-3-fix1-review.txt",
+        "sha256": "090439589b9883225d0f927b386bfe9d4c9224520999410e6e17997cad55b9e5",
+        "bytes": 2686
+      },
+      {
+        "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/.superpowers/sdd/2026-10-27-complete-report-admission/task-3-resource-review.txt",
+        "sha256": "e0f7b9e2fa964817e998599a815f96d1b5516294702d8746134c78e1c3d8f2a0",
+        "bytes": 32253
+      },
+      {
+        "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/.superpowers/sdd/2026-10-27-complete-report-admission/task-3-resource-report.md",
+        "sha256": "ffce407616f0d3620957bb7e3f27d71bde32b27900e48c878d689fdbb31ec1e3",
+        "bytes": 11101
+      },
+      {
+        "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/.superpowers/sdd/2026-10-27-complete-report-admission/task-3-native-qualification-report.md",
+        "sha256": "3b334a8ae7528b2bb3819d5009fcbb0c8eb738cd5d192356431f04d834d71cb3",
+        "bytes": 5654
+      }
+    ]
+  },
+  "resource_measurement": {
+    "origin": "retained Task3 measurement; not repeated for unchanged production",
+    "fixture_capacity": {
+      "objects": 1,
+      "tracks": 1,
+      "grasps": 1,
+      "contacts": 1
+    },
+    "paired_unpaced_samples_per_case": 300,
+    "wall_us": {
+      "typical": {
+        "median": 527.8145,
+        "p95": 558.522
+      },
+      "empty": {
+        "median": 114.626,
+        "p95": 126.418
+      }
+    },
+    "typical_cpu_us": {
+      "median": 524.4885,
+      "p95": 555.162
+    },
+    "p95_definition": "sorted samples[min(n-1,int(.95*n))]",
+    "traced_20_call_peak_bytes": {
+      "typical": 47222,
+      "empty": 20399
+    },
+    "paced_synthetic_each_case": {
+      "20_hz": {
+        "offers": 56,
+        "completed": 39,
+        "replaced": 16,
+        "stale": 1
+      },
+      "30_hz": {
+        "offers": 84,
+        "completed": 59,
+        "replaced": 24,
+        "stale": 1
+      }
+    },
+    "includes": [
+      "capture count/header assertions",
+      "status JSON decode"
+    ],
+    "excludes": [
+      "ROS Node/executor",
+      "DDS transport",
+      "GPU",
+      "native RSS",
+      "real provider"
+    ],
+    "not_claimed": [
+      "FPS",
+      "GPU/fwmini4 performance improvement",
+      "control headroom",
+      "zero allocation",
+      "production resource caps"
+    ],
+    "invalid_early_stamp_probe": "quarantined and excluded"
+  },
+  "raw_artifacts": [
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/replay_reseal.py",
+      "sha256": "375e588495486a189298aa95e74ae15b952f742ff95ab1d8f66f392919dd93ac",
+      "bytes": 7583
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/replay-reseal.log",
+      "sha256": "59f84775a3531a4a6d49b0790d8ed441cdd2ba9050a6aae2078b12e0b18b2216",
+      "bytes": 95
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/replay-script-syntax-red.log",
+      "sha256": "317de8e82f01b1afc66be05ae42e58f6f6b49cba8bf2a6a454b87ff3c0ab98ce",
+      "bytes": 224
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/definition-script-red.log",
+      "sha256": "d26b89cfb3cde43c08276672bab867ce0134f17fa08781d910d8b9e1d209ad63",
+      "bytes": 295
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/metadata-proof.json",
+      "sha256": "a9e6ef3bd45fbca3d8edd84b1071b75ef2692aab2d8ff6dfb6702b48eabb2e64",
+      "bytes": 226372
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/supervisor-metadata-proof.json",
+      "sha256": "78095b45752a58046dc6e3c673b30bcda6586031c173f5f1b748a18dbe8ea627",
+      "bytes": 1245
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/main-readonly-proof.json",
+      "sha256": "5182817e7bcc9897c0facab92a4b90568fde4605b60035dd2ad7bb0701b1a333",
+      "bytes": 196
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/publication-baseline-inventory.json",
+      "sha256": "9c3fdfe6523c23aaee6ca0d47c5908475a92991cdfdee6affe57dfae676faed3",
+      "bytes": 7291
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/metadata-diff.patch",
+      "sha256": "f233faf0498622083bc1f689fc1092ea11886ce5b0f1ad44ae4a844bfab96cbf",
+      "bytes": 30855
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/baseline-replay.log",
+      "sha256": "415ffb2b04234f3003257bee0bf53b4f36ecaa8a3a8ce752bf864184c9c5c38e",
+      "bytes": 155
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/canonical_run.py",
+      "sha256": "2ae35846489e1333410c03b802325336e3fbc47a6d78798832225d831cca73c7",
+      "bytes": 2572
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/canonical.log",
+      "sha256": "9c5fe1c1dfaa7531c0ea6a1480e5e5251f54ab7e602fcae55301b743adc47463",
+      "bytes": 21178
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/canonical.xml",
+      "sha256": "a3d18f595bc5e8c5128e991ba4048708a23bd727385ce0c027f218bf0acbccce",
+      "bytes": 853927
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/canonical-process.json",
+      "sha256": "77f5605a4423894f45ba0d06e17e1d8d39fca8618df18e8f418c70d17194bc0d",
+      "bytes": 5212
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/canonical-before.json",
+      "sha256": "701655d85386935bf034232236bba6f339a9b7b206bcf3b62ac7463afc586e20",
+      "bytes": 210426
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/canonical-after.json",
+      "sha256": "701655d85386935bf034232236bba6f339a9b7b206bcf3b62ac7463afc586e20",
+      "bytes": 210426
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/canonical-exit-status.json",
+      "sha256": "dd9d6f961e20dee75ec2a17294f7b262d1c5b32789ed3ede1d3197cecea59c72",
+      "bytes": 140
+    },
+    {
+      "path": "/tmp/native-complete-resource-20261027/combined.json",
+      "sha256": "ec2315e66a0578695b2a35fd1c20886cc9de0a5512d68200f23841f771d63eb0",
+      "bytes": 415003
+    },
+    {
+      "path": "/tmp/native-complete-resource-20261027/cpu-publisher-final.json",
+      "sha256": "6e0eef0c7cba516a757c2cc1e08ed36fc0aa559a7ef30133f0f4ec87c84b77eb",
+      "bytes": 216593
+    },
+    {
+      "path": "/tmp/native-complete-resource-20261027/commands.txt",
+      "sha256": "d1bf6647b24639b2696ab442f57941d21f1b0a5847193ff721f3e5d28017bdb5",
+      "bytes": 2157
+    },
+    {
+      "path": "/tmp/native-complete-resource-20261027/source-hashes-final.json",
+      "sha256": "398528f526df7e835c716942d83d393ae555b445d41616e13d6be4b22c78d946",
+      "bytes": 1140
+    },
+    {
+      "path": "/tmp/native-complete-resource-20261027/supervisor-resource-proof.json",
+      "sha256": "9faac742d337a8314f77fd967257682e744d48208ce9354ec37856cba888c3b0",
+      "bytes": 975
+    },
+    {
+      "path": "/tmp/native-complete-resource-20261027/unchanged-proof.json",
+      "sha256": "dd010785e43cd5962f0bb8bdcc15dd410bf0644fccd52d20da304c125fd9833f",
+      "bytes": 654
+    },
+    {
+      "path": "/tmp/native-complete-resource-20261027/readonly-copy-status-parity-proof.json",
+      "sha256": "82865532e7870e8b9f332ced40f036a85bb64f049c7ee7afaa424fb282756492",
+      "bytes": 503
+    },
+    {
+      "path": "/tmp/native-complete-resource-20261027/invalid-early-stamp-probe-DO-NOT-USE.txt",
+      "sha256": "a097bba857aa318aeb1a5935723b37e0f54bfdb8c17da7965862fbf76a378bca",
+      "bytes": 428
+    },
+    {
+      "path": "/tmp/native-complete-ros-20261027/qualification.log",
+      "sha256": "64a1e1c5f48152892e9ee9d171a57ea76697458f50e09c039d310cce9ef80f36",
+      "bytes": 11812
+    },
+    {
+      "path": "/tmp/native-complete-ros-20261027/qualification-final.log",
+      "sha256": "c22a5edeee17b41cd602ec9a7074d412e52b9c52a493b8cc37355b436971aeee",
+      "bytes": 1680
+    },
+    {
+      "path": "/tmp/native-complete-ros-20261027/qualification-final-before.json",
+      "sha256": "ab813d254d1b4f48c21989b2e732dbe1e400c1e79b0e3eb248a49aac92b36d14",
+      "bytes": 1049
+    },
+    {
+      "path": "/tmp/native-complete-ros-20261027/qualification-final-after.json",
+      "sha256": "63a49e10cce9595771c7bc21024d353bf0c8026e7900173d1c6d4822a60cbead",
+      "bytes": 1049
+    },
+    {
+      "path": "/tmp/native-complete-ros-20261027/qualification-final-process.json",
+      "sha256": "b10207315f2937c06c69b5bdfda060782cbab806574acf5e793e3ddb11551e32",
+      "bytes": 376
+    },
+    {
+      "path": "/tmp/native-complete-ros-20261027/qualification-final-exit-status.json",
+      "sha256": "f44e7731b39af744ef301f52fba56502a94a93be6b843ad4a149ed78e64d526d",
+      "bytes": 76
+    },
+    {
+      "path": "/tmp/native-complete-ros-20261027/scaffold-fix-green.log",
+      "sha256": "0a61809afdbb00210e2d8c316031d53bbbcd74b74d26d18b50389f415d1fe30e",
+      "bytes": 570
+    },
+    {
+      "path": "/tmp/complete-report-contract-20261027/design-audit.md",
+      "sha256": "1cda70d2ed6e28740018fc2d84a843d938ef64cb195671d9719e104493962c9b",
+      "bytes": 34614
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical_run.py",
+      "sha256": "e83bcb94bbfff5de158467647e7e03151de55f9de8b0b15399429ef70660ad83",
+      "bytes": 2700
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical.log",
+      "sha256": "0167ced11ee3614b34738f1bfc533f4683e9f3cd5b0843ab40063dcbb79e92cb",
+      "bytes": 6015
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical.xml",
+      "sha256": "acac0bcb111df8b792448c6d565a000c341bf2e6ee4da73409cdf3daf75cc3f8",
+      "bytes": 840377
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical-process.json",
+      "sha256": "f1f68781276124b590f70968b2b28a6d91cb4a49ca30e734746642138ce98375",
+      "bytes": 5498
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical-before.json",
+      "sha256": "e936cb6c8bc2784e144c43a7f17b3cb742ae530a6651ef22c17a957807db6684",
+      "bytes": 210426
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical-after.json",
+      "sha256": "e936cb6c8bc2784e144c43a7f17b3cb742ae530a6651ef22c17a957807db6684",
+      "bytes": 210426
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical-exit-status.json",
+      "sha256": "e5f7079c42028a46ed1b196bad8c37afe117a7a2d5bc72f40614d5f54d06757c",
+      "bytes": 140
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/.superpowers/sdd/2026-10-27-complete-report-admission/task-4-ubsan-recovery-report.md",
+      "sha256": "77be5d13a25976bd2112091f1e1cf3f23e63b709dec4fd9390cc0dc3e7649bfd",
+      "bytes": 4204
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/scaffold-fix1/exact.diff",
+      "sha256": "558cdb815bf5d30c7c1e9f9521d937ee9adf1eb2323eedfe83ecfe80346653e0",
+      "bytes": 2586
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/scaffold-fix1/pytest.log",
+      "sha256": "9a021b60b599100dad3a5a7e0535a7455cd71929a1eb86b87e708ae722238a9f",
+      "bytes": 99
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/scaffold-fix1/pytest.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/scaffold-fix1/sha256.txt",
+      "sha256": "4319f5017dfb8ae4a88f8dc41f16c45ba89278229fc12a80c23df40b204e5fa2",
+      "bytes": 206
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/ubsan-recovery/commands.json",
+      "sha256": "87c8492a9328806022fc7411abac649bf91c82c9817bfa02ea1704800f38875b",
+      "bytes": 1919
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/ubsan-recovery/compiler-version.log",
+      "sha256": "deed5763b338abd9a505420ad3805b0f7e0006d0b392786ccbe8c1672f0c6200",
+      "bytes": 263
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/ubsan-recovery/runtime-path.log",
+      "sha256": "3aecbc513f2faed620bb1e752c9d9f495d1a5cb428fa3cae70e3f6d335b071c8",
+      "bytes": 98
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/ubsan-recovery/pytest.log",
+      "sha256": "073b1bbed3fedd224b758a734fc16517c5bf3d17bd10f69d131ecd1b1c9690ca",
+      "bytes": 98
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/ubsan-recovery/negative-build.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/ubsan-recovery/negative-run.log",
+      "sha256": "e30c561bcb320bb9a47233875251c1b0c5ef9432742a624711949f9d48d32cc2",
+      "bytes": 173
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/ubsan-recovery/negative-ldd.log",
+      "sha256": "331be202bce36cab85345983193ecde2baac824c0f2a9cc87383e2279ed3ca77",
+      "bytes": 660
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/ubsan-recovery/signed-overflow.cpp",
+      "sha256": "966913855a6768a02c127ea19d09129eb3c595abbde4594b20052604f5361fee",
+      "bytes": 123
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-review-fix1/targeted.log",
+      "sha256": "5d2af4663b1ab20ba6e7b39f969b3a07bd972dc318e1919f6a884c6cc763ee11",
+      "bytes": 99
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-review-fix1/targeted.xml",
+      "sha256": "6439e2dc8660f7f564a6b658d8ab310980d5524ff2a5b224aa13386a3d114a07",
+      "bytes": 1103
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-review-fix1/process.json",
+      "sha256": "0fb8bd657556be3832e42c08f81a856332be81a5467ac50485f6fd610254082b",
+      "bytes": 4481
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-review-fix1/before.json",
+      "sha256": "e936cb6c8bc2784e144c43a7f17b3cb742ae530a6651ef22c17a957807db6684",
+      "bytes": 210426
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-review-fix1/after.json",
+      "sha256": "e936cb6c8bc2784e144c43a7f17b3cb742ae530a6651ef22c17a957807db6684",
+      "bytes": 210426
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/final-review-fix1/exit.json",
+      "sha256": "3c2ed4f13e7c04a4b5b216f4a575c79ace9f9c0007888b9822ac5c20b2455611",
+      "bytes": 92
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical_run.py",
+      "sha256": "2856f92e8cc8cfe26dba03f2a2f8c956ff0b3fd461f98bc9c63979c357910b30",
+      "bytes": 2876
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical.log",
+      "sha256": "81fbabcad1f3f7b081341e0bfe1acb429e6a135c760c03927efc19d70bbac262",
+      "bytes": 6015
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical.xml",
+      "sha256": "c229bcf2c0a19e5c75b1a32f52bba9defa663812b50c19840aa3197fc5a506aa",
+      "bytes": 838429
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical-process.json",
+      "sha256": "966710d8429b2f362f119ad2682e04f892077778fd4c7e3471e3814c12c1df05",
+      "bytes": 5641
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical-before.json",
+      "sha256": "e936cb6c8bc2784e144c43a7f17b3cb742ae530a6651ef22c17a957807db6684",
+      "bytes": 210426
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical-after.json",
+      "sha256": "e936cb6c8bc2784e144c43a7f17b3cb742ae530a6651ef22c17a957807db6684",
+      "bytes": 210426
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical-exit-status.json",
+      "sha256": "28983feaddc3536d77fe702579e50ee9540e058c0f78fc814548878864748834",
+      "bytes": 139
+    },
+    {
+      "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/skip-delta-qualified.json",
+      "sha256": "ffeb1bf6bf387a43286e366418238277722f4966ee5cfc825f580a3b5d7f6e9a",
+      "bytes": 32674
+    },
+    {
+      "path": "/tmp/complete-report-final-review-20261027/review.md",
+      "sha256": "dc7a4d99c4137674a6136e46a0464d2b61ab0bfa4669ce9e8f197504382a07d7",
+      "bytes": 11280
+    },
+    {
+      "path": "/tmp/complete-report-final-review-20261027/skip-delta-proof.json",
+      "sha256": "932f0f823a6cdd36711bf4ad328de984af663cefb38c1174896b988ff2be4d56",
+      "bytes": 5330
+    },
+    {
+      "path": "/tmp/complete-report-final-review-20261027/archive-proof.json",
+      "sha256": "fd68cdc321be9a84049c62761cde7f6257bfd28c41d4a65a4f6d3ea6c9127f80",
+      "bytes": 5569
+    }
+  ],
+  "durable_prior_archives": [
+    {
+      "archive": {
+        "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/shared-complete-report-task1-20261027.tar.gz",
+        "sha256": "2630d7c6cd24899bc894a4f8e81fda3875b816a44c5fbfa91f57a3614a77f1c6",
+        "bytes": 1064097
+      },
+      "receipt": {
+        "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/shared-complete-report-task1-20261027.receipt.json",
+        "sha256": "e528a69ef0cc148fcdbf36079fceea1ce4ee7f70f6f54cd8f8ab8150473794e5",
+        "bytes": 796
+      }
+    },
+    {
+      "archive": {
+        "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/compact-native-report-task2-20261027.tar.gz",
+        "sha256": "28e25635ac6d4bcc66ef78bdf6b7cb3a654f67013086dd3d2748abdf1fc325e7",
+        "bytes": 40107
+      },
+      "receipt": {
+        "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/compact-native-report-task2-20261027.receipt.json",
+        "sha256": "1441f6234258f4d900ab040ad8be3574f5fd2ea58b47a538ff682d61876e9a86",
+        "bytes": 348
+      }
+    },
+    {
+      "archive": {
+        "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/native-report-node-task3-20261027.tar.gz",
+        "sha256": "45be0217e481cf47be1c9719c5fa8e0c26c2e0a5e4611c720ec07c1136b25f04",
+        "bytes": 256832
+      },
+      "receipt": {
+        "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/native-report-node-task3-20261027.receipt.json",
+        "sha256": "ee53c6c219153605b27e7ad07717efc14d569a8aed86ebe739aee8aea03c8564",
+        "bytes": 452
+      }
+    }
+  ],
+  "remaining": {
+    "native_producer": "UNAVAILABLE",
+    "truthful_exposure_clock": "UNAVAILABLE; resident timestamp is receipt time",
+    "complete_native_geometry_operators": "UNAVAILABLE",
+    "admitted_production_final_report_caps": "UNAVAILABLE; 4096 preparation records do not bound reports",
+    "qualification": [
+      "live GPU/source integration and transfer-inclusive performance",
+      "live control/video and ten-minute soak",
+      "workshop material review and rehearsal",
+      "physical commissioning and three cycles",
+      "final main release"
+    ],
+    "checkpoint_gate": [
+      "one scoped F1 rereview",
+      "supervisor corrected delta archive/commit/push"
+    ]
+  },
+  "hardware_observation": "Supervisor-reported fresh D435i USB5000 on fwmini4; EV3 and two arm adapters local. No device commands in this unit.",
+  "historical_performance": {
+    "readout": "docs/performance/fwmini4-quality-profiles-20261027.md",
+    "status": "historical sequential 15s live-camera+RViz results predate current complete-report glue; partial, no new measurement here"
+  },
+  "actions": {
+    "production_changes": false,
+    "test_changes": [
+      "tests/test_object_fresh_scheduler.py",
+      "tests/test_object_result_delivery.py"
+    ],
+    "gpu_or_device_commands": false,
+    "services_dependencies": false,
+    "native_ros_or_benchmark_repeat": false,
+    "canonical_runs": 3,
+    "staged": false,
+    "committed": false,
+    "pushed": false,
+    "deployed": false,
+    "main_merged": false,
+    "workshop_complete": false,
+    "final_review_source_test_changes": false
+  },
+  "canonical_initial": {
+    "result": "FAIL",
+    "command": [
+      "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "tools/test_cpu.py",
+      "--junitxml=/tmp/native-complete-checkpoint-20261027/canonical.xml",
+      "--basetemp=/tmp/native-complete-checkpoint-20261027/canonical-basetemp"
+    ],
+    "runtime": {
+      "python": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+      "python_executable": "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "effective_environment": {
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "PATH": "/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/.opencode/bin:/home/bjoern/.metavr/bin:/home/bjoern/.local/bin:/home/bjoern/.bun/bin:/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/.opencode/bin:/home/bjoern/.codex/tmp/arg0/codex-arg0bK7vrP:/home/bjoern/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/home/bjoern/.metavr/bin:/home/bjoern/.local/bin:/home/bjoern/.bun/bin:/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/.opencode/bin:/home/bjoern/.metavr/bin:/home/bjoern/.local/bin:/home/bjoern/.bun/bin:/home/bjoern/.cargo/bin:/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/miniforge3/bin:/home/bjoern/miniforge3/condabin:/home/bjoern/.opencode/bin:/home/bjoern/.local/bin:/home/bjoern/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/var/lib/snapd/snap/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/usr/lib/chatgpt/resources:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin",
+        "PYTEST_ADDOPTS": null,
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "PYTEST_PLUGINS": null,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPATH": null,
+        "ROS_DOMAIN_ID": "177",
+        "ROS_LOCALHOST_ONLY": "1",
+        "SF64_TESTFLOAT_GEN": "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen",
+        "SLANGC_EXECUTABLE": "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+        "SPIRV_TOOLS_DIR": "/home/bjoern/miniforge3/envs/so101-jazzy/bin"
+      },
+      "tool_pins": {
+        "/tmp/workshop-test-pinned313-20261027/bin/python": "cae490445f238af0d9a5793d28bc4cafa889fc56cebca8423fcdaf0a0a6cfbb4",
+        "/home/bjoern/.local/opt/slang-2026.19/bin/slangc": "19c0217f848537db2a87120eb1b3f882ab2e3eb54fdec4cf5300035943704145",
+        "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen": "6eed86c55d10662bde201e8652a55587978609bfe020a146c0a5e2b84c7229bf",
+        "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-val": "075f8f6a15c15dc13ec6632ad8c054a9bb14e522a68b17a28402a6462d5057a7",
+        "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-dis": "fda9219a7a7ede6f7aa42e5d44905d513c929cc28c361cbf6a593e1ee315913f"
+      }
+    },
+    "counts": {
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "6",
+          "skipped": "144",
+          "tests": "4955",
+          "time": "235.623",
+          "timestamp": "2026-10-27T22:06:28.853200+01:00",
+          "hostname": "cps-wkstn-hpz2minig1a-ellensohn"
+        }
+      ],
+      "junit_testcase_elements": 4907,
+      "skipped": 144,
+      "failures_or_errors": 6,
+      "headline": "6 failed, 4757 passed, 144 skipped, 1 warning, 48 subtests passed in 235.66s (0:03:55)",
+      "passed": 4757,
+      "subtests_passed": 48,
+      "headline_skipped": 144
+    },
+    "all_failures": [
+      {
+        "classname": "tests.test_object_fresh_scheduler",
+        "name": "test_callback_groups_separate_metadata_intake_from_expensive_default_group",
+        "kind": "failure",
+        "message": "AssertionError: assert {'_consume_an...ered_derived'} == {'_consume_an...ered_derived'}\n  \n  Extra items in the left set:\n  '_consume_native_complete'\n  Use -v to get more diff",
+        "detail": "def test_callback_groups_separate_metadata_intake_from_expensive_default_group():\n        tree = ast.parse(OBJECTS.read_text())\n        derived = next(n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'DerivedAligned')\n        kwargs = {k.arg: ast.unparse(k.value) for k in derived.keywords}\n        assert kwargs['callback_group'] == kwargs['health_callback_group'] == 'self._derived_group'\n        assert kwargs['metadata_offer'] == 'self._offer_derived'\n        guards = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == 'create_guard_condition']\n>       assert {n.args[0].attr for n in guards} == {'_process_offered_derived', '_consume_analysis'}\nE       AssertionError: assert {'_consume_an...ered_derived'} == {'_consume_an...ered_derived'}\nE         \nE         Extra items in the left set:\nE         '_consume_native_complete'\nE         Use -v to get more diff\n\ntests/test_object_fresh_scheduler.py:161: AssertionError"
+      },
+      {
+        "classname": "tests.test_object_fresh_scheduler",
+        "name": "test_shutdown_joins_metadata_trigger_before_guard_destruction",
+        "kind": "failure",
+        "message": "assert False\n +  where False = wait(1)\n +    where wait = <threading.Event at 0x7f081464e630: unset>.wait",
+        "detail": "def test_shutdown_joins_metadata_trigger_before_guard_destruction():\n        entered, release, destroyed, done = Event(), Event(), Event(), Event()\n        class Base:\n            def destroy_node(self): destroyed.set(); return True\n        cls = production_class(OBJECTS, {'_offer_derived', 'destroy_node'}, {}, Base)\n        node, _ = scheduler()\n        node.__class__ = cls\n        node._fresh_guard = NS(trigger=lambda: (entered.set(), release.wait(2)))\n        node.derived = None; node.analysis_worker = None; node.timing_recorder = None\n        offer = Thread(target=node._offer_derived, args=(token(),)); offer.start()\n        assert entered.wait(1)\n        shutdown = Thread(target=lambda: (node.destroy_node(), done.set())); shutdown.start()\n        try:\n            assert not destroyed.wait(.02)\n>           release.set(); assert done.wait(1)\n                           ^^^^^^^^^^^^^^^^^^^\nE           assert False\nE            +  where False = wait(1)\nE            +    where wait = <threading.Event at 0x7f081464e630: unset>.wait\n\ntests/test_object_fresh_scheduler.py:179: AssertionError"
+      },
+      {
+        "classname": "tests.test_object_fresh_scheduler",
+        "name": "test_generation_cancellation_fences_actual_process_copy_and_submit[before_copy]",
+        "kind": "failure",
+        "message": "AttributeError: 'Replay' object has no attribute '_native_mode'",
+        "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f08145b1080>\nstage = 'before_copy'\n\n    @pytest.mark.parametrize('stage', ['before_copy', 'before_submit'])\n    def test_generation_cancellation_fences_actual_process_copy_and_submit(monkeypatch, stage):\n        node, _ = scheduler(); copies = []; warnings = []; unavailable = []\n        class Array:\n            shape = (2, 2)\n            def copy(self):\n                copies.append(self)\n                if stage == 'before_submit': node._offer_derived(None)\n                return self\n        array = Array()\n        tag_helpers = NS(camera_intrinsics=lambda *args: {'fx': 1.},\n                         depth_scale_for_encoding=lambda *args: .001,\n                         stamp_is_fresh=lambda now, stamp, limit: 0 <= now-stamp <= limit,\n                         stamp_seconds=lambda stamp: stamp.sec + stamp.nanosec * 1e-9)\n        monkeypatch.setitem(sys.modules, 'so101_station_perception.tag_observations', tag_helpers)\n        scope = dict(time=time, np=NS(asarray=lambda *args, **kwargs: array),\n                     Time=NS(from_msg=lambda stamp: stamp), Duration=lambda **kwargs: None,\n                     transform_from_msg=lambda tf: array, cv2=NS(error=RuntimeError),\n                     TransformException=RuntimeError)\n        cls = production_class(OBJECTS, {'_offer_derived', '_fresh_current', '_process'}, scope)\n        node.__class__ = cls; del node._process\n        checked = []\n        def check(value):\n            checked.append(value)\n            if len(checked) == 2 and stage == 'before_copy': node._offer_derived(None)\n            return True\n        node.derived = NS(check=check, token_is_current=lambda value: True)\n        node.timing_recorder = None; node.require_registration_tracking = False\n        node.get_clock = lambda: NS(now=lambda: NS(nanoseconds=10_120_000_000))\n        node.bridge = NS(imgmsg_to_cv2=lambda *args, **kwargs: array)\n        node.tf_buffer = NS(lookup_transform=lambda *args, **kwargs: object())\n        node.board_frame = 'board'; node.depth_scale = .001; node.last_support_plane = None\n        node.last_warning = 0.; node.get_logger = lambda: NS(warning=warnings.append)\n        node._publish_unavailable = lambda *args: unavailable.append(args)\n        node.analysis_worker = NS(submit=Mock())\n        msg = NS(header=NS(stamp=NS(sec=10, nanosec=0), frame_id='camera'), encoding='16UC1')\n        info = NS(header=msg.header, d=[0.]*5)\n>       value = token(); node._process(msg, msg, info, value, fresh_generation=0)\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\ntests/test_object_fresh_scheduler.py:222: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <Replay object at 0x7f0814437770>\ncolor_msg = namespace(header=namespace(stamp=namespace(sec=10, nanosec=0), frame_id='camera'), encoding='16UC1')\ndepth_msg = namespace(header=namespace(stamp=namespace(sec=10, nanosec=0), frame_id='camera'), encoding='16UC1')\ninfo_msg = namespace(header=namespace(stamp=namespace(sec=10, nanosec=0), frame_id='camera'), d=[0.0, 0.0, 0.0, 0.0, 0.0])\nderived_token = {'color': <object object at 0x7f082ed4edb0>, 'aligned': <object object at 0x7f082ed4edc0>, 'color_info': <object object at 0x7f082ed4edd0>, 'lineage_receipt': 10.0}\nfresh_generation = 0\n\n    def _process(self, color_msg, depth_msg, info_msg, derived_token=None, *, fresh_generation=None):\n>       if self._native_mode:return\n           ^^^^^^^^^^^^^^^^^\nE       AttributeError: 'Replay' object has no attribute '_native_mode'\n\nros2/src/so101_station_objects/so101_station_objects/objects.py:1289: AttributeError"
+      },
+      {
+        "classname": "tests.test_object_fresh_scheduler",
+        "name": "test_generation_cancellation_fences_actual_process_copy_and_submit[before_submit]",
+        "kind": "failure",
+        "message": "AttributeError: 'Replay' object has no attribute '_native_mode'",
+        "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f08145b20b0>\nstage = 'before_submit'\n\n    @pytest.mark.parametrize('stage', ['before_copy', 'before_submit'])\n    def test_generation_cancellation_fences_actual_process_copy_and_submit(monkeypatch, stage):\n        node, _ = scheduler(); copies = []; warnings = []; unavailable = []\n        class Array:\n            shape = (2, 2)\n            def copy(self):\n                copies.append(self)\n                if stage == 'before_submit': node._offer_derived(None)\n                return self\n        array = Array()\n        tag_helpers = NS(camera_intrinsics=lambda *args: {'fx': 1.},\n                         depth_scale_for_encoding=lambda *args: .001,\n                         stamp_is_fresh=lambda now, stamp, limit: 0 <= now-stamp <= limit,\n                         stamp_seconds=lambda stamp: stamp.sec + stamp.nanosec * 1e-9)\n        monkeypatch.setitem(sys.modules, 'so101_station_perception.tag_observations', tag_helpers)\n        scope = dict(time=time, np=NS(asarray=lambda *args, **kwargs: array),\n                     Time=NS(from_msg=lambda stamp: stamp), Duration=lambda **kwargs: None,\n                     transform_from_msg=lambda tf: array, cv2=NS(error=RuntimeError),\n                     TransformException=RuntimeError)\n        cls = production_class(OBJECTS, {'_offer_derived', '_fresh_current', '_process'}, scope)\n        node.__class__ = cls; del node._process\n        checked = []\n        def check(value):\n            checked.append(value)\n            if len(checked) == 2 and stage == 'before_copy': node._offer_derived(None)\n            return True\n        node.derived = NS(check=check, token_is_current=lambda value: True)\n        node.timing_recorder = None; node.require_registration_tracking = False\n        node.get_clock = lambda: NS(now=lambda: NS(nanoseconds=10_120_000_000))\n        node.bridge = NS(imgmsg_to_cv2=lambda *args, **kwargs: array)\n        node.tf_buffer = NS(lookup_transform=lambda *args, **kwargs: object())\n        node.board_frame = 'board'; node.depth_scale = .001; node.last_support_plane = None\n        node.last_warning = 0.; node.get_logger = lambda: NS(warning=warnings.append)\n        node._publish_unavailable = lambda *args: unavailable.append(args)\n        node.analysis_worker = NS(submit=Mock())\n        msg = NS(header=NS(stamp=NS(sec=10, nanosec=0), frame_id='camera'), encoding='16UC1')\n        info = NS(header=msg.header, d=[0.]*5)\n>       value = token(); node._process(msg, msg, info, value, fresh_generation=0)\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\ntests/test_object_fresh_scheduler.py:222: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <Replay object at 0x7f0814434050>\ncolor_msg = namespace(header=namespace(stamp=namespace(sec=10, nanosec=0), frame_id='camera'), encoding='16UC1')\ndepth_msg = namespace(header=namespace(stamp=namespace(sec=10, nanosec=0), frame_id='camera'), encoding='16UC1')\ninfo_msg = namespace(header=namespace(stamp=namespace(sec=10, nanosec=0), frame_id='camera'), d=[0.0, 0.0, 0.0, 0.0, 0.0])\nderived_token = {'color': <object object at 0x7f082fd9faa0>, 'aligned': <object object at 0x7f082fd9d3e0>, 'color_info': <object object at 0x7f082fd9d3f0>, 'lineage_receipt': 10.0}\nfresh_generation = 0\n\n    def _process(self, color_msg, depth_msg, info_msg, derived_token=None, *, fresh_generation=None):\n>       if self._native_mode:return\n           ^^^^^^^^^^^^^^^^^\nE       AttributeError: 'Replay' object has no attribute '_native_mode'\n\nros2/src/so101_station_objects/so101_station_objects/objects.py:1289: AttributeError"
+      },
+      {
+        "classname": "tests.test_object_result_delivery",
+        "name": "test_result_guard_keeps_timer_for_cold_faults_and_default_group",
+        "kind": "failure",
+        "message": "AssertionError: assert {'_consume_an...ered_derived'} == {'_consume_an...ered_derived'}\n  \n  Extra items in the left set:\n  '_consume_native_complete'\n  Use -v to get more diff",
+        "detail": "def test_result_guard_keeps_timer_for_cold_faults_and_default_group():\n        import ast\n        path=Path(__file__).resolve().parents[1]/'ros2/src/so101_station_objects/so101_station_objects/objects.py'\n        tree=ast.parse(path.read_text())\n        guards=[n for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute) and n.func.attr=='create_guard_condition']\n>       assert {guard.args[0].attr for guard in guards}=={'_consume_analysis','_process_offered_derived'}\nE       AssertionError: assert {'_consume_an...ered_derived'} == {'_consume_an...ered_derived'}\nE         \nE         Extra items in the left set:\nE         '_consume_native_complete'\nE         Use -v to get more diff\n\ntests/test_object_result_delivery.py:84: AssertionError"
+      },
+      {
+        "classname": "tests.test_soft_binary64_divsqrt",
+        "name": "test_undefined_behavior_sanitizer",
+        "kind": "failure",
+        "message": "AssertionError: /usr/bin/ld.bfd: cannot find /usr/lib64/libubsan.so.1.0.0: No such file or directory\n  collect2: error: ld returned 1 exit status\n  \nassert 1 == 0\n +  where 1 = CompletedProcess(args=['c++', '-std=c++17', '-O2', '-Wall', '-Wextra', '-ffp-contract=off', '-fno-fast-math', '-fround...fd: cannot find /usr/lib64/libubsan.so.1.0.0: No such file or directory\\ncollect2: error: ld returned 1 exit status\\n').returncode",
+        "detail": "tmp_path = PosixPath('/tmp/native-complete-checkpoint-20261027/canonical-basetemp/test_undefined_behavior_saniti0')\n\n    def test_undefined_behavior_sanitizer(tmp_path):\n>    binary=tmp_path/'ubsan';build(HOST,binary,['-fsanitize=undefined','-fno-sanitize-recover=undefined'],compiler=os.environ.get('SF64_UBSAN_CXX'))\n                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\ntests/test_soft_binary64_divsqrt.py:25: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nsource = PosixPath('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp')\nbinary = PosixPath('/tmp/native-complete-checkpoint-20261027/canonical-basetemp/test_undefined_behavior_saniti0/ubsan')\nextra = ['-fsanitize=undefined', '-fno-sanitize-recover=undefined']\ncompiler = None\n\n    def build(source,binary,extra=(),compiler=None):\n>    r=subprocess.run([compiler or os.environ.get('CXX','c++'),*FLAGS,*extra,str(source),'-o',str(binary)],capture_output=True,text=True);assert r.returncode==0,r.stderr\n                                                                                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE    AssertionError: /usr/bin/ld.bfd: cannot find /usr/lib64/libubsan.so.1.0.0: No such file or directory\nE      collect2: error: ld returned 1 exit status\nE      \nE    assert 1 == 0\nE     +  where 1 = CompletedProcess(args=['c++', '-std=c++17', '-O2', '-Wall', '-Wextra', '-ffp-contract=off', '-fno-fast-math', '-fround...fd: cannot find /usr/lib64/libubsan.so.1.0.0: No such file or directory\\ncollect2: error: ld returned 1 exit status\\n').returncode\n\ntests/test_soft_binary64_divsqrt.py:11: AssertionError"
+      }
+    ],
+    "exit": {
+      "exit_code": 1,
+      "elapsed_seconds": 237.24909949302673,
+      "changed_tracked_files": [],
+      "before_count": 1645,
+      "after_count": 1645
+    },
+    "source_freeze": {
+      "scope": "all tracked files, including source/test/config/docs/fixtures; untracked outputs excluded",
+      "exclusions": [
+        "/tmp/native-complete-checkpoint-20261027",
+        "untracked .superpowers workspace reports"
+      ],
+      "before": {
+        "path": "/tmp/native-complete-checkpoint-20261027/canonical-before.json",
+        "sha256": "701655d85386935bf034232236bba6f339a9b7b206bcf3b62ac7463afc586e20",
+        "bytes": 210426
+      },
+      "after": {
+        "path": "/tmp/native-complete-checkpoint-20261027/canonical-after.json",
+        "sha256": "701655d85386935bf034232236bba6f339a9b7b206bcf3b62ac7463afc586e20",
+        "bytes": 210426
+      },
+      "tracked_inventory_exact": true
+    },
+    "artifacts": [
+      {
+        "path": "/tmp/native-complete-checkpoint-20261027/canonical.log",
+        "sha256": "9c5fe1c1dfaa7531c0ea6a1480e5e5251f54ab7e602fcae55301b743adc47463",
+        "bytes": 21178
+      },
+      {
+        "path": "/tmp/native-complete-checkpoint-20261027/canonical.xml",
+        "sha256": "a3d18f595bc5e8c5128e991ba4048708a23bd727385ce0c027f218bf0acbccce",
+        "bytes": 853927
+      }
+    ],
+    "preserved": true
+  },
+  "canonical_fix_round1": {
+    "rerun_justification": "Five failed scaffold assertions corrected in two owned CPU test modules and existing compiler override recovered; no production/numerical/threshold/skip change. Final whole-suite rerun authorized once after targeted closures.",
+    "test_scaffold_files": {
+      "tests/test_object_fresh_scheduler.py": "91490ab78dc70880373c3f67282c7ec137aa3670104d9dfeb409fde69b768637",
+      "tests/test_object_result_delivery.py": "7b54843872ebddc82c934f36b4174c1d2c7e90394b53986abede1ef2ae7786c9"
+    },
+    "test_scaffold_diff": {
+      "path": "/tmp/native-complete-checkpoint-20261027/scaffold-fix1/exact.diff",
+      "sha256": "558cdb815bf5d30c7c1e9f9521d937ee9adf1eb2323eedfe83ecfe80346653e0",
+      "bytes": 2586
+    },
+    "targeted_scaffold": {
+      "passed": 37,
+      "elapsed_seconds": 0.47,
+      "log": {
+        "path": "/tmp/native-complete-checkpoint-20261027/scaffold-fix1/pytest.log",
+        "sha256": "9a021b60b599100dad3a5a7e0535a7455cd71929a1eb86b87e708ae722238a9f",
+        "bytes": 99
+      },
+      "exit": {
+        "path": "/tmp/native-complete-checkpoint-20261027/scaffold-fix1/pytest.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "bytes": 2
+      }
+    },
+    "changes": [
+      "CPU Replay stand-in _native_mode=False and native_ingress=None",
+      "two exact callback-group sets include _consume_native_complete; default-group assertion retained"
+    ],
+    "ubsan": {
+      "existing_environment_hook": "SF64_UBSAN_CXX",
+      "value": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-g++",
+      "historical_evidence": {
+        "path": "/tmp/canonical-principal-axes-canonical-final-20261027/test_conda_run_clears_inherite0/capture/environment",
+        "line": 90,
+        "only_recovered_key": "SF64_UBSAN_CXX"
+      },
+      "compiler_version": "GCC 15.3.0",
+      "compiler_sha256": "e802ef021bccd09d2ae1dae3f9400e53ab2c2c7bc2b4e47dc29a81c7ec3bcd31",
+      "runtime": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libubsan.so.1.0.0",
+      "runtime_sha256": "0734775e369e9bc99eff0cdf6c843e30c1575b77c93cd8d0ca85d518702458e7",
+      "targeted_test": {
+        "passed": 1,
+        "elapsed_seconds": 0.87
+      },
+      "signed_overflow_negative_control": {
+        "build_exit": 0,
+        "run_exit": 1,
+        "diagnostic": "signed integer overflow: 2147483647 + 1 cannot be represented in type int"
+      },
+      "no_install_or_test_edit": true,
+      "private_full_environment_not_copied": true
+    },
+    "tracked_inventory_change_from_initial": [
+      "tests/test_object_fresh_scheduler.py",
+      "tests/test_object_result_delivery.py"
+    ]
+  },
+  "release_archive_exclusions": [
+    "/tmp/native-complete-checkpoint-20261027/canonical-basetemp",
+    "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical-basetemp",
+    "/tmp/native-complete-checkpoint-20261027/ubsan-recovery/environment.json",
+    "/tmp/canonical-principal-axes-canonical-final-20261027/test_conda_run_clears_inherite0/capture/environment",
+    "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical-basetemp",
+    "/tmp/native-complete-checkpoint-20261027/final-review-fix1/targeted-basetemp",
+    "/tmp/native-complete-checkpoint-20261027/baseline-source"
+  ],
+  "canonical_unqualified": {
+    "result": "SUPERSEDED_EXIT0_WITH_LOST_CPU_COVERAGE",
+    "command": [
+      "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "tools/test_cpu.py",
+      "--junitxml=/tmp/native-complete-checkpoint-20261027/final-canonical/canonical.xml",
+      "--basetemp=/tmp/native-complete-checkpoint-20261027/final-canonical/canonical-basetemp"
+    ],
+    "actual_pytest_command": [
+      "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests",
+      "--ignore=tests/test_completion_event_coordinator_ros.py",
+      "--ignore=tests/test_completion_event_final_gates.py",
+      "--ignore=tests/test_perception_supervisor_ros.py",
+      "--ignore=tests/test_pre_outage_history.py",
+      "--ignore=tests/test_supervisor_adoption_ack_launch.py",
+      "--ignore=tests/test_supervisor_adoption_ack_ros.py",
+      "--ignore=tests/test_supervisor_completed_adoption_history.py",
+      "--ignore=tests/test_supervisor_consumer_reconciliation_performance.py",
+      "--ignore=tests/test_supervisor_consumer_reconciliation_ros.py",
+      "--ignore=tests/test_supervisor_health_expiry.py",
+      "--ignore=tests/test_supervisor_health_refresh.py",
+      "--ignore=tests/test_supervisor_late_local_adoption.py",
+      "--ignore=tests/test_supervisor_launch.py",
+      "--ignore=tests/test_supervisor_native_witness.py",
+      "--ignore=tests/test_supervisor_performance.py",
+      "--ignore=tests/test_supervisor_private_availability_final.py",
+      "--ignore=tests/test_supervisor_private_availability_launch.py",
+      "--ignore=tests/test_supervisor_private_availability_performance.py",
+      "--ignore=tests/test_supervisor_private_availability_ros.py",
+      "--junitxml=/tmp/native-complete-checkpoint-20261027/final-canonical/canonical.xml",
+      "--basetemp=/tmp/native-complete-checkpoint-20261027/final-canonical/canonical-basetemp"
+    ],
+    "runtime": {
+      "python": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+      "python_executable": "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "effective_environment": {
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "PATH": "/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/.opencode/bin:/home/bjoern/.metavr/bin:/home/bjoern/.local/bin:/home/bjoern/.bun/bin:/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/.opencode/bin:/home/bjoern/.codex/tmp/arg0/codex-arg0bK7vrP:/home/bjoern/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/home/bjoern/.metavr/bin:/home/bjoern/.local/bin:/home/bjoern/.bun/bin:/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/.opencode/bin:/home/bjoern/.metavr/bin:/home/bjoern/.local/bin:/home/bjoern/.bun/bin:/home/bjoern/.cargo/bin:/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/miniforge3/bin:/home/bjoern/miniforge3/condabin:/home/bjoern/.opencode/bin:/home/bjoern/.local/bin:/home/bjoern/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/var/lib/snapd/snap/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/usr/lib/chatgpt/resources:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin",
+        "PYTEST_ADDOPTS": null,
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "PYTEST_PLUGINS": null,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPATH": null,
+        "ROS_DOMAIN_ID": "177",
+        "ROS_LOCALHOST_ONLY": "1",
+        "SF64_TESTFLOAT_GEN": "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen",
+        "SF64_UBSAN_CXX": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-g++",
+        "SLANGC_EXECUTABLE": "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+        "SPIRV_TOOLS_DIR": "/home/bjoern/miniforge3/envs/so101-jazzy/bin"
+      },
+      "tool_pins": {
+        "/tmp/workshop-test-pinned313-20261027/bin/python": "cae490445f238af0d9a5793d28bc4cafa889fc56cebca8423fcdaf0a0a6cfbb4",
+        "/home/bjoern/.local/opt/slang-2026.19/bin/slangc": "19c0217f848537db2a87120eb1b3f882ab2e3eb54fdec4cf5300035943704145",
+        "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen": "6eed86c55d10662bde201e8652a55587978609bfe020a146c0a5e2b84c7229bf",
+        "/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-g++": "e802ef021bccd09d2ae1dae3f9400e53ab2c2c7bc2b4e47dc29a81c7ec3bcd31",
+        "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libubsan.so.1.0.0": "0734775e369e9bc99eff0cdf6c843e30c1575b77c93cd8d0ca85d518702458e7",
+        "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-val": "075f8f6a15c15dc13ec6632ad8c054a9bb14e522a68b17a28402a6462d5057a7",
+        "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-dis": "fda9219a7a7ede6f7aa42e5d44905d513c929cc28c361cbf6a593e1ee315913f"
+      }
+    },
+    "environment_allowlist": [
+      "OMP_NUM_THREADS",
+      "OPENBLAS_NUM_THREADS",
+      "PATH",
+      "PYTEST_ADDOPTS",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD",
+      "PYTEST_PLUGINS",
+      "PYTHONDONTWRITEBYTECODE",
+      "PYTHONPATH",
+      "ROS_DOMAIN_ID",
+      "ROS_LOCALHOST_ONLY",
+      "SF64_TESTFLOAT_GEN",
+      "SF64_UBSAN_CXX",
+      "SLANGC_EXECUTABLE",
+      "SPIRV_TOOLS_DIR"
+    ],
+    "counts": {
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "144",
+          "tests": "4955",
+          "time": "232.662",
+          "timestamp": "2026-10-27T22:14:44.030037+01:00",
+          "hostname": "cps-wkstn-hpz2minig1a-ellensohn"
+        }
+      ],
+      "junit_testcase_elements": 4907,
+      "skipped": 144,
+      "failures_or_errors": 0,
+      "headline": "4763 passed, 144 skipped, 48 subtests passed in 232.70s (0:03:52)",
+      "passed": 4763,
+      "subtests_passed": 48,
+      "headline_skipped": 144
+    },
+    "all_skips": [
+      {
+        "classname": "",
+        "name": "tests.test_admission_status_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_admission_status_ros.py', 5, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_camera_source_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_camera_source_ros.py', 13, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_completion_event_coordinator",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_completion_event_coordinator.py', 9, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_derived_aligned_dds",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_derived_aligned_dds.py', 15, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_derived_aligned_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_derived_aligned_ros.py', 8, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_derived_registration_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_derived_registration_ros.py', 11, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_early_camera_info_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_early_camera_info_ros.py', 5, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ev3_operator_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ev3_operator_ros.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_intel_grasp_adapter",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_intel_grasp_adapter.py', 9, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_perception_recovery_adversarial",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_perception_recovery_adversarial.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_perception_recovery_launch_types",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_perception_recovery_launch_types.py', 7, \"Skipped: could not import 'launch.launch_context': No module named 'launch.launch_context'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_perception_recovery_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_perception_recovery_ros.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_perception_supervisor_dds",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_perception_supervisor_dds.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_periodic_registration_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_periodic_registration_ros.py', 11, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_recovery_status_wait",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_recovery_status_wait.py', 5, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_rocm_selected_receipts",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_rocm_rgbd.py', 16, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_rocm_source_reset",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_rocm_source_reset.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros2_charuco_plane",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_charuco_plane.py', 5, 'Skipped: Optional ROS perception tests require RoboStack')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros2_charuco_world",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_charuco_world.py', 7, 'Skipped: Optional ROS perception tests require RoboStack')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros2_marker_pipeline",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_marker_pipeline.py', 7, 'Skipped: ROS integration tests require the RoboStack environment')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros2_object_marker_messages",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_object_marker_messages.py', 9, \"Skipped: could not import 'geometry_msgs.msg': No module named 'geometry_msgs'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros2_perception",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_perception.py', 10, 'Skipped: Optional ROS perception tests run in the RoboStack environment')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_arm_prepare",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_arm_prepare.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_arm_prepare_owner_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_arm_prepare_owner_native.py', 3, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_camera_profile_launch",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_camera_profile_launch.py', 8, \"Skipped: could not import 'launch.launch_context': No module named 'launch.launch_context'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_component_service",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_component_service.py', 7, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_endpoint_failure_hold",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_endpoint_failure_hold.py', 7, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_follower_recovery_status",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_follower_recovery_status.py', 15, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_grasp_cli_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_grasp_cli_native.py', 21, 'Skipped: native ROS 2 environment required')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_held_jaw",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_held_jaw.py', 5, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_jaw_diagnostics",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_jaw_diagnostics.py', 6, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_objects_depth_launch",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_objects_depth_launch.py', 7, \"Skipped: could not import 'launch.launch_context': No module named 'launch.launch_context'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_placement_cli_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_placement_cli_native.py', 9, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_placement_selection_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_placement_selection_native.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_plan_current_preflight_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_plan_current_preflight_native.py', 12, 'Skipped: native ROS 2 environment required')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_rclpy_publisher_gid",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_rclpy_publisher_gid.py', 8, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_reconnect_service",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_reconnect_service.py', 5, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_recovery_camera_identity",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_recovery_camera_identity.py', 7, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_recovery_owner_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_recovery_owner_native.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_recovery_predispatch_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_recovery_predispatch_native.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_recovery_producer_bridge",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_recovery_producer_bridge.py', 8, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_recovery_producer_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_recovery_producer_native.py', 14, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_rocm_rgbd",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_rocm_rgbd.py', 16, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_station_api_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_station_api_native.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_stop_service",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_stop_service.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_supervised_calibration",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_supervised_calibration.py', 6, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_teleop_absolute_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_teleop_absolute_native.py', 6, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_teleop_ack_wakeup",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_teleop_ack_wakeup.py', 14, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_trajectory_start_retry",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_trajectory_start_retry.py', 6, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_twin_render",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_twin_render.py', 8, 'Skipped: set MUJOCO_GL=egl for the real headless renderer smoke')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_web_twin_launch",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_web_twin_launch.py', 7, \"Skipped: could not import 'launch.launch_context': No module named 'launch.launch_context'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_source_binding_health_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_source_binding_health_ros.py', 11, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_station_component_launch",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_station_component_launch.py', 5, \"Skipped: could not import 'launch.launch_context': No module named 'launch.launch_context'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_supervisor_consumer_reconciliation_dds",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_supervisor_consumer_reconciliation_dds.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_supervisor_late_local_adoption_dds",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_supervisor_late_local_adoption_dds.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_supervisor_private_availability_dds",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_supervisor_private_availability_dds.py', 14, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_taught_grasp_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_taught_grasp_native.py', 16, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_virtual_gripper_camera_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_virtual_gripper_camera_ros.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "tests.test_alignment_extents",
+        "name": "test_independent_extents_record_native_upload_color_outputs_and_preallocation_limits",
+        "message": "set RAW_BRIDGE_SDK_PREFIX and RAW_BRIDGE_VULKAN_INCLUDE for CPU host build",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_alignment_extents.py:18: set RAW_BRIDGE_SDK_PREFIX and RAW_BRIDGE_VULKAN_INCLUDE for CPU host build"
+      },
+      {
+        "classname": "tests.test_camera_resolution_profiles",
+        "name": "test_actual_profile_identity_and_cold_coverage",
+        "message": "set RAW_BRIDGE_SDK_PREFIX for the CPU SDK software-frame tests",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_camera_resolution_profiles.py:14: set RAW_BRIDGE_SDK_PREFIX for the CPU SDK software-frame tests"
+      },
+      {
+        "classname": "tests.test_capture_ros_robot_registration",
+        "name": "test_capture_writes_complete_bundle_with_actual_description",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_capture_ros_robot_registration.py:214: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_capture_ros_robot_registration",
+        "name": "test_strict_capture_rejects_station_change_before_writing_bundle",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_capture_ros_robot_registration.py:258: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_colored_observation_depth",
+        "name": "test_native_configured_limit_reaches_normal_and_cached_plane_analysis",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_colored_observation_depth.py:134: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_colored_tracking_acquisition",
+        "name": "test_ros_node_exposes_three_frame_default_and_bounded_pending_status",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_colored_tracking_acquisition.py:116: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_colored_tracking_acquisition",
+        "name": "test_ros_future_unavailable_cannot_starve_confirmed_tracks",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_colored_tracking_acquisition.py:178: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_frame_conventions",
+        "name": "test_cross_engine_site_and_pinch[values0]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_frame_conventions.py:30: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_frame_conventions",
+        "name": "test_cross_engine_site_and_pinch[values1]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_frame_conventions.py:30: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_frame_conventions",
+        "name": "test_cross_engine_site_and_pinch[values2]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_frame_conventions.py:30: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_grasp_ggcnn",
+        "name": "test_optional_actual_cornell_state_checkpoint",
+        "message": "could not import 'torch': No module named 'torch'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_grasp_ggcnn.py:61: could not import 'torch': No module named 'torch'"
+      },
+      {
+        "classname": "tests.test_grasp_ggcnn",
+        "name": "test_verified_cached_archive_download_writes_only_tensor_state",
+        "message": "could not import 'torch': No module named 'torch'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_grasp_ggcnn.py:122: could not import 'torch': No module named 'torch'"
+      },
+      {
+        "classname": "tests.test_grasp_ggcnn",
+        "name": "test_predict_smooths_periodic_grasp_axis_across_antipodal_wrap",
+        "message": "could not import 'torch': No module named 'torch'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_grasp_ggcnn.py:175: could not import 'torch': No module named 'torch'"
+      },
+      {
+        "classname": "tests.test_ik_performance",
+        "name": "test_warm_cache_never_invokes_factory_or_provider_again",
+        "message": "could not import 'placo': No module named 'placo'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ik_performance.py:21: could not import 'placo': No module named 'placo'"
+      },
+      {
+        "classname": "tests.test_intel_color_masks",
+        "name": "test_hardware_all_hsv_boundaries_random_and_changed_shapes[vulkan]",
+        "message": "ModuleNotFoundError: No module named 'slangpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_intel_color_masks.py:73: ModuleNotFoundError: No module named 'slangpy'"
+      },
+      {
+        "classname": "tests.test_intel_color_masks",
+        "name": "test_hardware_all_hsv_boundaries_random_and_changed_shapes[opencl]",
+        "message": "RuntimeError: OpenCV OpenCL could not be enabled",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_intel_color_masks.py:73: RuntimeError: OpenCV OpenCL could not be enabled"
+      },
+      {
+        "classname": "tests.test_marker_source_health_group",
+        "name": "test_actual_health_completes_during_default_cv_and_intake_progresses",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_marker_source_health_group.py:43: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_native_complete_report_ros",
+        "name": "test_actual_native_unavailable_constructor_and_offer",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_native_complete_report_ros.py:14: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_native_complete_report_ros",
+        "name": "test_actual_common_sink_five_messages_cpu_native_frozen_cases[False-None]",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_native_complete_report_ros.py:146: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_native_complete_report_ros",
+        "name": "test_actual_common_sink_five_messages_cpu_native_frozen_cases[True-None]",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_native_complete_report_ros.py:146: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_native_complete_report_ros",
+        "name": "test_actual_common_sink_five_messages_cpu_native_frozen_cases[False-locked]",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_native_complete_report_ros.py:146: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_native_complete_report_ros",
+        "name": "test_actual_common_sink_five_messages_cpu_native_frozen_cases[False-attached]",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_native_complete_report_ros.py:146: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_actual_guard_delivers_original_stamp_without_poll_timer",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:38: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_guard_stale_result_keeps_original_header_and_is_not_published",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:55: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_cold_fault_timer_still_invalidates_without_results",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:74: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_notification_fault_is_observable_and_never_timer_published",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:86: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_failed_cleanup_retains_node_guard_and_context",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:98: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_cleared_fault_cannot_resurrect_old_result",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:113: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_readonly_parameter_and_real_diagnostic_string",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:36: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_actual_guard_consumes_worker_envelope_and_keeps_report_bytes",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:53: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_actual_analyze_job_counts_both_fallback_invocations_without_report_change",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:75: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_real_analyzer_optional_metadata_full_report_parity",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:90: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_exact_process_entry_and_presubmit_rejection_sites[1]",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:127: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_exact_process_entry_and_presubmit_rejection_sites[2]",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:127: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_exact_result_pretracker_and_prepublish_rejection_sites[3]",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:149: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_exact_result_pretracker_and_prepublish_rejection_sites[4]",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:149: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_exact_result_pretracker_and_prepublish_rejection_sites[5]",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:149: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_default_off_creates_no_diagnostic_ros_entities",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:15: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_diagnostic_publisher_no_catchup_or_postclose_publish",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:184: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_perception_quick_actions_ros",
+        "name": "test_actual_dds_fixed_recovery_and_supervisor_routes",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_perception_quick_actions_ros.py:13: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_raw_capture_bridge",
+        "name": "test_actual_leases_with_synthetic_driver",
+        "message": "set RAW_BRIDGE_VULKAN_INCLUDE and RAW_BRIDGE_SDK_PREFIX for CPU host build",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_raw_capture_bridge.py:60: set RAW_BRIDGE_VULKAN_INCLUDE and RAW_BRIDGE_SDK_PREFIX for CPU host build"
+      },
+      {
+        "classname": "tests.test_raw_resident_perf",
+        "name": "test_actual_combined_modules_with_synthetic_vulkan[vga-307200-307200]",
+        "message": "set RAW_BRIDGE_SDK_PREFIX and RAW_BRIDGE_VULKAN_INCLUDE for CPU native test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_raw_resident_perf.py:32: set RAW_BRIDGE_SDK_PREFIX and RAW_BRIDGE_VULKAN_INCLUDE for CPU native test"
+      },
+      {
+        "classname": "tests.test_raw_resident_perf",
+        "name": "test_actual_combined_modules_with_synthetic_vulkan[720p-921600-921600]",
+        "message": "set RAW_BRIDGE_SDK_PREFIX and RAW_BRIDGE_VULKAN_INCLUDE for CPU native test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_raw_resident_perf.py:32: set RAW_BRIDGE_SDK_PREFIX and RAW_BRIDGE_VULKAN_INCLUDE for CPU native test"
+      },
+      {
+        "classname": "tests.test_raw_resident_perf",
+        "name": "test_actual_combined_modules_with_synthetic_vulkan[1080p-2073600-921600]",
+        "message": "set RAW_BRIDGE_SDK_PREFIX and RAW_BRIDGE_VULKAN_INCLUDE for CPU native test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_raw_resident_perf.py:32: set RAW_BRIDGE_SDK_PREFIX and RAW_BRIDGE_VULKAN_INCLUDE for CPU native test"
+      },
+      {
+        "classname": "tests.test_registration_source",
+        "name": "test_native_identity_bracket_can_pin_failed_state_without_fit_admission",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_registration_source.py:75: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_registration_source",
+        "name": "test_native_device_info_is_bound_to_exact_publisher_generation",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_registration_source.py:96: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_ros2_map",
+        "name": "test_cloud_callback_looks_up_transform_at_acquisition_stamp",
+        "message": "native ROS map callback test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_map.py:131: native ROS map callback test"
+      },
+      {
+        "classname": "tests.test_ros2_map",
+        "name": "test_native_tf_buffer_applies_static_transform_at_historical_cloud_time",
+        "message": "native ROS tf2 test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_map.py:180: native ROS tf2 test"
+      },
+      {
+        "classname": "tests.test_ros2_scene",
+        "name": "test_base_vertical_variant_preserves_transformed_position_and_reports_orientation_tradeoff",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_scene.py:169: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_ros2_scene",
+        "name": "test_validator_throttles_batches_not_candidates_within_batch",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_scene.py:190: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_ros2_scene",
+        "name": "test_async_grasp_results_require_live_request_and_fresh_source_and_joint_state",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_scene.py:202: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_ros_active_goal_reservations",
+        "name": "test_real_rclpy_handle_uses_identity_without_ros_or_hardware",
+        "message": "could not import 'rclpy.action.server': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_active_goal_reservations.py:104: could not import 'rclpy.action.server': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_ros_digital_twin",
+        "name": "test_effective_urdf_drives_measured_joint_radians_and_mount_offsets",
+        "message": "ROS SO-ARM101 description checkout unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_digital_twin.py:170: ROS SO-ARM101 description checkout unavailable"
+      },
+      {
+        "classname": "tests.test_ros_grasp_execution",
+        "name": "test_native_ros_trajectory_message_serializes_as_json",
+        "message": "could not import 'moveit_msgs.msg': No module named 'moveit_msgs'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_grasp_execution.py:180: could not import 'moveit_msgs.msg': No module named 'moveit_msgs'"
+      },
+      {
+        "classname": "tests.test_ros_gripper_action",
+        "name": "test_cancel_before_gripper_plan_submission_prevents_owner_command",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_gripper_action.py:20: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_attach_failure_retains_reservation_and_replay_is_idempotent",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:81: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_timeout_is_bounded_and_late_ack_cannot_clear_fault",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:93: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_rejects_pose_in_wrong_frame_before_any_scene_call",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:104: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_attachment_queue_and_request_size_are_bounded",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:111: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_recover_reads_actual_world_before_releasing_reservation",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:128: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_recover_cannot_release_while_timed_out_rpc_is_still_outstanding",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:148: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_detach_only_releases_after_acknowledged_world_replacement",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:163: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_contact_read_timeout_faults_and_suppresses_queued_mutations",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:177: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_same_request_id_different_payload_never_repeats_mutation",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:190: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_lock_freezes_world_identity_until_unlock_or_attachment",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:226: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_contact_restores_exact_original_acm_and_refuses_external_clobber",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:237: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_contact_cleanup_does_not_overwrite_an_external_matrix_update",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:267: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_acm_comparison_accepts_moveit_serialization_order",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:291: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_so101_grasp_plan",
+        "name": "test_attachment_diffs_require_explicit_gripper_touch_links",
+        "message": "could not import 'moveit_msgs.msg': No module named 'moveit_msgs'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_grasp_plan.py:90: could not import 'moveit_msgs.msg': No module named 'moveit_msgs'"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_reachable_round_trip_and_fixed_grip[25]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:32: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_reachable_round_trip_and_fixed_grip[-40]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:32: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_reachable_round_trip_and_fixed_grip[80]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:32: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_unreachable",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:45: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_invalid_target[bad0]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:53: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_invalid_target[bad1]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:53: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_invalid_target[bad2]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:53: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_invalid_target[bad3]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:53: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_calibration_and_urdf_limits",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:59: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_opening_cache_and_resource_immutability",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:70: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_benchmark",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:91: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_reachable_orientation_and_masked_gripper",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:178: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_post_quantization_residual_is_required",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:188: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_fixed_opening_telemetry_cache_and_provenance",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:199: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_station_twin_dependencies",
+        "name": "test_station_installer_selects_pinned_passive_twin_extra",
+        "message": "station control distributions are absent from this Python environment",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_station_twin_dependencies.py:32: station control distributions are absent from this Python environment"
+      },
+      {
+        "classname": "tests.test_virtual_gripper_camera",
+        "name": "test_hardware_egl_point_pixels_unknown_mask_frustum_and_orientation",
+        "message": "opt-in GPU EGL qualification",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_virtual_gripper_camera.py:68: opt-in GPU EGL qualification"
+      },
+      {
+        "classname": "tests.test_virtual_gripper_camera",
+        "name": "test_gpu_observed_rgb_depth_and_nominal_triangle_provenance_preserve_raw_cloud",
+        "message": "opt-in GPU EGL qualification",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_virtual_gripper_camera.py:192: opt-in GPU EGL qualification"
+      }
+    ],
+    "all_failures": [],
+    "exit": {
+      "exit_code": 0,
+      "elapsed_seconds": 234.27252960205078,
+      "changed_tracked_files": [],
+      "before_count": 1645,
+      "after_count": 1645
+    },
+    "source_freeze": {
+      "scope": "all tracked files, including source/test/config/docs/fixtures; untracked outputs excluded",
+      "exclusions": [
+        "/tmp/native-complete-checkpoint-20261027/final-canonical",
+        "untracked .superpowers workspace reports"
+      ],
+      "before": {
+        "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical-before.json",
+        "sha256": "e936cb6c8bc2784e144c43a7f17b3cb742ae530a6651ef22c17a957807db6684",
+        "bytes": 210426
+      },
+      "after": {
+        "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical-after.json",
+        "sha256": "e936cb6c8bc2784e144c43a7f17b3cb742ae530a6651ef22c17a957807db6684",
+        "bytes": 210426
+      },
+      "tracked_inventory_exact": true
+    },
+    "artifacts": [
+      {
+        "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical.log",
+        "sha256": "0167ced11ee3614b34738f1bfc533f4683e9f3cd5b0843ab40063dcbb79e92cb",
+        "bytes": 6015
+      },
+      {
+        "path": "/tmp/native-complete-checkpoint-20261027/final-canonical/canonical.xml",
+        "sha256": "acac0bcb111df8b792448c6d565a000c341bf2e6ee4da73409cdf3daf75cc3f8",
+        "bytes": 840377
+      }
+    ],
+    "skip_delta_from_prior_133": {
+      "added": 11,
+      "new_optional_ROS_runtime": 5,
+      "previously_passing_CPU_host_tests_skipped": 6,
+      "interpretation": "Previous claim of eleven new ROS skips and zero new offline skips was false; see final review F1."
+    },
+    "historical_literal_flags": "Full prior launch flags remain UNRECOVERED; existing SF64_UBSAN_CXX override recovered from retained historical environment key only; current exact argv/env recorded."
+  },
+  "canonical_cpu": {
+    "result": "PASS_WITH_RESTORED_PRIOR_CPU_COVERAGE",
+    "command": [
+      "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "tools/test_cpu.py",
+      "--junitxml=/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical.xml",
+      "--basetemp=/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical-basetemp"
+    ],
+    "actual_pytest_command": [
+      "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests",
+      "--ignore=tests/test_completion_event_coordinator_ros.py",
+      "--ignore=tests/test_completion_event_final_gates.py",
+      "--ignore=tests/test_perception_supervisor_ros.py",
+      "--ignore=tests/test_pre_outage_history.py",
+      "--ignore=tests/test_supervisor_adoption_ack_launch.py",
+      "--ignore=tests/test_supervisor_adoption_ack_ros.py",
+      "--ignore=tests/test_supervisor_completed_adoption_history.py",
+      "--ignore=tests/test_supervisor_consumer_reconciliation_performance.py",
+      "--ignore=tests/test_supervisor_consumer_reconciliation_ros.py",
+      "--ignore=tests/test_supervisor_health_expiry.py",
+      "--ignore=tests/test_supervisor_health_refresh.py",
+      "--ignore=tests/test_supervisor_late_local_adoption.py",
+      "--ignore=tests/test_supervisor_launch.py",
+      "--ignore=tests/test_supervisor_native_witness.py",
+      "--ignore=tests/test_supervisor_performance.py",
+      "--ignore=tests/test_supervisor_private_availability_final.py",
+      "--ignore=tests/test_supervisor_private_availability_launch.py",
+      "--ignore=tests/test_supervisor_private_availability_performance.py",
+      "--ignore=tests/test_supervisor_private_availability_ros.py",
+      "--junitxml=/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical.xml",
+      "--basetemp=/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical-basetemp"
+    ],
+    "runtime": {
+      "python": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+      "python_executable": "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "effective_environment": {
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "PATH": "/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/.opencode/bin:/home/bjoern/.metavr/bin:/home/bjoern/.local/bin:/home/bjoern/.bun/bin:/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/.opencode/bin:/home/bjoern/.codex/tmp/arg0/codex-arg0bK7vrP:/home/bjoern/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/home/bjoern/.metavr/bin:/home/bjoern/.local/bin:/home/bjoern/.bun/bin:/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/.opencode/bin:/home/bjoern/.metavr/bin:/home/bjoern/.local/bin:/home/bjoern/.bun/bin:/home/bjoern/.cargo/bin:/home/bjoern/.local/bin:/home/bjoern/.local/bin:/home/bjoern/.kimi-code/bin:/home/bjoern/.local/bin:/home/bjoern/.npm-global/bin:/home/bjoern/miniforge3/bin:/home/bjoern/miniforge3/condabin:/home/bjoern/.opencode/bin:/home/bjoern/.local/bin:/home/bjoern/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/var/lib/snapd/snap/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/usr/lib/chatgpt/resources:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin:/home/bjoern/.lmstudio/bin",
+        "PYTEST_ADDOPTS": null,
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "PYTEST_PLUGINS": null,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPATH": null,
+        "RAW_BRIDGE_SDK_PREFIX": "/home/bjoern/miniforge3/envs/so101-jazzy",
+        "RAW_BRIDGE_VULKAN_INCLUDE": "/usr/include",
+        "ROS_DOMAIN_ID": "177",
+        "ROS_LOCALHOST_ONLY": "1",
+        "SF64_TESTFLOAT_GEN": "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen",
+        "SF64_UBSAN_CXX": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-g++",
+        "SLANGC_EXECUTABLE": "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+        "SPIRV_TOOLS_DIR": "/home/bjoern/miniforge3/envs/so101-jazzy/bin"
+      },
+      "tool_pins": {
+        "/tmp/workshop-test-pinned313-20261027/bin/python": "cae490445f238af0d9a5793d28bc4cafa889fc56cebca8423fcdaf0a0a6cfbb4",
+        "/home/bjoern/.local/opt/slang-2026.19/bin/slangc": "19c0217f848537db2a87120eb1b3f882ab2e3eb54fdec4cf5300035943704145",
+        "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen": "6eed86c55d10662bde201e8652a55587978609bfe020a146c0a5e2b84c7229bf",
+        "/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-g++": "e802ef021bccd09d2ae1dae3f9400e53ab2c2c7bc2b4e47dc29a81c7ec3bcd31",
+        "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libubsan.so.1.0.0": "0734775e369e9bc99eff0cdf6c843e30c1575b77c93cd8d0ca85d518702458e7",
+        "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-val": "075f8f6a15c15dc13ec6632ad8c054a9bb14e522a68b17a28402a6462d5057a7",
+        "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-dis": "fda9219a7a7ede6f7aa42e5d44905d513c929cc28c361cbf6a593e1ee315913f"
+      }
+    },
+    "environment_allowlist": [
+      "OMP_NUM_THREADS",
+      "OPENBLAS_NUM_THREADS",
+      "PATH",
+      "PYTEST_ADDOPTS",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD",
+      "PYTEST_PLUGINS",
+      "PYTHONDONTWRITEBYTECODE",
+      "PYTHONPATH",
+      "RAW_BRIDGE_SDK_PREFIX",
+      "RAW_BRIDGE_VULKAN_INCLUDE",
+      "ROS_DOMAIN_ID",
+      "ROS_LOCALHOST_ONLY",
+      "SF64_TESTFLOAT_GEN",
+      "SF64_UBSAN_CXX",
+      "SLANGC_EXECUTABLE",
+      "SPIRV_TOOLS_DIR"
+    ],
+    "counts": {
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "138",
+          "tests": "4955",
+          "time": "256.603",
+          "timestamp": "2026-10-27T22:29:41.480384+01:00",
+          "hostname": "cps-wkstn-hpz2minig1a-ellensohn"
+        }
+      ],
+      "junit_testcase_elements": 4907,
+      "skipped": 138,
+      "failures_or_errors": 0,
+      "headline": "4769 passed, 138 skipped, 48 subtests passed in 256.64s (0:04:16)",
+      "passed": 4769,
+      "subtests_passed": 48,
+      "headline_skipped": 138
+    },
+    "all_skips": [
+      {
+        "classname": "",
+        "name": "tests.test_admission_status_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_admission_status_ros.py', 5, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_camera_source_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_camera_source_ros.py', 13, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_completion_event_coordinator",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_completion_event_coordinator.py', 9, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_derived_aligned_dds",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_derived_aligned_dds.py', 15, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_derived_aligned_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_derived_aligned_ros.py', 8, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_derived_registration_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_derived_registration_ros.py', 11, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_early_camera_info_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_early_camera_info_ros.py', 5, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ev3_operator_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ev3_operator_ros.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_intel_grasp_adapter",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_intel_grasp_adapter.py', 9, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_perception_recovery_adversarial",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_perception_recovery_adversarial.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_perception_recovery_launch_types",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_perception_recovery_launch_types.py', 7, \"Skipped: could not import 'launch.launch_context': No module named 'launch.launch_context'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_perception_recovery_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_perception_recovery_ros.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_perception_supervisor_dds",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_perception_supervisor_dds.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_periodic_registration_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_periodic_registration_ros.py', 11, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_recovery_status_wait",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_recovery_status_wait.py', 5, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_rocm_selected_receipts",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_rocm_rgbd.py', 16, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_rocm_source_reset",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_rocm_source_reset.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros2_charuco_plane",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_charuco_plane.py', 5, 'Skipped: Optional ROS perception tests require RoboStack')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros2_charuco_world",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_charuco_world.py', 7, 'Skipped: Optional ROS perception tests require RoboStack')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros2_marker_pipeline",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_marker_pipeline.py', 7, 'Skipped: ROS integration tests require the RoboStack environment')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros2_object_marker_messages",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_object_marker_messages.py', 9, \"Skipped: could not import 'geometry_msgs.msg': No module named 'geometry_msgs'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros2_perception",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_perception.py', 10, 'Skipped: Optional ROS perception tests run in the RoboStack environment')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_arm_prepare",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_arm_prepare.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_arm_prepare_owner_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_arm_prepare_owner_native.py', 3, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_camera_profile_launch",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_camera_profile_launch.py', 8, \"Skipped: could not import 'launch.launch_context': No module named 'launch.launch_context'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_component_service",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_component_service.py', 7, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_endpoint_failure_hold",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_endpoint_failure_hold.py', 7, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_follower_recovery_status",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_follower_recovery_status.py', 15, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_grasp_cli_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_grasp_cli_native.py', 21, 'Skipped: native ROS 2 environment required')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_held_jaw",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_held_jaw.py', 5, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_jaw_diagnostics",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_jaw_diagnostics.py', 6, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_objects_depth_launch",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_objects_depth_launch.py', 7, \"Skipped: could not import 'launch.launch_context': No module named 'launch.launch_context'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_placement_cli_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_placement_cli_native.py', 9, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_placement_selection_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_placement_selection_native.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_plan_current_preflight_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_plan_current_preflight_native.py', 12, 'Skipped: native ROS 2 environment required')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_rclpy_publisher_gid",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_rclpy_publisher_gid.py', 8, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_reconnect_service",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_reconnect_service.py', 5, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_recovery_camera_identity",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_recovery_camera_identity.py', 7, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_recovery_owner_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_recovery_owner_native.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_recovery_predispatch_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_recovery_predispatch_native.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_recovery_producer_bridge",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_recovery_producer_bridge.py', 8, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_recovery_producer_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_recovery_producer_native.py', 14, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_rocm_rgbd",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_rocm_rgbd.py', 16, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_station_api_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_station_api_native.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_stop_service",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_stop_service.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_supervised_calibration",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_supervised_calibration.py', 6, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_teleop_absolute_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_teleop_absolute_native.py', 6, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_teleop_ack_wakeup",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_teleop_ack_wakeup.py', 14, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_trajectory_start_retry",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_trajectory_start_retry.py', 6, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_twin_render",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_twin_render.py', 8, 'Skipped: set MUJOCO_GL=egl for the real headless renderer smoke')"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_ros_web_twin_launch",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_web_twin_launch.py', 7, \"Skipped: could not import 'launch.launch_context': No module named 'launch.launch_context'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_source_binding_health_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_source_binding_health_ros.py', 11, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_station_component_launch",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_station_component_launch.py', 5, \"Skipped: could not import 'launch.launch_context': No module named 'launch.launch_context'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_supervisor_consumer_reconciliation_dds",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_supervisor_consumer_reconciliation_dds.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_supervisor_late_local_adoption_dds",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_supervisor_late_local_adoption_dds.py', 12, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_supervisor_private_availability_dds",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_supervisor_private_availability_dds.py', 14, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_taught_grasp_native",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_taught_grasp_native.py', 16, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "",
+        "name": "tests.test_virtual_gripper_camera_ros",
+        "message": "collection skipped",
+        "detail": "('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_virtual_gripper_camera_ros.py', 10, \"Skipped: could not import 'rclpy': No module named 'rclpy'\")"
+      },
+      {
+        "classname": "tests.test_capture_ros_robot_registration",
+        "name": "test_capture_writes_complete_bundle_with_actual_description",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_capture_ros_robot_registration.py:214: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_capture_ros_robot_registration",
+        "name": "test_strict_capture_rejects_station_change_before_writing_bundle",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_capture_ros_robot_registration.py:258: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_colored_observation_depth",
+        "name": "test_native_configured_limit_reaches_normal_and_cached_plane_analysis",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_colored_observation_depth.py:134: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_colored_tracking_acquisition",
+        "name": "test_ros_node_exposes_three_frame_default_and_bounded_pending_status",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_colored_tracking_acquisition.py:116: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_colored_tracking_acquisition",
+        "name": "test_ros_future_unavailable_cannot_starve_confirmed_tracks",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_colored_tracking_acquisition.py:178: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_frame_conventions",
+        "name": "test_cross_engine_site_and_pinch[values0]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_frame_conventions.py:30: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_frame_conventions",
+        "name": "test_cross_engine_site_and_pinch[values1]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_frame_conventions.py:30: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_frame_conventions",
+        "name": "test_cross_engine_site_and_pinch[values2]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_frame_conventions.py:30: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_grasp_ggcnn",
+        "name": "test_optional_actual_cornell_state_checkpoint",
+        "message": "could not import 'torch': No module named 'torch'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_grasp_ggcnn.py:61: could not import 'torch': No module named 'torch'"
+      },
+      {
+        "classname": "tests.test_grasp_ggcnn",
+        "name": "test_verified_cached_archive_download_writes_only_tensor_state",
+        "message": "could not import 'torch': No module named 'torch'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_grasp_ggcnn.py:122: could not import 'torch': No module named 'torch'"
+      },
+      {
+        "classname": "tests.test_grasp_ggcnn",
+        "name": "test_predict_smooths_periodic_grasp_axis_across_antipodal_wrap",
+        "message": "could not import 'torch': No module named 'torch'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_grasp_ggcnn.py:175: could not import 'torch': No module named 'torch'"
+      },
+      {
+        "classname": "tests.test_ik_performance",
+        "name": "test_warm_cache_never_invokes_factory_or_provider_again",
+        "message": "could not import 'placo': No module named 'placo'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ik_performance.py:21: could not import 'placo': No module named 'placo'"
+      },
+      {
+        "classname": "tests.test_intel_color_masks",
+        "name": "test_hardware_all_hsv_boundaries_random_and_changed_shapes[vulkan]",
+        "message": "ModuleNotFoundError: No module named 'slangpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_intel_color_masks.py:73: ModuleNotFoundError: No module named 'slangpy'"
+      },
+      {
+        "classname": "tests.test_intel_color_masks",
+        "name": "test_hardware_all_hsv_boundaries_random_and_changed_shapes[opencl]",
+        "message": "RuntimeError: OpenCV OpenCL could not be enabled",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_intel_color_masks.py:73: RuntimeError: OpenCV OpenCL could not be enabled"
+      },
+      {
+        "classname": "tests.test_marker_source_health_group",
+        "name": "test_actual_health_completes_during_default_cv_and_intake_progresses",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_marker_source_health_group.py:43: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_native_complete_report_ros",
+        "name": "test_actual_native_unavailable_constructor_and_offer",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_native_complete_report_ros.py:14: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_native_complete_report_ros",
+        "name": "test_actual_common_sink_five_messages_cpu_native_frozen_cases[False-None]",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_native_complete_report_ros.py:146: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_native_complete_report_ros",
+        "name": "test_actual_common_sink_five_messages_cpu_native_frozen_cases[True-None]",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_native_complete_report_ros.py:146: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_native_complete_report_ros",
+        "name": "test_actual_common_sink_five_messages_cpu_native_frozen_cases[False-locked]",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_native_complete_report_ros.py:146: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_native_complete_report_ros",
+        "name": "test_actual_common_sink_five_messages_cpu_native_frozen_cases[False-attached]",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_native_complete_report_ros.py:146: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_actual_guard_delivers_original_stamp_without_poll_timer",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:38: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_guard_stale_result_keeps_original_header_and_is_not_published",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:55: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_cold_fault_timer_still_invalidates_without_results",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:74: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_notification_fault_is_observable_and_never_timer_published",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:86: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_failed_cleanup_retains_node_guard_and_context",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:98: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_result_delivery_ros",
+        "name": "test_cleared_fault_cannot_resurrect_old_result",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_result_delivery_ros.py:113: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_readonly_parameter_and_real_diagnostic_string",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:36: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_actual_guard_consumes_worker_envelope_and_keeps_report_bytes",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:53: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_actual_analyze_job_counts_both_fallback_invocations_without_report_change",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:75: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_real_analyzer_optional_metadata_full_report_parity",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:90: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_exact_process_entry_and_presubmit_rejection_sites[1]",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:127: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_exact_process_entry_and_presubmit_rejection_sites[2]",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:127: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_exact_result_pretracker_and_prepublish_rejection_sites[3]",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:149: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_exact_result_pretracker_and_prepublish_rejection_sites[4]",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:149: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_exact_result_pretracker_and_prepublish_rejection_sites[5]",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:149: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_default_off_creates_no_diagnostic_ros_entities",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:15: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_object_timing_diagnostic_ros",
+        "name": "test_diagnostic_publisher_no_catchup_or_postclose_publish",
+        "message": "optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_object_timing_diagnostic_ros.py:184: optional ROS runtime unavailable; run native coverage with the fixed domain177 launcher"
+      },
+      {
+        "classname": "tests.test_perception_quick_actions_ros",
+        "name": "test_actual_dds_fixed_recovery_and_supervisor_routes",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_perception_quick_actions_ros.py:13: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_registration_source",
+        "name": "test_native_identity_bracket_can_pin_failed_state_without_fit_admission",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_registration_source.py:75: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_registration_source",
+        "name": "test_native_device_info_is_bound_to_exact_publisher_generation",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_registration_source.py:96: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_ros2_map",
+        "name": "test_cloud_callback_looks_up_transform_at_acquisition_stamp",
+        "message": "native ROS map callback test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_map.py:131: native ROS map callback test"
+      },
+      {
+        "classname": "tests.test_ros2_map",
+        "name": "test_native_tf_buffer_applies_static_transform_at_historical_cloud_time",
+        "message": "native ROS tf2 test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_map.py:180: native ROS tf2 test"
+      },
+      {
+        "classname": "tests.test_ros2_scene",
+        "name": "test_base_vertical_variant_preserves_transformed_position_and_reports_orientation_tradeoff",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_scene.py:169: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_ros2_scene",
+        "name": "test_validator_throttles_batches_not_candidates_within_batch",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_scene.py:190: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_ros2_scene",
+        "name": "test_async_grasp_results_require_live_request_and_fresh_source_and_joint_state",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros2_scene.py:202: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_ros_active_goal_reservations",
+        "name": "test_real_rclpy_handle_uses_identity_without_ros_or_hardware",
+        "message": "could not import 'rclpy.action.server': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_active_goal_reservations.py:104: could not import 'rclpy.action.server': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_ros_digital_twin",
+        "name": "test_effective_urdf_drives_measured_joint_radians_and_mount_offsets",
+        "message": "ROS SO-ARM101 description checkout unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_digital_twin.py:170: ROS SO-ARM101 description checkout unavailable"
+      },
+      {
+        "classname": "tests.test_ros_grasp_execution",
+        "name": "test_native_ros_trajectory_message_serializes_as_json",
+        "message": "could not import 'moveit_msgs.msg': No module named 'moveit_msgs'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_grasp_execution.py:180: could not import 'moveit_msgs.msg': No module named 'moveit_msgs'"
+      },
+      {
+        "classname": "tests.test_ros_gripper_action",
+        "name": "test_cancel_before_gripper_plan_submission_prevents_owner_command",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_ros_gripper_action.py:20: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_attach_failure_retains_reservation_and_replay_is_idempotent",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:81: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_timeout_is_bounded_and_late_ack_cannot_clear_fault",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:93: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_rejects_pose_in_wrong_frame_before_any_scene_call",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:104: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_attachment_queue_and_request_size_are_bounded",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:111: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_recover_reads_actual_world_before_releasing_reservation",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:128: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_recover_cannot_release_while_timed_out_rpc_is_still_outstanding",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:148: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_detach_only_releases_after_acknowledged_world_replacement",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:163: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_contact_read_timeout_faults_and_suppresses_queued_mutations",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:177: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_same_request_id_different_payload_never_repeats_mutation",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:190: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_lock_freezes_world_identity_until_unlock_or_attachment",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:226: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_contact_restores_exact_original_acm_and_refuses_external_clobber",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:237: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_contact_cleanup_does_not_overwrite_an_external_matrix_update",
+        "message": "native ROS ownership transaction test",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:267: native ROS ownership transaction test"
+      },
+      {
+        "classname": "tests.test_scene_ownership_transactions",
+        "name": "test_native_acm_comparison_accepts_moveit_serialization_order",
+        "message": "could not import 'rclpy': No module named 'rclpy'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_scene_ownership_transactions.py:291: could not import 'rclpy': No module named 'rclpy'"
+      },
+      {
+        "classname": "tests.test_so101_grasp_plan",
+        "name": "test_attachment_diffs_require_explicit_gripper_touch_links",
+        "message": "could not import 'moveit_msgs.msg': No module named 'moveit_msgs'",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_grasp_plan.py:90: could not import 'moveit_msgs.msg': No module named 'moveit_msgs'"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_reachable_round_trip_and_fixed_grip[25]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:32: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_reachable_round_trip_and_fixed_grip[-40]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:32: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_reachable_round_trip_and_fixed_grip[80]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:32: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_unreachable",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:45: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_invalid_target[bad0]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:53: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_invalid_target[bad1]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:53: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_invalid_target[bad2]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:53: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_invalid_target[bad3]",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:53: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_calibration_and_urdf_limits",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:59: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_opening_cache_and_resource_immutability",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:70: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_benchmark",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:91: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_reachable_orientation_and_masked_gripper",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:178: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_post_quantization_residual_is_required",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:188: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_so101_ik",
+        "name": "test_fixed_opening_telemetry_cache_and_provenance",
+        "message": "optional LeRobot/Placo backend unavailable",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_so101_ik.py:199: optional LeRobot/Placo backend unavailable"
+      },
+      {
+        "classname": "tests.test_station_twin_dependencies",
+        "name": "test_station_installer_selects_pinned_passive_twin_extra",
+        "message": "station control distributions are absent from this Python environment",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_station_twin_dependencies.py:32: station control distributions are absent from this Python environment"
+      },
+      {
+        "classname": "tests.test_virtual_gripper_camera",
+        "name": "test_hardware_egl_point_pixels_unknown_mask_frustum_and_orientation",
+        "message": "opt-in GPU EGL qualification",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_virtual_gripper_camera.py:68: opt-in GPU EGL qualification"
+      },
+      {
+        "classname": "tests.test_virtual_gripper_camera",
+        "name": "test_gpu_observed_rgb_depth_and_nominal_triangle_provenance_preserve_raw_cloud",
+        "message": "opt-in GPU EGL qualification",
+        "detail": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_virtual_gripper_camera.py:192: opt-in GPU EGL qualification"
+      }
+    ],
+    "all_failures": [],
+    "exit": {
+      "exit_code": 0,
+      "elapsed_seconds": 258.3442168235779,
+      "changed_tracked_files": [],
+      "before_count": 1645,
+      "after_count": 1645
+    },
+    "source_freeze": {
+      "scope": "all tracked files, including source/test/config/docs/fixtures; untracked outputs excluded",
+      "exclusions": [
+        "/tmp/native-complete-checkpoint-20261027/qualified-canonical",
+        "untracked .superpowers workspace reports"
+      ],
+      "before": {
+        "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical-before.json",
+        "sha256": "e936cb6c8bc2784e144c43a7f17b3cb742ae530a6651ef22c17a957807db6684",
+        "bytes": 210426
+      },
+      "after": {
+        "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical-after.json",
+        "sha256": "e936cb6c8bc2784e144c43a7f17b3cb742ae530a6651ef22c17a957807db6684",
+        "bytes": 210426
+      },
+      "tracked_inventory_exact": true
+    },
+    "artifacts": [
+      {
+        "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical.log",
+        "sha256": "81fbabcad1f3f7b081341e0bfe1acb429e6a135c760c03927efc19d70bbac262",
+        "bytes": 6015
+      },
+      {
+        "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/canonical.xml",
+        "sha256": "c229bcf2c0a19e5c75b1a32f52bba9defa663812b50c19840aa3197fc5a506aa",
+        "bytes": 838429
+      }
+    ],
+    "skip_delta_from_prior_133": {
+      "added": 5,
+      "reason": "Five newly introduced tests.test_native_complete_report_ros cases lack rclpy; all 133 prior skipped node IDs remain skipped and all six lost CPU host cases are restored to PASS.",
+      "new_optional_ROS_runtime": 5,
+      "new_missing_offline_tool_skips": 0,
+      "comparison": {
+        "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/skip-delta-qualified.json",
+        "sha256": "ffeb1bf6bf387a43286e366418238277722f4966ee5cfc825f580a3b5d7f6e9a",
+        "bytes": 32674
+      }
+    },
+    "historical_literal_flags": "Full literal historical launch unrecovered; SF64_UBSAN_CXX and both RAW toolpath variables recovered from retained successful capture. Current exact argv/allowlisted env recorded."
+  },
+  "final_review_fix1": {
+    "finding": "F1 Important: six previously passing CPU host checks skipped because RAW toolpath environment was unrecovered; public skip explanation incorrectly labeled them new ROS cases.",
+    "review": {
+      "path": "/tmp/complete-report-final-review-20261027/review.md",
+      "sha256": "dc7a4d99c4137674a6136e46a0464d2b61ab0bfa4669ce9e8f197504382a07d7",
+      "bytes": 11280
+    },
+    "original_skip_comparison": {
+      "path": "/tmp/complete-report-final-review-20261027/skip-delta-proof.json",
+      "sha256": "932f0f823a6cdd36711bf4ad328de984af663cefb38c1174896b988ff2be4d56",
+      "bytes": 5330
+    },
+    "qualified_skip_comparison": {
+      "path": "/tmp/native-complete-checkpoint-20261027/qualified-canonical/skip-delta-qualified.json",
+      "sha256": "ffeb1bf6bf387a43286e366418238277722f4966ee5cfc825f580a3b5d7f6e9a",
+      "bytes": 32674
+    },
+    "targeted": {
+      "passed": 6,
+      "skipped": 0,
+      "elapsed_seconds": 26.7,
+      "log": {
+        "path": "/tmp/native-complete-checkpoint-20261027/final-review-fix1/targeted.log",
+        "sha256": "5d2af4663b1ab20ba6e7b39f969b3a07bd972dc318e1919f6a884c6cc763ee11",
+        "bytes": 99
+      },
+      "junit": {
+        "path": "/tmp/native-complete-checkpoint-20261027/final-review-fix1/targeted.xml",
+        "sha256": "6439e2dc8660f7f564a6b658d8ab310980d5524ff2a5b224aa13386a3d114a07",
+        "bytes": 1103
+      },
+      "exit": {
+        "exit_code": 0,
+        "elapsed_seconds": 26.89272141456604,
+        "changed_tracked_files": []
+      },
+      "process": {
+        "path": "/tmp/native-complete-checkpoint-20261027/final-review-fix1/process.json",
+        "sha256": "0fb8bd657556be3832e42c08f81a856332be81a5467ac50485f6fd610254082b",
+        "bytes": 4481
+      }
+    },
+    "recovered_environment": {
+      "RAW_BRIDGE_SDK_PREFIX": "/home/bjoern/miniforge3/envs/so101-jazzy",
+      "RAW_BRIDGE_VULKAN_INCLUDE": "/usr/include"
+    },
+    "tool_path_evidence": {
+      "/home/bjoern/miniforge3/envs/so101-jazzy/lib/librealsense2.so": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+      "/home/bjoern/miniforge3/envs/so101-jazzy/include/librealsense2/rs.h": "fe0875f177d248234c4dc8b7bef9476dde7cc602a89eed4bd94dcadc6078b293",
+      "/usr/include/vulkan/vulkan.h": "72b952cc6de70ee12d118d3095e80346b42ff01cfc6f2bbb37ec01800eab1da6"
+    },
+    "restored_cases": [
+      {
+        "classname": "tests.test_alignment_extents",
+        "name": "test_independent_extents_record_native_upload_color_outputs_and_preallocation_limits",
+        "status": "passed",
+        "skip_message": null,
+        "prior_status": "passed",
+        "unqualified_status": "skipped"
+      },
+      {
+        "classname": "tests.test_camera_resolution_profiles",
+        "name": "test_actual_profile_identity_and_cold_coverage",
+        "status": "passed",
+        "skip_message": null,
+        "prior_status": "passed",
+        "unqualified_status": "skipped"
+      },
+      {
+        "classname": "tests.test_raw_capture_bridge",
+        "name": "test_actual_leases_with_synthetic_driver",
+        "status": "passed",
+        "skip_message": null,
+        "prior_status": "passed",
+        "unqualified_status": "skipped"
+      },
+      {
+        "classname": "tests.test_raw_resident_perf",
+        "name": "test_actual_combined_modules_with_synthetic_vulkan[1080p-2073600-921600]",
+        "status": "passed",
+        "skip_message": null,
+        "prior_status": "passed",
+        "unqualified_status": "skipped"
+      },
+      {
+        "classname": "tests.test_raw_resident_perf",
+        "name": "test_actual_combined_modules_with_synthetic_vulkan[720p-921600-921600]",
+        "status": "passed",
+        "skip_message": null,
+        "prior_status": "passed",
+        "unqualified_status": "skipped"
+      },
+      {
+        "classname": "tests.test_raw_resident_perf",
+        "name": "test_actual_combined_modules_with_synthetic_vulkan[vga-307200-307200]",
+        "status": "passed",
+        "skip_message": null,
+        "prior_status": "passed",
+        "unqualified_status": "skipped"
+      }
+    ],
+    "source_test_threshold_skip_changes": false,
+    "one_authorized_fix_wave_and_qualified_rerun": true,
+    "scoped_rereview": "PENDING supervisor handoff",
+    "superseded_pre_review_archive": {
+      "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/native-complete-admission-checkpoint-20261027.tar.gz",
+      "sha256": "aba3b2d397ab6296960a8516b4d35150411c3c6514078636e62a71d494f6f03e",
+      "bytes": 9704951,
+      "status": "SUPERSEDED historical snapshot containing erroneous skip classification; retained unchanged; corrected delta archive pending supervisor"
+    }
+  },
+  "corrected_delta_archive": {
+    "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/native-complete-admission-qualified-delta-20261027.tar.gz",
+    "external_receipt": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/native-complete-admission-qualified-delta-20261027.receipt.json",
+    "hash_authority": "External receipt; no self-referential hash embedded here",
+    "supervisor_creation_and_verification_required_before_publication": true,
+    "contents": "qualified canonical, final-review-fix1, current 22 source pins and corrected documents; immutable base archive supplies prior replay/NPY data",
+    "base_archive_sha256": "aba3b2d397ab6296960a8516b4d35150411c3c6514078636e62a71d494f6f03e",
+    "base_archive_status": "SUPERSEDED for skip classification; immutable raw data/history retained"
+  }
+}

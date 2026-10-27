@@ -29,7 +29,7 @@
     "universal_cross_platform_bit_identity": false
   },
   "sources": {
-    "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+    "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
     "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
     "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
     "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",

@@ -85,7 +85,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -494,8 +494,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "986e1216efee7873a01db83366b490a86fdd815c7b969091cae81566ec71d857",
-      "oracle_payload_manifest_sha256": "705c3833ab3ef35cb47d489342ab5ef2d70589d191dc795a075e19e414411c48",
+      "oracle_manifest_sha256": "44e2e26fe5a07d6d1ad3922c1696cd7ed5404a9d3b3ce2950f5085a0efb170f4",
+      "oracle_payload_manifest_sha256": "af046120bb30d167243a650a9e548fdbf31d5c901c596c7306cef0ea57121f5d",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -527,7 +527,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -2440,7 +2440,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -2769,8 +2769,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "e6ec089cbad2420ec708f9517bb5b54a4e53587abe2d45647bce36c35f159ece",
-      "oracle_payload_manifest_sha256": "6845bf14e4720f8724600d9fa6e9fdde8baab04437beb0688d73e6dcc2ee9e71",
+      "oracle_manifest_sha256": "619569185b0f856fd79c81fdd30e943173ff1348a6a6a2adbd42040965eb8b29",
+      "oracle_payload_manifest_sha256": "f4023ee2156daa80797c219184a694171d703ecdffae3d77394e6d223f11be52",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -2802,7 +2802,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -4336,7 +4336,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -4753,8 +4753,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "70980c97728bd4f8261867c19f9012febc131efb9cf805361f6092d68ed45dcf",
-      "oracle_payload_manifest_sha256": "86aea7939bd2323f4908be9bf26fe620710c73e5c86a4e6260451d8f4d30f324",
+      "oracle_manifest_sha256": "fb42e82f2111d2bf11bcd0dc6a7b8adb27114e2d4a2e699775bfb183617380fb",
+      "oracle_payload_manifest_sha256": "d019df755cc157460806c5b5f1b1758dd7852d502aac2151bdeed17f7f056ea8",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -4786,7 +4786,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -7874,7 +7874,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -8283,8 +8283,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "0c3d46fed99ab40d8bf4c0237366327aa556928d931ffbf4abfa68edefbb3fb3",
-      "oracle_payload_manifest_sha256": "db7f3963e0cfc2fc78c4eac504623aaa5f8b9bee3fb55735016136e2bcb61b4d",
+      "oracle_manifest_sha256": "55986abc588c4342cbfe63eaa9ba4c3f688548da777ae3558246aab702f083f0",
+      "oracle_payload_manifest_sha256": "a8e3613cda76e3cfd9da133022a9a69765363b384aed325bc5520fe10181d6b0",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -8316,7 +8316,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -10229,7 +10229,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -10601,8 +10601,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "74199cd59808ec0e5e78148f82aaad00132d782a3a82c24783bd0c8b76bbde7e",
-      "oracle_payload_manifest_sha256": "0b5bd474b84c2debafcd1debc9140d0fc306a5bd323b2ad255aee88403660cc4",
+      "oracle_manifest_sha256": "fa4398d8da03e685b16fdea5066adf6c23f3e9cb2c437fecc2656ace915f905f",
+      "oracle_payload_manifest_sha256": "f12bf15c21651c5becaf4bdf3ae5b2555197359f385cbc548ab8f439e2c435ed",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -10634,7 +10634,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -12517,7 +12517,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -12846,8 +12846,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "d8c0a46289867e908dffc00713691b0e90d58ee5a57424ef1638b697e5f59826",
-      "oracle_payload_manifest_sha256": "4514a4dd0a4145394ea99a0199e129c94ea3b8add3118380a7c979b746c960be",
+      "oracle_manifest_sha256": "282a9e32c990ce2a4e9ff4b30f5a3c7edc879e7d2ba8d74886207ffaf28689f7",
+      "oracle_payload_manifest_sha256": "5740c0829d2dac18685267b968d74788d4f1b3967117ced2c2a1368dd51802f7",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -12879,7 +12879,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -13873,7 +13873,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -14282,8 +14282,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "b15db06d525e2f5d3dc925db6ff58801b9f103a2866d40e4e4f5602d02fc6604",
-      "oracle_payload_manifest_sha256": "f96355975cb6e4e08397cd05fe7b0f3fd6c9dac9eef507d1dd27bd451de958b9",
+      "oracle_manifest_sha256": "7ade87bb5bece5a6d71ff11582e09ebab8fc7bf34ef44682a096f56fe2e204e5",
+      "oracle_payload_manifest_sha256": "47f67e343b2aeabe2e1bcf6060310aaaace51ff802f84ab5ef578488533a551b",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -14315,7 +14315,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -16236,7 +16236,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -16645,8 +16645,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "322ad828aba9b9dc48452219394bb8c8fa8ebeea91b6ca4c7fd331e399b3c831",
-      "oracle_payload_manifest_sha256": "da9856e6c48350c4df949cc347f115719e00b16320505cd3ba72f7dfa651142b",
+      "oracle_manifest_sha256": "d81515fb892003db666283623360eefa5731ca874f512d44145862ec5495cb64",
+      "oracle_payload_manifest_sha256": "75ebf632e8a1e46a10c2d568a3f6cd6cbe1113cde433239b574e2e3f368cc45d",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -16678,7 +16678,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -18591,7 +18591,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -19000,8 +19000,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "839e1a8696888a59274df77eebb096954b7292b0d7bd315e2023b032a2084da0",
-      "oracle_payload_manifest_sha256": "22215565787c025257e4e805acad7cc1f4e9f890e3928a255ec1d6d9b436c76e",
+      "oracle_manifest_sha256": "b90592ab2d632c4f20bad2ad9d29e9ffdacf66116b23e62857b597209c5f896c",
+      "oracle_payload_manifest_sha256": "d694e9f9081dd79334467a6841386ef022999c63b9255b6854b899e75b8e8381",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -19033,7 +19033,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -20946,7 +20946,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -21355,8 +21355,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "6f3ceac11d88e8eb581c23717a7a256d22383525f9eceeeb2f16962c2a0e30de",
-      "oracle_payload_manifest_sha256": "67b663228c57ab4f4813968e9f4e890aedb0568ac1e4feb6178c3145c548e42a",
+      "oracle_manifest_sha256": "353598d54ea4b969617915866129b53b90aa464bd36f02c152c333e0a938c33b",
+      "oracle_payload_manifest_sha256": "97806dc6fe8bbe6b7e0523c36b901d5a1004ab2fe6943e7c6a5b75b9d48640dc",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -21388,7 +21388,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -23301,7 +23301,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -23710,8 +23710,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "49a9da9cf5551c555a01b23e18688f60a6842a9a677ebaefda3f6b8f5926608b",
-      "oracle_payload_manifest_sha256": "18b2450515890ad641414640e4f5134d566055d6fe7a7b4615658c317d97270f",
+      "oracle_manifest_sha256": "c7a3a9480f5d3e51988e0436531cf3fc463bf21cd8213405912650a09ba02d91",
+      "oracle_payload_manifest_sha256": "9008f0fb5cc35ea81ee1987bf3764ae6bf7b6d51bba69ab589cb683a365ed56c",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -23743,7 +23743,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -25664,7 +25664,7 @@
         "opencv": "4.14.0",
         "scipy": "1.17.1",
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
@@ -25889,8 +25889,8 @@
           "dtype": "uint32"
         }
       },
-      "oracle_manifest_sha256": "e70148583fab7fe1bf38c7b947ad774761e4f1ccebd9a0cd1068c6ed5587ffb5",
-      "oracle_payload_manifest_sha256": "3ef3681738231afc351cfc7dd881ba45bca70a6168a5234f88e9160680ec3b38",
+      "oracle_manifest_sha256": "61415d0d932a6555a7e476da90271fdf1a2187c8dffa73761349fc51f3ba99af",
+      "oracle_payload_manifest_sha256": "ec7f9e0100d71293ec02149de88f5a604d951b427f7e95e7ea275d0a7fd958bd",
       "reference": {
         "schema": "so101-native-geometry-procedural-reference-v2",
         "principal_axes_policy": {
@@ -25922,7 +25922,7 @@
           "universal_cross_platform_bit_identity": false
         },
         "sources": {
-          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75",
+          "ros2/src/so101_station_objects/so101_station_objects/objects.py": "08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321",
           "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "e628cfbc77a3ab4736f420cfacc967bf44b0365385e48f3f7a16402c552cdd71",
           "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
           "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",

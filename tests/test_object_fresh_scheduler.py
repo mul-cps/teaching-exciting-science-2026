@@ -34,6 +34,7 @@ def scheduler():
     cls = production_class(OBJECTS, {'_offer_derived', '_fresh_current', '_process_offered_derived'},
                            {'time': NS(monotonic=lambda: clock[0])})
     node = cls()
+    node._native_mode = False; node.native_ingress = None
     node._fresh_lock = Lock(); node._fresh_signal_gate = Lock()
     node._fresh_pending = None; node._fresh_generation = 0; node._fresh_closed = False
     node._fresh_next_attempt = 0.; node.period = .2
@@ -158,7 +159,7 @@ def test_callback_groups_separate_metadata_intake_from_expensive_default_group()
     assert kwargs['callback_group'] == kwargs['health_callback_group'] == 'self._derived_group'
     assert kwargs['metadata_offer'] == 'self._offer_derived'
     guards = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == 'create_guard_condition']
-    assert {n.args[0].attr for n in guards} == {'_process_offered_derived', '_consume_analysis'}
+    assert {n.args[0].attr for n in guards} == {'_process_offered_derived', '_consume_analysis', '_consume_native_complete'}
     assert all(not n.keywords for n in guards)
 
 

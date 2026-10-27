@@ -73,10 +73,10 @@
 
 **Files:** Retain focused benchmark/static tests under `tools/performance/` and `tests/`; add a dated `docs/performance/` readout and machine receipt. Reseal only current v2 source metadata and derived manifests under `tests/fixtures/native_geometry/` after the final code freeze.
 
-- [ ] Consolidate the independent Task 1 and Task 3 resource receipts, benchmark/static guards and exact admitted fixture capacities. Repeat measurements only for changed code or unresolved findings.
-- [ ] Node-only changes still alter the whole-file `objects.py` hash in oracle provenance. Replay the unchanged twelve v2 inputs, prove numerical reports/ordered pieces/arrays unchanged, and reseal only v2 procedural/matrix/observed source identities plus derived manifest hashes. Keep every v1 byte and all numerical thresholds unchanged; audit the metadata-only diff explicitly.
-- [ ] After freeze, run focused CPU and isolated real ROS lanes, then canonical pinned CPU suite once. Preserve failures, exact commands/artifacts and source/runtime pins; re-run only for changed code or unresolved findings.
-- [ ] Independently review the whole checkpoint, preserve raw evidence durably, commit/push the coherent feature branch and verify remote SHA plus unchanged clean shared main.
+- [x] Consolidate the independent Task 1 and Task 3 resource receipts, benchmark/static guards and exact admitted fixture capacities. Repeat measurements only for changed code or unresolved findings.
+- [x] Node-only changes still alter the whole-file `objects.py` hash in oracle provenance. Replay the unchanged twelve v2 inputs, prove numerical reports/ordered pieces/arrays unchanged, and reseal only v2 procedural/matrix/observed source identities plus derived manifest hashes. Keep every v1 byte and all numerical thresholds unchanged; audit the metadata-only diff explicitly.
+- [x] After freeze, run focused CPU and isolated real ROS lanes, then canonical pinned CPU suite once. Preserve failures, exact commands/artifacts and source/runtime pins; re-run only for changed code or unresolved findings.
+- [x] Independently review the whole checkpoint, preserve raw evidence durably, commit/push the coherent feature branch and verify remote SHA plus unchanged clean shared main.
 
 Current baseline is source `443cd8f82ae19dbb1468088dbf33d9bed6851aaa`. Read-only CPU baseline capture is `/tmp/complete-report-publication-baseline-20261027/`: five batches/25 real messages, with original jobs/reports/types/state/CDR/runtime pins. Its initial fixture failure is retained. Architecture evidence is `/tmp/complete-report-contract-20261027/design-audit.md`. These private artifacts must be preserved with the checkpoint; they are not proof of live native admission.
 

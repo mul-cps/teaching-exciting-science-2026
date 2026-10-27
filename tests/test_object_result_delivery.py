@@ -81,7 +81,7 @@ def test_result_guard_keeps_timer_for_cold_faults_and_default_group():
     path=Path(__file__).resolve().parents[1]/'ros2/src/so101_station_objects/so101_station_objects/objects.py'
     tree=ast.parse(path.read_text())
     guards=[n for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute) and n.func.attr=='create_guard_condition']
-    assert {guard.args[0].attr for guard in guards}=={'_consume_analysis','_process_offered_derived'}
+    assert {guard.args[0].attr for guard in guards}=={'_consume_analysis','_process_offered_derived','_consume_native_complete'}
     assert all(not guard.keywords for guard in guards)  # Same default group as tracker callbacks.
     timers=[n for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute) and n.func.attr=='create_timer' and isinstance(n.args[0],ast.Constant) and n.args[0].value==.05]
     assert len(timers)==1 and timers[0].args[1].attr=='_consume_analysis_faults'
