@@ -37,10 +37,14 @@ python docs/performance/evidence/fwmini4-quality-profiles-20261027/selfcheck.py
 python docs/performance/evidence/fwmini4-quality-profiles-20261027/scripts/test_quality_profiles_rviz_analysis_20261027.py
 ```
 
-The selfcheck reads files and runs the offline analyzer only. It does not import
-ROS, open devices, execute GPU commands or move hardware. File hashes are bound
+The selfcheck reads artifact files, reads the pinned source commit through Git,
+and runs the offline analyzer. It does not import ROS, open devices, execute GPU
+commands or move hardware. Git must contain the measured commit. Later working-tree
+changes are not checked or qualified by this historical report. File hashes are bound
 in `inventory.json`; the inventory excludes itself. Native source pins also bind
-all 105 files captured for the remote build to the source checkpoint. Absolute
+all 105 files captured for the remote build to the source checkpoint, rather
+than to whatever code is currently under development. The mutable general
+resident guide is outside this dated evidence inventory. Absolute
 `/tmp` paths in original reviewer reports identify their original scratch roots;
 the matching reports and source/log files are preserved in the directories above.
 Original reviewer SHA256SUMS may include intentionally omitted compiled
