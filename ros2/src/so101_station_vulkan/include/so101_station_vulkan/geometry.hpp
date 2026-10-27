@@ -16,7 +16,19 @@ struct GeometryCalibration {
   void validate()const;
 };
 struct GeometryCounts { uint32_t valid_pixels=0,support_points=0; uint64_t calibration_generation=0; };
+enum class GeometryPrecision { NativeFloat64, SoftwareBinary64 };
 struct GeometryStorage;
+struct GeometryConfiguration {unsigned width=0,height=0;uint64_t generation=0;GeometryPrecision precision=GeometryPrecision::NativeFloat64;uint32_t layout_version=1;std::shared_ptr<Context> context;size_t arena_bytes=0;double max_observation_depth_m=0,depth_scale_m=0;};
+struct GeometryResidentView {GeometryConfiguration configuration;VkBuffer coordinates=VK_NULL_HANDLE;};
+// Weak immutable producer/transform epoch; no frame or configuration arrays.
+class GeometryProducerToken {
+ friend class GeometryPreparation;friend class GeometryLease;
+ std::weak_ptr<GeometryStorage> storage_;
+ explicit GeometryProducerToken(std::weak_ptr<GeometryStorage> s):storage_(std::move(s)){}
+public:
+ GeometryProducerToken()=default;explicit operator bool()const{return !storage_.expired();}
+ GeometryConfiguration configuration()const;
+};
 class GeometryLease {
   friend class GeometryPreparation;
   std::shared_ptr<GeometryStorage> storage_; unsigned index_=0;
@@ -29,17 +41,19 @@ public:
   // it for the ordinary path. Layout documented in geometry.slang.
   VkBuffer resident_buffer()const;
   unsigned index()const{return index_;}
+  FrameLease source_frame()const;GeometryResidentView resident_view()const;
+  bool belongs_to(const GeometryProducerToken& token)const{return storage_&&!token.storage_.expired()&&!storage_.owner_before(token.storage_)&&!token.storage_.owner_before(storage_);}
 };
 // First geometry gate only: calibrated coordinates, vivid exclusion, valid
 // depth and deterministic stride8 support population. NO accepted objects,
 // support plane fit, contours or executable detections are produced here.
-enum class GeometryPrecision { NativeFloat64, SoftwareBinary64 };
 class GeometryPreparation {
   std::shared_ptr<GeometryStorage> storage_;
 public:
   GeometryPreparation(std::shared_ptr<Context>, const GeometryCalibration&,const std::string& shader_directory);
   // Explicit preparation-only prototype; directory must contain matching precision shaders.
   GeometryPreparation(std::shared_ptr<Context>, const GeometryCalibration&,const std::string& shader_directory,GeometryPrecision);
+  GeometryProducerToken producer_token()const{return GeometryProducerToken(storage_);}
   GeometryLease submit(const FrameLease&); // source must already be complete
   bool ready(const GeometryLease&)const;
   GeometryCounts finish(const GeometryLease&); // nonblocking, throws if pending

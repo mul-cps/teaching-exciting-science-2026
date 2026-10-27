@@ -69,12 +69,16 @@ struct ChildStorage {
  bool ready(unsigned i)const{const auto& e=entries[i];if(!e.submitted)return false;auto r=vkGetFenceStatus(context->device,e.fence);if(r==VK_NOT_READY)return false;checked(r,"child fence status");return true;}
  void collect_locked(){for(unsigned i=0;i<kSlots;i++){auto& e=entries[i];if(e.references.load()==0&&e.submitted&&ready(i)){e.parent={};e.source={};e.submitted=false;}}}
  void release(unsigned i)noexcept{if(--entries[i].references)return;try{std::lock_guard<std::mutex> lock(mutex);collect_locked();}catch(...){} }
- ChildCounts result(unsigned i){
-  std::lock_guard<std::mutex> lock(mutex);auto& e=entries[i];if(e.decoded)return e.counts;
+ ChildCounts header(unsigned i)const{
+  const auto& e=entries[i];
   if(!ready(i))throw std::logic_error("child preparation still pending");const auto* words=static_cast<const uint32_t*>(e.readback.mapped);
   if(words[0]!=1||words[1]!=p.width||words[2]!=p.height||words[3]>p.parentCapacity||words[4]>p.capacity||words[5]>p.packedCapacity||words[6]>p.jobCapacity||words[7]||words[8]!=p.calLo||words[9]!=p.calHi||words[10]!=p.parentLo||words[11]!=p.parentHi||words[12]!=p.childLo||words[13]!=p.childHi||words[14]!=p.maxBits||words[15]!=p.jumpBits||words[16]!=p.minChild||words[17]!=p.capacity||words[18]!=p.packedCapacity||words[19]!=p.jobCapacity||words[20]!=p.parentCapacity||words[21]||words[22]!=p.maxLo||words[23]!=p.maxHi||words[24]!=p.jumpLo||words[25]!=p.jumpHi)throw std::runtime_error("child capacity, identity, overflow, nonconvergence or result fault: frame unknown");
   for(unsigned j=26;j<32;j++)if(words[j])throw std::runtime_error("child reserved result fault");
-  ChildCounts counts{words[3],words[4],words[5],words[6],expected.calibration_generation,expected.generation,config.generation};
+  return {words[3],words[4],words[5],words[6],expected.calibration_generation,expected.generation,config.generation};
+ }
+ ChildCounts result(unsigned i){
+  std::lock_guard<std::mutex> lock(mutex);auto& e=entries[i];if(e.decoded)return e.counts;
+  const auto counts=header(i);const auto* words=static_cast<const uint32_t*>(e.readback.mapped);
   if(!counts.record_count&&(counts.packed_pixels||counts.jobs))throw std::runtime_error("empty child result has packed work");
   const auto* parents=e.parent.records();uint32_t valid=0,candidate=0,all=0,kept=0;
   std::memcpy(e.statuses.data(),words+32,size_t(counts.parent_count)*sizeof(ParentChildStatus));
@@ -113,6 +117,11 @@ VkBuffer ChildLease::packed_flags_buffer()const{if(!storage_)throw std::logic_er
 VkBuffer ChildLease::resident_records_buffer()const{if(!storage_)throw std::logic_error("empty child lease");storage_->result(index_);return storage_->entries[index_].compact.buffer;}
 const ChildRecord* ChildLease::records()const{if(!storage_)throw std::logic_error("empty child lease");storage_->result(index_);return storage_->entries[index_].records.data();}
 const ParentChildStatus* ChildLease::parent_status()const{if(!storage_)throw std::logic_error("empty child lease");storage_->result(index_);return storage_->entries[index_].statuses.data();}
+ChildResidentView ChildLease::resident_view()const{
+ if(!storage_)throw std::logic_error("empty child lease");
+ auto& s=*storage_;std::lock_guard<std::mutex> lock(s.mutex);auto counts=s.header(index_);const auto& e=s.entries[index_];
+ return {e.source,e.parent,s.expected,s.config,counts,e.persistent.buffer,e.compact.buffer};
+}
 ChildPreparation::ChildPreparation(std::shared_ptr<Context> context,FramePoolToken token,const ParentConfig& expected,const ChildConfig& config,const std::string& directory){
  expected.validate();config.validate(expected.width,expected.height,expected.record_capacity);if(!context||!token)throw std::invalid_argument("children require resident Context and live producer token");
  auto s=std::make_shared<ChildStorage>(expected,config);s->context=std::move(context);s->source_token=std::move(token);auto& c=*s->context;const auto& g=s->graph;auto& limits=c.properties.limits;

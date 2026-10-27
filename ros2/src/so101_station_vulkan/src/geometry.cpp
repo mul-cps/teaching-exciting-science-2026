@@ -45,7 +45,7 @@ struct GeometryStorage {
   VkDescriptorSet descriptors=VK_NULL_HANDLE;bool submitted=false;
  };
  std::shared_ptr<Context> context;
- Parameters p;uint64_t generation=0;float depth_scale=0;
+ Parameters p;uint64_t generation=0;float depth_scale=0;GeometryPrecision precision=GeometryPrecision::NativeFloat64;double maximum_depth=0,scale=0;
  Buffer calibration;std::array<Entry,kSlots> entries;
  std::mutex mutex;
  VkCommandPool commands=VK_NULL_HANDLE; // private pool, serialized by mutex through recording
@@ -71,6 +71,12 @@ struct GeometryStorage {
   VkResult r=vkGetFenceStatus(context->device,e.fence);if(r==VK_NOT_READY)return false;
   checked(r,"geometry fence status");return true;
  }
+ void validate_completed(unsigned i)const{
+  if(!ready(i))throw std::logic_error("geometry preparation still pending");
+  const auto* counts=static_cast<const uint32_t*>(entries[i].counts.mapped);
+  if(counts[0]>p.count||counts[1]>p.grid_count||counts[1]>4800||counts[2]||counts[3])throw std::runtime_error("geometry capacity or result fault: frame unknown");
+ }
+ GeometryConfiguration configuration()const{return {p.width,p.height,generation,precision,1,context,geometry_arena_bytes(p.width,p.height),maximum_depth,scale};}
  void collect_locked(){
   for(unsigned i=0;i<kSlots;i++){
    auto& e=entries[i];if(e.references.load()==0&&e.submitted&&ready(i)){e.source={};e.submitted=false;}
@@ -94,6 +100,9 @@ VkBuffer GeometryLease::resident_buffer()const{
  if(!storage_->ready(index_))throw std::logic_error("geometry buffer not complete");
  return storage_->entries[index_].arena.buffer;
 }
+GeometryConfiguration GeometryProducerToken::configuration()const{auto s=storage_.lock();if(!s)throw std::logic_error("expired geometry producer token");return s->configuration();}
+FrameLease GeometryLease::source_frame()const{if(!storage_)throw std::logic_error("empty geometry lease");storage_->validate_completed(index_);return storage_->entries[index_].source;}
+GeometryResidentView GeometryLease::resident_view()const{if(!storage_)throw std::logic_error("empty geometry lease");storage_->validate_completed(index_);return {storage_->configuration(),storage_->entries[index_].arena.buffer};}
 GeometryPreparation::GeometryPreparation(std::shared_ptr<Context> context,const GeometryCalibration& cal,const std::string& directory)
  :GeometryPreparation(std::move(context),cal,directory,GeometryPrecision::NativeFloat64){}
 GeometryPreparation::GeometryPreparation(std::shared_ptr<Context> context,const GeometryCalibration& cal,const std::string& directory,GeometryPrecision precision){
@@ -101,6 +110,7 @@ GeometryPreparation::GeometryPreparation(std::shared_ptr<Context> context,const 
  switch(precision){
  case GeometryPrecision::NativeFloat64:
   if(!context->enabled_features.features.shaderFloat64)throw std::runtime_error("geometry unavailable: shaderFloat64 was not enabled on shared device");
+  if(!context->enabled_features.features.shaderInt64)throw std::runtime_error("geometry unavailable: native byte-address Float64 requires enabled shaderInt64");
   break;
  case GeometryPrecision::SoftwareBinary64:
   if(!context->enabled_features.features.shaderInt64)throw std::runtime_error("geometry unavailable: shaderInt64 was not enabled on shared device");
@@ -108,7 +118,7 @@ GeometryPreparation::GeometryPreparation(std::shared_ptr<Context> context,const 
  default:throw std::invalid_argument("invalid geometry precision");
  }
  if(context->properties.limits.maxComputeWorkGroupInvocations<256||context->properties.limits.maxComputeWorkGroupSize[0]<256||context->properties.limits.maxComputeSharedMemorySize<2048||context->properties.limits.maxComputeWorkGroupCount[0]<(cal.width*cal.height+255)/256||context->properties.limits.maxPushConstantsSize<sizeof(Parameters))throw std::runtime_error("geometry requires 256-lane preparation workgroups");
- auto s=std::make_shared<GeometryStorage>();s->context=std::move(context);s->p=dimensions(cal.width,cal.height);s->generation=cal.generation;s->depth_scale=float(cal.depth_scale_m);auto& c=*s->context;
+ auto s=std::make_shared<GeometryStorage>();s->context=std::move(context);s->p=dimensions(cal.width,cal.height);s->generation=cal.generation;s->precision=precision;s->maximum_depth=cal.max_observation_depth_m;s->scale=cal.depth_scale_m;s->depth_scale=float(cal.depth_scale_m);auto& c=*s->context;
  size_t calibration_bytes=(size_t(s->p.count)*2+19)*sizeof(double);
  if(geometry_arena_bytes(cal.width,cal.height)>c.properties.limits.maxStorageBufferRange||calibration_bytes>c.properties.limits.maxStorageBufferRange)throw std::runtime_error("geometry unavailable: bounded arena exceeds device storage range");
  auto host=VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;

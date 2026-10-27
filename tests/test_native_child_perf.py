@@ -218,7 +218,7 @@ def cpp_resource_guard(source):
     uncomment = lambda text:re.sub(r'/\*.*?\*/|//[^\n]*','',text,flags=re.S)
     forbidden = r'\b(?:new|malloc|calloc|realloc)\b|make_shared|\.create\(|\.resize\(|\.push_back\(|vk(?:Wait|Allocate|Create|Map)|vk(?:Device|Queue)WaitIdle'
     signatures = ('void record_graph(', 'ChildLease ChildPreparation::submit(',
-                  'ChildCounts result(', 'void collect_locked(', 'void release(',
+                  'ChildCounts header(', 'ChildCounts result(', 'void collect_locked(', 'void release(',
                   'bool ready(unsigned', 'void ChildPreparation::collect(',
                   'bool ChildPreparation::ready(', 'ChildCounts ChildPreparation::finish(')
     for signature in signatures:
@@ -246,9 +246,22 @@ def cpp_resource_guard(source):
     assert '.persistent.mapped' not in source and '.packed.mapped' not in source
     result = body(source,'ChildCounts result(')
     assert 'if(e.decoded)return e.counts' in result
-    assert result.index('std::lock_guard<std::mutex> lock(mutex)') < result.index('if(e.decoded)') < result.index('std::memcpy(')
-    assert 'words[3]>p.parentCapacity' in result and 'words[4]>p.capacity' in result
-    assert 'words[7]||' in result and 'size_t(counts.parent_count)*sizeof(ParentChildStatus)' in result
+    assert 'const auto counts=header(i)' in result
+    assert result.index('std::lock_guard<std::mutex> lock(mutex)') < result.index('if(e.decoded)') < result.index('const auto counts=header(i)') < result.index('std::memcpy(')
+    header = body(source,'ChildCounts header(')
+    assert header.index('if(!ready(i))') < header.index('e.readback.mapped')
+    for check in ('words[0]!=1', 'words[1]!=p.width', 'words[2]!=p.height',
+                  'words[3]>p.parentCapacity', 'words[4]>p.capacity',
+                  'words[5]>p.packedCapacity', 'words[6]>p.jobCapacity', 'words[7]||',
+                  'words[8]!=p.calLo', 'words[9]!=p.calHi', 'words[10]!=p.parentLo',
+                  'words[11]!=p.parentHi', 'words[12]!=p.childLo', 'words[13]!=p.childHi',
+                  'words[14]!=p.maxBits', 'words[15]!=p.jumpBits', 'words[16]!=p.minChild',
+                  'words[17]!=p.capacity', 'words[18]!=p.packedCapacity',
+                  'words[19]!=p.jobCapacity', 'words[20]!=p.parentCapacity', 'words[21]||',
+                  'words[22]!=p.maxLo', 'words[23]!=p.maxHi', 'words[24]!=p.jumpLo',
+                  'words[25]!=p.jumpHi', 'for(unsigned j=26;j<32;j++)if(words[j])'):
+        assert check in header
+    assert 'size_t(counts.parent_count)*sizeof(ParentChildStatus)' in result
     assert 'size_t(counts.record_count)*sizeof(ChildRecord)' in result
     assert result.index('e.decoded=true') > result.index('child packed job total fault')
     assert 'cursor-start!=e.statuses[parent].kept_children||area>e.statuses[parent].candidate_pixels' in result
@@ -276,6 +289,8 @@ CPP_MUTANTS = [
     ('missing_indirect_dependency','VK_ACCESS_INDIRECT_COMMAND_READ_BIT','0'),
     ('repeat_decode','if(e.decoded)return e.counts;',''),
     ('status_bound_child_capacity','words[3]>p.parentCapacity','words[3]>p.capacity'),
+    ('sever_header_validation','const auto counts=header(i)','const ChildCounts counts{}'),
+    ('missing_header_fault','words[7]||',''),
     ('missing_perparent_counts','cursor-start!=e.statuses[parent].kept_children||area>e.statuses[parent].candidate_pixels',
      'false||area>e.statuses[parent].candidate_pixels'),
     ('drop_before_fence','if(e.references.load()==0&&e.submitted&&ready(i))','if(e.references.load()==0&&e.submitted)'),
