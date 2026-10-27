@@ -1,0 +1,57 @@
+[
+  {
+    "file": "ui-validation/rviz-window.json",
+    "bytes": 962,
+    "sha256": "c343adc048a4983832131ad8197b5b3a2ca9e322311abda5bab567b588a06698"
+  },
+  {
+    "file": "ui-validation/camera.log",
+    "bytes": 2340,
+    "sha256": "8fda6fb4ac93cafa9a17344aa4e02ce1bd171a7f9a6fc1da1fa84fd81ab79a75"
+  },
+  {
+    "file": "ui-validation/rviz.log",
+    "bytes": 1031,
+    "sha256": "495662bd97def7d9b33aff434bc7831c92933e40af941acac843268133abfd68"
+  },
+  {
+    "file": "ui-validation/rsp.log",
+    "bytes": 677,
+    "sha256": "473773e532aff3b17d87c954119ba593b89d1d52b46d247f4af977ce13e7948f"
+  },
+  {
+    "file": "ui-validation/scene.log",
+    "bytes": 2984,
+    "sha256": "1c888016c5ea12165b08cb40282ffafa3081ca8613bfa69d21ba0a58eeeb7f30"
+  },
+  {
+    "file": "ui-validation/screenshooter.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "ui-validation/fwmini4-rviz-ui-validation-20261027.sh",
+    "bytes": 2641,
+    "sha256": "8e1176e6ac578a0333da5295c9c8adfcc8e0007cf2f42e5d38524239cb37dce3"
+  },
+  {
+    "file": "ui-validation/fwmini4-rviz-weston-ui-start-20261027.sh",
+    "bytes": 1044,
+    "sha256": "d254d1550d80b8d7c7867d72f24e9b0f3d4a6472bb14de9ac0769503a99ae80d"
+  },
+  {
+    "file": "ui-validation/rviz-capture-window-20261027.py",
+    "bytes": 6629,
+    "sha256": "ac717d3ab3a81dddbc42680a14067d718669e23a746612d864f08955b6651e27"
+  },
+  {
+    "file": "weston-ui.log",
+    "bytes": 4097,
+    "sha256": "d663934b05636797b7274188732bda74115966119ad976e7f4eafa9e85d3aa5e"
+  },
+  {
+    "file": "weston-ui.stdout",
+    "bytes": 1468,
+    "sha256": "d9981392680ec277bdc401f7352d20fe6a83f82091ca7c92ebd396aa3cb4132d"
+  }
+]

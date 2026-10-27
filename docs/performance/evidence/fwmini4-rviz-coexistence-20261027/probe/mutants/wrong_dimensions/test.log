@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/tmp/rviz-independent-review-20261027/glx/mutants/wrong_dimensions/test_probe.py", line 45, in <module>
+    if __name__=='__main__':check()
+                            ~~~~~^^
+  File "/tmp/rviz-independent-review-20261027/glx/mutants/wrong_dimensions/test_probe.py", line 21, in check
+    assert r['width']==1011 and r['height']==511 and r['direct'] is True and r['metadata_complete'] is True
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

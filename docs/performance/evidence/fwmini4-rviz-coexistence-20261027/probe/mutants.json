@@ -1,0 +1,27 @@
+{
+  "missing_real_swap": {
+    "rejected": true,
+    "test_exit": 1,
+    "log": "mutants/missing_real_swap/test.log"
+  },
+  "merged_drawables": {
+    "rejected": true,
+    "test_exit": 1,
+    "log": "mutants/merged_drawables/test.log"
+  },
+  "wrong_dimensions": {
+    "rejected": true,
+    "test_exit": 1,
+    "log": "mutants/wrong_dimensions/test.log"
+  },
+  "heap_in_hot_path": {
+    "rejected": true,
+    "test_exit": 1,
+    "log": "mutants/heap_in_hot_path/test.log"
+  },
+  "slot_bound_overrun": {
+    "rejected": true,
+    "test_exit": 1,
+    "log": "mutants/slot_bound_overrun/test.log"
+  }
+}

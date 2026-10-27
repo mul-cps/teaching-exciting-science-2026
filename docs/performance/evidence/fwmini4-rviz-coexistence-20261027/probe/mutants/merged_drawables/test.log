@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/tmp/rviz-independent-review-20261027/glx/mutants/merged_drawables/test_probe.py", line 45, in <module>
+    if __name__=='__main__':check()
+                            ~~~~~^^
+  File "/tmp/rviz-independent-review-20261027/glx/mutants/merged_drawables/test_probe.py", line 17, in check
+    assert len(first)==2 and len(summary)==2,rows
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: [{'event': 'renderer', 'display': 1, 'drawable': 11, 'monotonic_ns': 1000000000, 'total_swaps': 1, 'vendor': 'Fake "vendor"', 'renderer': 'Fake\\renderer\nGPU', 'version': '4.6 fake', 'width': 1011, 'height': 511, 'direct': True, 'direct_known': True, 'metadata_complete': True}, {'event': 'interval', 'display': 1, 'drawable': 11, 'start_ns': 1000000000, 'end_ns': 2000000000, 'elapsed_ns': 1000000000, 'interval_swaps': 3, 'total_swaps': 4, 'swap_hz': 3.0, 'width': 1211, 'height': 711}]

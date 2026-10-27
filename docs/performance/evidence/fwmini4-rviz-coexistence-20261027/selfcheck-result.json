@@ -1,0 +1,73 @@
+{
+  "passed": true,
+  "runtime_executed": false,
+  "inventory_files": 82,
+  "raw_members": 87,
+  "UI_metadata_members": 11,
+  "native_source_files": 103,
+  "omitted_description_asset_files": 70,
+  "six_run_reanalysis_matches": true,
+  "profile_mode_windows_disjoint": true,
+  "metrics": {
+    "vga/vulkan": {
+      "perception_Hz": 30.02871592290749,
+      "primary_GLX_Hz": 31.25167903656721,
+      "GLX_intervals": 14,
+      "GLX_covered_seconds": 14.33522978,
+      "observer_endpoint_offsets_seconds": [
+        -0.023968580993823707,
+        -0.02862606104463339
+      ]
+    },
+    "vga/cpu": {
+      "perception_Hz": 29.94689344702288,
+      "primary_GLX_Hz": 31.25446349100496,
+      "GLX_intervals": 14,
+      "GLX_covered_seconds": 14.333952657,
+      "observer_endpoint_offsets_seconds": [
+        -0.021815416985191405,
+        -0.034616785938851535
+      ]
+    },
+    "720p/vulkan": {
+      "perception_Hz": 13.648600076637509,
+      "primary_GLX_Hz": 31.253962464390966,
+      "GLX_intervals": 14,
+      "GLX_covered_seconds": 14.334182442,
+      "observer_endpoint_offsets_seconds": [
+        -0.022520850994624197,
+        -0.026254206895828247
+      ]
+    },
+    "720p/cpu": {
+      "perception_Hz": 25.39909008767086,
+      "primary_GLX_Hz": 31.24674694541037,
+      "GLX_intervals": 13,
+      "GLX_covered_seconds": 13.281382562,
+      "observer_endpoint_offsets_seconds": [
+        0.014116070931777358,
+        0.026247214875184
+      ]
+    },
+    "1080p/vulkan": {
+      "perception_Hz": 6.198936316682676,
+      "primary_GLX_Hz": 31.247725384202948,
+      "GLX_intervals": 14,
+      "GLX_covered_seconds": 14.209034243,
+      "observer_endpoint_offsets_seconds": [
+        -0.044421499012969434,
+        -0.03291231591720134
+      ]
+    },
+    "1080p/cpu": {
+      "perception_Hz": 13.891725403358437,
+      "primary_GLX_Hz": 31.276623732872427,
+      "GLX_intervals": 14,
+      "GLX_covered_seconds": 14.259851185,
+      "observer_endpoint_offsets_seconds": [
+        -0.005629557999782264,
+        -0.03655980387702584
+      ]
+    }
+  }
+}

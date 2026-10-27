@@ -1,0 +1,22 @@
+test_allocation_growth_and_summary_mismatch_are_errors (test_analysis.ErrorTests.test_allocation_growth_and_summary_mismatch_are_errors) ... ok
+test_camera_pid_and_alias_not_double_counted (test_analysis.ErrorTests.test_camera_pid_and_alias_not_double_counted) ... ok
+test_collector_errors_and_mode_are_not_safety_pass (test_analysis.ErrorTests.test_collector_errors_and_mode_are_not_safety_pass) ... ok
+test_engine_client_disappearance_not_zero_utilization (test_analysis.ErrorTests.test_engine_client_disappearance_not_zero_utilization) ... ok
+test_interval_zero_elapsed_and_overlap_rejected (test_analysis.ErrorTests.test_interval_zero_elapsed_and_overlap_rejected) ... ok
+test_measurement_receipts_must_be_inside_exact_inferred_bounds (test_analysis.ErrorTests.test_measurement_receipts_must_be_inside_exact_inferred_bounds) ... ok
+test_missing_metadata_not_borrowed_from_other_drawable (test_analysis.ErrorTests.test_missing_metadata_not_borrowed_from_other_drawable) ... ok
+test_missing_process_row_invalidates_sum (test_analysis.ErrorTests.test_missing_process_row_invalidates_sum) ... ok
+test_no_cpu_window_is_invalid_not_zero (test_analysis.ErrorTests.test_no_cpu_window_is_invalid_not_zero) ... ok
+test_profile_mode_and_extents_reject_mislabeled_inputs (test_analysis.ErrorTests.test_profile_mode_and_extents_reject_mislabeled_inputs) ... ok
+test_status_profile_and_extent_changes_are_rejected (test_analysis.ErrorTests.test_status_profile_and_extent_changes_are_rejected) ... ok
+test_cli_shared_logs_six_runs (test_analysis.Tests.test_cli_shared_logs_six_runs) ... ok
+test_collector_math_and_expected_first_status (test_analysis.Tests.test_collector_math_and_expected_first_status) ... ok
+test_cpu_counter_math_and_actual_window (test_analysis.Tests.test_cpu_counter_math_and_actual_window) ... ok
+test_empty_and_software_glx_are_errors_not_zero (test_analysis.Tests.test_empty_and_software_glx_are_errors_not_zero) ... ok
+test_pid_change_and_counter_regression_are_not_cpu_zero (test_analysis.Tests.test_pid_change_and_counter_regression_are_not_cpu_zero) ... ok
+test_shared_profile_logs_use_distinct_windows_no_sum (test_analysis.Tests.test_shared_profile_logs_use_distinct_windows_no_sum) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.065s
+
+OK

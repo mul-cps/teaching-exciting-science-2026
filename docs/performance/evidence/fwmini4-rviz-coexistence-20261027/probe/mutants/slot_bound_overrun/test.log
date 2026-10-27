@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "/tmp/rviz-independent-review-20261027/glx/mutants/slot_bound_overrun/test_probe.py", line 45, in <module>
+    if __name__=='__main__':check()
+                            ~~~~~^^
+  File "/tmp/rviz-independent-review-20261027/glx/mutants/slot_bound_overrun/test_probe.py", line 16, in check
+    rows,_=run('separate'); first=[r for r in rows if r['event']=='renderer'];summary=[r for r in rows if r['event']=='interval']
+           ~~~^^^^^^^^^^^^
+  File "/tmp/rviz-independent-review-20261027/glx/mutants/slot_bound_overrun/test_probe.py", line 9, in run
+    p=subprocess.run([str(R/'fake_host'),mode],env=env,text=True,capture_output=True,check=True)
+  File "/home/bjoern/miniforge3/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['/tmp/rviz-independent-review-20261027/glx/mutants/slot_bound_overrun/fake_host', 'separate']' died with <Signals.SIGILL: 4>.

@@ -1,0 +1,33 @@
+{
+  "scope": "separate post-matrix VGA-only UI-content validation; not part of six timed windows",
+  "verified": true,
+  "inspector": "root agent manual inspection, reported to publication worker",
+  "private_compositor_PNG_sha256": "8d51c22a3cd8b56df759ad162bc3b0d3ef3c534f8edc4211ffcf8881827ae393",
+  "image_published": false,
+  "full_compositor_extent": [
+    1920,
+    1080
+  ],
+  "RViz_main_window_extent": [
+    1600,
+    900
+  ],
+  "observed": [
+    "actual camera RGB visible",
+    "robot model visible",
+    "20k colored synthetic world surface visible",
+    "synthetic brick markers visible",
+    "Global Status OK",
+    "statusbar 31fps"
+  ],
+  "capture_method": "Weston13 screenshooter on own private compositor with --debug, separate post-timing run",
+  "prior_failed_capture": "Qt/rootless-X11 capture black/invalid; not a content pass; metadata/logs retained",
+  "timing_effect": "outside all timed windows; does not alter six-run performance evidence",
+  "all_three_UI_profiles_independently_inspected": false,
+  "final_operational_state_reported_by_root": {
+    "private_Weston_stopped": true,
+    "camera_unheld": true,
+    "old_owner_PID": 181501,
+    "old_owner_active": true
+  }
+}

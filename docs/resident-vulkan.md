@@ -40,6 +40,8 @@ The camera component enumerates the actual sensor profiles before starting a sin
 
 The [higher-resolution fwmini4 observation](performance/fwmini4-high-resolution-20261027.md) records exact alignment on Intel/AMD and live full-resolution processing. Intel Vulkan delivered about 19.1 unique outputs/s at 720p and 8.7 at 1080p, with older pending frames replaced. This preserves image resolution and CPU headroom but does not meet 30 Hz processing or qualify the full station. The [640×480 observation](performance/fwmini4-camera-live-20261027.md) remains a separate baseline.
 
+The [RViz coexistence observation](performance/fwmini4-rviz-coexistence-20261027.md) measured the same Intel GPU rendering the robot, a synthetic world surface and actual camera RGB at about 31.25 redraws/s. Vulkan perception produced 30.03, 13.65 and 6.20 unique outputs/s at VGA, 720p and 1080p. These short headless graphics measurements distinguish rendering, acquisition and fresh perception results; they do not qualify control or physical display presentation.
+
 The [bounded fwmini4 camera smoke](performance/fwmini4-camera-live-20261027.md)
 ran the actual D435i at 640×480×30 with scalar SDK 2.58.3 and native ROS.
 All three 15-second CPU, strict Vulkan and auto runs delivered about 30 unique

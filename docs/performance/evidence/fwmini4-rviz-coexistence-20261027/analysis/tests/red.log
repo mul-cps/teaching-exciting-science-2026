@@ -1,0 +1,59 @@
+EEEEEE
+======================================================================
+ERROR: test_cli_shared_logs_six_runs (test_analysis.Tests.test_cli_shared_logs_six_runs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/rviz-analysis-tests-20261027/test_analysis.py", line 83, in test_cli_shared_logs_six_runs
+    v=a.analyze(root);self.assertEqual(len(v['runs']),6)
+                                           ~^^^^^^^^
+KeyError: 'runs'
+
+======================================================================
+ERROR: test_collector_math_and_expected_first_status (test_analysis.Tests.test_collector_math_and_expected_first_status)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/rviz-analysis-tests-20261027/test_analysis.py", line 62, in test_collector_math_and_expected_first_status
+    self.assertEqual(v['window']['begin_monotonic_approx'],10)
+                     ~^^^^^^^^^^
+KeyError: 'window'
+
+======================================================================
+ERROR: test_cpu_counter_math_and_actual_window (test_analysis.Tests.test_cpu_counter_math_and_actual_window)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/rviz-analysis-tests-20261027/test_analysis.py", line 39, in test_cpu_counter_math_and_actual_window
+    self.assertAlmostEqual(v['window']['begin_offset_seconds'],-.05)
+                           ~^^^^^^^^^^
+KeyError: 'window'
+
+======================================================================
+ERROR: test_empty_and_software_glx_are_errors_not_zero (test_analysis.Tests.test_empty_and_software_glx_are_errors_not_zero)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/rviz-analysis-tests-20261027/test_analysis.py", line 54, in test_empty_and_software_glx_are_errors_not_zero
+    self.assertIsNone(a.glx_summary([],10,12)['primary_viewport'])
+                      ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'primary_viewport'
+
+======================================================================
+ERROR: test_pid_change_and_counter_regression_are_not_cpu_zero (test_analysis.Tests.test_pid_change_and_counter_regression_are_not_cpu_zero)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/rviz-analysis-tests-20261027/test_analysis.py", line 51, in test_pid_change_and_counter_regression_are_not_cpu_zero
+    self.assertTrue(v['errors']);self.assertIsNone(v['processes']['rviz']['CPU_ms'])
+                    ~^^^^^^^^^^
+KeyError: 'errors'
+
+======================================================================
+ERROR: test_shared_profile_logs_use_distinct_windows_no_sum (test_analysis.Tests.test_shared_profile_logs_use_distinct_windows_no_sum)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/rviz-analysis-tests-20261027/test_analysis.py", line 29, in test_shared_profile_logs_use_distinct_windows_no_sum
+    self.assertEqual(first['primary_viewport']['weighted_swap_hz'],25)
+                     ~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'primary_viewport'
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.002s
+
+FAILED (errors=6)

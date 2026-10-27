@@ -1,0 +1,920 @@
+{
+  "vga/vulkan": {
+    "perception": {
+      "unique_output_hz": 30.02871592290749,
+      "unique_outputs": 451,
+      "CPU_ms": 2910.0,
+      "total_four_core_CPU_percent": 4.84387823368408,
+      "CPU_ms_per_output": 6.452328159645233,
+      "receipt_age_p95_ms": 27.217758
+    },
+    "gaps": {
+      "source_frame": 0,
+      "depth_source_frame": 0
+    },
+    "primary_viewport": {
+      "display": 105613383994160,
+      "drawable": 8388612,
+      "seconds": 14.33522978,
+      "swaps": 448,
+      "swap_hz": 31.25167903656721,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ]
+    },
+    "viewports": [
+      {
+        "display": 105613383994160,
+        "drawable": 8388610,
+        "seconds": 14.335355101,
+        "swaps": 448,
+        "swap_hz": 31.251405831498978,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      {
+        "display": 105613383994160,
+        "drawable": 8388612,
+        "seconds": 14.33522978,
+        "swaps": 448,
+        "swap_hz": 31.25167903656721,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ]
+      },
+      {
+        "display": 105613383994160,
+        "drawable": 8388614,
+        "seconds": 14.335159842,
+        "swaps": 448,
+        "swap_hz": 31.251831506435185,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ]
+      }
+    ],
+    "observer": {
+      "window_seconds": 15.014299746020697,
+      "begin_offset": -0.023968580993823707,
+      "end_offset": -0.02862606104463339,
+      "processes": {
+        "desktop": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "CPU_ms": 110.0,
+          "total_four_core_CPU_percent": 0.18315872511662384,
+          "RSS_end_pages": 6803,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "CPU_ms": 2940.0,
+          "total_four_core_CPU_percent": 4.895333198571583,
+          "RSS_end_pages": 53368,
+          "engine_delta_ns": {
+            "998": {
+              "render": 0,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            },
+            "997": {
+              "render": 2367040936,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "scene": {
+          "CPU_ms": 430.0,
+          "total_four_core_CPU_percent": 0.715984107274075,
+          "RSS_end_pages": 16827,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "CPU_ms": 200.0,
+          "total_four_core_CPU_percent": 0.333015863848407,
+          "RSS_end_pages": 20516,
+          "engine_delta_ns": {
+            "994": {
+              "render": 197767908,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "xwayland": {
+          "CPU_ms": 870.0,
+          "total_four_core_CPU_percent": 1.4486190077405703,
+          "RSS_end_pages": 20747,
+          "engine_delta_ns": {
+            "996": {
+              "render": 435811584,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        }
+      },
+      "external_four_core_CPU_percent": 7.5761109025512585,
+      "host_busy_percent": 17.666392769104355
+    },
+    "approximate_combined_four_core_CPU_percent": 12.419989136235339,
+    "measurement_begin_margin": 0.04360366996843368,
+    "measurement_end_margin": 1.333700492978096e-05
+  },
+  "vga/cpu": {
+    "perception": {
+      "unique_output_hz": 29.94689344702288,
+      "unique_outputs": 450,
+      "CPU_ms": 6180.0,
+      "total_four_core_CPU_percent": 10.281766750144524,
+      "CPU_ms_per_output": 13.733333333333333,
+      "receipt_age_p95_ms": 13.2149
+    },
+    "gaps": {
+      "source_frame": 0,
+      "depth_source_frame": 0
+    },
+    "primary_viewport": {
+      "display": 105613383994160,
+      "drawable": 8388612,
+      "seconds": 14.333952657,
+      "swaps": 448,
+      "swap_hz": 31.25446349100496,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ]
+    },
+    "viewports": [
+      {
+        "display": 105613383994160,
+        "drawable": 8388610,
+        "seconds": 14.333899064,
+        "swaps": 448,
+        "swap_hz": 31.254580348285337,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      {
+        "display": 105613383994160,
+        "drawable": 8388612,
+        "seconds": 14.333952657,
+        "swaps": 448,
+        "swap_hz": 31.25446349100496,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ]
+      },
+      {
+        "display": 105613383994160,
+        "drawable": 8388614,
+        "seconds": 14.334020052,
+        "swaps": 448,
+        "swap_hz": 31.254316540284968,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ]
+      }
+    ],
+    "observer": {
+      "window_seconds": 15.013798995991237,
+      "begin_offset": -0.021815416985191405,
+      "end_offset": -0.034616785938851535,
+      "processes": {
+        "desktop": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "CPU_ms": 120.0,
+          "total_four_core_CPU_percent": 0.19981618248659222,
+          "RSS_end_pages": 6847,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "CPU_ms": 3030.0,
+          "total_four_core_CPU_percent": 5.045358607786453,
+          "RSS_end_pages": 53386,
+          "engine_delta_ns": {
+            "998": {
+              "render": 0,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            },
+            "997": {
+              "render": 5432680812,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "scene": {
+          "CPU_ms": 410.0,
+          "total_four_core_CPU_percent": 0.6827052901625235,
+          "RSS_end_pages": 16856,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "CPU_ms": 190.0,
+          "total_four_core_CPU_percent": 0.31637562227043764,
+          "RSS_end_pages": 20516,
+          "engine_delta_ns": {
+            "994": {
+              "render": 398139300,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "xwayland": {
+          "CPU_ms": 870.0,
+          "total_four_core_CPU_percent": 1.4486673230277936,
+          "RSS_end_pages": 20747,
+          "engine_delta_ns": {
+            "996": {
+              "render": 894240880,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        }
+      },
+      "external_four_core_CPU_percent": 7.6929230257338,
+      "host_busy_percent": 20.704321197686287
+    },
+    "approximate_combined_four_core_CPU_percent": 17.974689775878325,
+    "measurement_begin_margin": 0.04952063492964953,
+    "measurement_end_margin": 8.709961548447609e-06
+  },
+  "720p/vulkan": {
+    "perception": {
+      "unique_output_hz": 13.648600076637509,
+      "unique_outputs": 205,
+      "CPU_ms": 6340.0,
+      "total_four_core_CPU_percent": 10.552698108034367,
+      "CPU_ms_per_output": 30.926829268292682,
+      "receipt_age_p95_ms": 103.436129
+    },
+    "gaps": {
+      "source_frame": 242,
+      "depth_source_frame": 242
+    },
+    "primary_viewport": {
+      "display": 99721828202128,
+      "drawable": 8388612,
+      "seconds": 14.334182442,
+      "swaps": 448,
+      "swap_hz": 31.253962464390966,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ]
+    },
+    "viewports": [
+      {
+        "display": 99721828202128,
+        "drawable": 8388610,
+        "seconds": 14.334084409,
+        "swaps": 448,
+        "swap_hz": 31.254176215029986,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      {
+        "display": 99721828202128,
+        "drawable": 8388612,
+        "seconds": 14.334182442,
+        "swaps": 448,
+        "swap_hz": 31.253962464390966,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ]
+      },
+      {
+        "display": 99721828202128,
+        "drawable": 8388614,
+        "seconds": 14.334380613,
+        "swaps": 448,
+        "swap_hz": 31.253530382310633,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ]
+      }
+    ],
+    "observer": {
+      "window_seconds": 15.016122076078318,
+      "begin_offset": -0.022520850994624197,
+      "end_offset": -0.026254206895828247,
+      "processes": {
+        "desktop": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "CPU_ms": 140.0,
+          "total_four_core_CPU_percent": 0.23308281474187886,
+          "RSS_end_pages": 6848,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "CPU_ms": 3380.0,
+          "total_four_core_CPU_percent": 5.627285098768218,
+          "RSS_end_pages": 53759,
+          "engine_delta_ns": {
+            "1004": {
+              "render": 0,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            },
+            "1003": {
+              "render": 2432195532,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "scene": {
+          "CPU_ms": 470.0,
+          "total_four_core_CPU_percent": 0.7824923066334504,
+          "RSS_end_pages": 16915,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "CPU_ms": 220.0,
+          "total_four_core_CPU_percent": 0.36627299459438106,
+          "RSS_end_pages": 20516,
+          "engine_delta_ns": {
+            "994": {
+              "render": 200854680,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "xwayland": {
+          "CPU_ms": 940.0,
+          "total_four_core_CPU_percent": 1.5649846132669007,
+          "RSS_end_pages": 21056,
+          "engine_delta_ns": {
+            "996": {
+              "render": 441781808,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        }
+      },
+      "external_four_core_CPU_percent": 8.57411782800483,
+      "host_busy_percent": 23.905169575238723
+    },
+    "approximate_combined_four_core_CPU_percent": 19.126815936039197,
+    "measurement_begin_margin": 0.12651867500972003,
+    "measurement_end_margin": 0.050470452988520265
+  },
+  "720p/cpu": {
+    "perception": {
+      "unique_output_hz": 25.39909008767086,
+      "unique_outputs": 381,
+      "CPU_ms": 15120.0,
+      "total_four_core_CPU_percent": 25.19909725233487,
+      "CPU_ms_per_output": 39.68503937007874,
+      "receipt_age_p95_ms": 75.118112
+    },
+    "gaps": {
+      "source_frame": 68,
+      "depth_source_frame": 69
+    },
+    "primary_viewport": {
+      "display": 99721828202128,
+      "drawable": 8388612,
+      "seconds": 13.281382562,
+      "swaps": 415,
+      "swap_hz": 31.24674694541037,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ]
+    },
+    "viewports": [
+      {
+        "display": 99721828202128,
+        "drawable": 8388610,
+        "seconds": 13.281297994,
+        "swaps": 415,
+        "swap_hz": 31.246945907507055,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      {
+        "display": 99721828202128,
+        "drawable": 8388612,
+        "seconds": 13.281382562,
+        "swaps": 415,
+        "swap_hz": 31.24674694541037,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ]
+      },
+      {
+        "display": 99721828202128,
+        "drawable": 8388614,
+        "seconds": 13.281383462,
+        "swaps": 415,
+        "swap_hz": 31.246744828005024,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ]
+      }
+    ],
+    "observer": {
+      "window_seconds": 15.012668512994424,
+      "begin_offset": 0.014116070931777358,
+      "end_offset": 0.026247214875184,
+      "processes": {
+        "desktop": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "CPU_ms": 140.0,
+          "total_four_core_CPU_percent": 0.23313643387053581,
+          "RSS_end_pages": 6934,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "CPU_ms": 4770.0,
+          "total_four_core_CPU_percent": 7.943291354017542,
+          "RSS_end_pages": 53747,
+          "engine_delta_ns": {
+            "1004": {
+              "render": 0,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            },
+            "1003": {
+              "render": 5549170744,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "scene": {
+          "CPU_ms": 480.0,
+          "total_four_core_CPU_percent": 0.7993249161275514,
+          "RSS_end_pages": 16996,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "CPU_ms": 220.0,
+          "total_four_core_CPU_percent": 0.36635725322512774,
+          "RSS_end_pages": 20516,
+          "engine_delta_ns": {
+            "994": {
+              "render": 395410132,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "xwayland": {
+          "CPU_ms": 1020.0,
+          "total_four_core_CPU_percent": 1.6985654467710467,
+          "RSS_end_pages": 21056,
+          "engine_delta_ns": {
+            "996": {
+              "render": 889109832,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        }
+      },
+      "external_four_core_CPU_percent": 11.040675404011802,
+      "host_busy_percent": 41.236939669700035
+    },
+    "approximate_combined_four_core_CPU_percent": 36.23977265634667,
+    "measurement_begin_margin": 0.41670392092783004,
+    "measurement_end_margin": 3.1645060516893864e-05
+  },
+  "1080p/vulkan": {
+    "perception": {
+      "unique_output_hz": 6.198936316682676,
+      "unique_outputs": 93,
+      "CPU_ms": 11230.0,
+      "total_four_core_CPU_percent": 18.7134556011684,
+      "CPU_ms_per_output": 120.75268817204301,
+      "receipt_age_p95_ms": 193.054821
+    },
+    "gaps": {
+      "source_frame": 352,
+      "depth_source_frame": 352
+    },
+    "primary_viewport": {
+      "display": 104024820258848,
+      "drawable": 8388612,
+      "seconds": 14.209034243,
+      "swaps": 444,
+      "swap_hz": 31.247725384202948,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ]
+    },
+    "viewports": [
+      {
+        "display": 104024820258848,
+        "drawable": 8388610,
+        "seconds": 14.208655096,
+        "swaps": 444,
+        "swap_hz": 31.248559205648835,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      {
+        "display": 104024820258848,
+        "drawable": 8388612,
+        "seconds": 14.209034243,
+        "swaps": 444,
+        "swap_hz": 31.247725384202948,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ]
+      },
+      {
+        "display": 104024820258848,
+        "drawable": 8388614,
+        "seconds": 14.242332986,
+        "swaps": 445,
+        "swap_hz": 31.244881048451006,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ]
+      }
+    ],
+    "observer": {
+      "window_seconds": 15.014083052054048,
+      "begin_offset": -0.044421499012969434,
+      "end_offset": -0.03291231591720134,
+      "processes": {
+        "desktop": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "CPU_ms": 150.0,
+          "total_four_core_CPU_percent": 0.24976550262834532,
+          "RSS_end_pages": 6852,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "CPU_ms": 3400.0,
+          "total_four_core_CPU_percent": 5.66135139290916,
+          "RSS_end_pages": 57086,
+          "engine_delta_ns": {
+            "1010": {
+              "render": 0,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            },
+            "1009": {
+              "render": 2533662456,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "scene": {
+          "CPU_ms": 520.0,
+          "total_four_core_CPU_percent": 0.8658537424449305,
+          "RSS_end_pages": 16827,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "CPU_ms": 220.0,
+          "total_four_core_CPU_percent": 0.36632273718823977,
+          "RSS_end_pages": 20516,
+          "engine_delta_ns": {
+            "994": {
+              "render": 200238584,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "xwayland": {
+          "CPU_ms": 1010.0,
+          "total_four_core_CPU_percent": 1.6817543843641918,
+          "RSS_end_pages": 21067,
+          "engine_delta_ns": {
+            "996": {
+              "render": 444327728,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        }
+      },
+      "external_four_core_CPU_percent": 8.825047759534868,
+      "host_busy_percent": 29.435897435897434
+    },
+    "approximate_combined_four_core_CPU_percent": 27.538503360703267,
+    "measurement_begin_margin": 0.2787137689301744,
+    "measurement_end_margin": 2.344802487641573e-05
+  },
+  "1080p/cpu": {
+    "perception": {
+      "unique_output_hz": 13.891725403358437,
+      "unique_outputs": 209,
+      "CPU_ms": 16320.0,
+      "total_four_core_CPU_percent": 27.118774950096856,
+      "CPU_ms_per_output": 78.08612440191388,
+      "receipt_age_p95_ms": 141.207733
+    },
+    "gaps": {
+      "source_frame": 234,
+      "depth_source_frame": 234
+    },
+    "primary_viewport": {
+      "display": 104024820258848,
+      "drawable": 8388612,
+      "seconds": 14.259851185,
+      "swaps": 446,
+      "swap_hz": 31.276623732872427,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ]
+    },
+    "viewports": [
+      {
+        "display": 104024820258848,
+        "drawable": 8388610,
+        "seconds": 14.259912323,
+        "swaps": 446,
+        "swap_hz": 31.276489637361987,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      {
+        "display": 104024820258848,
+        "drawable": 8388612,
+        "seconds": 14.259851185,
+        "swaps": 446,
+        "swap_hz": 31.276623732872427,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ]
+      },
+      {
+        "display": 104024820258848,
+        "drawable": 8388614,
+        "seconds": 14.272077622,
+        "swaps": 446,
+        "swap_hz": 31.24983003963654,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ]
+      }
+    ],
+    "observer": {
+      "window_seconds": 15.01399714301806,
+      "begin_offset": -0.005629557999782264,
+      "end_offset": -0.03655980387702584,
+      "processes": {
+        "desktop": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "CPU_ms": 140.0,
+          "total_four_core_CPU_percent": 0.2331158029843905,
+          "RSS_end_pages": 6852,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "CPU_ms": 5310.0,
+          "total_four_core_CPU_percent": 8.84174938462224,
+          "RSS_end_pages": 57019,
+          "engine_delta_ns": {
+            "1010": {
+              "render": 0,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            },
+            "1009": {
+              "render": 4897088976,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "scene": {
+          "CPU_ms": 500.0,
+          "total_four_core_CPU_percent": 0.8325564392299661,
+          "RSS_end_pages": 16903,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "CPU_ms": 230.0,
+          "total_four_core_CPU_percent": 0.38297596204578443,
+          "RSS_end_pages": 20516,
+          "engine_delta_ns": {
+            "994": {
+              "render": 337551552,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        },
+        "xwayland": {
+          "CPU_ms": 1050.0,
+          "total_four_core_CPU_percent": 1.7483685223829286,
+          "RSS_end_pages": 21067,
+          "engine_delta_ns": {
+            "996": {
+              "render": 774710716,
+              "video-enhance": 0,
+              "video": 0,
+              "copy": 0
+            }
+          }
+        }
+      },
+      "external_four_core_CPU_percent": 12.03876611126531,
+      "host_busy_percent": 44.582982308340355
+    },
+    "approximate_combined_four_core_CPU_percent": 39.15754106136217,
+    "measurement_begin_margin": 0.23385345994029194,
+    "measurement_end_margin": 0.050383748952299356
+  }
+}

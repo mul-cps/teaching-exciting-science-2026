@@ -1,0 +1,9 @@
+{
+  "compiler": "gcc (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "machine": "x86_64",
+  "kernel": "7.2.8-200.fc44.x86_64",
+  "CPU_model": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+  "CPU_affinity_reserved": false,
+  "power_controlled": false,
+  "GPU_executed": false
+}

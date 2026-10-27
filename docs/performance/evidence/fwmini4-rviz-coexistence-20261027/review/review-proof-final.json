@@ -1,0 +1,279 @@
+{
+  "gate": "APPROVED for planned native runtime validation only",
+  "scope": "Independent local CPU source/static/behavioral/cost review; no graphicsdriver,display,GPU,ROS node,USB orSSH execution",
+  "source_pins": {
+    "sampler": [
+      "/tmp/rviz-process-sampler-20261027.py",
+      "90a3ad08c31a4a07b5cebf62033e74ef60d7165ec8af5f056def171ac4eb83f3"
+    ],
+    "GLX": [
+      "/tmp/rviz-coexistence-probe-20261027/swap_probe.c",
+      "0a58f3ddaa19085124bec7285efafcb98afa2fad5a3a668d08b57482f3a78f44"
+    ],
+    "scene": [
+      "/tmp/rviz-coexistence-scene-20261027/visual_scene.py",
+      "bda5b2263beb6f34591c58dbdf08befb89ed6cbed0582a09b2c9e283bd248889"
+    ],
+    "rviz_config": [
+      "/tmp/rviz-coexistence-scene-20261027/rviz-coexistence.rviz",
+      "da169b88d3e4974fd62143ca7cff71393fdd0fa74d445c0e2a8f8035610b12bf"
+    ],
+    "RSP": [
+      "/tmp/rviz-coexistence-scene-20261027/rsp.yaml",
+      "31b8f97ad6dc8216dd6760edc361f175adde43cda9ca66dc8dd5331e197f872b"
+    ]
+  },
+  "sampler": {
+    "source_sha256": "90a3ad08c31a4a07b5cebf62033e74ef60d7165ec8af5f056def171ac4eb83f3",
+    "scope": "local host, two idle targets and one missing PID, /dev/null FD populations; real /proc accounting; no DRM driver/GPU/ROS",
+    "sampling_cost_field_scope": "collection excludes JSON serialization/write; full observer CPU is independently measured via /proc over steady2s; tick quantized",
+    "results": [
+      {
+        "open_extra_FDs_per_target": 32,
+        "fixed_targets": 3,
+        "live_targets": 2,
+        "seconds": 2.0003714580016094,
+        "samples": 20,
+        "sample_hz": 9.998143054880515,
+        "proc_read_cost_p50_ms": 0.7874629991420079,
+        "proc_read_cost_max_ms": 1.3885870030208025,
+        "observer_CPU_ms": 20.0,
+        "observer_fraction_one_core": 0.009998143054880514,
+        "CPU_tick_ms": 10.0,
+        "PID_starttime_stable": true,
+        "observer_RSS_bytes": 12902400,
+        "GPU_executed": false,
+        "argv": [
+          "/tmp/workshop-test-pinned313-20261027/bin/python",
+          "/tmp/rviz-process-sampler-20261027.py",
+          "--pid",
+          "camera:902466",
+          "--pid",
+          "rviz:902467",
+          "--pid",
+          "missing:999999999",
+          "--output",
+          "/tmp/rviz-independent-review-20261027/sampler-fd32.jsonl"
+        ]
+      },
+      {
+        "open_extra_FDs_per_target": 128,
+        "fixed_targets": 3,
+        "live_targets": 2,
+        "seconds": 2.0002588649986137,
+        "samples": 20,
+        "sample_hz": 9.998705842512969,
+        "proc_read_cost_p50_ms": 2.252293001220096,
+        "proc_read_cost_max_ms": 2.8347510015009902,
+        "observer_CPU_ms": 50.0,
+        "observer_fraction_one_core": 0.024996764606282425,
+        "CPU_tick_ms": 10.0,
+        "PID_starttime_stable": true,
+        "observer_RSS_bytes": 13074432,
+        "GPU_executed": false,
+        "argv": [
+          "/tmp/workshop-test-pinned313-20261027/bin/python",
+          "/tmp/rviz-process-sampler-20261027.py",
+          "--pid",
+          "camera:902633",
+          "--pid",
+          "rviz:902634",
+          "--pid",
+          "missing:999999999",
+          "--output",
+          "/tmp/rviz-independent-review-20261027/sampler-fd128.jsonl"
+        ]
+      }
+    ]
+  },
+  "sampler_static_guard": {
+    "passed": true,
+    "imports": [
+      "argparse",
+      "json",
+      "os",
+      "pathlib",
+      "signal",
+      "time"
+    ],
+    "source_sha256": "90a3ad08c31a4a07b5cebf62033e74ef60d7165ec8af5f056def171ac4eb83f3",
+    "scope": "fixed PID plus /proc/stat/fdinfo only; local file JSON output; no ROS/pixels/GPU/network"
+  },
+  "GLX": {
+    "passed": true,
+    "GPU_executed": false,
+    "real_driver_used": false,
+    "calls_per_sample": 500000,
+    "samples": {
+      "baseline": [
+        {
+          "calls": 500000,
+          "elapsed_ns": 705203,
+          "ns_per_call": 1.410406,
+          "hot_heap_allocations": 0,
+          "hot_metadata_queries": 0
+        },
+        {
+          "calls": 500000,
+          "elapsed_ns": 975300,
+          "ns_per_call": 1.9506,
+          "hot_heap_allocations": 0,
+          "hot_metadata_queries": 0
+        },
+        {
+          "calls": 500000,
+          "elapsed_ns": 967344,
+          "ns_per_call": 1.934688,
+          "hot_heap_allocations": 0,
+          "hot_metadata_queries": 0
+        },
+        {
+          "calls": 500000,
+          "elapsed_ns": 1037977,
+          "ns_per_call": 2.075954,
+          "hot_heap_allocations": 0,
+          "hot_metadata_queries": 0
+        },
+        {
+          "calls": 500000,
+          "elapsed_ns": 705153,
+          "ns_per_call": 1.410306,
+          "hot_heap_allocations": 0,
+          "hot_metadata_queries": 0
+        }
+      ],
+      "probe": [
+        {
+          "calls": 500000,
+          "elapsed_ns": 10221653,
+          "ns_per_call": 20.443306,
+          "hot_heap_allocations": 0,
+          "hot_metadata_queries": 0
+        },
+        {
+          "calls": 500000,
+          "elapsed_ns": 13649804,
+          "ns_per_call": 27.299608,
+          "hot_heap_allocations": 0,
+          "hot_metadata_queries": 0
+        },
+        {
+          "calls": 500000,
+          "elapsed_ns": 13628353,
+          "ns_per_call": 27.256706,
+          "hot_heap_allocations": 0,
+          "hot_metadata_queries": 0
+        },
+        {
+          "calls": 500000,
+          "elapsed_ns": 13405355,
+          "ns_per_call": 26.81071,
+          "hot_heap_allocations": 0,
+          "hot_metadata_queries": 0
+        },
+        {
+          "calls": 500000,
+          "elapsed_ns": 10234727,
+          "ns_per_call": 20.469454,
+          "hot_heap_allocations": 0,
+          "hot_metadata_queries": 0
+        }
+      ]
+    },
+    "baseline_median_ns": 1.934688,
+    "probe_median_ns": 26.81071,
+    "incremental_median_ns": 24.876022,
+    "scope": "local host fake real-swap body; real libc monotonic clock; steady no-log hot path only; not RViz/driver/display performance"
+  },
+  "GLX_mutants": {
+    "missing_real_swap": {
+      "rejected": true,
+      "test_exit": 1,
+      "log": "mutants/missing_real_swap/test.log"
+    },
+    "merged_drawables": {
+      "rejected": true,
+      "test_exit": 1,
+      "log": "mutants/merged_drawables/test.log"
+    },
+    "wrong_dimensions": {
+      "rejected": true,
+      "test_exit": 1,
+      "log": "mutants/wrong_dimensions/test.log"
+    },
+    "heap_in_hot_path": {
+      "rejected": true,
+      "test_exit": 1,
+      "log": "mutants/heap_in_hot_path/test.log"
+    },
+    "slot_bound_overrun": {
+      "rejected": true,
+      "test_exit": 1,
+      "log": "mutants/slot_bound_overrun/test.log"
+    }
+  },
+  "GLX_sanitizer_passed": true,
+  "scene": {
+    "cloud_payload_bytes": 320000,
+    "cloud_payload_sha256": "b8c572293b23445db0a433c6c1305a02a51f395bbc71914cca2c8a605c1c5a15",
+    "estimated_helper_and_serialization_cpu_ms_per_second": 1.3584695489,
+    "gpu_or_usb": false,
+    "helper_warmup_iterations": 1000,
+    "hot_message_payload_identity_stable": true,
+    "iterations_per_trial": 100000,
+    "joint_update_median_ns": 282.4097,
+    "joint_update_samples_ns": [
+      360.69569,
+      287.07318,
+      282.37213,
+      282.4097,
+      282.91265,
+      280.32527,
+      282.31913
+    ],
+    "point_count": 20000,
+    "ros_serialization_allocates_by_design": true,
+    "scope": "native ROS message update + native rclpy serialization; excludes Node, DDS publication/transport, robot_state_publisher, actual resident RGB, RViz, driver and GPU",
+    "serialization": {
+      "cloud": {
+        "bytes": 320141,
+        "mean_ns": 32992.332,
+        "samples": 1000,
+        "target_hz": 10
+      },
+      "joints": {
+        "bytes": 188,
+        "mean_ns": 9021.959,
+        "samples": 1000,
+        "target_hz": 30
+      },
+      "markers": {
+        "bytes": 1117,
+        "mean_ns": 74022.588,
+        "samples": 1000,
+        "target_hz": 10
+      }
+    },
+    "steady_helper_python_tracemalloc_current_bytes": 416,
+    "steady_helper_python_tracemalloc_peak_bytes": 600,
+    "trials": 7,
+    "visual_scene_sha256": "bda5b2263beb6f34591c58dbdf08befb89ed6cbed0582a09b2c9e283bd248889",
+    "world_update_median_ns": 918.92879,
+    "world_update_samples_ns": [
+      954.499,
+      950.32124,
+      914.61496,
+      924.79564,
+      916.40874,
+      918.92879,
+      889.99317
+    ]
+  },
+  "scene_static_payload_test_passed": true,
+  "limitations": [
+    "Sampler read cost excludes JSON/write; independent whole observerCPU is tickquantized and local only, with emptyDRM fields",
+    "GLXtiming covers steady no-log hook; first/perinterval GLqueries and synchronous stderrwrites excluded; counts swapreturns not physicalscanout orcameraFPS",
+    "Native GLXcoverage requires actualcompletehardwarerenderermetadata and intendedviewport records; procaddressbypass mayyield no records and must invalidate evidence",
+    "Scene helper/serializationcost excludes Node/executor/DDS/RSP/RGB/RViz; nativeROSserialization allocates bydesign"
+  ]
+}

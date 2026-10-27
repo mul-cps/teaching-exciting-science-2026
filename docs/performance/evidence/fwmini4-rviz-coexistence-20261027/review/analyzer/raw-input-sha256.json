@@ -1,0 +1,20 @@
+{
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/logs/processes-1080p.jsonl": "3182548d20c07569976856a73437cc4dd49af9cd5bfad517cffb1a08a12776fc",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/logs/processes-720p.jsonl": "91f4c20d35abdbe88dbc4efa9de9e6dc50731c5feb9febfacd87a14b46b6cce2",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/logs/processes-vga.jsonl": "e9429179afe41b14ddfdf9dfda93bf55b9b35a5f579a239424692ffe3787495d",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/logs/rviz-1080p.log": "183b9b7cc7babec97dd573e4b3d113dbee4aef264e7f86a0514025b2691509a7",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/logs/rviz-720p.log": "051de904b83becd273f6d93a19ee501847eae781c171aa6a2bf563d21450eab9",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/logs/rviz-vga.log": "955e0092582407c6ff2dd3df2d334d5bfac9835549da1440afab9ffb1484acaa",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/system-cpu/live/1080p/cpu.json": "7d4f89c8fd5498d1c8c00c4fe634c968903ade866f1bf669ef3c839c92cfd8ce",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/system-cpu/live/1080p/cpu.runner.json": "3e76bfc325a5feb6a5212306fa55c50f7aceb94667eaae9ac6e8f5f6c4513a09",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/system-cpu/live/720p/cpu.json": "aff26e2381e2a9900d79060e152dbb3569625a98d7f0d76d0e7a3df3344ad5be",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/system-cpu/live/720p/cpu.runner.json": "6bb751ad9427bbc5437cf60d53e00698faa50a7147911b184e1fa9659daa7ee3",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/system-cpu/live/vga/cpu.json": "f119d9ba02219e7c558bc604618d5938f0827285f1cc3cafe43b319792515ab4",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/system-cpu/live/vga/cpu.runner.json": "c1606a05be74d13a84df8593a22278aabc36ef3c52edf7468a96b4508d729fa5",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/vulkan/live/1080p/vulkan.json": "62ca59a759a25884f8b0a169f6afa098c609c46903a15e8790615167dd64f053",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/vulkan/live/1080p/vulkan.runner.json": "9fd1d6cccb4688f524569f713e63d6b7b54b214ed9fe3badb72deebd956bb784",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/vulkan/live/720p/vulkan.json": "dab192b2d8c060161d7d0b0d0efefe9aed7281af164c5061111a231b7e43634f",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/vulkan/live/720p/vulkan.runner.json": "6c5d2c33714d6e09322b4bb46f5d6f537bb1e1ea15333abf503891be53343a9d",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/vulkan/live/vga/vulkan.json": "41fc5db95abf155c6a993dae6a5d179bcb0d54013a61d36c6ad74136f03fc878",
+  "/tmp/fwmini4-rviz-coexistence-extracted-20261027/vulkan/live/vga/vulkan.runner.json": "4a240bf62bd23a25f984deb42b1c502e6d749b1b35bc7605899380f26e0415b4"
+}

@@ -1,0 +1,10 @@
+actual_runtime_drawable_extents_require_verification: true
+main_window:
+- 1600
+- 900
+rgb_dock:
+  area: right
+  floating: false
+  requested_height: 360
+  requested_width: 640
+  views_panel_below_rgb: true

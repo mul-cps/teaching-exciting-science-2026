@@ -1,0 +1,25 @@
+{
+  "approved": true,
+  "source_sha256": "3a4b3acf02d7b73be58076c5c9c3fb165ba07c3d2ab99c2ed2f470b163a00ffc",
+  "old_source_sha256": "dc2f0926b69bbd43472c4b3f9227b2800479a24e4395be1417965f166c7cc7bd",
+  "unit_tests": 17,
+  "actual_runs": 6,
+  "all_actual_runs_analysis_valid": true,
+  "actual_run_metrics_and_complete_run_subtrees_unchanged": true,
+  "independent_recomputation": "independent-recomputed-metrics.json",
+  "raw_base": "/tmp/fwmini4-rviz-coexistence-extracted-20261027",
+  "tests": "green.log",
+  "red_behavior": "red-behavior.log",
+  "scope": "offline only; no GPU/SSH, no repository changes; no station/geometry/control/physical/performance qualification",
+  "raw_input_sha256_manifest": "raw-input-sha256.json",
+  "raw_input_file_count": 18,
+  "test_source_sha256": "78eb0ce33dec777c546a8b4e044b5785cc12b274f448782cd6e066a2eca5947f",
+  "py_compile": "PASS",
+  "limitations": [
+    "GLX weighted swap-return frequency per drawable is not new RGB image rate or scanout",
+    "Perception versus observer CPU windows differ; combined CPU is approximate",
+    "Sampling cost excludes JSON serialization/write; target-process sum excludes observer",
+    "Engine ns are counters by process/client, not GPU occupancy or wall time",
+    "Camera modes sequential live, no matched-pixel geometry/performance adoption qualification"
+  ]
+}

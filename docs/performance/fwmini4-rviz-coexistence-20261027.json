@@ -1,0 +1,2409 @@
+{
+  "schema": "fwmini4-rviz-coexistence-checkpoint-v1",
+  "qualified": false,
+  "execution_eligible": false,
+  "full_station_qualified": false,
+  "geometry_admission": "unqualified",
+  "source_commit": "5344d665692ab2dddb0de32ef58c8adf6aedadb8",
+  "native_source_files_bound_by_prior_manifest": 103,
+  "publication_worktree_HEAD_observed": "4612f38163769f3a7c4e8eb8bfa666995d37dac3",
+  "analysis_valid": true,
+  "RViz_uses_actual_camera_RGB": true,
+  "matched_camera_pixels_between_modes": false,
+  "synthetic_geometry": [
+    "robot joint poses",
+    "20000-point world cloud",
+    "four brick markers"
+  ],
+  "UI_content_validation": {
+    "scope": "separate post-matrix VGA-only UI-content validation; not part of six timed windows",
+    "verified": true,
+    "inspector": "root agent manual inspection, reported to publication worker",
+    "private_compositor_PNG_sha256": "8d51c22a3cd8b56df759ad162bc3b0d3ef3c534f8edc4211ffcf8881827ae393",
+    "image_published": false,
+    "full_compositor_extent": [
+      1920,
+      1080
+    ],
+    "RViz_main_window_extent": [
+      1600,
+      900
+    ],
+    "observed": [
+      "actual camera RGB visible",
+      "robot model visible",
+      "20k colored synthetic world surface visible",
+      "synthetic brick markers visible",
+      "Global Status OK",
+      "statusbar 31fps"
+    ],
+    "capture_method": "Weston13 screenshooter on own private compositor with --debug, separate post-timing run",
+    "prior_failed_capture": "Qt/rootless-X11 capture black/invalid; not a content pass; metadata/logs retained",
+    "timing_effect": "outside all timed windows; does not alter six-run performance evidence",
+    "all_three_UI_profiles_independently_inspected": false,
+    "final_operational_state_reported_by_root": {
+      "private_Weston_stopped": true,
+      "camera_unheld": true,
+      "old_owner_PID": 181501,
+      "old_owner_active": true
+    }
+  },
+  "RViz": {
+    "requested_main_window": [
+      1600,
+      900
+    ],
+    "actual_primary_GLX_drawable": [
+      574,
+      810
+    ],
+    "actual_RGB_GLX_drawable": [
+      640,
+      314
+    ],
+    "dummy_GLX_drawable": [
+      1,
+      1
+    ],
+    "dummy_excluded_from_primary_and_rate_aggregation": true,
+    "renderer": "Mesa Intel(R) Graphics (ADL-N)",
+    "vendor": "Intel",
+    "direct": true,
+    "same_physical_Intel_ADLN_GPU_as_Vulkan": true,
+    "observed_primary_weighted_swap_rate_at_least30_all_six": true,
+    "physical_scanout_validated": false,
+    "actual_main_window_confirmed_post_matrix": [
+      1600,
+      900
+    ]
+  },
+  "SDK_comparison": {
+    "vulkan": "isolated scalar librealsense2 2.58.3",
+    "cpu": "optimized system librealsense2 2.58.4",
+    "different_SDKs_and_sequential_unmatched_live_inputs": true,
+    "post_run_empty_native_library_maps_is_SDK_identity_proof": false
+  },
+  "metrics": {
+    "vga/vulkan": {
+      "perception": {
+        "unique_output_hz": 30.02871592290749,
+        "unique_outputs": 451,
+        "CPU_ms": 2910.0,
+        "total_four_core_CPU_percent": 4.84387823368408,
+        "CPU_ms_per_output": 6.452328159645233,
+        "receipt_age_p95_ms": 27.217758,
+        "age_semantics": "host receipt ROS time to collector receipt; not exposure age or processing latency",
+        "p95_method": "sorted samples, floor(0.95*(n-1)); same collector estimator"
+      },
+      "source_ID_windows": {
+        "source_frame": {
+          "first": 55,
+          "last": 505,
+          "unique_ids": 451,
+          "missing_between_first_last": 0,
+          "duplicates": 0,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 52,
+          "last": 502,
+          "unique_ids": 451,
+          "missing_between_first_last": 0,
+          "duplicates": 0,
+          "regressions": 0
+        }
+      },
+      "allocation_safety": {
+        "stable": true,
+        "counts": [
+          35
+        ],
+        "samples": 16
+      },
+      "primary_GLX": {
+        "display": 105613383994160,
+        "drawable": 8388612,
+        "dimensions": [
+          {
+            "width": 574,
+            "height": 810
+          }
+        ],
+        "weighted_swap_hz": 31.25167903656721,
+        "min_interval_swap_hz": 31.14658591312101,
+        "max_interval_swap_hz": 31.33695846841994,
+        "covered_seconds": 14.33522978,
+        "interval_count": 14,
+        "interval_swaps": 448,
+        "renderer_record": {
+          "event": "renderer",
+          "display": 105613383994160,
+          "drawable": 8388612,
+          "monotonic_ns": 625280235268015,
+          "total_swaps": 1,
+          "vendor": "Intel",
+          "renderer": "Mesa Intel(R) Graphics (ADL-N)",
+          "version": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.4",
+          "width": 574,
+          "height": 810,
+          "direct": true,
+          "direct_known": true,
+          "metadata_complete": true
+        }
+      },
+      "observer_window": {
+        "begin_monotonic": 625303.681233902,
+        "end_monotonic": 625318.695533648,
+        "seconds": 15.014299746020697,
+        "begin_offset_seconds": -0.023968580993823707,
+        "end_offset_seconds": -0.02862606104463339,
+        "method": "nearest sampled endpoint to each approximate collector bound",
+        "rows": 151
+      },
+      "external_CPU_total_four_core_percent": 7.5761109025512585,
+      "approximate_combined_CPU": {
+        "different_accounting_windows": true,
+        "total_four_core_CPU_percent": 12.419989136235339,
+        "perception_percent": 4.84387823368408,
+        "external_targets_percent": 7.5761109025512585,
+        "meaning": "approximate sum: perception collector CPU plus deduplicated external targeted-process CPU over separate nearest-row observer window; not same-window accounting; observer excluded"
+      },
+      "host_busy_percent": 17.666392769104355,
+      "sampling_cost_seconds": {
+        "max": 0.006487182923592627,
+        "mean": 0.004932367687718018,
+        "JSON_write_excluded": true
+      },
+      "camera_RSS_HWM_kib": {
+        "VmHWM": "171040 kB",
+        "VmRSS": "139584 kB"
+      },
+      "observer_processes": {
+        "desktop": {
+          "pid": 505310,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "RSS_max_sampled_pages": 3877,
+          "RSS_end_MiB_assuming_4096_byte_pages": 15.14453125,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "keyboard": {
+          "pid": 505309,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "RSS_max_sampled_pages": 2665,
+          "RSS_end_MiB_assuming_4096_byte_pages": 10.41015625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rsp": {
+          "pid": 505560,
+          "starttime_ticks": 62527980,
+          "errors": [],
+          "CPU_ms": 110.0,
+          "total_four_core_CPU_percent": 0.18315872511662384,
+          "RSS_end_pages": 6803,
+          "RSS_max_sampled_pages": 6803,
+          "RSS_end_MiB_assuming_4096_byte_pages": 26.57421875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rviz": {
+          "pid": 505562,
+          "starttime_ticks": 62527980,
+          "errors": [],
+          "CPU_ms": 2940.0,
+          "total_four_core_CPU_percent": 4.895333198571582,
+          "RSS_end_pages": 53368,
+          "RSS_max_sampled_pages": 53452,
+          "RSS_end_MiB_assuming_4096_byte_pages": 208.46875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "997": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 2367040936,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "997",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "93768 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "93768 KiB",
+                "drm-purgeable-system0": "1856 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "8138428844 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "997",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "99988 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "79876 KiB",
+                "drm-resident-system0": "99988 KiB",
+                "drm-purgeable-system0": "5580 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "10505469780 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            },
+            "998": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 0,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "998",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "998",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "scene": {
+          "pid": 505561,
+          "starttime_ticks": 62527980,
+          "errors": [],
+          "CPU_ms": 430.0,
+          "total_four_core_CPU_percent": 0.715984107274075,
+          "RSS_end_pages": 16827,
+          "RSS_max_sampled_pages": 16827,
+          "RSS_end_MiB_assuming_4096_byte_pages": 65.73046875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "weston": {
+          "pid": 505292,
+          "starttime_ticks": 62526037,
+          "errors": [],
+          "CPU_ms": 200.0,
+          "total_four_core_CPU_percent": 0.333015863848407,
+          "RSS_end_pages": 20516,
+          "RSS_max_sampled_pages": 20516,
+          "RSS_end_MiB_assuming_4096_byte_pages": 80.140625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "994": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 197767908,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "284 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "706276272 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "284 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "904044180 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "xwayland": {
+          "pid": 505390,
+          "starttime_ticks": 62527097,
+          "errors": [],
+          "CPU_ms": 870.0,
+          "total_four_core_CPU_percent": 1.4486190077405703,
+          "RSS_end_pages": 20747,
+          "RSS_max_sampled_pages": 20747,
+          "RSS_end_MiB_assuming_4096_byte_pages": 81.04296875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "996": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 435811584,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "155292 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "19984 KiB",
+                "drm-resident-system0": "155292 KiB",
+                "drm-purgeable-system0": "103356 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "1402599380 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "164012 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "164012 KiB",
+                "drm-purgeable-system0": "112332 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "1838410964 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        }
+      }
+    },
+    "vga/cpu": {
+      "perception": {
+        "unique_output_hz": 29.94689344702288,
+        "unique_outputs": 450,
+        "CPU_ms": 6180.0,
+        "total_four_core_CPU_percent": 10.281766750144524,
+        "CPU_ms_per_output": 13.733333333333333,
+        "receipt_age_p95_ms": 13.2149,
+        "age_semantics": "host receipt ROS time to collector receipt; not exposure age or processing latency",
+        "p95_method": "sorted samples, floor(0.95*(n-1)); same collector estimator"
+      },
+      "source_ID_windows": {
+        "source_frame": {
+          "first": 49,
+          "last": 498,
+          "unique_ids": 450,
+          "missing_between_first_last": 0,
+          "duplicates": 0,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 46,
+          "last": 495,
+          "unique_ids": 450,
+          "missing_between_first_last": 0,
+          "duplicates": 0,
+          "regressions": 0
+        }
+      },
+      "allocation_safety": {
+        "stable": true,
+        "counts": [
+          0
+        ],
+        "samples": 16
+      },
+      "primary_GLX": {
+        "display": 105613383994160,
+        "drawable": 8388612,
+        "dimensions": [
+          {
+            "width": 574,
+            "height": 810
+          }
+        ],
+        "weighted_swap_hz": 31.25446349100496,
+        "min_interval_swap_hz": 31.146087072454588,
+        "max_interval_swap_hz": 31.351090642672016,
+        "covered_seconds": 14.333952657,
+        "interval_count": 14,
+        "interval_swaps": 448,
+        "renderer_record": {
+          "event": "renderer",
+          "display": 105613383994160,
+          "drawable": 8388612,
+          "monotonic_ns": 625280235268015,
+          "total_swaps": 1,
+          "vendor": "Intel",
+          "renderer": "Mesa Intel(R) Graphics (ADL-N)",
+          "version": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.4",
+          "width": 574,
+          "height": 810,
+          "direct": true,
+          "direct_known": true,
+          "metadata_complete": true
+        }
+      },
+      "observer_window": {
+        "begin_monotonic": 625324.201477888,
+        "end_monotonic": 625339.215276884,
+        "seconds": 15.013798995991237,
+        "begin_offset_seconds": -0.021815416985191405,
+        "end_offset_seconds": -0.034616785938851535,
+        "method": "nearest sampled endpoint to each approximate collector bound",
+        "rows": 151
+      },
+      "external_CPU_total_four_core_percent": 7.6929230257338,
+      "approximate_combined_CPU": {
+        "different_accounting_windows": true,
+        "total_four_core_CPU_percent": 17.974689775878325,
+        "perception_percent": 10.281766750144524,
+        "external_targets_percent": 7.6929230257338,
+        "meaning": "approximate sum: perception collector CPU plus deduplicated external targeted-process CPU over separate nearest-row observer window; not same-window accounting; observer excluded"
+      },
+      "host_busy_percent": 20.704321197686287,
+      "sampling_cost_seconds": {
+        "max": 0.0062827300280332565,
+        "mean": 0.005199550743529339,
+        "JSON_write_excluded": true
+      },
+      "camera_RSS_HWM_kib": {
+        "VmHWM": "127092 kB",
+        "VmRSS": "127092 kB"
+      },
+      "observer_processes": {
+        "desktop": {
+          "pid": 505310,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "RSS_max_sampled_pages": 3877,
+          "RSS_end_MiB_assuming_4096_byte_pages": 15.14453125,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "keyboard": {
+          "pid": 505309,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "RSS_max_sampled_pages": 2665,
+          "RSS_end_MiB_assuming_4096_byte_pages": 10.41015625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rsp": {
+          "pid": 505560,
+          "starttime_ticks": 62527980,
+          "errors": [],
+          "CPU_ms": 120.0,
+          "total_four_core_CPU_percent": 0.19981618248659222,
+          "RSS_end_pages": 6847,
+          "RSS_max_sampled_pages": 6847,
+          "RSS_end_MiB_assuming_4096_byte_pages": 26.74609375,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rviz": {
+          "pid": 505562,
+          "starttime_ticks": 62527980,
+          "errors": [],
+          "CPU_ms": 3030.0,
+          "total_four_core_CPU_percent": 5.045358607786453,
+          "RSS_end_pages": 53386,
+          "RSS_max_sampled_pages": 53386,
+          "RSS_end_MiB_assuming_4096_byte_pages": 208.5390625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "997": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 5432680812,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "997",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "95436 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "79876 KiB",
+                "drm-resident-system0": "95436 KiB",
+                "drm-purgeable-system0": "964 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "12227723612 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "997",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "99476 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "79876 KiB",
+                "drm-resident-system0": "99476 KiB",
+                "drm-purgeable-system0": "5068 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "17660404424 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            },
+            "998": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 0,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "998",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "998",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "scene": {
+          "pid": 505561,
+          "starttime_ticks": 62527980,
+          "errors": [],
+          "CPU_ms": 410.0,
+          "total_four_core_CPU_percent": 0.6827052901625233,
+          "RSS_end_pages": 16856,
+          "RSS_max_sampled_pages": 16856,
+          "RSS_end_MiB_assuming_4096_byte_pages": 65.84375,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "weston": {
+          "pid": 505292,
+          "starttime_ticks": 62526037,
+          "errors": [],
+          "CPU_ms": 190.0,
+          "total_four_core_CPU_percent": 0.31637562227043764,
+          "RSS_end_pages": 20516,
+          "RSS_max_sampled_pages": 20516,
+          "RSS_end_MiB_assuming_4096_byte_pages": 80.140625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "994": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 398139300,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "31624 KiB",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "156 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "1032426408 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "8 MiB",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "284 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "1430565708 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "xwayland": {
+          "pid": 505390,
+          "starttime_ticks": 62527097,
+          "errors": [],
+          "CPU_ms": 870.0,
+          "total_four_core_CPU_percent": 1.4486673230277936,
+          "RSS_end_pages": 20747,
+          "RSS_max_sampled_pages": 20747,
+          "RSS_end_MiB_assuming_4096_byte_pages": 81.04296875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "996": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 894240880,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "112712 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "30736 KiB",
+                "drm-resident-system0": "112712 KiB",
+                "drm-purgeable-system0": "58280 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "2126938736 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "130668 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "24144 KiB",
+                "drm-resident-system0": "130668 KiB",
+                "drm-purgeable-system0": "76684 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "3021179616 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        }
+      }
+    },
+    "720p/vulkan": {
+      "perception": {
+        "unique_output_hz": 13.648600076637509,
+        "unique_outputs": 205,
+        "CPU_ms": 6340.0,
+        "total_four_core_CPU_percent": 10.552698108034367,
+        "CPU_ms_per_output": 30.926829268292682,
+        "receipt_age_p95_ms": 103.436129,
+        "age_semantics": "host receipt ROS time to collector receipt; not exposure age or processing latency",
+        "p95_method": "sorted samples, floor(0.95*(n-1)); same collector estimator"
+      },
+      "source_ID_windows": {
+        "source_frame": {
+          "first": 69,
+          "last": 515,
+          "unique_ids": 205,
+          "missing_between_first_last": 242,
+          "duplicates": 0,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 66,
+          "last": 512,
+          "unique_ids": 205,
+          "missing_between_first_last": 242,
+          "duplicates": 0,
+          "regressions": 0
+        }
+      },
+      "allocation_safety": {
+        "stable": true,
+        "counts": [
+          35
+        ],
+        "samples": 7
+      },
+      "primary_GLX": {
+        "display": 99721828202128,
+        "drawable": 8388612,
+        "dimensions": [
+          {
+            "width": 574,
+            "height": 810
+          }
+        ],
+        "weighted_swap_hz": 31.253962464390966,
+        "min_interval_swap_hz": 31.110973051847225,
+        "max_interval_swap_hz": 31.388562356290414,
+        "covered_seconds": 14.334182442,
+        "interval_count": 14,
+        "interval_swaps": 448,
+        "renderer_record": {
+          "event": "renderer",
+          "display": 99721828202128,
+          "drawable": 8388612,
+          "monotonic_ns": 625341859254981,
+          "total_swaps": 1,
+          "vendor": "Intel",
+          "renderer": "Mesa Intel(R) Graphics (ADL-N)",
+          "version": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.4",
+          "width": 574,
+          "height": 810,
+          "direct": true,
+          "direct_known": true,
+          "metadata_complete": true
+        }
+      },
+      "observer_window": {
+        "begin_monotonic": 625353.83670327,
+        "end_monotonic": 625368.852825346,
+        "seconds": 15.016122076078318,
+        "begin_offset_seconds": -0.022520850994624197,
+        "end_offset_seconds": -0.026254206895828247,
+        "method": "nearest sampled endpoint to each approximate collector bound",
+        "rows": 151
+      },
+      "external_CPU_total_four_core_percent": 8.57411782800483,
+      "approximate_combined_CPU": {
+        "different_accounting_windows": true,
+        "total_four_core_CPU_percent": 19.126815936039197,
+        "perception_percent": 10.552698108034367,
+        "external_targets_percent": 8.57411782800483,
+        "meaning": "approximate sum: perception collector CPU plus deduplicated external targeted-process CPU over separate nearest-row observer window; not same-window accounting; observer excluded"
+      },
+      "host_busy_percent": 23.905169575238723,
+      "sampling_cost_seconds": {
+        "max": 0.008138233912177384,
+        "mean": 0.005363343159409104,
+        "JSON_write_excluded": true
+      },
+      "camera_RSS_HWM_kib": {
+        "VmHWM": "397364 kB",
+        "VmRSS": "200720 kB"
+      },
+      "observer_processes": {
+        "desktop": {
+          "pid": 505310,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "RSS_max_sampled_pages": 3877,
+          "RSS_end_MiB_assuming_4096_byte_pages": 15.14453125,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "keyboard": {
+          "pid": 505309,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "RSS_max_sampled_pages": 2665,
+          "RSS_end_MiB_assuming_4096_byte_pages": 10.41015625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rsp": {
+          "pid": 506311,
+          "starttime_ticks": 62534147,
+          "errors": [],
+          "CPU_ms": 140.0,
+          "total_four_core_CPU_percent": 0.23308281474187886,
+          "RSS_end_pages": 6848,
+          "RSS_max_sampled_pages": 6848,
+          "RSS_end_MiB_assuming_4096_byte_pages": 26.75,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rviz": {
+          "pid": 506313,
+          "starttime_ticks": 62534147,
+          "errors": [],
+          "CPU_ms": 3380.0,
+          "total_four_core_CPU_percent": 5.627285098768218,
+          "RSS_end_pages": 53759,
+          "RSS_max_sampled_pages": 53759,
+          "RSS_end_MiB_assuming_4096_byte_pages": 209.99609375,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "1003": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 2432195532,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1003",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "93768 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "93768 KiB",
+                "drm-purgeable-system0": "1856 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "3777054060 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1003",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "106080 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "106080 KiB",
+                "drm-purgeable-system0": "10072 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "6209249592 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            },
+            "1004": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 0,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1004",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1004",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "scene": {
+          "pid": 506312,
+          "starttime_ticks": 62534147,
+          "errors": [],
+          "CPU_ms": 470.0,
+          "total_four_core_CPU_percent": 0.7824923066334505,
+          "RSS_end_pages": 16915,
+          "RSS_max_sampled_pages": 16915,
+          "RSS_end_MiB_assuming_4096_byte_pages": 66.07421875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "weston": {
+          "pid": 505292,
+          "starttime_ticks": 62526037,
+          "errors": [],
+          "CPU_ms": 220.0,
+          "total_four_core_CPU_percent": 0.36627299459438106,
+          "RSS_end_pages": 20516,
+          "RSS_max_sampled_pages": 20516,
+          "RSS_end_MiB_assuming_4096_byte_pages": 80.140625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "994": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 200854680,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "284 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "1852167304 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "284 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "2053021984 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "xwayland": {
+          "pid": 505390,
+          "starttime_ticks": 62527097,
+          "errors": [],
+          "CPU_ms": 940.0,
+          "total_four_core_CPU_percent": 1.564984613266901,
+          "RSS_end_pages": 21056,
+          "RSS_max_sampled_pages": 21056,
+          "RSS_end_MiB_assuming_4096_byte_pages": 82.25,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "996": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 441781808,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "169848 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "169848 KiB",
+                "drm-purgeable-system0": "118104 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "3790292272 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "170360 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "170360 KiB",
+                "drm-purgeable-system0": "118616 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "4232074080 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        }
+      }
+    },
+    "720p/cpu": {
+      "perception": {
+        "unique_output_hz": 25.39909008767086,
+        "unique_outputs": 381,
+        "CPU_ms": 15120.0,
+        "total_four_core_CPU_percent": 25.19909725233487,
+        "CPU_ms_per_output": 39.68503937007874,
+        "receipt_age_p95_ms": 75.118112,
+        "age_semantics": "host receipt ROS time to collector receipt; not exposure age or processing latency",
+        "p95_method": "sorted samples, floor(0.95*(n-1)); same collector estimator"
+      },
+      "source_ID_windows": {
+        "source_frame": {
+          "first": 49,
+          "last": 497,
+          "unique_ids": 381,
+          "missing_between_first_last": 68,
+          "duplicates": 0,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 46,
+          "last": 495,
+          "unique_ids": 381,
+          "missing_between_first_last": 69,
+          "duplicates": 0,
+          "regressions": 0
+        }
+      },
+      "allocation_safety": {
+        "stable": true,
+        "counts": [
+          0
+        ],
+        "samples": 13
+      },
+      "primary_GLX": {
+        "display": 99721828202128,
+        "drawable": 8388612,
+        "dimensions": [
+          {
+            "width": 574,
+            "height": 810
+          }
+        ],
+        "weighted_swap_hz": 31.24674694541037,
+        "min_interval_swap_hz": 30.950141055966736,
+        "max_interval_swap_hz": 31.529716029711278,
+        "covered_seconds": 13.281382562,
+        "interval_count": 13,
+        "interval_swaps": 415,
+        "renderer_record": {
+          "event": "renderer",
+          "display": 99721828202128,
+          "drawable": 8388612,
+          "monotonic_ns": 625341859254981,
+          "total_swaps": 1,
+          "vendor": "Intel",
+          "renderer": "Mesa Intel(R) Graphics (ADL-N)",
+          "version": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.4",
+          "width": 574,
+          "height": 810,
+          "direct": true,
+          "direct_known": true,
+          "metadata_complete": true
+        }
+      },
+      "observer_window": {
+        "begin_monotonic": 625375.960682038,
+        "end_monotonic": 625390.973350551,
+        "seconds": 15.012668512994424,
+        "begin_offset_seconds": 0.014116070931777358,
+        "end_offset_seconds": 0.026247214875184,
+        "method": "nearest sampled endpoint to each approximate collector bound",
+        "rows": 151
+      },
+      "external_CPU_total_four_core_percent": 11.040675404011804,
+      "approximate_combined_CPU": {
+        "different_accounting_windows": true,
+        "total_four_core_CPU_percent": 36.23977265634667,
+        "perception_percent": 25.19909725233487,
+        "external_targets_percent": 11.040675404011804,
+        "meaning": "approximate sum: perception collector CPU plus deduplicated external targeted-process CPU over separate nearest-row observer window; not same-window accounting; observer excluded"
+      },
+      "host_busy_percent": 41.236939669700035,
+      "sampling_cost_seconds": {
+        "max": 0.010623336071148515,
+        "mean": 0.005966058314703898,
+        "JSON_write_excluded": true
+      },
+      "camera_RSS_HWM_kib": {
+        "VmHWM": "298340 kB",
+        "VmRSS": "298340 kB"
+      },
+      "observer_processes": {
+        "desktop": {
+          "pid": 505310,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "RSS_max_sampled_pages": 3877,
+          "RSS_end_MiB_assuming_4096_byte_pages": 15.14453125,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "keyboard": {
+          "pid": 505309,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "RSS_max_sampled_pages": 2665,
+          "RSS_end_MiB_assuming_4096_byte_pages": 10.41015625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rsp": {
+          "pid": 506311,
+          "starttime_ticks": 62534147,
+          "errors": [],
+          "CPU_ms": 140.0,
+          "total_four_core_CPU_percent": 0.23313643387053584,
+          "RSS_end_pages": 6934,
+          "RSS_max_sampled_pages": 6934,
+          "RSS_end_MiB_assuming_4096_byte_pages": 27.0859375,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rviz": {
+          "pid": 506313,
+          "starttime_ticks": 62534147,
+          "errors": [],
+          "CPU_ms": 4770.0,
+          "total_four_core_CPU_percent": 7.943291354017543,
+          "RSS_end_pages": 53747,
+          "RSS_max_sampled_pages": 53747,
+          "RSS_end_MiB_assuming_4096_byte_pages": 209.94921875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "1003": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 5549170744,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1003",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "97488 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "97488 KiB",
+                "drm-purgeable-system0": "1352 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "8466800888 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1003",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "105696 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "105696 KiB",
+                "drm-purgeable-system0": "1432 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "14015971632 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            },
+            "1004": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 0,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1004",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1004",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "scene": {
+          "pid": 506312,
+          "starttime_ticks": 62534147,
+          "errors": [],
+          "CPU_ms": 480.0,
+          "total_four_core_CPU_percent": 0.7993249161275514,
+          "RSS_end_pages": 16996,
+          "RSS_max_sampled_pages": 16996,
+          "RSS_end_MiB_assuming_4096_byte_pages": 66.390625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "weston": {
+          "pid": 505292,
+          "starttime_ticks": 62526037,
+          "errors": [],
+          "CPU_ms": 220.0,
+          "total_four_core_CPU_percent": 0.36635725322512774,
+          "RSS_end_pages": 20516,
+          "RSS_max_sampled_pages": 20516,
+          "RSS_end_MiB_assuming_4096_byte_pages": 80.140625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "994": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 395410132,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "284 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "2219027200 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "284 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "2614437332 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "xwayland": {
+          "pid": 505390,
+          "starttime_ticks": 62527097,
+          "errors": [],
+          "CPU_ms": 1020.0,
+          "total_four_core_CPU_percent": 1.6985654467710467,
+          "RSS_end_pages": 21056,
+          "RSS_max_sampled_pages": 21056,
+          "RSS_end_MiB_assuming_4096_byte_pages": 82.25,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "996": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 889109832,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "135476 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "135476 KiB",
+                "drm-purgeable-system0": "83732 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "4608149156 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "176004 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "176004 KiB",
+                "drm-purgeable-system0": "124260 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "5497258988 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        }
+      }
+    },
+    "1080p/vulkan": {
+      "perception": {
+        "unique_output_hz": 6.198936316682676,
+        "unique_outputs": 93,
+        "CPU_ms": 11230.0,
+        "total_four_core_CPU_percent": 18.713455601168402,
+        "CPU_ms_per_output": 120.75268817204301,
+        "receipt_age_p95_ms": 193.054821,
+        "age_semantics": "host receipt ROS time to collector receipt; not exposure age or processing latency",
+        "p95_method": "sorted samples, floor(0.95*(n-1)); same collector estimator"
+      },
+      "source_ID_windows": {
+        "source_frame": {
+          "first": 88,
+          "last": 532,
+          "unique_ids": 93,
+          "missing_between_first_last": 352,
+          "duplicates": 0,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 86,
+          "last": 530,
+          "unique_ids": 93,
+          "missing_between_first_last": 352,
+          "duplicates": 0,
+          "regressions": 0
+        }
+      },
+      "allocation_safety": {
+        "stable": true,
+        "counts": [
+          35
+        ],
+        "samples": 4
+      },
+      "primary_GLX": {
+        "display": 104024820258848,
+        "drawable": 8388612,
+        "dimensions": [
+          {
+            "width": 574,
+            "height": 810
+          }
+        ],
+        "weighted_swap_hz": 31.247725384202948,
+        "min_interval_swap_hz": 30.809229742382843,
+        "max_interval_swap_hz": 31.737736358162827,
+        "covered_seconds": 14.209034243,
+        "interval_count": 14,
+        "interval_swaps": 444,
+        "renderer_record": {
+          "event": "renderer",
+          "display": 104024820258848,
+          "drawable": 8388612,
+          "monotonic_ns": 625393628065546,
+          "total_swaps": 1,
+          "vendor": "Intel",
+          "renderer": "Mesa Intel(R) Graphics (ADL-N)",
+          "version": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.4",
+          "width": 574,
+          "height": 810,
+          "direct": true,
+          "direct_known": true,
+          "metadata_complete": true
+        }
+      },
+      "observer_window": {
+        "begin_monotonic": 625406.316207372,
+        "end_monotonic": 625421.330290424,
+        "seconds": 15.014083052054048,
+        "begin_offset_seconds": -0.044421499012969434,
+        "end_offset_seconds": -0.03291231591720134,
+        "method": "nearest sampled endpoint to each approximate collector bound",
+        "rows": 151
+      },
+      "external_CPU_total_four_core_percent": 8.825047759534867,
+      "approximate_combined_CPU": {
+        "different_accounting_windows": true,
+        "total_four_core_CPU_percent": 27.538503360703267,
+        "perception_percent": 18.713455601168402,
+        "external_targets_percent": 8.825047759534867,
+        "meaning": "approximate sum: perception collector CPU plus deduplicated external targeted-process CPU over separate nearest-row observer window; not same-window accounting; observer excluded"
+      },
+      "host_busy_percent": 29.435897435897434,
+      "sampling_cost_seconds": {
+        "max": 0.009450603043660522,
+        "mean": 0.00526032679088241,
+        "JSON_write_excluded": true
+      },
+      "camera_RSS_HWM_kib": {
+        "VmHWM": "792160 kB",
+        "VmRSS": "345640 kB"
+      },
+      "observer_processes": {
+        "desktop": {
+          "pid": 505310,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "RSS_max_sampled_pages": 3877,
+          "RSS_end_MiB_assuming_4096_byte_pages": 15.14453125,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "keyboard": {
+          "pid": 505309,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "RSS_max_sampled_pages": 2665,
+          "RSS_end_MiB_assuming_4096_byte_pages": 10.41015625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rsp": {
+          "pid": 506944,
+          "starttime_ticks": 62539325,
+          "errors": [],
+          "CPU_ms": 150.0,
+          "total_four_core_CPU_percent": 0.24976550262834532,
+          "RSS_end_pages": 6852,
+          "RSS_max_sampled_pages": 6852,
+          "RSS_end_MiB_assuming_4096_byte_pages": 26.765625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rviz": {
+          "pid": 506946,
+          "starttime_ticks": 62539325,
+          "errors": [],
+          "CPU_ms": 3400.0,
+          "total_four_core_CPU_percent": 5.66135139290916,
+          "RSS_end_pages": 57086,
+          "RSS_max_sampled_pages": 57950,
+          "RSS_end_MiB_assuming_4096_byte_pages": 222.9921875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "1009": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 2533662456,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1009",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "93256 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "79812 KiB",
+                "drm-resident-system0": "93256 KiB",
+                "drm-purgeable-system0": "960 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "4150769116 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1009",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "117880 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "79812 KiB",
+                "drm-resident-system0": "117880 KiB",
+                "drm-purgeable-system0": "17392 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "6684431572 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            },
+            "1010": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 0,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1010",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1010",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "scene": {
+          "pid": 506945,
+          "starttime_ticks": 62539325,
+          "errors": [],
+          "CPU_ms": 520.0,
+          "total_four_core_CPU_percent": 0.8658537424449304,
+          "RSS_end_pages": 16827,
+          "RSS_max_sampled_pages": 16827,
+          "RSS_end_MiB_assuming_4096_byte_pages": 65.73046875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "weston": {
+          "pid": 505292,
+          "starttime_ticks": 62526037,
+          "errors": [],
+          "CPU_ms": 220.0,
+          "total_four_core_CPU_percent": 0.36632273718823977,
+          "RSS_end_pages": 20516,
+          "RSS_max_sampled_pages": 20516,
+          "RSS_end_MiB_assuming_4096_byte_pages": 80.140625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "994": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 200238584,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "284 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "3050088236 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "31624 KiB",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "156 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "3250326820 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "xwayland": {
+          "pid": 505390,
+          "starttime_ticks": 62527097,
+          "errors": [],
+          "CPU_ms": 1010.0,
+          "total_four_core_CPU_percent": 1.6817543843641918,
+          "RSS_end_pages": 21067,
+          "RSS_max_sampled_pages": 21067,
+          "RSS_end_MiB_assuming_4096_byte_pages": 82.29296875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "996": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 444327728,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "137016 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "24336 KiB",
+                "drm-resident-system0": "137016 KiB",
+                "drm-purgeable-system0": "82840 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "6291779624 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "139196 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "30672 KiB",
+                "drm-resident-system0": "139196 KiB",
+                "drm-purgeable-system0": "84828 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "6736107352 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        }
+      }
+    },
+    "1080p/cpu": {
+      "perception": {
+        "unique_output_hz": 13.891725403358437,
+        "unique_outputs": 209,
+        "CPU_ms": 16320.0,
+        "total_four_core_CPU_percent": 27.118774950096853,
+        "CPU_ms_per_output": 78.08612440191388,
+        "receipt_age_p95_ms": 141.207733,
+        "age_semantics": "host receipt ROS time to collector receipt; not exposure age or processing latency",
+        "p95_method": "sorted samples, floor(0.95*(n-1)); same collector estimator"
+      },
+      "source_ID_windows": {
+        "source_frame": {
+          "first": 55,
+          "last": 497,
+          "unique_ids": 209,
+          "missing_between_first_last": 234,
+          "duplicates": 0,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 53,
+          "last": 495,
+          "unique_ids": 209,
+          "missing_between_first_last": 234,
+          "duplicates": 0,
+          "regressions": 0
+        }
+      },
+      "allocation_safety": {
+        "stable": true,
+        "counts": [
+          0
+        ],
+        "samples": 8
+      },
+      "primary_GLX": {
+        "display": 104024820258848,
+        "drawable": 8388612,
+        "dimensions": [
+          {
+            "width": 574,
+            "height": 810
+          }
+        ],
+        "weighted_swap_hz": 31.276623732872427,
+        "min_interval_swap_hz": 30.79086534902964,
+        "max_interval_swap_hz": 31.71451202026537,
+        "covered_seconds": 14.259851185,
+        "interval_count": 14,
+        "interval_swaps": 446,
+        "renderer_record": {
+          "event": "renderer",
+          "display": 104024820258848,
+          "drawable": 8388612,
+          "monotonic_ns": 625393628065546,
+          "total_swaps": 1,
+          "vendor": "Intel",
+          "renderer": "Mesa Intel(R) Graphics (ADL-N)",
+          "version": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.4",
+          "width": 574,
+          "height": 810,
+          "direct": true,
+          "direct_known": true,
+          "metadata_complete": true
+        }
+      },
+      "observer_window": {
+        "begin_monotonic": 625427.83651454,
+        "end_monotonic": 625442.850511683,
+        "seconds": 15.01399714301806,
+        "begin_offset_seconds": -0.005629557999782264,
+        "end_offset_seconds": -0.03655980387702584,
+        "method": "nearest sampled endpoint to each approximate collector bound",
+        "rows": 151
+      },
+      "external_CPU_total_four_core_percent": 12.03876611126531,
+      "approximate_combined_CPU": {
+        "different_accounting_windows": true,
+        "total_four_core_CPU_percent": 39.15754106136217,
+        "perception_percent": 27.118774950096853,
+        "external_targets_percent": 12.03876611126531,
+        "meaning": "approximate sum: perception collector CPU plus deduplicated external targeted-process CPU over separate nearest-row observer window; not same-window accounting; observer excluded"
+      },
+      "host_busy_percent": 44.582982308340355,
+      "sampling_cost_seconds": {
+        "max": 0.011619427939876914,
+        "mean": 0.005813951099858872,
+        "JSON_write_excluded": true
+      },
+      "camera_RSS_HWM_kib": {
+        "VmHWM": "576228 kB",
+        "VmRSS": "576228 kB"
+      },
+      "observer_processes": {
+        "desktop": {
+          "pid": 505310,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3877,
+          "RSS_max_sampled_pages": 3877,
+          "RSS_end_MiB_assuming_4096_byte_pages": 15.14453125,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "keyboard": {
+          "pid": 505309,
+          "starttime_ticks": 62526043,
+          "errors": [],
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2665,
+          "RSS_max_sampled_pages": 2665,
+          "RSS_end_MiB_assuming_4096_byte_pages": 10.41015625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rsp": {
+          "pid": 506944,
+          "starttime_ticks": 62539325,
+          "errors": [],
+          "CPU_ms": 140.0,
+          "total_four_core_CPU_percent": 0.23311580298439052,
+          "RSS_end_pages": 6852,
+          "RSS_max_sampled_pages": 6852,
+          "RSS_end_MiB_assuming_4096_byte_pages": 26.765625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "rviz": {
+          "pid": 506946,
+          "starttime_ticks": 62539325,
+          "errors": [],
+          "CPU_ms": 5310.0,
+          "total_four_core_CPU_percent": 8.84174938462224,
+          "RSS_end_pages": 57019,
+          "RSS_max_sampled_pages": 57137,
+          "RSS_end_MiB_assuming_4096_byte_pages": 222.73046875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "1009": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 4897088976,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1009",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "102104 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "102104 KiB",
+                "drm-purgeable-system0": "1872 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "8672298024 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1009",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "118456 KiB",
+                "drm-shared-system0": "6208 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "118456 KiB",
+                "drm-purgeable-system0": "18288 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "13569387000 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            },
+            "1010": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 0,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1010",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "1010",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "0",
+                "drm-shared-system0": "0",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "0",
+                "drm-purgeable-system0": "0",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "0 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "scene": {
+          "pid": 506945,
+          "starttime_ticks": 62539325,
+          "errors": [],
+          "CPU_ms": 500.0,
+          "total_four_core_CPU_percent": 0.8325564392299661,
+          "RSS_end_pages": 16903,
+          "RSS_max_sampled_pages": 16903,
+          "RSS_end_MiB_assuming_4096_byte_pages": 66.02734375,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {},
+          "DRM_accounting_warnings": []
+        },
+        "weston": {
+          "pid": 505292,
+          "starttime_ticks": 62526037,
+          "errors": [],
+          "CPU_ms": 230.0,
+          "total_four_core_CPU_percent": 0.38297596204578443,
+          "RSS_end_pages": 20516,
+          "RSS_max_sampled_pages": 20516,
+          "RSS_end_MiB_assuming_4096_byte_pages": 80.140625,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "994": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 337551552,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40884 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "40884 KiB",
+                "drm-purgeable-system0": "348 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "3394981928 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "994",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "40820 KiB",
+                "drm-shared-system0": "16 MiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "40820 KiB",
+                "drm-purgeable-system0": "284 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "3732533480 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        },
+        "xwayland": {
+          "pid": 505390,
+          "starttime_ticks": 62527097,
+          "errors": [],
+          "CPU_ms": 1050.0,
+          "total_four_core_CPU_percent": 1.7483685223829288,
+          "RSS_end_pages": 21067,
+          "RSS_max_sampled_pages": 21067,
+          "RSS_end_MiB_assuming_4096_byte_pages": 82.29296875,
+          "RSS_page_size_note": "sampler did not record page size; pages authoritative, MiB assumes4096 bytes",
+          "DRM_clients": {
+            "996": {
+              "engine_delta_ns": {
+                "video-enhance": 0,
+                "video": 0,
+                "render": 774710716,
+                "copy": 0
+              },
+              "start_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "152532 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "152532 KiB",
+                "drm-purgeable-system0": "100788 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "7062717896 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              },
+              "end_fields": {
+                "drm-driver": "i915",
+                "drm-client-id": "996",
+                "drm-pdev": "0000:00:02.0",
+                "drm-total-system0": "160740 KiB",
+                "drm-shared-system0": "36928 KiB",
+                "drm-active-system0": "0",
+                "drm-resident-system0": "160740 KiB",
+                "drm-purgeable-system0": "108996 KiB",
+                "drm-total-stolen-system0": "0",
+                "drm-shared-stolen-system0": "0",
+                "drm-active-stolen-system0": "0",
+                "drm-resident-stolen-system0": "0",
+                "drm-purgeable-stolen-system0": "0",
+                "drm-engine-render": "7837428612 ns",
+                "drm-engine-copy": "0 ns",
+                "drm-engine-video": "0 ns",
+                "drm-engine-video-enhance": "0 ns"
+              }
+            }
+          },
+          "DRM_accounting_warnings": []
+        }
+      }
+    }
+  },
+  "all_profiles_30_unique_perception_outputs": false,
+  "lower_CPU_rate_is_not_uniform_CPU_per_output_efficiency": true,
+  "evidence": {
+    "directory": "evidence/fwmini4-rviz-coexistence-20261027",
+    "raw_archive": "fwmini4-rviz-coexistence-raw-20261027.tar.gz",
+    "raw_archive_sha256": "1f33b4e14ab0db33da14031ca242e624e3b95e8fe00d0a55793034122f9a26b7",
+    "raw_archive_bytes": 344176,
+    "raw_regular_members": 87,
+    "actual_images_private_mesh_assets_ELFs_included": false,
+    "post_matrix_UI_metadata_archive": {
+      "file": "fwmini4-rviz-ui-metadata-20261027.tar.gz",
+      "sha256": "db9bdee33df0eb5de5c9b421fe7cd5c331509f37d38b883455555f6bd3371167",
+      "raw_members": 11,
+      "actual_images_published": false
+    }
+  },
+  "failure_history": [
+    {
+      "directory": "attempt1-kiosk-crash",
+      "scope": "compositor setup before camera; not a timed-camera run"
+    },
+    {
+      "directory": "attempt2-missing-theme",
+      "scope": "compositor/theme setup before camera"
+    },
+    {
+      "directory": "attempt3-theme-parent-path",
+      "scope": "wrong theme parent path before camera; resolved using full runtime/usr/share/weston WESTON_DATA_DIR"
+    }
+  ],
+  "limits": [
+    "six short sequential live observations; no equal-pixel replay,CPU reservation,power control or controlled before/after RViz causal comparison",
+    "RViz swap rate is separate from unique perception throughput, exposure age and physical scanout",
+    "receipt-age p95 is host receipt to collector, not processing/exposure latency",
+    "external observer CPU uses separately reported nearest-row window; combined perception+external CPU is approximate",
+    "sampler ownCPU absent from targeted process sums, included in hostbusy; sampling_cost excludes JSONwrite",
+    "RSS pages authoritative; observer MiB assumes4096-byte pages; HWM includes startup",
+    "DRM engine deltas perprocess/client do not measure power or complete GPU walltime; camera/Vulkan engine counters not sampled",
+    "actual camera RGB is displayed; robot/cloud/brick geometry is synthetic and cannot qualify geometry/control",
+    "markers remain CPUOpenCV; fullgeometry/control/soak/physicalstationacceptance unqualified; no canonicalservice promotion"
+  ],
+  "prior_no_RViz_unique_output_Hz": {
+    "profiles": {
+      "vga": {
+        "vulkan": 30.04592549156735,
+        "cpu": 30.01642932761147
+      },
+      "720p": {
+        "vulkan": 19.0914124721552,
+        "cpu": 29.892594179428603
+      },
+      "1080p": {
+        "vulkan": 8.714178153458924,
+        "cpu": 17.488043072205294
+      }
+    },
+    "causal_controlled_comparison": false,
+    "notes": "sequential separate live inputs; addition includes RViz graphics,ROSImagecompat serialization/upload,synthetic scene and compositor; VGA earlier sourcecheckpoint0542 versus current5344",
+    "source_notes": [
+      "fwmini4-camera-live-20261027.json",
+      "fwmini4-high-resolution-20261027.json"
+    ]
+  },
+  "baseline_before_future_profile_frameskip_changes": true,
+  "independent_offline_analysis_review": {
+    "approved": true,
+    "tests_passed": 17,
+    "source_sha256": "3a4b3acf02d7b73be58076c5c9c3fb165ba07c3d2ab99c2ed2f470b163a00ffc",
+    "complete_six_run_subtrees_unchanged": true,
+    "proof": "review/analyzer/review-proof-final.json"
+  }
+}

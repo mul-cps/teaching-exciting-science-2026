@@ -1,0 +1,56 @@
+{
+  "cloud_payload_bytes": 320000,
+  "cloud_payload_sha256": "b8c572293b23445db0a433c6c1305a02a51f395bbc71914cca2c8a605c1c5a15",
+  "estimated_helper_and_serialization_cpu_ms_per_second": 0.5638945117,
+  "gpu_or_usb": false,
+  "helper_warmup_iterations": 1000,
+  "hot_message_payload_identity_stable": true,
+  "iterations_per_trial": 100000,
+  "joint_update_median_ns": 297.82174,
+  "joint_update_samples_ns": [
+    371.85413,
+    317.24924,
+    297.82174,
+    297.19907,
+    296.36329,
+    294.47393,
+    306.0843
+  ],
+  "point_count": 20000,
+  "ros_serialization_allocates_by_design": true,
+  "scope": "native ROS message update + native rclpy serialization; excludes Node, DDS publication/transport, robot_state_publisher, actual resident RGB, RViz, driver and GPU",
+  "serialization": {
+    "cloud": {
+      "bytes": 320141,
+      "mean_ns": 18066.229,
+      "samples": 1000,
+      "target_hz": 10
+    },
+    "joints": {
+      "bytes": 196,
+      "mean_ns": 2818.32,
+      "samples": 1000,
+      "target_hz": 30
+    },
+    "markers": {
+      "bytes": 1117,
+      "mean_ns": 28009.073,
+      "samples": 1000,
+      "target_hz": 10
+    }
+  },
+  "steady_helper_python_tracemalloc_current_bytes": 416,
+  "steady_helper_python_tracemalloc_peak_bytes": 600,
+  "trials": 7,
+  "visual_scene_sha256": "bda5b2263beb6f34591c58dbdf08befb89ed6cbed0582a09b2c9e283bd248889",
+  "world_update_median_ns": 965.72395,
+  "world_update_samples_ns": [
+    968.41072,
+    982.12435,
+    982.16934,
+    965.72395,
+    959.89838,
+    948.43298,
+    882.2095
+  ]
+}

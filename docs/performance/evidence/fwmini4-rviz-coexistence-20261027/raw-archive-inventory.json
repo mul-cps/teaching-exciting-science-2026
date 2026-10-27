@@ -1,0 +1,437 @@
+[
+  {
+    "file": "logs/processes-720p.jsonl",
+    "bytes": 1606466,
+    "sha256": "91f4c20d35abdbe88dbc4efa9de9e6dc50731c5feb9febfacd87a14b46b6cce2"
+  },
+  {
+    "file": "logs/pids-vga.json",
+    "bytes": 93,
+    "sha256": "ec0d3ad786c1f401393e3e6125f589798c52727fe1e052a2613eec52ef356995"
+  },
+  {
+    "file": "logs/pids-1080p.json",
+    "bytes": 95,
+    "sha256": "ba8d2715a2d60b0ee189a3dd5393fd2aa62e2bf70b1de270daab42110aa1c0a8"
+  },
+  {
+    "file": "logs/probe-ready-1080p.json",
+    "bytes": 1386,
+    "sha256": "5c9b3ba4bdfaedc56bcdc2c27897fbfb430209074ec642a35c854f2890a955b7"
+  },
+  {
+    "file": "logs/camera-720p-vulkan.log",
+    "bytes": 2195,
+    "sha256": "579595cee7a6a21d57d40caaee99d06019b083f14a18c6245a41977647c53fc7"
+  },
+  {
+    "file": "logs/rsp-vga.log",
+    "bytes": 677,
+    "sha256": "6e55c448fbef9710d461baf4b2b89a8c4bba39361b530e1807a77d7564916685"
+  },
+  {
+    "file": "logs/processes-1080p.jsonl",
+    "bytes": 1613107,
+    "sha256": "3182548d20c07569976856a73437cc4dd49af9cd5bfad517cffb1a08a12776fc"
+  },
+  {
+    "file": "logs/camera-vga-vulkan.log",
+    "bytes": 2181,
+    "sha256": "0b206e78574c0a6cd72b5a12476ff6796360e51380aae1150646dc247d69b1c2"
+  },
+  {
+    "file": "logs/scene-720p.log",
+    "bytes": 2433,
+    "sha256": "427bb5465ee767ef11a7dbeca66f42c650176a91dfb63640d23718b5733033b4"
+  },
+  {
+    "file": "logs/camera-1080p-vulkan.log",
+    "bytes": 2194,
+    "sha256": "a8e9268eafc2d0089570d1f119185de88d96fa12918ea339a9210fb622d061ce"
+  },
+  {
+    "file": "logs/sampler-vga.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "logs/sampler-1080p.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "logs/rsp-720p.log",
+    "bytes": 677,
+    "sha256": "08317b28ee706342225fa06a1c7e567b174e3ec695790612343fd7fdc82f7a30"
+  },
+  {
+    "file": "logs/rviz-1080p.log",
+    "bytes": 34491,
+    "sha256": "183b9b7cc7babec97dd573e4b3d113dbee4aef264e7f86a0514025b2691509a7"
+  },
+  {
+    "file": "logs/rviz-vga.log",
+    "bytes": 40381,
+    "sha256": "955e0092582407c6ff2dd3df2d334d5bfac9835549da1440afab9ffb1484acaa"
+  },
+  {
+    "file": "logs/processes-vga.jsonl",
+    "bytes": 1915639,
+    "sha256": "e9429179afe41b14ddfdf9dfda93bf55b9b35a5f579a239424692ffe3787495d"
+  },
+  {
+    "file": "logs/camera-1080p-cpu.log",
+    "bytes": 2166,
+    "sha256": "f7f6441118e307dbc84a2793e141910cb09191edd6e50c56c935db22f3db8bee"
+  },
+  {
+    "file": "logs/scene-vga.log",
+    "bytes": 2432,
+    "sha256": "a13ef0545c0a8d3149a2ef95ff3d9ca45f30cb04942a10b979f35fc8e9354cad"
+  },
+  {
+    "file": "logs/pids-720p.json",
+    "bytes": 94,
+    "sha256": "ee78593c27a4a5fa6363dbb6db4743e8b4ef1d2c05dc4f81a67e191549716ee7"
+  },
+  {
+    "file": "logs/scene-1080p.log",
+    "bytes": 2434,
+    "sha256": "cea1ba02ccee0955247bdc1aa519e9254ad6e9110cf731011e5b8ebabdf654b3"
+  },
+  {
+    "file": "logs/probe-ready-720p.json",
+    "bytes": 1382,
+    "sha256": "54de2ca90185b263d8893d89939ef9d0dcc16f68827ab117c9aa3bcc316bfd1c"
+  },
+  {
+    "file": "logs/rviz-720p.log",
+    "bytes": 34246,
+    "sha256": "051de904b83becd273f6d93a19ee501847eae781c171aa6a2bf563d21450eab9"
+  },
+  {
+    "file": "logs/probe-ready-vga.json",
+    "bytes": 1387,
+    "sha256": "e5e240e7ff1977f947bf173fee0715036a27e64beba26bbb2752f9a6831f42d1"
+  },
+  {
+    "file": "logs/rsp-1080p.log",
+    "bytes": 677,
+    "sha256": "045681099f4b6ba8bdc60ed9d225dd93bf5fd9932abbd39ef582575b12d8b776"
+  },
+  {
+    "file": "logs/camera-720p-cpu.log",
+    "bytes": 2161,
+    "sha256": "25bacd2675730bb55bd4233bc3b4f04fdb9794efa75ffaab00c51270e1643c0d"
+  },
+  {
+    "file": "logs/camera-vga-cpu.log",
+    "bytes": 2150,
+    "sha256": "b9298c5e5a03abfb55dcf5fd87a95b21150b8ae53038318c290e849207715f9c"
+  },
+  {
+    "file": "logs/sampler-720p.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "vulkan/live/vga/vulkan.json",
+    "bytes": 322725,
+    "sha256": "41fc5db95abf155c6a993dae6a5d179bcb0d54013a61d36c6ad74136f03fc878"
+  },
+  {
+    "file": "vulkan/live/vga/vulkan.launch.log",
+    "bytes": 2657,
+    "sha256": "4b4b9d84ec0269ca368c3285d2aa24cfcc8a9d762e7a34bede968dccb5c8d0eb"
+  },
+  {
+    "file": "vulkan/live/vga/vulkan.collector.log",
+    "bytes": 1726,
+    "sha256": "3243212babd1490b7c00b0bd2f5cb2988e0a303ed33e2597c67b7667741b8d44"
+  },
+  {
+    "file": "vulkan/live/vga/vulkan.runner.json",
+    "bytes": 2505,
+    "sha256": "4a240bf62bd23a25f984deb42b1c502e6d749b1b35bc7605899380f26e0415b4"
+  },
+  {
+    "file": "vulkan/live/720p/vulkan.collector.log",
+    "bytes": 1735,
+    "sha256": "c308fbb01fa248175cad90b1017ee83adc3ab32bc6a6f560ceaed9094bf71017"
+  },
+  {
+    "file": "vulkan/live/720p/vulkan.json",
+    "bytes": 147844,
+    "sha256": "dab192b2d8c060161d7d0b0d0efefe9aed7281af164c5061111a231b7e43634f"
+  },
+  {
+    "file": "vulkan/live/720p/vulkan.launch.log",
+    "bytes": 2657,
+    "sha256": "54d5a971663acf30a05cf169ae55814b6b74a297a94243e2ff49c3bdc316900b"
+  },
+  {
+    "file": "vulkan/live/720p/vulkan.runner.json",
+    "bytes": 2519,
+    "sha256": "6c5d2c33714d6e09322b4bb46f5d6f537bb1e1ea15333abf503891be53343a9d"
+  },
+  {
+    "file": "vulkan/live/1080p/vulkan.json",
+    "bytes": 69312,
+    "sha256": "62ca59a759a25884f8b0a169f6afa098c609c46903a15e8790615167dd64f053"
+  },
+  {
+    "file": "vulkan/live/1080p/vulkan.collector.log",
+    "bytes": 1734,
+    "sha256": "174f004bf768e3259e6ecac1217f36f2d9170a8c9b00ac8f0e73768d856c44d1"
+  },
+  {
+    "file": "vulkan/live/1080p/vulkan.launch.log",
+    "bytes": 2657,
+    "sha256": "45ff23c08da26d7f9626d70e8f4b1bf0d3af7afcd760f308587cfbba8d243fe8"
+  },
+  {
+    "file": "vulkan/live/1080p/vulkan.runner.json",
+    "bytes": 2518,
+    "sha256": "9fd1d6cccb4688f524569f713e63d6b7b54b214ed9fe3badb72deebd956bb784"
+  },
+  {
+    "file": "system-cpu/live/vga/cpu.runner.json",
+    "bytes": 2466,
+    "sha256": "c1606a05be74d13a84df8593a22278aabc36ef3c52edf7468a96b4508d729fa5"
+  },
+  {
+    "file": "system-cpu/live/vga/cpu.launch.log",
+    "bytes": 2562,
+    "sha256": "a0dddbec46a245c46ca9ff9b55c5e0af8afe7fbccec1b57175c5b0f5bb67f40a"
+  },
+  {
+    "file": "system-cpu/live/vga/cpu.collector.log",
+    "bytes": 1702,
+    "sha256": "28b9359ad461c9d4cbdcf0159769c821992782b10e1df64c1e4dca49fc8092e1"
+  },
+  {
+    "file": "system-cpu/live/vga/cpu.json",
+    "bytes": 320681,
+    "sha256": "f119d9ba02219e7c558bc604618d5938f0827285f1cc3cafe43b319792515ab4"
+  },
+  {
+    "file": "system-cpu/live/720p/cpu.runner.json",
+    "bytes": 2477,
+    "sha256": "6bb751ad9427bbc5437cf60d53e00698faa50a7147911b184e1fa9659daa7ee3"
+  },
+  {
+    "file": "system-cpu/live/720p/cpu.json",
+    "bytes": 272691,
+    "sha256": "aff26e2381e2a9900d79060e152dbb3569625a98d7f0d76d0e7a3df3344ad5be"
+  },
+  {
+    "file": "system-cpu/live/720p/cpu.collector.log",
+    "bytes": 1708,
+    "sha256": "cbfded5331c84229fd802915899facef6f5abd77f42475bb534400f856ac4352"
+  },
+  {
+    "file": "system-cpu/live/720p/cpu.launch.log",
+    "bytes": 2562,
+    "sha256": "f96ad947b2f638dc022232a8d57a7e3f62092db907e87529ca2a8d3e69a23ead"
+  },
+  {
+    "file": "system-cpu/live/1080p/cpu.json",
+    "bytes": 151028,
+    "sha256": "7d4f89c8fd5498d1c8c00c4fe634c968903ade866f1bf669ef3c839c92cfd8ce"
+  },
+  {
+    "file": "system-cpu/live/1080p/cpu.runner.json",
+    "bytes": 2482,
+    "sha256": "3e76bfc325a5feb6a5212306fa55c50f7aceb94667eaae9ac6e8f5f6c4513a09"
+  },
+  {
+    "file": "system-cpu/live/1080p/cpu.collector.log",
+    "bytes": 1711,
+    "sha256": "bc5ae6f527d1ab0ba1c8810e24fef021b713f3b628906308635ff354ba3bde71"
+  },
+  {
+    "file": "system-cpu/live/1080p/cpu.launch.log",
+    "bytes": 2562,
+    "sha256": "8bce2d4a89d5f0e61e51338e33672561b43570023448173ff29c3e5eafd38a09"
+  },
+  {
+    "file": "attempt1-kiosk-crash/weston.stdout",
+    "bytes": 1542,
+    "sha256": "6d6487b6c100b8f3da76ae01f9fce0e7a978b23c948d7bb5f0f60c4c2c0bebe5"
+  },
+  {
+    "file": "attempt1-kiosk-crash/weston.log",
+    "bytes": 13042,
+    "sha256": "1692c06990c1346ce68e39927a148f9ad32bcd554ee7dfae07191ee2c0effe18"
+  },
+  {
+    "file": "attempt1-kiosk-crash/logs/scene-vga.log",
+    "bytes": 2432,
+    "sha256": "602dbeaf83ea63219033e01bdecc3c17f68e65240dc4e98099206b65a462cb2c"
+  },
+  {
+    "file": "attempt1-kiosk-crash/logs/rviz-vga.log",
+    "bytes": 2544,
+    "sha256": "882f6b5a866b4c3a73743cbf2d97187f6208acb6d8fcf3624ba3002ffcda943b"
+  },
+  {
+    "file": "attempt1-kiosk-crash/logs/rsp-vga.log",
+    "bytes": 677,
+    "sha256": "b5251b1163088c105b4022b458deff4bc3c1e181b371ea02da59ff2ae4a2319d"
+  },
+  {
+    "file": "attempt1-kiosk-crash/logs/sampler-vga.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "attempt1-kiosk-crash/logs/processes-vga.jsonl",
+    "bytes": 143019,
+    "sha256": "27d1e438d0db0fdbe135971b48994aed9ad36e22521a9656adb95023d77d6e76"
+  },
+  {
+    "file": "attempt1-kiosk-crash/logs/pids-vga.json",
+    "bytes": 93,
+    "sha256": "dc0fb5ced157abe1ecb3afdf99a8dd96ab47b4dc6ba1127a11a9329a2070ea51"
+  },
+  {
+    "file": "attempt1-kiosk-crash/logs/probe-ready-vga.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "attempt2-missing-theme/weston.log",
+    "bytes": 17183,
+    "sha256": "7a92527dd4f5b35815966576779589bd124218e80841693ee2aafe1d22fe2d95"
+  },
+  {
+    "file": "attempt2-missing-theme/weston.stdout",
+    "bytes": 1599,
+    "sha256": "619c532bff7f63816fcec75d727fa0d7bda310f4134322baf5d6bbf32ab49ca6"
+  },
+  {
+    "file": "attempt2-missing-theme/logs/rsp-vga.log",
+    "bytes": 677,
+    "sha256": "135ead43188f0c521ca9ad108f118bd8da44ddb90cb84f91c84405b7cfef1a4f"
+  },
+  {
+    "file": "attempt2-missing-theme/logs/scene-vga.log",
+    "bytes": 2432,
+    "sha256": "8ec496ad955dfb06addc9f2c4ce79b540421440e5c67b2ca34ff6c3b9d627779"
+  },
+  {
+    "file": "attempt2-missing-theme/logs/sampler-vga.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "attempt2-missing-theme/logs/probe-ready-vga.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "attempt2-missing-theme/logs/processes-vga.jsonl",
+    "bytes": 162969,
+    "sha256": "b69f4d8d50c6d1a4d787fdd55b158a2f749b7107be2bf5f15c6854eae411f472"
+  },
+  {
+    "file": "attempt2-missing-theme/logs/pids-vga.json",
+    "bytes": 93,
+    "sha256": "ad41bfb4aa412f5420f0259c62ad9346ed5ee2c536da811136c20c83fd18c00a"
+  },
+  {
+    "file": "attempt2-missing-theme/logs/rviz-vga.log",
+    "bytes": 2544,
+    "sha256": "92e90e39141aab6b2aa2af0f6028188bc2591ea7ceec1e7d9d7c9c3e086991fc"
+  },
+  {
+    "file": "attempt3-theme-parent-path/weston.stdout",
+    "bytes": 1679,
+    "sha256": "aaa66f82b25699948b47db4128e4038b958ecd05a38e231af5ffd81b63a7b391"
+  },
+  {
+    "file": "attempt3-theme-parent-path/logs/pids-vga.json",
+    "bytes": 93,
+    "sha256": "ccb0783fea0fd2c14bef7d78982307a95f3072048674362d1098d61b681e78fc"
+  },
+  {
+    "file": "attempt3-theme-parent-path/logs/rsp-vga.log",
+    "bytes": 677,
+    "sha256": "882666f122ea5dc501791261b379c2459ded7eb5a19222e554f7cc9be41a13ed"
+  },
+  {
+    "file": "attempt3-theme-parent-path/logs/rviz-vga.log",
+    "bytes": 2544,
+    "sha256": "b378a7f1509e5ac4b1f2503c2bc6b283ffa17139b66b46c8120803a0a2c80ea9"
+  },
+  {
+    "file": "attempt3-theme-parent-path/logs/processes-vga.jsonl",
+    "bytes": 161234,
+    "sha256": "5a0fbf34d67c95f4e88db66d5f5f30beed3ba8c6072d01afd48bbc1f931bce8c"
+  },
+  {
+    "file": "attempt3-theme-parent-path/logs/probe-ready-vga.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "attempt3-theme-parent-path/logs/scene-vga.log",
+    "bytes": 2432,
+    "sha256": "3ac56761395ac9f78539173b3fc37b0e4eec4a1f2173b1bae93d834622254b2e"
+  },
+  {
+    "file": "attempt3-theme-parent-path/logs/sampler-vga.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "attempt3-theme-parent-path/weston.log",
+    "bytes": 21324,
+    "sha256": "f810e859e60d7eda8c27827bbb7d0b049daefa2818395a1a5da4ec59488bd506"
+  },
+  {
+    "file": "weston.log",
+    "bytes": 25465,
+    "sha256": "7a98ee46ec4d38de7c0e866d9cb8155f480e0218888a56f8c30939ff8d8c8dbb"
+  },
+  {
+    "file": "weston.stdout",
+    "bytes": 1352,
+    "sha256": "d2118c52a34aec5b093e0f7bc405fe47d8a68a52d194265c592ae381bc592e92"
+  },
+  {
+    "file": "weston.ini",
+    "bytes": 306,
+    "sha256": "716a2e2aa4c79fc3fa82363f1b886f5a995f90a980f3b0747d43e63555d2b707"
+  },
+  {
+    "file": "native-probe-host-test.json",
+    "bytes": 2175,
+    "sha256": "ca27d50612bbbab2b374a2872f8c31e399be071225ba38ede37cd2e6b9bfda54"
+  },
+  {
+    "file": "current-native-library-maps.json",
+    "bytes": 54,
+    "sha256": "8cc7e3b7b4c0bcf3bab9d355709523d69c44f5f5e4968d8b96ab6433d1134cd7"
+  },
+  {
+    "file": "fwmini4-rviz-matrix-20261027.sh",
+    "bytes": 3195,
+    "sha256": "9a4280e2e02453e27779c128fa40542f7b2d17f36188368f44e1dcff12c186bd"
+  },
+  {
+    "file": "fwmini4-rviz-weston-start-20261027.sh",
+    "bytes": 1033,
+    "sha256": "86acecad0e46d58a10344efa73de69fe0691ea0d7e7f0ca786fd966dfb1c827f"
+  },
+  {
+    "file": "rviz-check-probe-ready-20261027.py",
+    "bytes": 1029,
+    "sha256": "9b10cc46d41a01926e04c801a96f6f086ab23d7b8a06a575395e39c44c33865e"
+  },
+  {
+    "file": "rviz-process-sampler-20261027.py",
+    "bytes": 1670,
+    "sha256": "90a3ad08c31a4a07b5cebf62033e74ef60d7165ec8af5f056def171ac4eb83f3"
+  }
+]

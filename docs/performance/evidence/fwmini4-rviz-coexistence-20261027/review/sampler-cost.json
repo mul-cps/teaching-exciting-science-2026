@@ -1,0 +1,63 @@
+{
+  "source_sha256": "90a3ad08c31a4a07b5cebf62033e74ef60d7165ec8af5f056def171ac4eb83f3",
+  "scope": "local host, two idle targets and one missing PID, /dev/null FD populations; real /proc accounting; no DRM driver/GPU/ROS",
+  "sampling_cost_field_scope": "collection excludes JSON serialization/write; full observer CPU is independently measured via /proc over steady2s; tick quantized",
+  "results": [
+    {
+      "open_extra_FDs_per_target": 32,
+      "fixed_targets": 3,
+      "live_targets": 2,
+      "seconds": 2.0003714580016094,
+      "samples": 20,
+      "sample_hz": 9.998143054880515,
+      "proc_read_cost_p50_ms": 0.7874629991420079,
+      "proc_read_cost_max_ms": 1.3885870030208025,
+      "observer_CPU_ms": 20.0,
+      "observer_fraction_one_core": 0.009998143054880514,
+      "CPU_tick_ms": 10.0,
+      "PID_starttime_stable": true,
+      "observer_RSS_bytes": 12902400,
+      "GPU_executed": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/tmp/rviz-process-sampler-20261027.py",
+        "--pid",
+        "camera:902466",
+        "--pid",
+        "rviz:902467",
+        "--pid",
+        "missing:999999999",
+        "--output",
+        "/tmp/rviz-independent-review-20261027/sampler-fd32.jsonl"
+      ]
+    },
+    {
+      "open_extra_FDs_per_target": 128,
+      "fixed_targets": 3,
+      "live_targets": 2,
+      "seconds": 2.0002588649986137,
+      "samples": 20,
+      "sample_hz": 9.998705842512969,
+      "proc_read_cost_p50_ms": 2.252293001220096,
+      "proc_read_cost_max_ms": 2.8347510015009902,
+      "observer_CPU_ms": 50.0,
+      "observer_fraction_one_core": 0.024996764606282425,
+      "CPU_tick_ms": 10.0,
+      "PID_starttime_stable": true,
+      "observer_RSS_bytes": 13074432,
+      "GPU_executed": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/tmp/rviz-process-sampler-20261027.py",
+        "--pid",
+        "camera:902633",
+        "--pid",
+        "rviz:902634",
+        "--pid",
+        "missing:999999999",
+        "--output",
+        "/tmp/rviz-independent-review-20261027/sampler-fd128.jsonl"
+      ]
+    }
+  ]
+}

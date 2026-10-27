@@ -1,0 +1,86 @@
+{
+  "passed": true,
+  "GPU_executed": false,
+  "real_driver_used": false,
+  "calls_per_sample": 500000,
+  "samples": {
+    "baseline": [
+      {
+        "calls": 500000,
+        "elapsed_ns": 705203,
+        "ns_per_call": 1.410406,
+        "hot_heap_allocations": 0,
+        "hot_metadata_queries": 0
+      },
+      {
+        "calls": 500000,
+        "elapsed_ns": 975300,
+        "ns_per_call": 1.9506,
+        "hot_heap_allocations": 0,
+        "hot_metadata_queries": 0
+      },
+      {
+        "calls": 500000,
+        "elapsed_ns": 967344,
+        "ns_per_call": 1.934688,
+        "hot_heap_allocations": 0,
+        "hot_metadata_queries": 0
+      },
+      {
+        "calls": 500000,
+        "elapsed_ns": 1037977,
+        "ns_per_call": 2.075954,
+        "hot_heap_allocations": 0,
+        "hot_metadata_queries": 0
+      },
+      {
+        "calls": 500000,
+        "elapsed_ns": 705153,
+        "ns_per_call": 1.410306,
+        "hot_heap_allocations": 0,
+        "hot_metadata_queries": 0
+      }
+    ],
+    "probe": [
+      {
+        "calls": 500000,
+        "elapsed_ns": 10221653,
+        "ns_per_call": 20.443306,
+        "hot_heap_allocations": 0,
+        "hot_metadata_queries": 0
+      },
+      {
+        "calls": 500000,
+        "elapsed_ns": 13649804,
+        "ns_per_call": 27.299608,
+        "hot_heap_allocations": 0,
+        "hot_metadata_queries": 0
+      },
+      {
+        "calls": 500000,
+        "elapsed_ns": 13628353,
+        "ns_per_call": 27.256706,
+        "hot_heap_allocations": 0,
+        "hot_metadata_queries": 0
+      },
+      {
+        "calls": 500000,
+        "elapsed_ns": 13405355,
+        "ns_per_call": 26.81071,
+        "hot_heap_allocations": 0,
+        "hot_metadata_queries": 0
+      },
+      {
+        "calls": 500000,
+        "elapsed_ns": 10234727,
+        "ns_per_call": 20.469454,
+        "hot_heap_allocations": 0,
+        "hot_metadata_queries": 0
+      }
+    ]
+  },
+  "baseline_median_ns": 1.934688,
+  "probe_median_ns": 26.81071,
+  "incremental_median_ns": 24.876022,
+  "scope": "local host fake real-swap body; real libc monotonic clock; steady no-log hot path only; not RViz/driver/display performance"
+}

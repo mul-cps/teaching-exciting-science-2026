@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/tmp/rviz-coexistence-probe-20261027/test_probe.py", line 41, in <module>
+    if __name__=='__main__':check()
+                            ~~~~~^^
+  File "/tmp/rviz-coexistence-probe-20261027/test_probe.py", line 17, in check
+    assert len(first)==2 and len(summary)==2,rows
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: []

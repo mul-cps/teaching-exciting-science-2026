@@ -1,0 +1,22 @@
+{
+  "profile_and_runner_mismatch": {
+    "errors": [],
+    "reported_window": {
+      "begin_monotonic_approx": 10,
+      "end_monotonic_approx": 12.0,
+      "steady_seconds": 2.0,
+      "method": "first matching experimental status receipt + reported steady duration; actual collector begin immediately follows status receipt",
+      "begin_offset_uncertainty": "microseconds expected but not recorded/measured; no exact bound asserted"
+    }
+  },
+  "outside_window_measurements": {
+    "errors": [],
+    "reported_window": {
+      "begin_monotonic_approx": 10,
+      "end_monotonic_approx": 12.0,
+      "steady_seconds": 2.0,
+      "method": "first matching experimental status receipt + reported steady duration; actual collector begin immediately follows status receipt",
+      "begin_offset_uncertainty": "microseconds expected but not recorded/measured; no exact bound asserted"
+    }
+  }
+}

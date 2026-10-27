@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "imports": [
+    "argparse",
+    "json",
+    "os",
+    "pathlib",
+    "signal",
+    "time"
+  ],
+  "source_sha256": "90a3ad08c31a4a07b5cebf62033e74ef60d7165ec8af5f056def171ac4eb83f3",
+  "scope": "fixed PID plus /proc/stat/fdinfo only; local file JSON output; no ROS/pixels/GPU/network"
+}

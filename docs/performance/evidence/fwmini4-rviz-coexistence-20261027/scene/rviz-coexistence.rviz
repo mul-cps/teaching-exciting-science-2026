@@ -1,0 +1,124 @@
+Panels:
+- Class: rviz_common/Displays
+  Name: Displays
+- Class: rviz_common/Views
+  Name: Views
+Visualization Manager:
+  Class: ''
+  Displays:
+  - Class: rviz_default_plugins/Grid
+    Enabled: true
+    Name: Grid
+    Plane: XY
+    Plane Cell Count: 20
+    Cell Size: 0.05
+    Reference Frame: <Fixed Frame>
+    Value: true
+  - Class: rviz_default_plugins/TF
+    Enabled: true
+    Name: Selected robot and board frames
+    Frames:
+      All Enabled: false
+      base_link:
+        Value: true
+      gripper_frame_link:
+        Value: true
+      charuco_board:
+        Value: true
+    Show Arrows: false
+    Show Axes: true
+    Show Names: false
+    Marker Scale: 0.04
+    Update Interval: 0.1
+    Value: true
+  - Alpha: 1
+    Class: rviz_default_plugins/RobotModel
+    Collision Enabled: false
+    Description Source: Topic
+    Description Topic:
+      Depth: 5
+      Durability Policy: Transient Local
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /follower/robot_description
+    Enabled: true
+    Name: Follower robot model
+    TF Prefix: ''
+    Update Interval: 0
+    Value: true
+    Visual Enabled: true
+  - Alpha: 0.9
+    Class: rviz_default_plugins/PointCloud2
+    Color Transformer: RGB8
+    Enabled: true
+    Name: SYNTHETIC 20k world surface
+    Position Transformer: XYZ
+    Selectable: true
+    Size (Pixels): 2
+    Size (m): 0.003
+    Style: Points
+    Topic:
+      Depth: 3
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Best Effort
+      Value: /rviz_coexistence_scene/synthetic_world_points
+    Use Fixed Frame: true
+    Value: true
+  - Class: rviz_default_plugins/Image
+    Enabled: true
+    Name: Resident camera RGB (actual)
+    Normalize Range: true
+    Topic:
+      Depth: 2
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Best Effort
+      Value: /station/resident/frame
+    Value: true
+  - Class: rviz_default_plugins/MarkerArray
+    Enabled: true
+    Name: SYNTHETIC colored bricks
+    Topic:
+      Depth: 3
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /rviz_coexistence_scene/synthetic_bricks
+    Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 38; 42; 48
+    Fixed Frame: charuco_board
+    Frame Rate: 30
+  Name: resident_camera_RViz_coexistence
+  Tools:
+  - Class: rviz_default_plugins/MoveCamera
+  - Class: rviz_default_plugins/Interact
+  - Class: rviz_default_plugins/Select
+  - Class: rviz_default_plugins/FocusCamera
+  - Class: rviz_default_plugins/Measure
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 1.15
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0.12
+      Pitch: 0.35
+      Yaw: 0.4
+      Target Frame: <Fixed Frame>
+Window Geometry:
+  Width: 1600
+  Height: 900
+  X: 0
+  Y: 0
+  Displays:
+    collapsed: false
+  Views:
+    collapsed: false
+  Resident camera RGB (actual):
+    collapsed: false
+  QMainWindow State: 000000ff00000000fd00000002000000000000010400000384fc0200000001fb000000100044006900730070006c0061007900730100000000000003840000001a00ffffff000000010000028000000384fc0200000002fb00000038005200650073006900640065006e0074002000630061006d00650072006100200052004700420020002800610063007400750061006c00290100000000000001760000001a00fffffffb0000000a00560069006500770073010000017c000002080000001a00ffffff000002b00000038400000004000000040000000800000008fc00000000

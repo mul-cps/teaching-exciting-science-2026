@@ -1,0 +1,48 @@
+{
+  "errors": [],
+  "container_pid": 496750,
+  "window": {
+    "begin_monotonic_approx": 622881.625104142,
+    "end_monotonic_approx": 622896.658041093,
+    "steady_seconds": 15.032936951029114,
+    "method": "first matching experimental status receipt + reported steady duration; actual collector begin immediately follows status receipt",
+    "begin_offset_uncertainty": "microseconds expected but not recorded/measured; no exact bound asserted"
+  },
+  "metrics": {
+    "unique_output_hz": 19.0914124721552,
+    "unique_outputs": 287,
+    "CPU_ms": 5860.0,
+    "total_four_core_CPU_percent": 9.745268038922427,
+    "CPU_ms_per_output": 20.418118466898953,
+    "receipt_age_p95_ms": 82.543386,
+    "age_semantics": "host receipt ROS time to collector receipt; not exposure age or processing latency",
+    "p95_method": "sorted samples, floor(0.95*(n-1)); same collector estimator"
+  },
+  "source_ID_windows": {
+    "source_frame": {
+      "first": 67,
+      "last": 514,
+      "unique_ids": 287,
+      "missing_between_first_last": 161,
+      "duplicates": 0,
+      "regressions": 0
+    },
+    "depth_source_frame": {
+      "first": 64,
+      "last": 511,
+      "unique_ids": 287,
+      "missing_between_first_last": 161,
+      "duplicates": 0,
+      "regressions": 0
+    }
+  },
+  "allocation_safety": {
+    "stable": true,
+    "counts": [
+      35
+    ],
+    "samples": 10
+  },
+  "physical_camera_capture": true,
+  "producer_periodic_counters_not_used_for_throughput": true
+}

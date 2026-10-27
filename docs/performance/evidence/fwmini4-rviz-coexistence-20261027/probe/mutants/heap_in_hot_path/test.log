@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/tmp/rviz-independent-review-20261027/glx/mutants/heap_in_hot_path/test_probe.py", line 45, in <module>
+    if __name__=='__main__':check()
+                            ~~~~~^^
+  File "/tmp/rviz-independent-review-20261027/glx/mutants/heap_in_hot_path/test_probe.py", line 15, in check
+    assert not re.search(r'\b'+forbidden+r'\s*\(',source),forbidden
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: malloc
