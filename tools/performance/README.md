@@ -270,6 +270,51 @@ and compares four output words per row exactly. Preserve nonzero exits and parti
 artifacts. Even a successful primitive run does not qualify preparation coordinates,
 transfer-inclusive performance, full object reports or station operation.
 
+## Software binary64 division and square-root diagnostic
+
+The separate [division/square-root probe](soft_binary64_divsqrt_probe.slang)
+uses `SF64D001` and generator `native-volatile-ieee754-rne-divsqrt-v1`.
+The existing `SF64P001` generator, primitive probe and seven-word row ABI remain
+unchanged. Both formats have a 24-byte header and 56-byte rows: input binary64
+`a`, input binary64 `b`, input binary32 encoding, then four expected output words.
+For D001 those outputs are `a / b`, `sqrt(a)`, widened binary32 and the existing
+ordered-comparison/finiteness flags. The helper fixes round-to-nearest ties-even,
+gradual underflow and canonical NaNs; it does not model exception flags.
+
+Using the CPU-only executable and offline compiler variables above:
+
+```bash
+mkdir "$task_prefix/testfloat-divsqrt"
+for task_operation in f64_div f64_sqrt f32_to_f64; do
+  "$task_testfloat_gen" -level 1 -rnear_even -tininessafter "$task_operation" \
+    > "$task_prefix/testfloat-divsqrt/$task_operation.txt"
+done
+"$task_prefix/qualify-sf64-cpu" --generate-divsqrt "$task_prefix/divsqrt.bin" \
+  --count 1100000 --seed 17 --testfloat-dir "$task_prefix/testfloat-divsqrt"
+"$task_prefix/qualify-sf64-cpu" --validate "$task_prefix/divsqrt.bin"
+"$task_slang" tools/performance/soft_binary64_divsqrt_probe.slang \
+  -entry main -stage compute -target spirv -profile sm_6_0 -fp-mode precise -O2 \
+  -I ros2/src/so101_station_vulkan/shaders -o "$task_prefix/divsqrt.spv"
+spirv-val --target-env vulkan1.1 "$task_prefix/divsqrt.spv"
+"$task_prefix/qualify-sf64-cpu" --validate-spirv "$task_prefix/divsqrt.spv" \
+  --kind SF64D001
+```
+
+The native volatile oracle independently computes and validates every expected
+word, including appended official TestFloat vectors; it does not call the helper.
+The host conformance test additionally checks one million random operand pairs,
+exponent/subnormal boundaries and square neighbors, with behavioral mutants and
+UBSan. Preserve the exact source, compiler, TestFloat, corpus and SPIR-V hashes.
+The new probe retains the `probe_input_SF64D001` SPIR-V name as a kind marker;
+do not strip or rename it. Offline validation and Vulkan admission reject a
+corpus/probe kind mismatch before creating the device. This marker prevents a
+format mistake; it does not authenticate arithmetic or replace source hashes and
+exact output comparison. The two-buffer, 16,384-row batch ABI is unchanged.
+
+GPU execution requires a separate resource review and explicit run authorization.
+These CPU checks and offline shader compilation establish no hardware timing,
+full geometry equivalence or admission of the rejected QR factorization proposal.
+
 ## Geometry preparation timing
 
 [benchmark_geometry.cpp](../../ros2/src/so101_station_vulkan/test/benchmark_geometry.cpp)

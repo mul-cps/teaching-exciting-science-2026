@@ -6,6 +6,8 @@ import os
 import re
 import subprocess
 
+import pytest
+
 PACKAGE = Path(__file__).resolve().parents[1] / 'ros2/src/so101_station_vulkan'
 
 
@@ -17,6 +19,46 @@ def body(source, signature):
         if not depth:
             return source[start:end + 1]
     raise AssertionError('unbalanced source')
+
+
+def assert_bounded_primitive_loops(code):
+    """Only the two audited integer recurrences may contain loop keywords."""
+    allowed_positions = []
+    for signature, header in (
+        ('sf64_div_bits(', 'for (int bit = 61; bit >= 0; --bit)'),
+        ('sf64_sqrt_bits(', 'for (int pair = 62; pair >= 0; --pair)'),
+    ):
+        function_body = body(code, signature)
+        assert function_body.count(header) == 1, signature
+        start = code.index('{', code.index(signature))
+        allowed_positions.append(start + function_body.index(header))
+    actual_positions = [match.start() for match in re.finditer(r'\b(?:for|while|do)\b', code)]
+    assert actual_positions == sorted(allowed_positions), 'unexpected primitive loop'
+
+
+@pytest.mark.parametrize('old,new', [
+    ('bit >= 0', 'bit >= bound'),
+    ('--bit', '++bit'),
+    ('pair >= 0', 'pair >= -1'),
+    ('for (int bit', 'for (;;) {} for (int bit'),
+    ('for (int bit', 'while (true) {} for (int bit'),
+    ('for (int bit', 'do {} while (false); for (int bit'),
+])
+def test_bounded_primitive_loops_reject_mutations(old, new):
+    primitive = (PACKAGE / 'shaders/soft_binary64.slang').read_text()
+    code = re.sub(r'/\*.*?\*/|//[^\n]*', '', primitive, flags=re.S)
+    assert old in code
+    with pytest.raises(AssertionError):
+        assert_bounded_primitive_loops(code.replace(old, new, 1))
+
+
+def test_bounded_primitive_loops_reject_relocation():
+    code = (
+        'uint64_t sf64_div_bits() { for (int pair = 62; pair >= 0; --pair) {} }'
+        'uint64_t sf64_sqrt_bits() { for (int bit = 61; bit >= 0; --bit) {} }'
+    )
+    with pytest.raises(AssertionError):
+        assert_bounded_primitive_loops(code)
 
 
 def test_actual_shared_integer_coordinate_benchmark(tmp_path):
@@ -47,9 +89,10 @@ def test_primitive_and_resident_hot_bodies_have_no_new_host_work():
     primitive = (PACKAGE / 'shaders/soft_binary64.slang').read_text()
     code = re.sub(r'/\*.*?\*/|//[^\n]*', '', primitive, flags=re.S)
     assert not re.search(r'\b(?:double|float|__int128|uint128_t|malloc|calloc|realloc|new|printf|cout|static|thread_local|extern)\b', code)
+    assert_bounded_primitive_loops(code)
     # Every primitive call remains within its pure integer module or a scalar cast.
     calls = set(re.findall(r'\b(\w+)\s*\(', code))
-    assert all(x.startswith('sf64_') or x in {'if', 'return', 'int', 'uint64_t', 'uint32_t', 'bool'} for x in calls)
+    assert all(x.startswith('sf64_') or x in {'for', 'if', 'return', 'int', 'uint64_t', 'uint32_t', 'bool'} for x in calls)
     for file, signatures in {
         'src/geometry.cpp': ['GeometryPreparation::submit(', 'GeometryPreparation::finish('],
         'src/vulkan_context.cpp': ['Context::shared()'],

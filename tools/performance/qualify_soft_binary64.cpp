@@ -33,9 +33,11 @@
 namespace {
 constexpr uint64_t kNaN=0xfff8000000000000ULL, kMaxRows=4000000;
 constexpr char kMagic[8]={'S','F','6','4','P','0','0','1'};
+constexpr char kDivSqrtMagic[8]={'S','F','6','4','D','0','0','1'};
+constexpr const char* kDivSqrtGenerator="native-volatile-ieee754-rne-divsqrt-v1";
 constexpr const char* kGenerator="native-volatile-ieee754-rne-v1";
 using Row=std::array<uint64_t,7>;
-struct Corpus { uint64_t seed=0; std::vector<Row> rows; std::vector<uint8_t> bytes; };
+struct Corpus { bool divsqrt=false; uint64_t seed=0; std::vector<Row> rows; std::vector<uint8_t> bytes; };
 std::string quote(const std::string& s) {
  std::string r="\"";for(unsigned char c:s) { if(c=='"'||c=='\\') {r+='\\';r+=c;} else if(c<32)r+='?';else r+=c;}return r+'"';
 }
@@ -92,10 +94,11 @@ struct Environment {
 #endif
  }
 };
-Row oracle(uint64_t a,uint64_t b,uint32_t f) {
+Row oracle(uint64_t a,uint64_t b,uint32_t f,bool divsqrt=false) {
  volatile double x=value(a),y=value(b);volatile double sum=x+y,product=x*y;
  float fv;std::memcpy(&fv,&f,4);volatile float narrow=fv;volatile double wide=narrow;
  uint64_t flags=(x<y?1u:0u)|(x<=y?2u:0u)|(std::isfinite(x)?4u:0u)|(std::isfinite(y)?8u:0u);
+ if(divsqrt){volatile double quotient=x/y,root=std::sqrt(x);return {a,b,f,canonical(bits(quotient)),canonical(bits(root)),canonical(bits(wide)),flags};}
  return {a,b,f,canonical(bits(sum)),canonical(bits(product)),canonical(bits(wide)),flags};
 }
 void oracle_contract() {
@@ -105,28 +108,30 @@ void oracle_contract() {
 }
 Corpus parse(const std::string& path) {
  Corpus c;c.bytes=read(path,24+kMaxRows*56);
- if(c.bytes.size()<24||std::memcmp(c.bytes.data(),kMagic,8))throw std::runtime_error("bad corpus magic/header");
+ if(c.bytes.size()<24)throw std::runtime_error("bad corpus magic/header");
+ c.divsqrt=std::memcmp(c.bytes.data(),kDivSqrtMagic,8)==0;
+ if(!c.divsqrt&&std::memcmp(c.bytes.data(),kMagic,8))throw std::runtime_error("bad corpus magic/header");
  uint64_t n=get64(c.bytes.data()+8);c.seed=get64(c.bytes.data()+16);
  if(!n||n>kMaxRows||c.bytes.size()!=24+n*56)throw std::runtime_error("bad corpus count/length");
  c.rows.resize(n);for(size_t i=0;i<n;++i){for(unsigned w=0;w<7;++w)c.rows[i][w]=get64(c.bytes.data()+24+i*56+w*8);if(c.rows[i][2]>UINT32_MAX||c.rows[i][6]>15)throw std::runtime_error("bad corpus word range");}
  return c;
 }
 void validate(const Corpus& c) {
- for(size_t i=0;i<c.rows.size();++i){auto& r=c.rows[i];if(oracle(r[0],r[1],uint32_t(r[2]))!=r)throw std::runtime_error("corpus expected mismatch at row "+std::to_string(i));}
+ for(size_t i=0;i<c.rows.size();++i){auto& r=c.rows[i];if(oracle(r[0],r[1],uint32_t(r[2]),c.divsqrt)!=r)throw std::runtime_error("corpus expected mismatch at row "+std::to_string(i));}
 }
 uint64_t number(const std::string& s){size_t end=0;auto n=std::stoull(s,&end,10);if(end!=s.size()||s.empty()||s[0]=='-')throw std::runtime_error("invalid unsigned decimal");return n;}
 uint64_t hexword(const std::string& s){size_t end=0;if(s.empty()||s.size()>16||s[0]=='-')throw std::runtime_error("bad TestFloat hex word");auto n=std::stoull(s,&end,16);if(end!=s.size())throw std::runtime_error("bad TestFloat hex word");return n;}
 uint64_t append_testfloat(Corpus& c,const std::string& dir) {
  uint64_t total=0;
- for(auto name:{"f64_add","f64_mul","f32_to_f64"}) {
+ for(const auto& name:(c.divsqrt?std::vector<std::string>{"f64_div","f64_sqrt","f32_to_f64"}:std::vector<std::string>{"f64_add","f64_mul","f32_to_f64"})) {
   std::ifstream in(std::filesystem::path(dir)/(std::string(name)+".txt"));if(!in)throw std::runtime_error("missing pre-generated TestFloat file: "+std::string(name));
   std::string line;uint64_t line_no=0;
   while(std::getline(in,line)){++line_no;std::istringstream stream(line);std::vector<std::string> words;std::string w;while(stream>>w){if(w[0]=='#')break;words.push_back(w);}if(words.empty())continue;
-   bool conversion=std::string(name)=="f32_to_f64";if(words.size()!=(conversion?3u:4u))throw std::runtime_error("bad TestFloat columns");
-   uint64_t a=hexword(words[0]),b=conversion?0x3ff0000000000000ULL:hexword(words[1]);uint64_t expected=hexword(words[conversion?1:2]),flags=hexword(words.back());
+   bool conversion=name=="f32_to_f64",unary=conversion||name=="f64_sqrt";if(words.size()!=(unary?3u:4u))throw std::runtime_error("bad TestFloat columns");
+   uint64_t a=hexword(words[0]),b=unary?0x3ff0000000000000ULL:hexword(words[1]);uint64_t expected=hexword(words[unary?1:2]),flags=hexword(words.back());
    if(flags>31||(conversion&&a>UINT32_MAX))throw std::runtime_error("bad TestFloat range");
-   Row row=conversion?oracle(oracle(0,0,uint32_t(a))[5],b,uint32_t(a)):oracle(a,b,uint32_t(a));
-   unsigned field=conversion?5:std::string(name)=="f64_add"?3:4;
+   Row row=conversion?oracle(oracle(0,0,uint32_t(a))[5],b,uint32_t(a),c.divsqrt):oracle(a,b,uint32_t(a),c.divsqrt);
+   unsigned field=conversion?5:(name=="f64_add"||name=="f64_div")?3:4;
    if(row[field]!=canonical(expected))throw std::runtime_error("native oracle disagrees with TestFloat "+std::string(name)+" line "+std::to_string(line_no));
    if(c.rows.size()==kMaxRows)throw std::runtime_error("TestFloat corpus exceeds row cap");
    c.rows.push_back(row);++total;
@@ -135,22 +140,23 @@ uint64_t append_testfloat(Corpus& c,const std::string& dir) {
  }
  return total;
 }
-Corpus generate(uint64_t count,uint64_t seed,const std::string& testfloat,uint64_t& upstream) {
+Corpus generate(uint64_t count,uint64_t seed,const std::string& testfloat,uint64_t& upstream,bool divsqrt=false) {
  if(count<16384||count>kMaxRows||!seed)throw std::runtime_error("count must be 16384..4000000 and seed nonzero");
- Corpus c;c.seed=seed;c.rows.reserve(count);auto add=[&](uint64_t a,uint64_t b,uint32_t f){if(c.rows.size()<count)c.rows.push_back(oracle(a,b,f));};
+ Corpus c;c.divsqrt=divsqrt;c.seed=seed;c.rows.reserve(count);auto add=[&](uint64_t a,uint64_t b,uint32_t f){if(c.rows.size()<count)c.rows.push_back(oracle(a,b,f,c.divsqrt));};
  const uint64_t edges[]={0,1,2,3,0x000ffffffffffffeULL,0x000fffffffffffffULL,0x0010000000000000ULL,0x0010000000000001ULL,0x3c90000000000000ULL,0x3ca0000000000000ULL,0x3cb0000000000000ULL,0x3fdfffffffffffffULL,0x3fe0000000000000ULL,0x3fefffffffffffffULL,0x3ff0000000000000ULL,0x3ff0000000000001ULL,0x3ff0000000000002ULL,0x4000000000000000ULL,0x7fdfffffffffffffULL,0x7feffffffffffffeULL,0x7fefffffffffffffULL,0x7ff0000000000000ULL,0x7ff0000000000001ULL,0x7ff8000000000000ULL,0x7fffffffffffffffULL};
  const uint32_t f32[]={0,1,2,0x007fffff,0x00800000,0x3f000000,0x3f800000,0x3f800001,0x7f7fffff,0x7f800000,0x7f800001,0x7fc00000,0x80000000,0x80000001,0xff800000,0xffffffff};
  size_t fi=0;for(auto a:edges)for(auto b:edges)for(unsigned sign=0;sign<4;++sign)add(a|uint64_t(sign&1)<<63,b|uint64_t(sign>>1)<<63,f32[fi++%16]);
  // Exact half-way ties at normal exponents and underflow ties, both signs.
  for(uint64_t e=54;e<2047;++e)for(uint64_t parity=0;parity<2;++parity)add((e<<52)|parity,(e-53)<<52,f32[fi++%16]);
  for(uint64_t a=1;a<2048;++a){add(a,0x3fe0000000000000ULL,1);add(a|0x8000000000000000ULL,0x3fe0000000000000ULL,0x80000001);}
+ if(divsqrt)for(unsigned i=1;i<4096;++i){double x=double(i)/32;uint64_t square=bits(x*x);add(square-1,bits(x),uint32_t(i));add(square,bits(x),uint32_t(i));add(square+1,bits(x),uint32_t(i));}
  uint64_t rng=seed;auto random=[&](){rng^=rng<<13;rng^=rng>>7;rng^=rng<<17;return rng;};
  while(c.rows.size()<count){auto a=random(),b=random();auto f=uint32_t(random());if(c.rows.size()%3==0){a=oracle(0,0,uint32_t(a))[5];b=oracle(0,0,uint32_t(b))[5];}add(a,b,f);}
  upstream=testfloat.empty()?0:append_testfloat(c,testfloat);
- c.bytes.assign(kMagic,kMagic+8);put64(c.bytes,c.rows.size());put64(c.bytes,seed);for(auto& r:c.rows)for(auto w:r)put64(c.bytes,w);return c;
+ const char* magic=c.divsqrt?kDivSqrtMagic:kMagic;c.bytes.assign(magic,magic+8);put64(c.bytes,c.rows.size());put64(c.bytes,seed);for(auto& r:c.rows)for(auto w:r)put64(c.bytes,w);return c;
 }
 std::string summary(const Corpus& c,const char* mode,uint64_t upstream=0) {
- return "{\"mode\":"+quote(mode)+",\"generator\":"+quote(kGenerator)+",\"corpus_sha256\":"+quote(sha256(c.bytes))+",\"case_count\":"+std::to_string(c.rows.size())+",\"seed\":"+std::to_string(c.seed)+",\"testfloat_rows\":"+std::to_string(upstream)+",\"gpu_executed\":false,\"geometry_qualified\":false,\"full_station_qualified\":false,\"exception_flags_qualified\":false}";
+ return "{\"mode\":"+quote(mode)+",\"generator\":"+quote(c.divsqrt?kDivSqrtGenerator:kGenerator)+(c.divsqrt?",\"corpus_kind\":\"SF64D001\"":"")+",\"corpus_sha256\":"+quote(sha256(c.bytes))+",\"case_count\":"+std::to_string(c.rows.size())+",\"seed\":"+std::to_string(c.seed)+",\"testfloat_rows\":"+std::to_string(upstream)+",\"gpu_executed\":false,\"geometry_qualified\":false,\"full_station_qualified\":false,\"exception_flags_qualified\":false}";
 }
 uint32_t load32(const uint8_t* b){return uint32_t(b[0])|uint32_t(b[1])<<8|uint32_t(b[2])<<16|uint32_t(b[3])<<24;}
 void spirv_contract(const std::vector<uint8_t>& b) {
@@ -161,6 +167,18 @@ void spirv_contract(const std::vector<uint8_t>& b) {
   if(op==17){if(n!=2)throw std::runtime_error("invalid SPIR-V capability");uint32_t cap=load32(b.data()+(i+1)*4);int64|=cap==11;float64|=cap==10;}i+=n;
  }
  if(!int64||float64)throw std::runtime_error("SPIR-V must declare Int64 and must not declare Float64");
+}
+bool divsqrt_spirv(const std::vector<uint8_t>& b) {
+ for(size_t i=5;i<b.size()/4;){unsigned n=load32(b.data()+i*4)>>16,op=load32(b.data()+i*4)&65535;
+  if(!n||i+n>b.size()/4)throw std::runtime_error("invalid SPIR-V kind instruction");
+  if(op==5&&n>=3){const char* text=reinterpret_cast<const char*>(b.data()+(i+2)*4);size_t size=(n-2)*4;
+   const void* end=std::memchr(text,0,size);if(!end)throw std::runtime_error("unterminated SPIR-V name");
+   if(std::string(text,static_cast<const char*>(end)-text)=="probe_input_SF64D001")return true;
+  }i+=n;
+ }return false;
+}
+void shader_kind(const std::vector<uint8_t>& spv,bool divsqrt) {
+ if(divsqrt_spirv(spv)!=divsqrt)throw std::runtime_error("corpus/shader arithmetic kind mismatch");
 }
 #ifndef SOFT_BINARY64_CPU_ONLY
 using namespace so101_station_vulkan;
@@ -187,6 +205,7 @@ int run(const Corpus& c,const std::string& shader,const std::string& directory) 
  if(std::string(SOFT_BINARY64_BUILD_PROVENANCE)=="unrecorded")throw std::runtime_error("full build requires source/helper hashes and compile flags in SOFT_BINARY64_BUILD_PROVENANCE");
  const char* watchdog=std::getenv("SOFT_BINARY64_EXTERNAL_WATCHDOG");if(!watchdog||std::string(watchdog)!="1")throw std::runtime_error("external process watchdog required; launcher must set SOFT_BINARY64_EXTERNAL_WATCHDOG=1");
  auto spv=read(shader,4*1024*1024);spirv_contract(spv);
+ shader_kind(spv,c.divsqrt);
  if(!std::filesystem::create_directory(directory))throw std::runtime_error("output directory must be fresh");
  // All output storage and Vulkan resources are allocated before the first batch.
  std::vector<uint8_t> output_bytes(c.rows.size()*32);std::vector<uint32_t> code(spv.size()/4);
@@ -226,7 +245,7 @@ int run(const Corpus& c,const std::string& shader,const std::string& directory) 
    if(actual!=expected){if(!mismatches){first_row=base+i;first_word=w;first_actual=actual;first_expected=expected;}++mismatches;}}
  }
  const auto& props=p.context->properties;
- std::ostringstream result;result<<"{\"mode\":\"software_binary64_gpu_bits\",\"gpu_executed\":true,\"device\":"<<quote(props.deviceName)<<",\"vendor_id\":"<<props.vendorID<<",\"device_id\":"<<props.deviceID<<",\"driver_version\":"<<props.driverVersion<<",\"api_version\":"<<props.apiVersion<<",\"physical_shader_float64\":"<<physical.shaderFloat64<<",\"enabled_shader_float64\":"<<enabled.shaderFloat64<<",\"physical_shader_int64\":"<<physical.shaderInt64<<",\"enabled_shader_int64\":"<<enabled.shaderInt64<<",\"case_count\":"<<c.rows.size()<<",\"seed\":"<<c.seed<<",\"batch_cap\":"<<kBatch<<",\"batch_count\":"<<batches<<",\"mismatch_word_count\":"<<mismatches<<",\"corpus_sha256\":"<<quote(sha256(c.bytes))<<",\"spirv_sha256\":"<<quote(sha256(spv))<<",\"output_sha256\":"<<quote(sha256(output_bytes))<<",\"build_provenance\":"<<quote(SOFT_BINARY64_BUILD_PROVENANCE)<<",\"generator\":"<<quote(kGenerator)<<",\"corpus_artifact\":"<<quote(std::filesystem::absolute(directory+"/corpus.bin").string())<<",\"output_artifact\":"<<quote(std::filesystem::absolute(directory+"/actual.bin").string())<<",\"geometry_qualified\":false,\"full_station_qualified\":false,\"performance_claimed\":false,\"exception_flags_qualified\":false";
+ std::ostringstream result;result<<"{\"mode\":\"software_binary64_gpu_bits\",\"gpu_executed\":true,\"device\":"<<quote(props.deviceName)<<",\"vendor_id\":"<<props.vendorID<<",\"device_id\":"<<props.deviceID<<",\"driver_version\":"<<props.driverVersion<<",\"api_version\":"<<props.apiVersion<<",\"physical_shader_float64\":"<<physical.shaderFloat64<<",\"enabled_shader_float64\":"<<enabled.shaderFloat64<<",\"physical_shader_int64\":"<<physical.shaderInt64<<",\"enabled_shader_int64\":"<<enabled.shaderInt64<<",\"case_count\":"<<c.rows.size()<<",\"seed\":"<<c.seed<<",\"batch_cap\":"<<kBatch<<",\"batch_count\":"<<batches<<",\"mismatch_word_count\":"<<mismatches<<",\"corpus_sha256\":"<<quote(sha256(c.bytes))<<",\"spirv_sha256\":"<<quote(sha256(spv))<<",\"output_sha256\":"<<quote(sha256(output_bytes))<<",\"build_provenance\":"<<quote(SOFT_BINARY64_BUILD_PROVENANCE)<<",\"generator\":"<<quote(c.divsqrt?kDivSqrtGenerator:kGenerator)<<(c.divsqrt?",\"corpus_kind\":\"SF64D001\"":"")<<",\"corpus_artifact\":"<<quote(std::filesystem::absolute(directory+"/corpus.bin").string())<<",\"output_artifact\":"<<quote(std::filesystem::absolute(directory+"/actual.bin").string())<<",\"geometry_qualified\":false,\"full_station_qualified\":false,\"performance_claimed\":false,\"exception_flags_qualified\":false";
  if(mismatches)result<<",\"first_failure\":{\"row\":"<<first_row<<",\"word\":"<<first_word<<",\"expected\":"<<first_expected<<",\"actual\":"<<first_actual<<"}";
  result<<"}";
  fresh(directory+"/corpus.bin",c.bytes);fresh(directory+"/probe.spv",spv);fresh(directory+"/actual.bin",output_bytes);fresh_text(directory+"/result.json",result.str()+"\n");std::cout<<result.str()<<std::endl;return mismatches?1:0;
@@ -236,16 +255,16 @@ int run(const Corpus& c,const std::string& shader,const std::string& directory) 
 int main(int argc,char** argv) {
  try {
   // Crucially this dispatch precedes any construction of a Vulkan Context.
-  if(argc>=3&&std::string(argv[1])=="--generate"){
+  if(argc>=3&&(std::string(argv[1])=="--generate"||std::string(argv[1])=="--generate-divsqrt")){
    uint64_t count=65536,seed=17;std::string testfloat;
    for(int i=3;i<argc;i+=2){if(i+1>=argc)throw std::runtime_error("missing option value");std::string option=argv[i];if(option=="--count")count=number(argv[i+1]);else if(option=="--seed")seed=number(argv[i+1]);else if(option=="--testfloat-dir")testfloat=argv[i+1];else throw std::runtime_error("unknown generation option");}
-   Environment environment;oracle_contract();uint64_t upstream=0;auto c=generate(count,seed,testfloat,upstream);fresh(argv[2],c.bytes);std::cout<<summary(c,"cpu_generate",upstream)<<std::endl;return 0;
+   Environment environment;oracle_contract();uint64_t upstream=0;auto c=generate(count,seed,testfloat,upstream,std::string(argv[1])=="--generate-divsqrt");fresh(argv[2],c.bytes);std::cout<<summary(c,"cpu_generate",upstream)<<std::endl;return 0;
   }
   if(argc==3&&std::string(argv[1])=="--validate"){Environment environment;oracle_contract();auto c=parse(argv[2]);validate(c);std::cout<<summary(c,"cpu_validate")<<std::endl;return 0;}
-  if(argc==3&&std::string(argv[1])=="--validate-spirv"){auto b=read(argv[2],4*1024*1024);spirv_contract(b);std::cout<<"{\"mode\":\"offline_spirv_validate\",\"int64\":true,\"float64\":false,\"gpu_executed\":false,\"spirv_sha256\":"<<quote(sha256(b))<<"}"<<std::endl;return 0;}
+  if((argc==3||argc==5)&&std::string(argv[1])=="--validate-spirv"){auto b=read(argv[2],4*1024*1024);spirv_contract(b);if(argc==5){std::string kind=argv[4];if(std::string(argv[3])!="--kind"||(kind!="SF64P001"&&kind!="SF64D001"))throw std::runtime_error("invalid explicit corpus kind");shader_kind(b,kind=="SF64D001");}std::cout<<"{\"mode\":\"offline_spirv_validate\",\"int64\":true,\"float64\":false,\"gpu_executed\":false,\"spirv_sha256\":"<<quote(sha256(b))<<(divsqrt_spirv(b)?",\"corpus_kind\":\"SF64D001\"":"")<<"}"<<std::endl;return 0;}
 #ifndef SOFT_BINARY64_CPU_ONLY
   if(argc==5&&std::string(argv[1])=="--vulkan"){auto c=parse(argv[2]);return run(c,argv[3],argv[4]);}
 #endif
-  throw std::runtime_error("usage: --generate NEW_CORPUS [--count 65536 --seed 17 --testfloat-dir DIR] | --validate CORPUS | --validate-spirv SPIRV | --vulkan CORPUS SPIRV NEW_OUTPUT_DIR");
+  throw std::runtime_error("usage: --generate|--generate-divsqrt NEW_CORPUS [--count 65536 --seed 17 --testfloat-dir DIR] | --validate CORPUS | --validate-spirv SPIRV | --vulkan CORPUS SPIRV NEW_OUTPUT_DIR");
  }catch(const std::exception& e){std::cerr<<"{\"status\":\"error\",\"error\":"<<quote(e.what())<<"}"<<std::endl;return 1;}
 }

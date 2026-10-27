@@ -164,6 +164,22 @@
         165
       ],
       "sha256": "df46e75514f9f1051acb6f0bad7322231c927bba1d4493f33fa606376b20e3e8"
+    },
+    {
+      "path": "source/f64_div.c",
+      "lines": [
+        43,
+        172
+      ],
+      "sha256": "879f81a01150a94a48583133c526650c4c5423c5719c1f367a61c0113f88b713"
+    },
+    {
+      "path": "source/f64_sqrt.c",
+      "lines": [
+        43,
+        133
+      ],
+      "sha256": "181790dd6916704eb333c314384943fbe75f2174988d4e75b4f9f76f032d4664"
     }
   ],
   "modifications": [
@@ -177,7 +193,37 @@
     "Portable four 32x32 product with carry and named high/low fields; no wide native arithmetic.",
     "Normalization helpers inlined into multiplication/conversion; no out parameters or aliasing.",
     "Packing remains additive; exact signed zero, infinity, underflow and tie behavior retained.",
-    "After NaN and infinity handling, multiplication by either exact finite +1 or -1 returns the other operand encoding with the unit operand sign XORed into its sign bit; both operand orders preserve subnormals and signed zeros without rounding."
+    "After NaN and infinity handling, multiplication by either exact finite +1 or -1 returns the other operand encoding with the unit operand sign XORed into its sign bit; both operand orders preserve subnormals and signed zeros without rounding.",
+    "Division and square-root special cases, subnormal normalization, result exponent/parity and fixed nearest-even round-pack derived from f64_div.c and f64_sqrt.c; exception state and NaN payload propagation removed under the existing canonical-NaN policy.",
+    "Replace upstream approximate reciprocal division and correction with exact restoring radix-2 significand division: one known leading bit and exactly 62 fractional digits, remainder always below a 53-bit divisor.",
+    "Replace upstream approximate reciprocal-square-root tables and correction with exact radix-4 restoring square root over 63 digit pairs of a conceptual 126-bit radicand (high 64 bits stored, low 64 bits zero); carry/subtraction arithmetic is defined unsigned modular arithmetic.",
+    "Division/sqrt reuse the existing jam and nearest-even round-pack; final nonzero remainder jams into bit0. Negative-exponent halving is explicit floor division without implementation-defined signed right shifts. All shifts have finite proved width bounds; no native wide integer or output reference was added."
   ],
-  "scope": "add, multiply, widening binary32, quiet ordered comparisons and finiteness; no exception model or general IEEE library"
+  "scope": "add, multiply, division, square root, widening binary32, quiet ordered comparisons and finiteness; fixed RNE/canonical NaNs, no exception model or general IEEE library",
+  "divsqrt_bounds": {
+    "division_fractional_steps": 62,
+    "square_root_digit_pair_steps": 63,
+    "division_normalizer_shift": [
+      0,
+      52
+    ],
+    "sqrt_normalizer_shift": [
+      0,
+      52
+    ],
+    "sqrt_radical_high_shift": [
+      8,
+      9
+    ],
+    "sqrt_pair_extraction_shift": [
+      0,
+      60
+    ],
+    "division_quotient_bit_shift": [
+      0,
+      61
+    ],
+    "exponent_range": "division round-pack exponent -1076..3119; sqrt half -537..511; signed arithmetic bounded",
+    "correction_policy": "exact per-digit compare/subtract only, no convergence/retry loop"
+  }
 }

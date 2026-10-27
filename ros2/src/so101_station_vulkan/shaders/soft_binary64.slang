@@ -196,6 +196,66 @@ uint64_t sf64_mul_bits(uint64_t a, uint64_t b) {
     if (sz < 0x4000000000000000ULL) { --ez; sz <<= 1; }
     return sf64_round(sign, ez, sz);
 }
+// SoftFloat f64_div special cases, normalization, exponent and round-pack.
+// Replace reciprocal approximation/correction with exact radix-2 quotient digits.
+uint64_t sf64_div_bits(uint64_t a, uint64_t b) {
+    if (sf64_nan(a) || sf64_nan(b)) return 0xFFF8000000000000ULL;
+    bool sign = ((a ^ b) >> 63) != 0;
+    int ea = sf64_exponent(a), eb = sf64_exponent(b);
+    uint64_t sa = sf64_fraction(a), sb = sf64_fraction(b);
+    if (ea == 0x7FF) {
+        if (eb == 0x7FF) return 0xFFF8000000000000ULL;
+        return sf64_pack(sign, 0x7FF, 0);
+    }
+    if (eb == 0x7FF) return sf64_pack(sign, 0, 0);
+    if ((b << 1) == 0) {
+        if ((a << 1) == 0) return 0xFFF8000000000000ULL;
+        return sf64_pack(sign, 0x7FF, 0);
+    }
+    if ((a << 1) == 0) return sf64_pack(sign, 0, 0);
+    if (ea == 0) { int dist = sf64_clz64(sa) - 11; ea = 1 - dist; sa <<= dist; }
+    if (eb == 0) { int dist = sf64_clz64(sb) - 11; eb = 1 - dist; sb <<= dist; }
+    sa |= 0x0010000000000000ULL; sb |= 0x0010000000000000ULL;
+    int ez = ea - eb + 0x3FE;
+    if (sa < sb) { --ez; sa <<= 1; }
+    // sb <= sa < 2*sb. Each remainder is < sb < 2^53, so doubling
+    // cannot overflow. Exactly62 fractional digits, not an open correction loop.
+    uint64_t remainder = sa - sb, quotient = 0x4000000000000000ULL;
+    for (int bit = 61; bit >= 0; --bit) {
+        remainder <<= 1;
+        if (remainder >= sb) { remainder -= sb; quotient |= uint64_t(1) << bit; }
+    }
+    return sf64_round(sign, ez, quotient | uint64_t(remainder != 0));
+}
+// SoftFloat f64_sqrt special cases, normalization, parity and round-pack.
+// Exact radix-4 digit recurrence replaces approximate reciprocal-square-root
+// tables/corrections. The conceptual radicand has <=126bits, represented by
+// its high64bits; its low64bits are zero (shift72or73 of a53bit significand).
+uint64_t sf64_sqrt_bits(uint64_t a) {
+    if (sf64_nan(a)) return 0xFFF8000000000000ULL;
+    int ea = sf64_exponent(a); uint64_t sig = sf64_fraction(a);
+    if ((a << 1) == 0) return a;
+    if ((a >> 63) != 0) return 0xFFF8000000000000ULL;
+    if (ea == 0x7FF) return a;
+    if (ea == 0) { int dist = sf64_clz64(sig) - 11; ea = 1 - dist; sig <<= dist; }
+    sig |= 0x0010000000000000ULL;
+    int exponent = ea - 0x3FF;
+    // Floor division, including negative odd exponents; no signed right shift.
+    int half = exponent >= 0 ? exponent / 2 : -((1 - exponent) / 2);
+    int parity = exponent - 2 * half;
+    uint64_t high = sig << (8 + parity), root = 0, remainder = 0;
+    for (int pair = 62; pair >= 0; --pair) {
+        uint64_t digit = pair >= 32 ? (high >> (2 * pair - 64)) & 3 : uint64_t(0);
+        bool carry = (remainder >> 62) != 0;
+        remainder = (remainder << 2) | digit;
+        uint64_t trial = (root << 2) | 1;
+        root <<= 1;
+        // At most one high carry bit. If present, subtracting trial borrows
+        // it away: the resulting remainder <2*newroot+1 fits in64bits.
+        if (carry || remainder >= trial) { remainder -= trial; root |= 1; }
+    }
+    return sf64_round(false, half + 0x3FE, root | uint64_t(remainder != 0));
+}
 uint64_t sf64_from_f32_bits(uint32_t a) {
     bool sign = (a >> 31) != 0;
     int exp = int((a >> 23) & 0xFF);
