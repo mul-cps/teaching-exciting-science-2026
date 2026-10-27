@@ -296,15 +296,44 @@ def test_local_buffer_field_never_claims_full_acquisition_coverage():
 
 # Accepted percentile/backend metadata changes relative to original source
 # a25b7697e31442dd13ea5655cac62e8c5a270e80; historical baseline above stays frozen.
-ACCEPTED_ALGORITHM_REVISION='be2b249644f1716a76aa71d1887559026cd4d562'
-ACCEPTED_PUBLISH_AST='d4ba078c8402667aeb85ff8f7a613f380d906d9d246618c44bd9425b6d957a42'
-ACCEPTED_ALGORITHM_AST={**BASE_ALGORITHM_AST,
+PREVIOUS_ACCEPTED_ALGORITHM_REVISION='be2b249644f1716a76aa71d1887559026cd4d562'
+PREVIOUS_ACCEPTED_PUBLISH_AST='d4ba078c8402667aeb85ff8f7a613f380d906d9d246618c44bd9425b6d957a42'
+PREVIOUS_ACCEPTED_ALGORITHM_AST={**BASE_ALGORITHM_AST,
     '_visible_component_geometry':'b21feab132bc39986c182f20e078f836c02374c2cc15447f90663977f904ab03',
     'analyze_rgbd':'5a61458c5cf878be36fb4b91b632af23184c715b3701b8595ff8a2f2b54a58f4'}
 
 
+# Accepted canonical tied-direction policy; only these two algorithm bodies
+# differ from be2b249. Publication, analyze_rgbd and all other guards stay exact.
+ACCEPTED_ALGORITHM_REVISION='47002d05b81d23feb87afcaccbdd72122705e7c3'
+ACCEPTED_PUBLISH_AST=PREVIOUS_ACCEPTED_PUBLISH_AST
+ACCEPTED_ALGORITHM_AST={**PREVIOUS_ACCEPTED_ALGORITHM_AST,
+    '_component_geometry':'3946cb213db9435db8812a68c73b9aa54ab0811f1719059130049ebb2e020b82',
+    '_visible_component_geometry':'7a5f90f6f18a51aae3b4267ae7e4b0783d11e845ddf5b49f37b8ce9e12bb8b26'}
+
+
 def test_accepted_algorithm_changes_are_exactly_documented():
-    assert ACCEPTED_ALGORITHM_AST.keys()==BASE_ALGORITHM_AST.keys()
+    assert PREVIOUS_ACCEPTED_ALGORITHM_AST.keys()==BASE_ALGORITHM_AST.keys()
     assert {name for name in BASE_ALGORITHM_AST
-            if ACCEPTED_ALGORITHM_AST[name]!=BASE_ALGORITHM_AST[name]}=={
+            if PREVIOUS_ACCEPTED_ALGORITHM_AST[name]!=BASE_ALGORITHM_AST[name]}=={
                 '_visible_component_geometry','analyze_rgbd'}
+    assert ACCEPTED_PUBLISH_AST==PREVIOUS_ACCEPTED_PUBLISH_AST
+    assert ACCEPTED_ALGORITHM_AST.keys()==PREVIOUS_ACCEPTED_ALGORITHM_AST.keys()
+    assert {name for name in PREVIOUS_ACCEPTED_ALGORITHM_AST
+            if ACCEPTED_ALGORITHM_AST[name]!=PREVIOUS_ACCEPTED_ALGORITHM_AST[name]}=={
+                '_component_geometry','_visible_component_geometry'}
+
+
+def test_accepted_algorithm_fingerprints_bind_immutable_epoch():
+    import ast, subprocess
+    source=subprocess.check_output(['git','show',ACCEPTED_ALGORITHM_REVISION+
+        ':ros2/src/so101_station_objects/so101_station_objects/objects.py'],cwd=ROOT,text=True)
+    tree=ast.parse(source)
+    actual={node.name:stable_ast_digest(node) for node in tree.body
+            if isinstance(node,(ast.FunctionDef,ast.ClassDef)) and node.name!='ColoredObjectsNode'}
+    assert actual==ACCEPTED_ALGORITHM_AST
+    publish=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='_publish_report')
+    names={'timing','TimingRecorder','timing_site','finish_node'}
+    publish.body=[stmt for stmt in publish.body if not any(
+        isinstance(n,ast.Name) and n.id in names for n in ast.walk(stmt))]
+    assert stable_ast_digest(publish)==ACCEPTED_PUBLISH_AST

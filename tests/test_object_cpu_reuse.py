@@ -53,7 +53,9 @@ def test_same_array_extents_quantiles_batched_without_altered_method():
 @pytest.mark.parametrize('change',['normal','outside_pickup','boundary','hole','depth_jump'])
 def test_exact_synthetic_report_matches_pinned_baseline(change):
     from tools.benchmark_component_locality import baseline_analyzer,assert_same
-    old=baseline_analyzer('b56ff993d21d838c2a07eda898a4933ff946f629')
+    # Historical CPU-reuse evidence used b56ff993d21d838c2a07eda898a4933ff946f629.
+    # Current exact-output regression uses the accepted canonical-policy epoch.
+    old=baseline_analyzer()
     rgb,depth,k,d,t=tabletop_scene()
     if change=='outside_pickup':
         rgb[220:250,305:335]=128;depth[220:250,305:335]=800

@@ -20,13 +20,22 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE_REVISION = '522a6584106a9650811e9a238a540d6c0068a842'
+# Historical locality-buffer evidence retains its original explicit revision.
+LEGACY_BASELINE_REVISION = '522a6584106a9650811e9a238a540d6c0068a842'
+# Current regression epoch: independently accepted canonical tied directions.
+BASELINE_REVISION = '47002d05b81d23feb87afcaccbdd72122705e7c3'
 sys.path[:0] = [str(ROOT), str(ROOT/'ros2/src/so101_station_objects')]
 from so101_station_objects import objects
 
 
 def baseline_analyzer(revision=BASELINE_REVISION):
-    """Load unchanged baseline helpers as distinct modules, never edit a checkout."""
+    """Pin baseline modules without editing a checkout.
+
+    The accepted epoch also pins its direction/footprint imports. Legacy explicit
+    revisions retain the historical two-module loader and its live imports.
+    """
+    revision = subprocess.check_output(
+        ['git', 'rev-parse', '--verify', revision+'^{commit}'], cwd=ROOT, text=True).strip()
     prefix = 'ros2/src/so101_station_objects/so101_station_objects/'
     modules = []
     for name in ('colored_object_validation', 'objects'):
@@ -39,6 +48,20 @@ def baseline_analyzer(revision=BASELINE_REVISION):
         modules.append(module)
     for name in ('split_depth_coherent_components', 'validate_colored_component'):
         setattr(modules[1], name, getattr(modules[0], name))
+    if revision == BASELINE_REVISION:
+        frozen = []
+        for name in ('principal_axes', 'grasp_geometry'):
+            path = 'workshop/digital_twin/'+name+'.py'
+            source = subprocess.check_output(['git', 'show', revision+':'+path], cwd=ROOT, text=True)
+            module = types.ModuleType('_locality_accepted_'+name)
+            module.__file__ = str(ROOT/path)
+            sys.modules[module.__name__] = module
+            exec(compile(source, '<baseline '+path+'>', 'exec'), module.__dict__)
+            frozen.append(module)
+        for module in (*modules, frozen[1]):
+            module.canonical_principal_axes = frozen[0].canonical_principal_axes
+        modules[1].fit_support_plane = frozen[1].fit_support_plane
+        modules[1].footprint_grasps = frozen[1].footprint_grasps
     return modules[1].analyze_rgbd
 
 

@@ -101,14 +101,14 @@ def test_analyzer_splits_exact_local_parent_views_not_full_frame(monkeypatch):
     assert len(report['objects']) == 1 and seen == [(30, 30)]
 
 
-def test_full_synthetic_analyzer_matches_unmodified_baseline():
+def test_full_synthetic_analyzer_matches_accepted_canonical_baseline():
     from tools.benchmark_component_locality import baseline_analyzer, assert_same
     from so101_station_objects.objects import analyze_rgbd
     from test_ros2_objects import tabletop_scene
     try:
         original = baseline_analyzer()
     except subprocess.CalledProcessError:
-        pytest.skip('immutable legacy baseline522a658 unavailable in this Git history')
+        pytest.skip('accepted canonical baseline47002d05 unavailable in this Git history')
     for fault in ('none', 'holes', 'touching'):
         rgb, depth, intrinsics, distortion, transform = tabletop_scene()
         if fault == 'holes': depth[225:230, 310:320] = 0
@@ -158,3 +158,40 @@ def test_benchmark_comparator_accepts_only_added_default_cpu_metadata():
         with pytest.raises(AssertionError):
             assert_same(dict(before, color_mask_backend=metadata),
                         dict(before, color_mask_backend=changed))
+
+
+def test_accepted_baseline_pins_direction_helpers_and_equivalent_git_refs(monkeypatch):
+    from tools.benchmark_component_locality import BASELINE_REVISION, baseline_analyzer, assert_same
+    from so101_station_objects import objects, colored_object_validation
+    from workshop.digital_twin import principal_axes, grasp_geometry
+    from test_ros2_objects import tabletop_scene
+    rgb, depth, k, d, transform = tabletop_scene()
+    arguments = (rgb, depth, k, d, .001, transform)
+    accepted = baseline_analyzer()
+    before = accepted(*arguments)
+
+    def changed_live_helper(*args, **kwargs):
+        raise RuntimeError('live direction helper deliberately changed')
+
+    for module in (principal_axes, grasp_geometry, objects, colored_object_validation):
+        monkeypatch.setattr(module, 'canonical_principal_axes', changed_live_helper)
+    for module in (grasp_geometry, objects):
+        monkeypatch.setattr(module, 'footprint_grasps', changed_live_helper)
+        monkeypatch.setattr(module, 'fit_support_plane', changed_live_helper)
+    assert_same(before, accepted(*arguments))
+    # Even a fresh load must replace the live imports, including short aliases.
+    assert_same(before, baseline_analyzer(BASELINE_REVISION[:8])(*arguments))
+    with pytest.raises(RuntimeError, match='live direction helper deliberately changed'):
+        objects.analyze_rgbd(*arguments)
+
+
+@pytest.mark.parametrize('revision', [
+    '522a6584106a9650811e9a238a540d6c0068a842',
+    'b56ff993d21d838c2a07eda898a4933ff946f629'])
+def test_explicit_legacy_baselines_keep_their_original_live_geometry_bindings(revision):
+    from tools.benchmark_component_locality import baseline_analyzer, LEGACY_BASELINE_REVISION
+    from workshop.digital_twin import grasp_geometry
+    assert LEGACY_BASELINE_REVISION == '522a6584106a9650811e9a238a540d6c0068a842'
+    legacy = baseline_analyzer(revision)
+    assert legacy.__globals__['fit_support_plane'] is grasp_geometry.fit_support_plane
+    assert legacy.__globals__['footprint_grasps'] is grasp_geometry.footprint_grasps
