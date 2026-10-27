@@ -1,0 +1,154 @@
+{
+  "schema": "support-plane-factor-negative-probe-v1",
+  "date": "2026-10-27",
+  "qualified": false,
+  "decision": "QR_NOT_ADMITTED",
+  "scope": "Frozen CPU numerical feasibility probe; keep unchanged CPU full-geometry report path; not an implemented native estimator or hardware/performance qualification",
+  "source_commit": "a16aa86c48f3af72b5459353a48d110ded3537c7",
+  "prototype": "retained centered weighted Nx3 SVD versus centered Householder QR then3x3 R SVD, with fixed256 GPU-shaped reductions and C++ compact scalar feedback",
+  "results": {
+    "candidate": "fixed-full",
+    "ordinary_public_passed": 32,
+    "ordinary_total": 32,
+    "ordinary_max_public_error": 2.220446049250313e-16,
+    "immutable_full_reports_passed": 12,
+    "immutable_full_reports_total": 12,
+    "matrix_populations_already_included_in_ordinary32": true,
+    "full_report_absolute_tolerance": 1e-09,
+    "input_coordinate_absolute_tolerance": 1e-12,
+    "observed_input_coordinate_error": 0,
+    "boundary_public_passed": 151,
+    "boundary_total": 170,
+    "boundary_public_failed": 19,
+    "boundary_max_public_error": 0.08715574274766051,
+    "boundary_internal_only_sign_differences": 8,
+    "internal_sign_differences_not_public_failures": true,
+    "additional_inlier_witness": {
+      "reference_inliers": 401,
+      "candidate_inliers": 402,
+      "point_index": 401,
+      "reference_residual": 0.0030000000000000027,
+      "candidate_residual": 0.002999999999999999,
+      "threshold": 0.003,
+      "same_winning_iteration": 0
+    },
+    "alternate_numpy_small_svd": {
+      "ordinary_passed": 31,
+      "ordinary_total": 32,
+      "boundary_public_passed": 166,
+      "boundary_total": 170
+    }
+  },
+  "failure_contracts": [
+    "5-degree snap plane_source/public normal",
+    "15mm snap offset",
+    "upward0.85 generic rejection",
+    "second singular value1e-9 generic degeneracy rejection",
+    "3mm exact final inlier mask/support count"
+  ],
+  "dense_gpu_prerequisites": {
+    "software_binary64_division_implemented": false,
+    "software_binary64_sqrt_implemented": false,
+    "up_to_adaptive_divisions": 16000,
+    "up_to_adaptive_sqrt": 16000,
+    "CPU_weight_residual_vector_fallback_approved": false,
+    "implementing_helpers_does_not_resolve_QR_counterexamples": true
+  },
+  "design_estimates": {
+    "measured_hardware_or_driver_performance": false,
+    "implemented_or_approved_graph": false,
+    "scalar_feedback_or_read_boundaries": 48,
+    "scalar_bytes_per_frame": 10300,
+    "example_scratch_bytes_per_slot": 304576,
+    "example_three_slot_scratch_bytes": 913728
+  },
+  "actual_cold_schedule_generation": {
+    "fresh_independent_seed17_rngs": true,
+    "cap_unsorted": true,
+    "tables_actually_generated_and_stream_hashed": true,
+    "cap_G4800_packed_U16_bytes": 11200000,
+    "cap_future_G32400_packed_U16_bytes": 121600000,
+    "proposal_N30_to2000_U16_bytes": 1419120,
+    "current_cap_stream_sha256": "6d718e4787d2db944f3436368dd122ee8bc9a311f337347b3fe63aac13c8728a",
+    "future_cap_stream_sha256": "2d1247ea835118b14eb05762bab371dc0a7bc48917bb59e404e4ffcdc689db8f",
+    "proposal_stream_sha256": "d4e144e45412a4bf764aa6dec64ee9f4c9689b550054df9348957d0072151c95",
+    "no_future_resolution_admission": true
+  },
+  "policy": {
+    "full_geometry_remains_CPU": true,
+    "no_threshold_or_epsilon_changes": true,
+    "no_covariance_EIGH_substitution": true,
+    "ambiguity_refusal_requires_separate_contract": true,
+    "refusing_retained_success_is_not_current_parity": true
+  },
+  "runtime": {
+    "python": "3.13.12",
+    "numpy": "2.5.4",
+    "opencv": "4.14.0",
+    "scipy": "1.17.1",
+    "OPENBLAS_NUM_THREADS": "1"
+  },
+  "readout_sha256": "5c7b46c3d71c21006ef7672c72a3457612ca1eb4bd31e761b5119ef6da317b20",
+  "evidence_files": {
+    "full-matrix-report-proof.json": {
+      "size": 3127,
+      "sha256": "ffcd6333ad705183d1d6f90527e1a96552ffe4757e838b85b3b91722ee8986ad"
+    },
+    "inlier-real-nz0.99-d0.02--11ULP.npz": {
+      "size": 2531,
+      "sha256": "63297c12a555b3c334cb54d07d0bd4b953774b41762122b0f447da9aed9ac8aa"
+    },
+    "negative-witnesses.json": {
+      "size": 12187,
+      "sha256": "66837cd8b635d597b5a695192d006766c0e3b24f0c87bf41780474fedd5e8822"
+    },
+    "private-archive-members.json.gz": {
+      "size": 23709,
+      "sha256": "78279a64dff5448d943e4fce9e41d1e51f48039255dcb9551ad46aae6925eb34"
+    },
+    "private-archive.json": {
+      "size": 658,
+      "sha256": "a843f538acac775c13cc34484cbd3e365860fb1a26704f58106e956e25ab0b1f"
+    },
+    "provenance.json": {
+      "size": 4632,
+      "sha256": "4b140510f5916af61672c12de6db79d96b873aa75ac359f4ed101896e98b4bfe"
+    },
+    "rehydration-proof.json": {
+      "size": 467,
+      "sha256": "63188291f2ef5bd55cf0e3335f296cf7f55a96be89c744bea7075747ceb098dc"
+    },
+    "schedule-and-cost.json": {
+      "size": 6650,
+      "sha256": "0133f86cc773279c02be798b03a9d5d8ab8a3ffaa5f7ac88604acc1849d621f1"
+    },
+    "selfcheck.py": {
+      "size": 3562,
+      "sha256": "eb1e7127fff86faa20a88d5088202cc20bfdea81f696b94af9a0811265d6ada5"
+    },
+    "sigma2-+0ULP.npz": {
+      "size": 1683,
+      "sha256": "9f71f896394cdc142a539e9d6ea40377c5f3258d7b3cf657e08427b1e396ca08"
+    },
+    "snap-angle--2ULP.npz": {
+      "size": 1496,
+      "sha256": "81deb8eb06b2551006f80e85af89bc275521ac4fa79df4c88b3fe6c4a6d13942"
+    },
+    "snap-offset-+2ULP.npz": {
+      "size": 1291,
+      "sha256": "04f0c138e519b05ba63982b23345e7201b6b6768f83457f6d291a6988af66ed4"
+    },
+    "upward-normal--1ULP.npz": {
+      "size": 1539,
+      "sha256": "dc9aaa67c61225443f43ea87b1389b65a8fcc0bc1c467e5a7ecf8d26283d3b97"
+    }
+  },
+  "private_archive": {
+    "path": "/tmp/support-plane-factor-prototype-raw-20261027.tar.gz",
+    "sha256": "d7b796ddb0ac585d5bd1dd25196917fe30fd3fc30922172f4d185a172f7a23c5",
+    "size": 4437141,
+    "regular_file_members": 839,
+    "inventory": "evidence/support-plane-factor-probe-20261027/private-archive-members.json.gz"
+  },
+  "selfcheck": "python3 docs/performance/evidence/support-plane-factor-probe-20261027/selfcheck.py"
+}

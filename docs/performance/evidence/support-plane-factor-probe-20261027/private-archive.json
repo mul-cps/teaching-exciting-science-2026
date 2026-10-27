@@ -1,0 +1,11 @@
+{
+  "path": "/tmp/support-plane-factor-prototype-raw-20261027.tar.gz",
+  "sha256": "d7b796ddb0ac585d5bd1dd25196917fe30fd3fc30922172f4d185a172f7a23c5",
+  "size": 4437141,
+  "regular_file_members": 839,
+  "uncompressed_member_bytes": 34546241,
+  "inventory": "private-archive-members.json.gz",
+  "inventory_sha256": "78279a64dff5448d943e4fce9e41d1e51f48039255dcb9551ad46aae6925eb34",
+  "uncompressed_inventory_sha256": "98829acdd1a08b30f9ce97e3cf060a9c2b4ca2d2b500bc90c171c7ddc5da7f48",
+  "contains": "complete frozen private scripts, results, exact inputs/schedules, verified rehydrated matrix arrays and CPU scalar helper; no vendor SDK/runtime libraries"
+}

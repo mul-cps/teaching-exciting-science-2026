@@ -1,0 +1,9 @@
+{
+  "immutable_restore_verified": true,
+  "lost_original": "/tmp/workshop-geometry-oracle-matrix-final-20261023.pkz7rqbl/frozen",
+  "fresh": "/tmp/support-plane-factor-prototype-20261027/rehydrated",
+  "committed_fixture_sha256": "7f9feb3f53353a301f575805762391a3bd7f9fb9c55571f0d098c7d711028625",
+  "cases": 12,
+  "normalization": "existing runtime-version-only normalization in assert_matrix_equal",
+  "python": "/tmp/workshop-test-pinned313-20261027/bin/python"
+}

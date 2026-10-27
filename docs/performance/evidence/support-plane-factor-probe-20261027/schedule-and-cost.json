@@ -1,0 +1,240 @@
+{
+  "scope": "private_cpu_schedule_and_cost_feasibility_NOT_implemented_GPU_layout",
+  "seed": 17,
+  "numpy": "2.5.4",
+  "two_independent_fresh_rngs": true,
+  "cap_selection_unsorted": true,
+  "actual_retained_proposal_traces_verified": [
+    "weighted-zero-nonuniform-contract",
+    "future-1080G32400-cap",
+    "near-collinear-1e-09",
+    "near-collinear-1.0000001e-10",
+    "near-collinear-1e-10",
+    "minor-support",
+    "equal-score-planes-tie",
+    "huber-outliers",
+    "snap-offset-0.015000000001",
+    "snap-offset-0.015",
+    "snap-offset-0.014999999999",
+    "snap-angle-5.000000001",
+    "snap-angle-5.0",
+    "snap-angle-4.999999999",
+    "tabletop-boundary",
+    "non-tabletop",
+    "duplicate-points",
+    "exact-collinear",
+    "noisy-table",
+    "matrix-large-gray-support",
+    "matrix-distortion-8",
+    "matrix-distortion-5",
+    "matrix-distortion-4",
+    "matrix-partial-pickup-roi",
+    "matrix-partial-observation-roi",
+    "matrix-sparse-concave",
+    "matrix-sensor-edge",
+    "matrix-nonplanar-two-face",
+    "matrix-touching-depth-children",
+    "matrix-invalid-hole",
+    "matrix-base"
+  ],
+  "reused_rng_first_triplet": [
+    253,
+    1212,
+    1731
+  ],
+  "correct_fresh_first_triplet": [
+    1689,
+    214,
+    1480
+  ],
+  "examples": [
+    {
+      "population": 2001,
+      "selected": 2000,
+      "first_cap_indices": [
+        1716,
+        1460,
+        199,
+        491,
+        1723,
+        677,
+        814,
+        1845,
+        1760,
+        1601,
+        110,
+        1230
+      ],
+      "cap_sha256": "44a3ecb9fae3915ec6ef0859b9c1f8830980b9b9292b47621600d7e3b6a5b952",
+      "first_proposal_rows": [
+        1689,
+        214,
+        1480
+      ],
+      "first_proposal_source_rows": [
+        413,
+        1439,
+        1241
+      ],
+      "proposals_sha256": "9c1bb146e14a1f4efd98dca30991872963ce4dbc6b35b91413b2d07571d5dbea"
+    },
+    {
+      "population": 4800,
+      "selected": 2000,
+      "first_cap_indices": [
+        4515,
+        3559,
+        2713,
+        1990,
+        2248,
+        2539,
+        3427,
+        4529,
+        4559,
+        2468,
+        1594,
+        4029
+      ],
+      "cap_sha256": "e56d18dbc8e6ddc28a39d532edb41f34703d6522a930977cbbfea5b07e0a994d",
+      "first_proposal_rows": [
+        1689,
+        214,
+        1480
+      ],
+      "first_proposal_source_rows": [
+        2916,
+        4238,
+        964
+      ],
+      "proposals_sha256": "9c1bb146e14a1f4efd98dca30991872963ce4dbc6b35b91413b2d07571d5dbea"
+    },
+    {
+      "population": 14400,
+      "selected": 2000,
+      "first_cap_indices": [
+        3530,
+        9754,
+        5703,
+        3404,
+        13613,
+        1431,
+        7486,
+        4629,
+        2974,
+        10260,
+        6243,
+        5140
+      ],
+      "cap_sha256": "89ae2df67432e487ff5d478575a878a89a98e45e24be9a24e62b1ba4989232e2",
+      "first_proposal_rows": [
+        1689,
+        214,
+        1480
+      ],
+      "first_proposal_source_rows": [
+        1384,
+        2269,
+        9279
+      ],
+      "proposals_sha256": "9c1bb146e14a1f4efd98dca30991872963ce4dbc6b35b91413b2d07571d5dbea"
+    },
+    {
+      "population": 32400,
+      "selected": 2000,
+      "first_cap_indices": [
+        31053,
+        23912,
+        13981,
+        8344,
+        20684,
+        3509,
+        18347,
+        11345,
+        31469,
+        25143,
+        15298,
+        12595
+      ],
+      "cap_sha256": "eb9cafec46f747c1332af92aae6739a91ac0aa33068b96c8de2b8ab552a4452c",
+      "first_proposal_rows": [
+        1689,
+        214,
+        1480
+      ],
+      "first_proposal_source_rows": [
+        3153,
+        5506,
+        21312
+      ],
+      "proposals_sha256": "9c1bb146e14a1f4efd98dca30991872963ce4dbc6b35b91413b2d07571d5dbea"
+    }
+  ],
+  "cold_lut": {
+    "cap_current_G4800_packed_u16_bytes": 11200000,
+    "cap_future_G32400_packed_u16_bytes": 121600000,
+    "cap_future_u32_bytes": 243200000,
+    "cap_current_stream_sha256": "6d718e4787d2db944f3436368dd122ee8bc9a311f337347b3fe63aac13c8728a",
+    "cap_future_stream_sha256": "2d1247ea835118b14eb05762bab371dc0a7bc48917bb59e404e4ffcdc689db8f",
+    "proposals_N30_through2000_packed_u16_bytes": 1419120,
+    "proposal_stream_sha256": "d4e144e45412a4bf764aa6dec64ee9f4c9689b550054df9348957d0072151c95",
+    "storage_note": "packed2xU16 perU32 avoids shaderInt16 dependency; future121600000B fits128MiB binding but adds116MiB immutabledevice memory; U32 needs243200000B exceeds128MiB binding"
+  },
+  "compact_scalar_feedback": {
+    "weighted_fit_rounds_each": 5,
+    "weighted_fit_count": 9,
+    "weighted_fit_rounds_total": 45,
+    "center_each_read_bytes": 32,
+    "center_each_write_bytes": 24,
+    "qr_reflector_count_each": 3,
+    "qr_reflector_each_read_bytes": 16,
+    "qr_reflector_each_write_bytes": 24,
+    "smallR_read_bytes": 72,
+    "normal_d_and_status_write_bytes": 36,
+    "weighted_fit_total_bytes": 2556,
+    "ransac_normalization_rounds": 1,
+    "ransac_normalization_read_bytes": 3840,
+    "ransac_normalization_write_bytes": 3360,
+    "ransac_first_strict_max_rounds": 1,
+    "ransac_scores_read_bytes": 480,
+    "ransac_winner_and_status_write_bytes": 8,
+    "final_order_stat_read_rounds": 1,
+    "final_order_stat_read_bytes": 56,
+    "total_feedback_or_read_rounds": 48,
+    "total_bytes": 10300,
+    "not_measured_GPU_or_driver_time": true
+  },
+  "dense_gpu_prerequisites": {
+    "default_unit_weight_huber_divisions_max": 16000,
+    "default_unit_weight_adaptive_sqrt_max": 16000,
+    "arbitrary_initial_weight_sqrt_extra_max": 2000,
+    "operations_currently_missing_from_software_binary64_helper": [
+      "correctly-rounded per-point positive finite division",
+      "correctly-rounded per-point nonnegative sqrt"
+    ],
+    "CPU_feedback_vectors_forbidden": true,
+    "CPU_only_emulation_not_candidate_fallback": true
+  },
+  "conservative_scratch_example": {
+    "selected_xyz_bytes": 48000,
+    "winning_q_xyz_bytes": 48000,
+    "weighted_QR_matrix_bytes": 48000,
+    "base_weights_bytes": 16000,
+    "adaptive_weights_bytes": 16000,
+    "sqrt_weights_bytes": 16000,
+    "reflector_bytes": 16000,
+    "full_residual_bytes": 16000,
+    "q_residual_bytes": 16000,
+    "sort_ping_bytes": 16000,
+    "sort_pong_bytes": 16000,
+    "q_indices_bytes": 8000,
+    "winning_mask_bytes": 8000,
+    "point_arrays_total_bytes": 288000,
+    "proposal_cross_norm_normal_coeff_score_flag_bytes": 8640,
+    "proposal_partial_scores_bytes": 3840,
+    "other_scalar_reduction_and_compact_reserve_bytes": 4096,
+    "per_slot_total_bytes": 304576,
+    "three_slots_bytes": 913728,
+    "layout_not_implemented_or_approved": true
+  },
+  "elapsed_seconds": 1.706575830001384
+}

@@ -1,0 +1,91 @@
+{
+  "scope": "CPU_factor_prototype_through_full_retained_caller_NOT_production",
+  "cases": {
+    "base": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "invalid-hole": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "touching-depth-children": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "nonplanar-two-face": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "sensor-edge": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "sparse-concave": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "partial-observation-roi": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "partial-pickup-roi": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "distortion-4": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "distortion-5": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "distortion-8": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    },
+    "large-gray-support": {
+      "full_report_pass": true,
+      "all_schema_discrete_order_and_reason_exact": true,
+      "report_absolute_tolerance": 1e-09,
+      "input_coordinate_max_error": 0.0,
+      "coordinate_absolute_tolerance": 1e-12
+    }
+  },
+  "passed": 12,
+  "total": 12
+}

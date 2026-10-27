@@ -1,0 +1,79 @@
+{
+  "repository_source_commit": "a16aa86c48f3af72b5459353a48d110ded3537c7",
+  "repository_sources": {
+    "workshop/digital_twin/grasp_geometry.py": "9165c9515a8b83760bdf38cd036e2fbb3b088a8da5cc29d8df21d6cdbd5ff0e5",
+    "ros2/src/so101_station_objects/so101_station_objects/objects.py": "4f11ebcd55bb801f9a9e425a1a6a7aa373152c3d1ed738469b4662519c04b5f9",
+    "tools/native_geometry_matrix.py": "660806cb17eafa889146f2e8f52a3c6f0456661bbf5068e43f92fbd4b41d8eae",
+    "tests/fixtures/native_geometry/matrix-v1.json": "7f9feb3f53353a301f575805762391a3bd7f9fb9c55571f0d098c7d711028625"
+  },
+  "frozen_private_source_pins": {
+    "README.md": "11ab027db26bf6aef421ea9b3103ce94afb8615c56813f6cd85b32d432da34ca",
+    "results-classified.json": "b3f6cff962b10dbd360a41e375884f9e2d1625d8ae02b51c43735bcf48f5e74d",
+    "boundary-results-classified.json": "4c581ed3edd6e052e921e2d122bcfa899d4076c85a8b03db312d41ad1c5a28a6",
+    "inlier-boundary-search.json": "6d01b9d74b071b863e94abebe22e7a6c29803cfbd4ecd69d0a33fe5862e4b34d",
+    "rehydration-proof.json": "63188291f2ef5bd55cf0e3335f296cf7f55a96be89c744bea7075747ceb098dc",
+    "full-matrix-report-proof.json": "ffcd6333ad705183d1d6f90527e1a96552ffe4757e838b85b3b91722ee8986ad",
+    "schedule-and-cost.json": "0133f86cc773279c02be798b03a9d5d8ab8a3ffaa5f7ac88604acc1849d621f1",
+    "experiment.py": "36f099e414cdd735f44867b27e81495226543e29bde032612c2109a85be6bd67",
+    "boundary_experiment.py": "1387a2caa24ccd604e9e8848090e71b754a85764f9c453416eeb1f0e86713430",
+    "scalar_feedback.cpp": "0e3d613aa3a594fb2cf1e95ea1a3a20d5a8087fe69505356225aaa6e91bad0e6",
+    "scalar_feedback.so": "e5f451cb571f91f76b83aac6548263d15495185f63e9b309d5d0f230fbc96a03"
+  },
+  "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "flags": "-std=c++17 -O2 -fPIC -shared -ffp-contract=off; -llapack -lblas from so101-jazzy SDK",
+  "reduction_order": "fixed256 padded, stride128/64/32/16/8/4/2/1, block totals recursively same padded tree; dot3=(x0*n0+x1*n1)+x2*n2",
+  "loaded_numerical_libraries": [
+    {
+      "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libgfortran.so.5.0.0",
+      "sha256": "8b93406aef97f0f39ebac58aed3b63c58c9c26eb246595d8141dde5baeee5b33"
+    },
+    {
+      "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libopenblasp-r0.3.34.so",
+      "sha256": "f1424288e9ac125331102c0150b66fbd244560987779552e0e97d5cfd9de572b"
+    },
+    {
+      "path": "/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/opencv_python_headless.libs/libquadmath-2284e583.so.0.0.0",
+      "sha256": "a9307bbaa353623fa014e8b682d50c4629f5e5c7d61daa9a8652f7d165cd421a"
+    },
+    {
+      "path": "/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/opencv_python_headless.libs/libgfortran-83c28eba.so.5.0.0",
+      "sha256": "468e71e59e1d784821a76702e5ecd1e0dbcfc024499f74a552d1bea4b26f27ad"
+    },
+    {
+      "path": "/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/opencv_python_headless.libs/libopenblasp-r0-59ffcd50.3.15.so",
+      "sha256": "c073ab726795e391fd4ee09ce941c7d9e23e71a3737a910367f03d89487542f5"
+    },
+    {
+      "path": "/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/numpy.libs/libquadmath-2284e583-a9307bba.so.0.0.0",
+      "sha256": "6bc3069003caec1f075be3c51ae8355332f081fa9465910c4b5724e7fe7d8ad4"
+    },
+    {
+      "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libquadmath.so.0.0.0",
+      "sha256": "9fa4807097fa47da1815765f0a43177c45e7ec7cc94e44cfa95a4c3a1a341ee6"
+    },
+    {
+      "path": "/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/numpy.libs/libgfortran-83c28eba-468e71e5.so.5.0.0",
+      "sha256": "a6a368328d02a5d8a149746f13f6268f8cc9192df5c18777b25c3c9b5ef52160"
+    },
+    {
+      "path": "/tmp/support-plane-factor-prototype-20261027/scalar_feedback.so",
+      "sha256": "e5f451cb571f91f76b83aac6548263d15495185f63e9b309d5d0f230fbc96a03"
+    },
+    {
+      "path": "/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/numpy/linalg/_umath_linalg.cpython-313-x86_64-linux-gnu.so",
+      "sha256": "f15d9f7f32bd87fc0082e3d4eb46304b0fafbfd27bae712811c0bae20cf3d563"
+    },
+    {
+      "path": "/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+      "sha256": "432e1c1739731468ba305771af96773939e43016643e2d630f58cb45b6670e96"
+    }
+  ],
+  "runtime": {
+    "python": "/tmp/workshop-test-pinned313-20261027/bin/python",
+    "python_version": "3.13.12",
+    "numpy": "2.5.4",
+    "opencv": "4.14.0",
+    "scipy": "1.17.1"
+  },
+  "prototype_scripts_only_in_private_archive": true
+}
