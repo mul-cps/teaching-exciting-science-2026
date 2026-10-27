@@ -1,0 +1,26 @@
+{
+  "intel_outputs": {
+    "file": "intel-executed.tar.gz",
+    "sha256": "5bc6607b3f5465f9b32912910e14e2e19679e1f70f5f657d6caab2cc88439473",
+    "bytes": 180338
+  },
+  "amd_outputs": {
+    "file": "amd-executed-v2.tar.gz",
+    "sha256": "ee1615cfd3a64c47ba677fbcc1b026ca152cc1c7f4df44853eb16cba618a3c19",
+    "bytes": 73534,
+    "members": 1240
+  },
+  "common_reproduction": {
+    "file": "common-reproduction-v2.tar.gz",
+    "sha256": "c4d368023e3c2191bb6be2d02bf898b8edbf270ef24ec6fe49a221ab5d8d13c2",
+    "bytes": 226154,
+    "members": 447
+  },
+  "historical_buggy_inputs": {
+    "file": "historical-inputs-v1.tar.gz",
+    "sha256": "7240b13bb6c5b16afc27b0e3100ee91ee451c1074e590e2bad695331afe739b7",
+    "bytes": 77723,
+    "final_runner": false,
+    "issue": "v1 precreated watchdog output directory; first case rejected before GPU execution; superseded by v2"
+  }
+}

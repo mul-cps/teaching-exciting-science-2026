@@ -1,0 +1,42 @@
+{
+  "scope": "CPU-only retained evidence selfcheck",
+  "gpu_executed": false,
+  "archives": {
+    "intel_outputs": {
+      "sha256": "5bc6607b3f5465f9b32912910e14e2e19679e1f70f5f657d6caab2cc88439473",
+      "members": 1183
+    },
+    "amd_outputs": {
+      "sha256": "ee1615cfd3a64c47ba677fbcc1b026ca152cc1c7f4df44853eb16cba618a3c19",
+      "members": 1240
+    },
+    "common_reproduction": {
+      "sha256": "c4d368023e3c2191bb6be2d02bf898b8edbf270ef24ec6fe49a221ab5d8d13c2",
+      "members": 447
+    },
+    "historical_buggy_inputs": {
+      "sha256": "7240b13bb6c5b16afc27b0e3100ee91ee451c1074e590e2bad695331afe739b7",
+      "members": 142
+    }
+  },
+  "factory_verify_stdout_sha256": "cbc585b0565f905e9a9f5993e43cb7b339b03e7120d416e7ac3a26f821e3a083",
+  "hosts": {
+    "intel": {
+      "exact_compares_passed": 58,
+      "post_pins": 198,
+      "status_counts": {
+        "valid": 55,
+        "unusable": 3
+      }
+    },
+    "amd": {
+      "exact_compares_passed": 58,
+      "post_pins": 192,
+      "status_counts": {
+        "valid": 55,
+        "unusable": 3
+      }
+    }
+  },
+  "passed": true
+}

@@ -1,9 +1,10 @@
 # Intel child parent membership — 27 October 2026
 
-The immutable parent-map candidate passes the original failing Intel case with
-all six output arrays byte-identical to its frozen CPU reference. This is a
-bounded child-preparation result; full geometry, camera operation, performance
-and physical station qualification remain separate.
+The final parent-map and reducer repair passes all **58 frozen child-preparation
+cases on both native Intel ADL-N and AMD Radeon 8060S**: 116 stock CPU exact
+comparisons matched. This validates the frozen child-preparation matrix. Full
+geometry, camera operation, GPU performance and physical station qualification
+remain separate; no broader adoption decision is made here.
 
 ## Observation and change
 
@@ -27,7 +28,7 @@ This repairs a latent divergent exit; it does not explain the earlier hook
 failure. Actual compiled control flow and an extracted 256-lane CPU phase
 witness cover invalid membership, invalid root and parent bounds.
 
-## Frozen-case evidence
+## Earlier frozen-case evidence
 
 The cache-only shader `8dcc34ae…` and final reducer-repaired shader `dc0b1aa1…`
 each ran once on Intel ADL-N with the stock native qualifier and original GCC
@@ -63,6 +64,32 @@ archives are under `/tmp/workshop-child-cache-executed-20261027` and
 `dc0b1aa16967479cd85fcfeaad86e00ed193ef03017d009769732416ddb607c5`.
 Its later native run has the same narrow frozen-case boundary.
 
+## Full frozen child-preparation matrix
+
+The final shader `dc0b1aa1…` ran the same source- and SPIR-V-pinned matrix on
+both devices. Each host passed 58 exact stock comparisons: 29 literal-kernel and
+29 production typed-parent cases, comprising **55 valid and 3 deliberately
+unusable cases**. Valid outputs match roots, flags, records, statuses, packed
+data and counts byte for byte. All 27 valid typed cases also passed the
+empty/restore comparisons and lifecycle/retention checks; both unusable typed
+cases rejected computed-view access and published no partial result.
+
+Intel's 198 post-run input/runtime pins and AMD's 192 pins all matched. These
+are the native GCC 13 Intel lane and the existing GCC 15.3 AMD/system-DRM
+compatibility lane, respectively. The fixture and expected bytes were retained
+unchanged. Matrix manifest SHA-256 is
+`cbc585b0565f905e9a9f5993e43cb7b339b03e7120d416e7ac3a26f821e3a083`.
+The source checkpoint is `0542ababa017cce482156c906a52d595a1a9cf50`; the
+stock qualifier source remains `01e45df3…`.
+
+The [retained evidence](evidence/child-matrix-dc0b-20261027/README.md) includes
+both raw executed-output archives, all per-case comparison hashes, the frozen
+matrix and expected NPZ files, both shader caches, exact native commands and the
+corrected v2 runner. A CPU-only selfcheck verifies retained archives and reruns
+all 116 stock comparisons without a GPU. The earlier v1 input archive is kept
+as history: its runner precreated the watchdog output directory and failed
+before GPU execution. It is superseded by the retained v2 runner.
+
 ## Resource checks and remaining gates
 
 All 21 final SPIR-V kernels compiled and passed validation. The reducer repair
@@ -82,7 +109,7 @@ The historical failure sampler still accepts only the original `8412aec1…`
 source. Its tests now use that exact frozen fixture and explicitly reject the
 current production shader; its provenance pin was not broadened.
 
-Full frozen-matrix Intel/AMD validation and transfer-inclusive GPU timing remain
-required before broader adoption. The
+The frozen child-preparation Intel/AMD matrix is validated. Transfer-inclusive
+GPU timing, full geometry and camera/physical acceptance remain open. The
 [native Slang CPU experiment](native-slang-cpu-20261027.md) is a separate
 prealigned-core benchmark and does not measure this GPU change.

@@ -1,0 +1,1367 @@
+{
+  "host": "intel",
+  "scope": "child preparation diagnostic only; excludes full geometry, performance, physical acceptance",
+  "matrix": "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+  "manifest_sha256": "cbc585b0565f905e9a9f5993e43cb7b339b03e7120d416e7ac3a26f821e3a083",
+  "output_directory": "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2",
+  "native_terminal": {
+    "terminal": "native_completed",
+    "completed": 58,
+    "post_pins_match": 198,
+    "qualified": false,
+    "exact_comparison_pending": true
+  },
+  "post_pins_verified": 198,
+  "archived_output_hashes_verified": 1122,
+  "compares": [
+    {
+      "case": "literal-origin-parity-0-0",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-origin-parity-0-0",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-origin-parity-0-0/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "9e58855eee9219033100d52b3869d9cf691fb7c30d7493cf6920c7b696dcb34b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-origin-parity-0-0",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "37abc48cc7df0523cc89e6a87cb4bb5f89158dc61c8980fa1d8fb10c652e135c"
+      }
+    },
+    {
+      "case": "typed-origin-parity-0-0",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-origin-parity-0-0",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-origin-parity-0-0/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "5c5a4ed21fa73eb975ee27075cce02b0041176e153c8d8027a0566721d82a539",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-origin-parity-0-0",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "a6b8b53a200412054dc2854c1ad56d3c80113a4e23d263746f356d7aa70b2765"
+      }
+    },
+    {
+      "case": "literal-origin-parity-0-1",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-origin-parity-0-1",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-origin-parity-0-1/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "998487fa5dc65912a47f7b68038cd11913fab147ff2191d48ea0908168baa4f1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-origin-parity-0-1",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "2007edeab32ae791955c311899f52ea5b427849310b9b228f583a8ae3defe02f"
+      }
+    },
+    {
+      "case": "typed-origin-parity-0-1",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-origin-parity-0-1",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-origin-parity-0-1/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "86657c628f86acc44d7dd0c587dd62a20aad4ba01aedcacc06262f6209b03603",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-origin-parity-0-1",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "3c2008e13ddf2d90923a777c184f85727490e76c83b3f97b97d25fa73ece4b2e"
+      }
+    },
+    {
+      "case": "literal-origin-parity-1-0",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-origin-parity-1-0",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-origin-parity-1-0/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "151f8a98f34e6f1dd2ba9ed17a7fd2b57c860486d14571f069aca20ac2e530ee",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-origin-parity-1-0",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "7b325f40803fd803c9aa1934477c2133b89d29c508b3a910e6350be77614aa31"
+      }
+    },
+    {
+      "case": "typed-origin-parity-1-0",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-origin-parity-1-0",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-origin-parity-1-0/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "c056b6c1113bb780039f6fa63e3b4af3b5568a59e238c5d8433979106ccc7d43",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-origin-parity-1-0",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "e50080ede868343c3cd366f422d298086358b8bc746ddceb056e24bfa877e519"
+      }
+    },
+    {
+      "case": "literal-origin-parity-1-1",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-origin-parity-1-1",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-origin-parity-1-1/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "61baa9be15c9bdcc9260b4e347624ef646008f94dc28b4122a539919c3696d33",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-origin-parity-1-1",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "982f19644ab90e1e8cfef6dfdc790000dee0f8ef6af903705f85f15cac00b6ae"
+      }
+    },
+    {
+      "case": "typed-origin-parity-1-1",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-origin-parity-1-1",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-origin-parity-1-1/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "f355c1164183313f157348a80f496131295c2a9eb4c9a3ca3f05e3fab5a6115c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-origin-parity-1-1",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "f785c3612db02cf37b3721ffaaf0f84a8232ef4802b8c0ccd7a32dfa59620a06"
+      }
+    },
+    {
+      "case": "literal-u-membership",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-u-membership",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-u-membership/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "46bc1936b6c92d4e427f07b84be0430b2eee2126b2d6a9fcb64c9b2cb0f41fbb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-u-membership",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "2d2515c182dfe48ef8b10043417c26596ef5335a88fea2329bf5954fc25dbf8b"
+      }
+    },
+    {
+      "case": "typed-u-membership",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-u-membership",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-u-membership/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "4ebbc9d75c2a165eb6885cf0a5edb360581c3d953c4832b2e8977d3f72c76ffe",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-u-membership",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "4d0950e7534c2e49f1dd8946a4de38d7fcc508993f8e8a83df1bf5a224eb8290"
+      }
+    },
+    {
+      "case": "literal-tiny-before-kept-8",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-tiny-before-kept-8",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-tiny-before-kept-8/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "1ab011361e9970a460927ca1912d7fe5b8fa3a3f2b6728e3538f8871c0836309",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-tiny-before-kept-8",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "daa490c23af5d98e6835bf2f48de525108e7d24ba3c168d0bf288f8823391064"
+      }
+    },
+    {
+      "case": "typed-tiny-before-kept-8",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-tiny-before-kept-8",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-tiny-before-kept-8/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "4c5996e7154d7d48f9476fb832faefc0234efc6c5b0a614e85a0b35e708b231b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-tiny-before-kept-8",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "30c330da5b6a73070b6597a45b10866d8b7cfb16c6df0297d1dbc44d92f183ac"
+      }
+    },
+    {
+      "case": "literal-tiny-before-kept-24",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-tiny-before-kept-24",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-tiny-before-kept-24/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "28ba67729be6f4fe45aec73ad05eb0b19b5aa1b2608784c3a4c1d58a95c1ccc7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-tiny-before-kept-24",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "c43275348201b9a65d8cf12a5149b2b0e05459216922df64540972a15998c2d1"
+      }
+    },
+    {
+      "case": "typed-tiny-before-kept-24",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-tiny-before-kept-24",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-tiny-before-kept-24/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "31cf1487098341be5f25d64c3dd057c64f46186bcf65798defa58538a2470dae",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-tiny-before-kept-24",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "e9d406016b46cf9dbd84db6d25fca1efdcb8c0e0cb498c6a9b068487a588d9ce"
+      }
+    },
+    {
+      "case": "literal-configured-parent-min-8",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-configured-parent-min-8",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-configured-parent-min-8/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "490b3469256d64612cbc8474e9df16a11a8635832234ab5e66eecd2eec21e5cc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-configured-parent-min-8",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "c43275348201b9a65d8cf12a5149b2b0e05459216922df64540972a15998c2d1"
+      }
+    },
+    {
+      "case": "typed-configured-parent-min-8",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-configured-parent-min-8",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-configured-parent-min-8/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "f5f75b9b3e66b4bcf5a6a911d8f4182c56f0067e18b3ee640bdf03e42b17b6b6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-configured-parent-min-8",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "e9d406016b46cf9dbd84db6d25fca1efdcb8c0e0cb498c6a9b068487a588d9ce"
+      }
+    },
+    {
+      "case": "literal-configured-parent-min-32",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-configured-parent-min-32",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-configured-parent-min-32/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "f2d537eec3ec4e0d49746a8f35f3592b66c2a82c7c18e2b05521a85fc70d5412",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-configured-parent-min-32",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "d461baf0fda5b108aad89d15c0a68b000b1d733810a164e1a74e08f24f32a3d0"
+      }
+    },
+    {
+      "case": "typed-configured-parent-min-32",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-configured-parent-min-32",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-configured-parent-min-32/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "889f6e8f29fbea48e3bfedd525a803e87169ac89143a3cd8b2748b7d723e9633",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-configured-parent-min-32",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "11d632279595459314b73cb383cd6caca3db5762036bd4c254a0a5f7c49a9568"
+      }
+    },
+    {
+      "case": "literal-configured-min-reject24",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-configured-min-reject24",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-configured-min-reject24/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "592f6c1a57b772235a81a99fa957a408922c489a7665f5c7eb499ed4b4830a56",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-configured-min-reject24",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "eff94b15a13a2d02079adf6842f1fbf4c96b29b232b985ed90da3958e4f9b4a2"
+      }
+    },
+    {
+      "case": "typed-configured-min-reject24",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-configured-min-reject24",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-configured-min-reject24/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "bb61280cd58df62bdd98bc0a9b2b54c3af64e74b2cfa84d5d69f80499b826797",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-configured-min-reject24",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "78efb012364d449a77d8d56413c6464eec76ee732fa3549fdbf2e05a9b73e8d5"
+      }
+    },
+    {
+      "case": "literal-two-kept",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-two-kept",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-two-kept/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "6ba245b34613514f707cdb121b6e0821292300f3e60ce91fc40c3648954f96d8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-two-kept",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "c2fe21b35a4fcef96a25100e2bc75e214e0d965b45381aaca5a61661329aab4b"
+      }
+    },
+    {
+      "case": "typed-two-kept",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-two-kept",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-two-kept/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "b2f7419b55fb430512c2ba1a03d3edd0a9a7c222e25c46f7e40160c000fb723c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-two-kept",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "8e6d18cd4fd6d594453d010c8b3e75de781e5c1f9d93099e1e9b7a3ce6d68f4d"
+      }
+    },
+    {
+      "case": "literal-odd-partial-blocks-5x7",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-odd-partial-blocks-5x7",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-odd-partial-blocks-5x7/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "457d33b24b00560843cd5f6e6a2972ada5659c13272130d57871bc158698472e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-odd-partial-blocks-5x7",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "cdd427a5c8e86c183f46d027a6e37139a9f917737013307439f4bd5085198fc1"
+      }
+    },
+    {
+      "case": "typed-odd-partial-blocks-5x7",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-odd-partial-blocks-5x7",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-odd-partial-blocks-5x7/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "0eb8b514ed74cf4e8e999b10c3ee91a99aa8f54afb565996d9ad466d5cb25c9d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-odd-partial-blocks-5x7",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "0a5e436df73302eb05c7477ce2b2a451799afdf3c655c8ba55118d80ae52fd0a"
+      }
+    },
+    {
+      "case": "literal-row-1x19",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-row-1x19",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-row-1x19/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "aa1530cdc5866b430982a0048f75cd10828bc530c5355cff1dfc6b020af30c09",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-row-1x19",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "9328a521b2342a7472b2730f7c75d1e462b80ce1178a3507c525b45f416e917c"
+      }
+    },
+    {
+      "case": "typed-row-1x19",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-row-1x19",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-row-1x19/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "a93f59f9e048aefe4d227d9c6d2bb99aca6bf780d9e991ac092d089fe4951995",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-row-1x19",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "98379692fe998550cd05c7bdab333f6943d1d54c26f392a258febe2ee1f88a9c"
+      }
+    },
+    {
+      "case": "literal-column-19x1",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-column-19x1",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-column-19x1/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "72f5cefd6b996931cff10e03333e7f2607f2cc806c10fad649c38002bd213cd6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-column-19x1",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "f40b9c56d897d9649d3dda7f7c5ec5b01b1d6ef049bb921cfa87f4ea61d30c85"
+      }
+    },
+    {
+      "case": "typed-column-19x1",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-column-19x1",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-column-19x1/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "4b4d5712c4e5f45906ec102015ef3a4bb505fd91d0637921108780024d59fd55",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-column-19x1",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "b7f48fade9f87b15c0745b99de155beab67dafda80ce8b54832002e469748bde"
+      }
+    },
+    {
+      "case": "literal-depth-endpoints",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-depth-endpoints",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-depth-endpoints/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "c9cba4fde5d80174ae43fcc2b15b586758fad422025dced6ec5b822734a58c96",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-depth-endpoints",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "49cdb4ed492681852f77c6fc68ef98ea375338c89c3c33eabdead4ac7d43fdb7"
+      }
+    },
+    {
+      "case": "typed-depth-endpoints",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-depth-endpoints",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-depth-endpoints/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "b42c5d2aab6835d9f9bb253a3fc28146f5573a16586c990b499e7ade1365959a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-depth-endpoints",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "47ed6a45fbeb8817ff2d2aa607f595331706225b6268cd509a3e14da3dd29ab5"
+      }
+    },
+    {
+      "case": "literal-depth-inclusive-kept",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-depth-inclusive-kept",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-depth-inclusive-kept/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "21d662e4a640870b507d5d716cfb4f0c8b3613e551b1f5190b427254be0cd5b5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-depth-inclusive-kept",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "2646655deb8025a70509f56c01b2d60ce1ab6509bf7b6cbf26f1f23c169f0b05"
+      }
+    },
+    {
+      "case": "typed-depth-inclusive-kept",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-depth-inclusive-kept",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-depth-inclusive-kept/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "542abae434660142b3f9eac64c79cf94156deb71cf2a50816d45f2e529b54534",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-depth-inclusive-kept",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "327ef6825a7268d6f38ccf5d064a458bdced03eb1c00b5d98e0fe5629d5c43c0"
+      }
+    },
+    {
+      "case": "literal-configured-max-depth",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-configured-max-depth",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-configured-max-depth/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "29024d7d32aa5536a9e0696a18d271448d243ebaaac057abf202a9c30d8ff235",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-configured-max-depth",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "bda27d3dea37592fdc47afd448aa895f3993b03a2edb1d94b7cd57d1b324a05a"
+      }
+    },
+    {
+      "case": "typed-configured-max-depth",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-configured-max-depth",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-configured-max-depth/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "a6df6f550532c53c70febcbe509fbd25b854bb7e9bc2ac869d06a20f55fa93f5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-configured-max-depth",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "8136a89cd3a98e1eeb6bf1fd5b5d4ee42041532d9bff477eb837e30d8d5954d2"
+      }
+    },
+    {
+      "case": "literal-strict-jump-f32-edges",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-strict-jump-f32-edges",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-strict-jump-f32-edges/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "dc8d06a0897b36c713eaf8e99269dcff58c29fe7c1d80368b6aab7a07e9b5806",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-strict-jump-f32-edges",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "446d47bcff36bbf5bc351d05539a7b83edde500d31a768a16f199ea2591a6bfb"
+      }
+    },
+    {
+      "case": "typed-strict-jump-f32-edges",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-strict-jump-f32-edges",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-strict-jump-f32-edges/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "e11d6b521a6fbe7942dc64b34d1ee3e688a1cd6819f10bf5bd3c98b61c9b3883",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-strict-jump-f32-edges",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "3265aab3eba278643555416a6e5c7db6ead816e1fc01e39f7bd9075a8920accf"
+      }
+    },
+    {
+      "case": "literal-configured-strict-equality",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-configured-strict-equality",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-configured-strict-equality/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "a36e7fe747d720a21dc64835378558d1503031c0425fcabbec50a7178d656e65",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-configured-strict-equality",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "680bad31bb9f599acf4c55bc10f36e1f57864c1e4f15dfdecae35a9a6ccf0d86"
+      }
+    },
+    {
+      "case": "typed-configured-strict-equality",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-configured-strict-equality",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-configured-strict-equality/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "efff2094012f5b0f2c744b4b3a8b6cfffaaf517aaac27086f348d07b8d431fd0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-configured-strict-equality",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "eea92d418bc48c3bf5ccd504584a4bc725ebd8af41536e7e717c2da193dd2e3c"
+      }
+    },
+    {
+      "case": "literal-all-cut-empty",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-all-cut-empty",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-all-cut-empty/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "3e14e3f9ba8ac2472ebadd6fc3f44e8733387ca2715c7ecd379ba847f8c795de",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-all-cut-empty",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "6adcf390f70f0bbaececcb62f53ccf16535a70960d3f7bceaaaf03e1d9a7e18b"
+      }
+    },
+    {
+      "case": "typed-all-cut-empty",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-all-cut-empty",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-all-cut-empty/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "f7ebeedcb66603c3b30796f36f2fb14deb8cd611eaf0d911a192a1091585e430",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-all-cut-empty",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "7d960ed3bac429381681e09e70f17bb48975876b52d63cc72cd244ec8076b4e5"
+      }
+    },
+    {
+      "case": "literal-invalid-interior-hole",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-invalid-interior-hole",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-invalid-interior-hole/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "5caedbcd640c3cc747bf186909b121f6ed6992a7afcdcb9e1f9e394a2cf99426",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-invalid-interior-hole",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "ef78640e476fa2e7d6942ff0f9512cea49d1b3bd7eaa9adbcea1c3228181efcd"
+      }
+    },
+    {
+      "case": "typed-invalid-interior-hole",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-invalid-interior-hole",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-invalid-interior-hole/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "b41a456101e6cd4d32d24dfdd680f8d7f0819dcd0684793b04e5cbdc776b40c9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-invalid-interior-hole",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "914b9d5fd4943e233d010a962b57591a95846cb6e3540080044f86f5c364c605"
+      }
+    },
+    {
+      "case": "literal-boundary-and-clipped-halo",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-boundary-and-clipped-halo",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-boundary-and-clipped-halo/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "20f87717796ae5f9081bb56953212326991ce8cd81ae4ca78e81c1a14a5d5df8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-boundary-and-clipped-halo",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "54c56eced91164833f308e17fd2b5fbac452a30e117994b331bfb6d3fa4d54f8"
+      }
+    },
+    {
+      "case": "typed-boundary-and-clipped-halo",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-boundary-and-clipped-halo",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-boundary-and-clipped-halo/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "3aa61b80d6925654efdb21fa1f41f9342283d17a456f534413b696cf548cb14d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-boundary-and-clipped-halo",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "205bda74987e268ba55f16e58b58f1565c0b06b9ef5c3b6e9515dc763b33de87"
+      }
+    },
+    {
+      "case": "literal-tall-1025x7",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-tall-1025x7",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-tall-1025x7/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "0634d8564865bb40811b709fd06790f8b6f0153604d5469025c7859afd2567f7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-tall-1025x7",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "a75009bd6b9e94cc451952c09818b0c3bd18ede06b21a9c782ecdf5eaa878f93"
+      }
+    },
+    {
+      "case": "literal-cut-nearby-halo",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-cut-nearby-halo",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-cut-nearby-halo/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "41a5bdc7ea1e9b7124ccfc5f581dab0648d0f706f31f437c25c7a3c13759bfda",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-cut-nearby-halo",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "257e49af0594c7428066e96449f9ad1c10e93483cfe3997ecffbcd0a27e20ff0"
+      }
+    },
+    {
+      "case": "typed-cut-nearby-halo",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "typed-cut-nearby-halo",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/typed-cut-nearby-halo/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "e929fe47f6e355c1e0e689af25441a20e9f236ceda1568e90ef23711534057ea",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "typed-cut-nearby-halo",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "e72711f5f7f07f119dce2124b3e02618a3ac09d60d1e458bc27eafce22e2cb13"
+      }
+    },
+    {
+      "case": "literal-U-parity-0-0",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-U-parity-0-0",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-U-parity-0-0/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "c608d70392c3ce6c988517f4e4042ff702db9bcb746506b1e3f3d7128647e603",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-U-parity-0-0",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "2d2515c182dfe48ef8b10043417c26596ef5335a88fea2329bf5954fc25dbf8b"
+      }
+    },
+    {
+      "case": "literal-U-parity-1-0",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-U-parity-1-0",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-U-parity-1-0/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "da8c98102ac057a923104024848c1d96cc28d45b5d328c657fea1a34e9af9382",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-U-parity-1-0",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "01218d67a68715d58c2b3f34dfc06d55bfc4f6ad76f799735aa186256848ec51"
+      }
+    },
+    {
+      "case": "literal-U-parity-0-1",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-U-parity-0-1",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-U-parity-0-1/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "1d1fe300ebc16b387246fb80db50f50ecab02e53c111a1da08cb0e17a12d8454",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-U-parity-0-1",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "5d81de5fb8f2ea7ac595702333e7510614703496d25c566e1ddcdcd52554f689"
+      }
+    },
+    {
+      "case": "literal-U-parity-1-1",
+      "profile": "literal_kernel",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-U-parity-1-1",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-U-parity-1-1/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "ca573a3a1e8ae7a631d478f352d7e870c21cc2613beb3002fe1e02293afa2145",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-U-parity-1-1",
+        "profile": "literal_kernel",
+        "status": "valid",
+        "output_json_sha256": "f81811bef2155c95b4645fc3ecc871178bafda7653ee8b3635a59f55b94b2ba3"
+      }
+    },
+    {
+      "case": "two-parents-P2C1-empty",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "two-parents-P2C1-empty",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/two-parents-P2C1-empty/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "1eacd00a7b015c68aed7383d5df091b4c6a2258a12ef9912b5babe6c77010bb4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "two-parents-P2C1-empty",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "bfa0ab5287006b4399bf898a0f814f8867ecbaa1520937d2a21c9fbc6aa60c48"
+      }
+    },
+    {
+      "case": "two-colors-boundary",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "two-colors-boundary",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/two-colors-boundary/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "cbbe4b91b6201cb8f250db8620836e72dd4eeda71a18854435d28fee70575c6e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "two-colors-boundary",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "67b88f50816f140b220b9ed773a823e6963debd31a82ad565a6b812109db45b7"
+      }
+    },
+    {
+      "case": "one-parent-P1C2",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "one-parent-P1C2",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/one-parent-P1C2/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "db49d03c15d6f87e33ee4daaace2c8c3289c8ee10cf35634a3dd4a638a8c35dd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "one-parent-P1C2",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "b39e9b5ddf786711d4edb4731479ec4daf9de672d1994b80e4a83ee7334e28b9"
+      }
+    },
+    {
+      "case": "overlapping-parent-cut-halos",
+      "profile": "typed_parent",
+      "expected_unusable": false,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "overlapping-parent-cut-halos",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/overlapping-parent-cut-halos/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "36f8664f4c4052346c20728f99afecf7c109adab163460bbaa073cc2dc86e76d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "overlapping-parent-cut-halos",
+        "profile": "typed_parent",
+        "status": "valid",
+        "output_json_sha256": "35a4328ff0e1de587c40cd6be8ebb266be90a7ce9bbfb46186042b75a2502baa"
+      }
+    },
+    {
+      "case": "record-overflow",
+      "profile": "typed_parent",
+      "expected_unusable": true,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "record-overflow",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/record-overflow/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "ee58adbc5060e4850272f3a99d41594d07fb94d2215a63df0197f2e7bb2a2733",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "record-overflow",
+        "profile": "typed_parent",
+        "status": "unusable",
+        "output_json_sha256": "953a084e872c74e731eafde4687e790db247b4c53e5112911a5afaa059e869e7"
+      }
+    },
+    {
+      "case": "packed-overflow",
+      "profile": "typed_parent",
+      "expected_unusable": true,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "packed-overflow",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/packed-overflow/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "1f0d859c5d6d9212ec5fd43d4ac3658b2bd9d2742fc718d11b3d2e5364ef83af",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "packed-overflow",
+        "profile": "typed_parent",
+        "status": "unusable",
+        "output_json_sha256": "77870959686df7cd214f34dcf89d31444036b0a5a2a72e62a268f8a89e749b23"
+      }
+    },
+    {
+      "case": "literal-invalid-parent-label",
+      "profile": "literal_kernel",
+      "expected_unusable": true,
+      "argv": [
+        "/tmp/workshop-test-pinned313-20261027/bin/python",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/qualify_native_children.py",
+        "compare",
+        "/tmp/workshop-child-matrix-dc0b-pinned-20261027",
+        "literal-invalid-parent-label",
+        "/tmp/workshop-child-matrix-intel-dc0b-20261027.v2/literal-invalid-parent-label/result"
+      ],
+      "returncode": 0,
+      "stdout_sha256": "f181bf65b32dcf9ec9467f34ce298c5ce6f60e96382ff0285d20b4a62b889c63",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "comparison": {
+        "matched": true,
+        "case": "literal-invalid-parent-label",
+        "profile": "literal_kernel",
+        "status": "unusable",
+        "output_json_sha256": "bb669425a33d446d9b11cd72328e3a9e5674cd605172a7b6008944fc11f42ce6"
+      }
+    }
+  ],
+  "all_matched": true,
+  "case_count": 58,
+  "profile_counts": {
+    "literal_kernel": 29,
+    "typed_parent": 29
+  },
+  "status_counts": {
+    "valid": 55,
+    "unusable": 3
+  },
+  "seconds": 8.959432693000053,
+  "typed_valid_lifecycle_cases": 27,
+  "typed_unusable_view_rejection_cases": 2,
+  "literal_valid_cases": 28,
+  "literal_unusable_cases": 1
+}
