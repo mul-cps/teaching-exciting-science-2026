@@ -180,3 +180,25 @@ Transfers (bytes + direction) / allocations / synchronization + readback per out
 Concurrent control-loop p95 / p99 / deadline misses / required limits:
 Fallback reason / acceptance decision / unmet constraints / evidence links:
 ```
+
+## Native CPU compilation needs its own schedule and baseline
+
+The [native Slang CPU comparison](native-slang-cpu-20261027.md) adds a concrete
+CPU fallback experiment. Slang 2026.19 can compile pure conversion/candidate
+work through LLVM, while the tested GPU atomics and barriers remain unsupported.
+The optional backend therefore shares pure Slang rules and keeps the existing
+C++ connectivity, reductions and morphology. It does not emulate barriers.
+
+Batch native CPU work into whole-frame calls and bind existing arrays directly.
+Removing per-pixel native function crossings reduced fwmini4 latency by 5.6% on
+the mixed/dense fixture and 13.1% on the sparse fixture. The final hybrid is
+12–13 times faster than default-threaded Lavapipe for these equivalent outputs,
+but existing native C++ remains faster. These ratios include different CPU/GPU
+algorithm schedules; they do not measure the compiler alone.
+
+Keep compilation/startup separate from steady processing, validate the native ABI
+against compiler reflection, and retain a CPU-specific algorithm baseline.
+Measure summed process CPU time as well as wall latency when a software Vulkan
+driver uses multiple cores. Native CPU compilation still consumes CPU; hardware
+Vulkan offload and measured control timing remain separate decisions. The new
+backend stays explicitly selected and the existing Vulkan-first policy remains.

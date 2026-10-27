@@ -6,6 +6,13 @@ The Core GPU API accepts **already aligned RGB8 and Z16**, at most 640×480. The
 
 Offline Slang compilation emits SPIR-V for eight entry points. The source/compiler/flags provenance file is installed alongside the binaries. Deployment does not need SlangPy or a Slang compiler. Connectivity uses tiled 16×16 shared-memory ping-pong with a local 256-step bound, then 32 phases of immutable A→B compression; connect atomically flattens A from frozen B before boundary hooks, eliminating canonical B→A copyback. A final edge check reports a convergence fault; parent traversal does not read atomically modified parents.
 
+An optional `RESIDENT_SLANG_CPU=ON` build adds explicit `cpu-slang` execution to
+the prealigned Core API and benchmark. It uses native Slang LLVM conversion and
+candidate stages with existing C++ completion, without creating a Vulkan device.
+Automatic selection retains hardware Vulkan first and the existing C++ CPU
+fallback. Camera admission does not yet accept `cpu-slang`. See the
+[build instructions and measured comparison](performance/native-slang-cpu-20261027.md).
+
 | Stage | Implemented boundary | Qualification limitation |
 |---|---|---|
 | Native RGB/Z16 upload | Padded native rows copied once; GPU byte extraction/conversion | USB import/DMA-BUF unavailable; upload cost must be measured |

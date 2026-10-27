@@ -8,6 +8,7 @@ const std::array<int,512>& table(){static auto t=[](){std::array<int,512>a{};for
 uint32_t bits(float f){uint32_t u;std::memcpy(&u,&f,4);return u;}
 uint32_t root(std::vector<uint32_t>& a,uint32_t i){uint32_t r=a[i];if(!r)return 0;while(a[r-1]!=r)r=a[r-1];while(a[i]!=r){auto next=a[i]-1;a[i]=r;i=next;}return r;}
 }
+const std::array<int,512>& cpu_divisions(){return table();}
 void cpu_reference(Slot& s,unsigned w,unsigned h){
  auto n=w*h;auto* in=static_cast<const uint8_t*>(s.upload.mapped);auto& t=table();auto& c=s.calibration;
  auto valid=[](float d){return std::isfinite(d)&&d>=.10f&&d<=1.2f;};
@@ -23,6 +24,10 @@ void cpu_reference(Slot& s,unsigned w,unsigned h){
   auto jump=[&](unsigned j){return s.cpu_masks[j]==m&&valid(s.cpu_depth[j])&&std::abs(z-s.cpu_depth[j])>.012f;};
   if(ok)cut=(x&&jump(i-1))||(x+1<w&&jump(i+1))||(y&&jump(i-w))||(y+1<h&&jump(i+w));s.cpu_parents[i]=ok&&!cut?i+1:0;
  }
+ cpu_complete_reference(s,w,h);
+}
+void cpu_complete_reference(Slot& s,unsigned w,unsigned h){
+ auto n=w*h;
  for(unsigned i=0;i<n;i++){
   if(!s.cpu_parents[i])continue;unsigned x=i%w,y=i/w;
   for(int dy=-1;dy<=0;dy++)for(int dx=-1;dx<=1;dx++){

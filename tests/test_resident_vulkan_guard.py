@@ -23,6 +23,8 @@ def test_frame_hot_paths_never_allocate_or_wait_for_device():
                          ('src/frame_pool.cpp', 'FrameLease FramePool::acquire('),
                          ('src/frame_pool.cpp', 'bool FramePool::ready('),
                          ('src/cpu_pipeline.cpp', 'void cpu_reference('),
+                         ('src/cpu_pipeline.cpp', 'void cpu_complete_reference('),
+                         ('src/cpu_slang.cpp', 'void cpu_slang('),
                          ('src/cpu_pipeline.cpp', 'void cpu_morphology(')]:
         code = body(file, symbol)
         assert not re.search(r'vk(?:DeviceWaitIdle|QueueWaitIdle|WaitForFences|Allocate\w*|Create\w*|MapMemory)\s*\(', code), symbol
@@ -152,6 +154,10 @@ def test_optional_timestamp_profiling_never_waits_or_allocates_per_frame():
 
 
 def test_capacity_refusal_clears_count_before_root_map_use():
-    code = body('src/cpu_pipeline.cpp', 'void cpu_reference(')
+    for file, symbol in [('src/cpu_pipeline.cpp', 'void cpu_reference('),
+                         ('src/cpu_slang.cpp', 'void cpu_slang(')]:
+        assert 'cpu_complete_reference(s,w,h);' in body(file, symbol)
+    code = body('src/cpu_pipeline.cpp', 'void cpu_complete_reference(')
     assert 'if(s.component_count>=kMaxComponents){s.fault|=2;s.cpu_xyz[4*i+3]=0;continue;}' in code
     assert 'if(!index)continue;' in code
+    assert code.index('s.cpu_xyz[4*i+3]=0;continue;') < code.index('if(!index)continue;') < code.index('auto& a=s.cpu_components[index-1]')

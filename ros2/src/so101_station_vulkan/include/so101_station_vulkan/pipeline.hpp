@@ -98,6 +98,11 @@ public:
 void decode_compact(Slot&);
 void cpu_morphology(Slot&,unsigned,unsigned);
 void cpu_reference(Slot&,unsigned,unsigned);
+void cpu_complete_reference(Slot&,unsigned,unsigned);
+const std::array<int,512>& cpu_divisions();
+#ifdef RESIDENT_SLANG_CPU
+void cpu_slang(Slot&,unsigned,unsigned);
+#endif
 // Input layout is tightly packed native RGB8 followed by little-endian native Z16.
 inline size_t input_bytes(unsigned w,unsigned h){return (size_t(w)*h*5+3)&~size_t(3);}
 inline size_t scratch_bytes(unsigned w,unsigned h){return size_t(w)*h*72;}

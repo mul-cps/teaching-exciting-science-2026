@@ -11,9 +11,12 @@ struct Parameters{uint32_t width,height,count,capacity;float scale,fx,fy,cx,cy,m
 void barrier(VkCommandBuffer cmd,VkPipelineStageFlags src,VkPipelineStageFlags dst,VkAccessFlags sa,VkAccessFlags da){VkMemoryBarrier b{VK_STRUCTURE_TYPE_MEMORY_BARRIER};b.srcAccessMask=sa;b.dstAccessMask=da;vkCmdPipelineBarrier(cmd,src,dst,0,1,&b,0,nullptr,0,nullptr);}
 }
 Pipeline::Pipeline(unsigned w,unsigned h,const std::string& mode,const std::string& shader_dir,bool debug,bool profile):shader_dir_(shader_dir){
- if(mode!="auto"&&mode!="vulkan"&&mode!="cpu")throw std::invalid_argument("backend must be auto, vulkan or cpu");
- backend_="cpu";
- if(mode!="cpu"){
+ if(mode!="auto"&&mode!="vulkan"&&mode!="cpu"&&mode!="cpu-slang")throw std::invalid_argument("backend must be auto, vulkan, cpu or cpu-slang");
+#ifndef RESIDENT_SLANG_CPU
+ if(mode=="cpu-slang")throw std::invalid_argument("cpu-slang backend not built; enable RESIDENT_SLANG_CPU");
+#endif
+ backend_=mode=="cpu-slang"?"cpu-slang":"cpu";
+ if(mode=="auto"||mode=="vulkan"){
   try{context_=Context::shared();pool_=std::make_shared<FramePool>(w,h,context_,debug,profile);create_gpu();backend_="vulkan";}
   catch(const std::exception& e){destroy_gpu();pool_.reset();divisions_.reset();context_.reset();if(mode=="vulkan")throw;reason_=e.what();}
  }
@@ -68,6 +71,9 @@ void Pipeline::submit_impl(const FrameLease& f,const Buffer* packed_z16){
      (packed_z16->memory!=VK_NULL_HANDLE&&(packed_z16->memory==s.input.memory||packed_z16->memory==s.upload.memory)))throw std::invalid_argument("device depth source aliases core storage");
   if(rgb_bytes>s.upload.size||rgb_bytes>s.input.size||depth_bytes>s.input.size-rgb_bytes)throw std::invalid_argument("device depth input range exceeds storage");
  }
+#ifdef RESIDENT_SLANG_CPU
+ if(backend_=="cpu-slang"){cpu_slang(s,width(),height());s.submitted=true;return;}
+#endif
  if(backend_=="cpu"){cpu_reference(s,width(),height());s.submitted=true;return;}
  // The shared command pool requires host serialization while recording. This
  // mutex never waits for the device; independent frame fences retain overlap.
@@ -94,7 +100,7 @@ void Pipeline::submit_impl(const FrameLease& f,const Buffer* packed_z16){
 void Pipeline::finish(const FrameLease& f){
  if(!pool_->owns(f)||!f.slot().submitted)throw std::logic_error("finish requires an owned submitted frame");
  if(!ready(f))throw std::logic_error("frame completion not yet available");auto& s=f.slot();
- if(backend_=="cpu"){if(s.fault)throw std::runtime_error("CPU component reduction fault: "+std::to_string(s.fault));return;}
+ if(backend_=="cpu"||backend_=="cpu-slang"){if(s.fault)throw std::runtime_error("CPU component reduction fault: "+std::to_string(s.fault));return;}
  decode_compact(s);
  if(s.timestamps){std::array<uint64_t,9> ticks{};check(vkGetQueryPoolResults(context_->device,s.timestamps,0,ticks.size(),sizeof(ticks),ticks.data(),sizeof(uint64_t),VK_QUERY_RESULT_64_BIT),"completed timestamp results");uint64_t mask=context_->timestamp_bits==64?UINT64_MAX:(uint64_t(1)<<context_->timestamp_bits)-1;for(unsigned i=0;i<8;i++)s.gpu_stage_ms[i]=double((ticks[i+1]-ticks[i])&mask)*context_->properties.limits.timestampPeriod/1e6;}
 

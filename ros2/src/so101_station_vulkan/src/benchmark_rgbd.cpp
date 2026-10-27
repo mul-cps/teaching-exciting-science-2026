@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -75,11 +76,12 @@ int main(int argc, char **argv) {
     }
     if (!frames || frames > 100000 || warmup > 10000)
       throw std::invalid_argument("invalid bounded iteration count");
-    if (mode == "cpu" && !dump.empty())
+    if ((mode == "cpu" || mode == "cpu-slang" || mode == "compare-cpu-slang") && !dump.empty())
       throw std::invalid_argument(
           "dense GPU diagnostic dump requires Vulkan backend");
     const bool compare = mode == "compare";
-    Pipeline p(width, height, compare ? "vulkan" : mode, shader,
+    const bool compare_cpu_slang = mode == "compare-cpu-slang";
+    Pipeline p(width, height, compare ? "vulkan" : (compare_cpu_slang ? "cpu-slang" : mode), shader,
                compare || !dump.empty(),profile);
     Slot reference;
     size_t n = size_t(width) * height;
@@ -125,7 +127,8 @@ int main(int argc, char **argv) {
     }
     cpu_reference(reference, width, height);
     std::array<double,8> stage_sums{};
-    std::vector<double> times;
+    std::vector<double> times, cpu_times;
+    cpu_times.reserve(frames);
     times.reserve(frames);
     uint64_t allocations =
         p.context() ? p.context()->allocation_count.load() : 0;
@@ -137,6 +140,7 @@ int main(int argc, char **argv) {
       std::memcpy(s.upload.mapped, fixture.data(), fixture.size());
       s.calibration = reference.calibration;
       s.metadata.frame_number = frame;
+      auto cpu_start = std::clock();
       auto start = std::chrono::steady_clock::now();
       p.submit(f);
       while (!p.ready(f))
@@ -145,7 +149,16 @@ int main(int argc, char **argv) {
       double ms = std::chrono::duration<double, std::milli>(
                       std::chrono::steady_clock::now() - start)
                       .count();
-      if (frame >= warmup){times.push_back(ms);for(unsigned k=0;k<8;k++)stage_sums[k]+=s.gpu_stage_ms[k];}
+      const double cpu_ms=1000.0*double(std::clock()-cpu_start)/CLOCKS_PER_SEC;
+      if (frame >= warmup){times.push_back(ms);cpu_times.push_back(cpu_ms);for(unsigned k=0;k<8;k++)stage_sums[k]+=s.gpu_stage_ms[k];}
+      if(compare_cpu_slang){
+        if(s.cpu_masks!=reference.cpu_masks||s.cpu_depth!=reference.cpu_depth||s.cpu_parents!=reference.cpu_parents)throw std::runtime_error("native CPU dense mismatch");
+        for(size_t i=0;i<4*n;i++)if(std::abs(s.cpu_xyz[i]-reference.cpu_xyz[i])>1e-7f)throw std::runtime_error("native CPU XYZ mismatch");
+        if(s.cpu_morph_counts!=reference.cpu_morph_counts)throw std::runtime_error("native CPU morphology count mismatch");
+        for(size_t i=0;i<n;i++)for(unsigned j=0;j<s.cpu_morph_counts[i];j++)if(s.cpu_morph_roots[9*i+j]!=reference.cpu_morph_roots[9*i+j])throw std::runtime_error("native CPU morphology membership mismatch");
+        if(s.fault!=reference.fault||s.component_count!=reference.component_count)throw std::runtime_error("native CPU compact count/fault mismatch");
+        for(unsigned i=0;i<s.component_count;i++)if(!(s.cpu_components[i]==reference.cpu_components[i]))throw std::runtime_error("native CPU compact mismatch");
+      }
       if (compare) {
         auto *bytes = static_cast<uint32_t *>(s.diagnostic.mapped);
         size_t mask_bad = 0, depth_bad = 0, parent_bad = 0, xyz_bad = 0;
@@ -184,6 +197,7 @@ int main(int argc, char **argv) {
     if (p.context() && p.context()->allocation_count != allocations)
       throw std::runtime_error("hot path Vulkan allocation detected");
     std::sort(times.begin(), times.end());
+    std::sort(cpu_times.begin(),cpu_times.end());
     auto percentile = [&](double p) {
       return times[size_t((times.size() - 1) * p)];
     };
@@ -210,7 +224,11 @@ int main(int argc, char **argv) {
                            : 0) +
         ",\"p50_ms\":" + std::to_string(percentile(.5)) +
         ",\"p95_ms\":" + std::to_string(percentile(.95)) +
-        ",\"p99_ms\":" + std::to_string(percentile(.99)) + "}";
+        ",\"p99_ms\":" + std::to_string(percentile(.99)) +
+        ",\"process_cpu_p50_ms\":"+std::to_string(cpu_times[(cpu_times.size()-1)/2])+
+        ",\"process_cpu_p95_ms\":"+std::to_string(cpu_times[size_t((cpu_times.size()-1)*.95)])+
+        ",\"timing_scope\":\"submit through finish; excludes compiler, construction, fixture and comparison\",\"pipeline_scope\":\"prealigned RGB8/Z16 core; excludes capture, alignment and full geometry\",\"startup_excluded\":true,\"compiler_excluded\":true,\"warmup_frames\":"+std::to_string(warmup)+
+        ",\"stage_ownership\":\""+(p.backend()=="cpu-slang"?"Slang LLVM AOT: convert,candidates; C++: CC,reduce,morphology":(p.backend()=="cpu"?"C++: convert,candidates,CC,reduce,morphology":"Vulkan: resident shaders"))+"\"}";
     if(profile&&p.backend()=="vulkan"){const char* names[]={"upload","convert","cuts","tiled_boundary_cc","reduce","morphology","gather","readback"};result.pop_back();result+=",\"gpu_stage_mean_ms\":{";for(unsigned k=0;k<8;k++){if(k)result+=",";result+="\""+std::string(names[k])+"\":"+std::to_string(stage_sums[k]/frames);}result+="}}";}
     std::cout << result << '\n';
     if (!output.empty()) {
