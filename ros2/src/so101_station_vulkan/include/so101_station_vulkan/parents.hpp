@@ -40,6 +40,8 @@ public:
  VkBuffer original_mask_buffer()const;
  // Ordered compact output only. Never exposes/maps a dense host label map.
  const ParentRecord* records()const;
+ // Validated copies; no borrowed/private pool state or source-slot exemplar.
+ FrameLease source_frame()const;ParentConfig configuration()const;
 };
 // Preparation only: no accepted objects, world coordinates or acquisition
 // qualification. Bind to one specific producer control block without reserving

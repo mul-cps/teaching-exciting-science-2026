@@ -78,6 +78,8 @@ VkBuffer ParentLease::original_mask_buffer()const{if(!storage_)throw std::logic_
 VkBuffer ParentLease::resident_records_buffer()const{if(!storage_)throw std::logic_error("empty parent lease");storage_->result(index_);return storage_->entries[index_].compact.buffer;}
 size_t ParentLease::label_offset_bytes()const{if(!storage_)throw std::logic_error("empty parent lease");return size_t(10)*storage_->p.nodes*4;}
 const ParentRecord* ParentLease::records()const{if(!storage_)throw std::logic_error("empty parent lease");storage_->result(index_);return storage_->entries[index_].records.data();}
+FrameLease ParentLease::source_frame()const{if(!storage_)throw std::logic_error("empty parent lease");storage_->result(index_);return storage_->entries[index_].source;}
+ParentConfig ParentLease::configuration()const{if(!storage_)throw std::logic_error("empty parent lease");storage_->result(index_);return storage_->config;}
 ParentPreparation::ParentPreparation(std::shared_ptr<Context> context,FramePoolToken token,const ParentConfig& config,const std::string& directory){
  config.validate();if(!context||!token)throw std::invalid_argument("parents require resident Context and live producer token");
  ParentGraphLayout graph(config.width,config.height);auto& c=*context;

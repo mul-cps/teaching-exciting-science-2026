@@ -1,0 +1,162 @@
+{
+  "execution_scope": "cpu_vulkan_diagnostic_only",
+  "gpu_executed": false,
+  "hardware_qualified": false,
+  "baseline": {
+    "exit_code": 0,
+    "device": "llvmpipe (LLVM 22.1.8, 256 bits)",
+    "width": 64,
+    "height": 48,
+    "frames": 3,
+    "warmup": 1,
+    "stock_cpu_reference_comparison_passed": true
+  },
+  "child": {
+    "exit_code": 0,
+    "device": {
+      "name": "llvmpipe (LLVM 22.1.8, 256 bits)",
+      "vendor_id": 65541,
+      "device_id": 0,
+      "driver_version": 109060099,
+      "api_version": 4211042,
+      "float64_supported": true,
+      "int64_supported": true,
+      "float64_enabled": true,
+      "int64_enabled": true
+    },
+    "fixture_sha256": "e85eb99b89f9173a5ffd50f85638d8b5542dd482f90100d116012da9c368c3dd",
+    "fault": 0,
+    "exact_arrays": {
+      "roots": {
+        "matched": true,
+        "bytes": 140,
+        "sha256": "3adadc63311963c5470cd543286c7e72bc3ca1a7e85a4c0b281073fc5d26ba06"
+      },
+      "flags": {
+        "matched": true,
+        "bytes": 140,
+        "sha256": "fda9d347a4d74fa7a8022ef62080cae87145c9802877b1801f4d978c0aa35075"
+      },
+      "records": {
+        "matched": true,
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "statuses": {
+        "matched": true,
+        "bytes": 16,
+        "sha256": "903815a2c5bc1fe1d808c083de051ebd81f35731622da9845bec29b03891f164"
+      },
+      "packed": {
+        "matched": true,
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "counts": {
+        "matched": true,
+        "bytes": 16,
+        "sha256": "4cbbd8ca5215b8d161aec181a74b694f4e24b001d5b081dc0030ed797a8973e0"
+      }
+    },
+    "statuses": [
+      [
+        24,
+        24,
+        1,
+        0
+      ]
+    ],
+    "counts": [
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  "limitations": [
+    "No Intel or AMD hardware execution",
+    "No performance or full station qualification",
+    "Original Intel fault not reproduced on this software driver"
+  ],
+  "date": "2026-10-27",
+  "source_changes": [
+    {
+      "source": "ros2/src/so101_station_vulkan/src/vulkan_context.cpp",
+      "original_sha256": "c31886988dfdc31df69f40c8e96b11bb70f8ae1db2b749c14869642d34bd0c88",
+      "cpu_test_copy_sha256": "aa3964fc032cc7b924becf3e3be6e590671276554152ade1ba7dd5f0efdf3b7e",
+      "cold_delta_for_test_copy_only": "--- original/ros2/src/so101_station_vulkan/src/vulkan_context.cpp\n+++ cpu-vulkan-test-copy/ros2/src/so101_station_vulkan/src/vulkan_context.cpp\n@@ -27,13 +27,13 @@\n   VkInstanceCreateInfo i{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};i.pApplicationInfo=&app;check(vkCreateInstance(&i,nullptr,&instance),\"vkCreateInstance\");\n   uint32_t n=0;check(vkEnumeratePhysicalDevices(instance,&n,nullptr),\"enumerate devices\");std::vector<VkPhysicalDevice> devices(n);check(vkEnumeratePhysicalDevices(instance,&n,devices.data()),\"enumerate devices\");\n   for(auto p:devices){VkPhysicalDeviceProperties props;vkGetPhysicalDeviceProperties(p,&props);\n-    if(props.deviceType==VK_PHYSICAL_DEVICE_TYPE_CPU)continue;\n+    if(props.deviceType!=VK_PHYSICAL_DEVICE_TYPE_CPU)continue;\n     std::string name=props.deviceName;std::transform(name.begin(),name.end(),name.begin(),[](unsigned char c){return std::tolower(c);});\n-    if(name.find(\"llvmpipe\")!=std::string::npos||name.find(\"lavapipe\")!=std::string::npos||name.find(\"swiftshader\")!=std::string::npos)continue;\n+    if(!(name.find(\"llvmpipe\")!=std::string::npos||name.find(\"lavapipe\")!=std::string::npos||name.find(\"swiftshader\")!=std::string::npos))continue;\n     uint32_t qn=0;vkGetPhysicalDeviceQueueFamilyProperties(p,&qn,nullptr);std::vector<VkQueueFamilyProperties> qs(qn);vkGetPhysicalDeviceQueueFamilyProperties(p,&qn,qs.data());\n     for(uint32_t q=0;q<qn;q++)if(qs[q].queueFlags&VK_QUEUE_COMPUTE_BIT){physical=p;family=q;timestamp_bits=qs[q].timestampValidBits;properties=props;break;}if(physical)break;\n   }\n-  if(!physical)throw std::runtime_error(\"no hardware Vulkan compute device (software adapters refused)\");\n+  if(!physical)throw std::runtime_error(\"no named CPU Vulkan compute device (hardware adapters refused; llvmpipe/lavapipe/swiftshader required)\");\n   // Compute capabilities do not depend on optional video negotiation.\n   VkPhysicalDeviceFeatures supported_compute{};vkGetPhysicalDeviceFeatures(physical,&supported_compute);\n   VkPhysicalDeviceFeatures baseline{};baseline.shaderFloat64=supported_compute.shaderFloat64;baseline.shaderInt64=supported_compute.shaderInt64;\n"
+    },
+    {
+      "source": "tools/performance/qualify_children.cpp",
+      "original_sha256": "01e45df35f5e32f2310884de61a0e566cdd2b4a85fcc31f82be65fd57bb5999e",
+      "cpu_test_copy_sha256": "5c2d98a04b493148fe2b06b405dcde994b4af2f84774213e1d7af431c35aa9ec",
+      "cold_delta_for_test_copy_only": "--- original/tools/performance/qualify_children.cpp\n+++ cpu-vulkan-test-copy/tools/performance/qualify_children.cpp\n@@ -88,7 +88,7 @@\n  for(unsigned i=0;i<32;i++){if(i)out<<',';out<<compact[i];}out<<\"],\\\"first_parent_status\\\":[\";for(unsigned i=0;i<4;i++){if(i)out<<',';out<<compact[32+i];}out<<']';\n  const char* names[]={\"A\",\"B\",\"persistent_roots\",\"source_flags\"};for(unsigned a=0;a<4;a++){out<<','<<quote(names[a])<<\":[\";for(unsigned i=0;i<35;i++){if(i)out<<',';out<<snapshot[35*a+i];}out<<']';}out<<\"}\\n\";\n }\n-std::string common(const Fixture& q){std::ostringstream o;o<<\"\\\"scope\\\":\\\"childprep_only\\\",\\\"physical_camera\\\":false,\\\"objects\\\":false,\\\"world_qualified\\\":false,\\\"profile\\\":\"<<quote(q.profile==1?\"typed_parent\":\"literal_kernel\")<<\",\\\"width\\\":\"<<q.width<<\",\\\"height\\\":\"<<q.height<<\",\\\"calibration_generation\\\":\"<<q.calibration<<\",\\\"parent_generation\\\":\"<<q.parent_generation<<\",\\\"configuration_generation\\\":\"<<q.generation<<\",\\\"fixture_sha256\\\":\"<<quote(q.hash)<<\",\\\"qualifier_source_sha256\\\":\"<<quote(CHILD_QUALIFIER_SOURCE_SHA256)<<\",\\\"child_module_source_sha256\\\":\"<<quote(CHILD_MODULE_SOURCE_SHA256)<<\",\\\"compiler\\\":\"<<quote(__VERSION__)<<\",\\\"executable_sha256\\\":\"<<quote(hash_file(\"/proc/self/exe\"));return o.str();}\n+std::string common(const Fixture& q){std::ostringstream o;o<<\"\\\"execution_scope\\\":\\\"cpu_vulkan_diagnostic_only\\\",\\\"gpu_executed\\\":false,\\\"qualified\\\":false,\"<<\"\\\"scope\\\":\\\"childprep_only\\\",\\\"physical_camera\\\":false,\\\"objects\\\":false,\\\"world_qualified\\\":false,\\\"profile\\\":\"<<quote(q.profile==1?\"typed_parent\":\"literal_kernel\")<<\",\\\"width\\\":\"<<q.width<<\",\\\"height\\\":\"<<q.height<<\",\\\"calibration_generation\\\":\"<<q.calibration<<\",\\\"parent_generation\\\":\"<<q.parent_generation<<\",\\\"configuration_generation\\\":\"<<q.generation<<\",\\\"fixture_sha256\\\":\"<<quote(q.hash)<<\",\\\"qualifier_source_sha256\\\":\"<<quote(CHILD_QUALIFIER_SOURCE_SHA256)<<\",\\\"child_module_source_sha256\\\":\"<<quote(CHILD_MODULE_SOURCE_SHA256)<<\",\\\"compiler\\\":\"<<quote(__VERSION__)<<\",\\\"executable_sha256\\\":\"<<quote(hash_file(\"/proc/self/exe\"));return o.str();}\n void fresh_file(const std::string& path,const void* data,size_t bytes){int fd=open(path.c_str(),O_WRONLY|O_CREAT|O_EXCL,0600);require(fd>=0,\"output exists or cannot be created\");auto* p=static_cast<const char*>(data);while(bytes){auto n=write(fd,p,bytes);if(n<=0){close(fd);throw std::runtime_error(\"output write failed\");}p+=n;bytes-=size_t(n);}require(close(fd)==0,\"output close failed\");}\n void fresh_text(const std::string& path,const std::string& text){fresh_file(path,text.data(),text.size());}\n #ifndef CHILD_QUALIFIER_CPU_ONLY\n@@ -152,7 +152,7 @@\n  // member destruction; driver cold calls require the external90s PG watchdog.\n  auto* state=new GPUState;\n  try{\n-  auto& s=*state;s.context=Context::shared();auto c=s.context;require(c->properties.deviceType!=VK_PHYSICAL_DEVICE_TYPE_CPU,\"software device refused\");VkPhysicalDeviceFeatures supported{};vkGetPhysicalDeviceFeatures(c->physical,&supported);size_t bytes=std::max(12*q.n()+64+32*size_t(q.P),8*q.n()+4*size_t(q.S));s.transfer=std::make_unique<Transfer>(c,bytes);auto& t=*s.transfer;\n+  auto& s=*state;s.context=Context::shared();auto c=s.context;require(c->properties.deviceType==VK_PHYSICAL_DEVICE_TYPE_CPU,\"CPU Vulkan diagnostic requires software CPU device\");VkPhysicalDeviceFeatures supported{};vkGetPhysicalDeviceFeatures(c->physical,&supported);size_t bytes=std::max(12*q.n()+64+32*size_t(q.P),8*q.n()+4*size_t(q.S));s.transfer=std::make_unique<Transfer>(c,bytes);auto& t=*s.transfer;\n   std::ostringstream extra;extra<<\",\\\"external_watchdog_acknowledged\\\":true,\\\"shader_source_sha256\\\":\"<<quote(CHILD_SHADER_SOURCE_SHA256)<<\",\\\"child_shader_identity\\\":\"<<child_identity<<\",\\\"parent_shader_identity\\\":\"<<parent_identity<<\",\\\"requires_float64\\\":false,\\\"requires_int64\\\":false,\\\"loaded_libraries\\\":[\"<<child_library<<','<<parent_library<<','<<core_library<<\"],\\\"device\\\":{\\\"name\\\":\"<<quote(c->properties.deviceName)<<\",\\\"vendor_id\\\":\"<<c->properties.vendorID<<\",\\\"device_id\\\":\"<<c->properties.deviceID<<\",\\\"driver_version\\\":\"<<c->properties.driverVersion<<\",\\\"api_version\\\":\"<<c->properties.apiVersion<<\",\\\"float64_supported\\\":\"<<(supported.shaderFloat64?\"true\":\"false\")<<\",\\\"int64_supported\\\":\"<<(supported.shaderInt64?\"true\":\"false\")<<\",\\\"float64_enabled\\\":\"<<(c->enabled_features.features.shaderFloat64?\"true\":\"false\")<<\",\\\"int64_enabled\\\":\"<<(c->enabled_features.features.shaderInt64?\"true\":\"false\")<<'}';\n   if(q.profile==2){\n    s.literal=std::make_unique<LiteralKernel>(c,q,shaders);auto& k=*s.literal;k.execute(t,q);auto* w=static_cast<const u32*>(k.readback.mapped);require(w[0]==1&&w[1]==q.width&&w[2]==q.height&&w[3]<=q.P&&w[4]<=q.C&&w[5]<=q.S&&w[6]<=k.graph.job_capacity,\"literal completion header bounds\");\n@@ -207,5 +207,5 @@\n   u32 endian=1;require(*reinterpret_cast<unsigned char*>(&endian)==1,\"little-endian host required\");auto q=load(argv[2]);return gpu(q,argv[3],argv[4],argv[5]);\n #endif\n  }\n- require(mode==\"--offline\"&&(argc==3||argc==4),\"invalid qualifier mode/arguments\");auto q=load(argv[2]);std::string text=\"{\"+common(q)+\",\\\"gpu_executed\\\":false,\\\"expected_unusable\\\":\"+(q.flags?\"true\":\"false\")+\",\\\"parent_count\\\":\"+std::to_string(q.parent_count)+\",\\\"minimum\\\":\"+std::to_string(q.minimum)+\",\\\"capacity\\\":\"+std::to_string(q.C)+\",\\\"packed_capacity\\\":\"+std::to_string(q.S)+\"}\\n\";if(argc==4)fresh_text(std::string(argv[3])+\".offline.json\",text);std::cout<<text;return 0;\n+ require(mode==\"--offline\"&&(argc==3||argc==4),\"invalid qualifier mode/arguments\");auto q=load(argv[2]);std::string text=\"{\"+common(q)+\",\\\"expected_unusable\\\":\"+(q.flags?\"true\":\"false\")+\",\\\"parent_count\\\":\"+std::to_string(q.parent_count)+\",\\\"minimum\\\":\"+std::to_string(q.minimum)+\",\\\"capacity\\\":\"+std::to_string(q.C)+\",\\\"packed_capacity\\\":\"+std::to_string(q.S)+\"}\\n\";if(argc==4)fresh_text(std::string(argv[3])+\".offline.json\",text);std::cout<<text;return 0;\n }catch(const std::exception& e){std::cerr<<e.what()<<'\\n';return 1;}}\n"
+    }
+  ],
+  "compiler": {
+    "slang_version": "2026.19",
+    "slang_sha256": "19c0217f848537db2a87120eb1b3f882ab2e3eb54fdec4cf5300035943704145",
+    "shader_flags": [
+      "-stage",
+      "compute",
+      "-target",
+      "spirv",
+      "-profile",
+      "sm_6_0",
+      "-fp-mode",
+      "precise",
+      "-O2"
+    ]
+  },
+  "shader_sha256": {
+    "shaders/candidates.spv": "00c662bcd0e8caab3703cc56d7270950c47d93a7d720c5ea4e14ffa25e01f56c",
+    "shaders/compress.spv": "0bfe428fd309c1910d846fff31f96851cb7447016eec5b9ef41c0d40625d498e",
+    "shaders/connect.spv": "4e3b9dc500f4ef1727765abd54385f0e3ae8ee86484cc95c57d5e96c106d744b",
+    "shaders/convert.spv": "86ff1501948b13ae8db84734d75edf8a33e5a5a32654ba939ec022095aae8319",
+    "shaders/gather.spv": "fda7a89aaa457efc4417738a5e80c5ddb35e452d498dc7a4387fe4f7a39ec55c",
+    "shaders/morphology.spv": "c02b9cb0cb248e68de94ac5a5c125ae9a5fc9ac185db7701a360870230127388",
+    "shaders/reduce.spv": "b92de08115e6b10e362ba0eb50f8e09a94164ef6d312b90e80f3731c7ef9b48d",
+    "shaders/tiled_components.spv": "414f3809fc3257a37b874b7743744b76ccc41255046574b07b7619a3c1081e31",
+    "parent-shaders/parents_flatten.spv": "c7e15a1ca23055c009448ecc6d0ea1d5d81037e3ab5c6c85b42c9b74d38a43cb",
+    "parent-shaders/parents_hook.spv": "bb8fb47e7433e22c835e384c6520f9d871d41613bc61fcd40ceb2bb66f37e811",
+    "parent-shaders/parents_init.spv": "4566b1dbf6b91385e8c7e0fbee48ef9e6f9be4c5bcd6d90171fd2fdd8288beff",
+    "parent-shaders/parents_labels.spv": "63895405b544e9644013e7d086a4d342522ddee4f1a4b532a2aa3a92ab4b2ef7",
+    "parent-shaders/parents_offsets.spv": "0617c69a2955015ea6432126c80664135cb634ff7b28203562b95af1ff9e2bea",
+    "parent-shaders/parents_pixels.spv": "cafcf7e7b4b3283622b576bb2a89e311eb4ace4de1a6000e6cd51c2ca222b783",
+    "parent-shaders/parents_records.spv": "d2fae53bdf5f79b095afa1aeceedd98dad5278b98b727bd547a80152fdfc700f",
+    "parent-shaders/parents_scan.spv": "b36670c34b17df9c4ae21af9dcf49afd94c82a05b280554f018d25e0074c2f23",
+    "parent-shaders/parents_validate.spv": "6340b3e9d9f88480489a4f9dc8b566b3e3b06377b36f258ac0c9b32f0fae809f",
+    "child-shaders/child_boundary.spv": "603ea69485178f932724c167bc126d4fb06252bcfe1e9e5fd4a0e26acbd27de1",
+    "child-shaders/child_fill_hook.spv": "bbe706af8c72cc01035d36644dc9845c7600152e07202f03a0aa4f2d74fbdbbe",
+    "child-shaders/child_fill_jump.spv": "0a1422f46774d6e6362de184abd7f4c56541dd0256aeae4f187edcd2a017dc89",
+    "child-shaders/child_fill_validate.spv": "58a7fc2207942a61ada631c27afeeb351460a23d6c5d0a1e3f1dd40d40e59fdc",
+    "child-shaders/child_finalize.spv": "2b00218c25d1da89a27991051db5c95e3c663a5cd3f1a3719e9dfb719f676340",
+    "child-shaders/child_gather.spv": "8e536f32997c74a397a5dd8685206278dad0304435d81db66068dc8e3cd60dd4",
+    "child-shaders/child_hook.spv": "666481d6feded922b9e5eb930aee1f773a85466ec9de1d3abad96b0cf5d42fc7",
+    "child-shaders/child_init.spv": "03467a88e5dcad9e64dc4a0290c6a9ea1b88dc4e14be1392ac8184de8aa61e33",
+    "child-shaders/child_jobs.spv": "27c407498f1ddb8300c937b1d00866a5dcffe97dab88db60b434ed8cdfea1a7f",
+    "child-shaders/child_jump.spv": "3b11d4f25aab614f740d6f07192ff3949f298d31f7344100b5f29e942bc8e8e1",
+    "child-shaders/child_lookup.spv": "13dec9241e3d7c4ed7e5b1b9d1cd3e7c23baa8b8ae0653295cd5170011c00763",
+    "child-shaders/child_pack_offsets.spv": "22905f8c26157f8a09c2610257da130abf36c3d2d29e52feddd104862691ff97",
+    "child-shaders/child_pack_scan.spv": "bfd4ee5f6dae7ce99772de24e09b68b625aa882cb912f6e64497de1cb7893b70",
+    "child-shaders/child_packed_init.spv": "7b92da9f1c8d9860a81efca1de94dc4be4bb075c3680688ad73829ac288ab92e",
+    "child-shaders/child_radix_hist.spv": "c2dcda0ba581bb0e9a240d70ed219a099e986ca9dfe53e0b6c4d8c7128d2247e",
+    "child-shaders/child_radix_offsets.spv": "8533ab499458ed196a7f80e7a9a04848238d04a0dab5da30b7109ab0a37e962c",
+    "child-shaders/child_radix_scatter.spv": "27cb9da20b764817e96c4792cc6545f2eaa2d26047ee5cb5daea1e5e7a04d6ac",
+    "child-shaders/child_reduce.spv": "91d1a0f26fd3b5e02c18ab48d8a43fa2d7437ca88af44066a8e036cc975cadec",
+    "child-shaders/child_scatter.spv": "4817e16d966208b023c58fdc0b1aa1edf0de1d064f127f2200ad23effe708eb0",
+    "child-shaders/child_support.spv": "648a3965f029c3c7b1f77aacdee65ab244c440e31ad04750210cef2aec49fa9c",
+    "child-shaders/child_validate.spv": "99c027c990f2122969c2d559e30215c2fbe782ee20ebaef401ef0238755c9e10"
+  },
+  "executable_sha256": {
+    "core_comparison": "6cb9f5ec53884c0ba5c5bc66b6163333a4ca85b5b962e4b580b9119f78f3c3eb",
+    "child_qualifier": "50340f467b9a4c196d0be0b34978a9134ffdfdfe8a6786034a0ef30b5906b82e"
+  },
+  "independent_post_run_review": {
+    "sha256": "721a4546066f052e29f45a7b0bb4cc133da4ec1a9011aa0dc1d9c350859f5ae9",
+    "result": "pass",
+    "source_pins_unchanged": 176,
+    "elf_pins_unchanged": 6,
+    "shader_binaries_unchanged": 38
+  }
+}
