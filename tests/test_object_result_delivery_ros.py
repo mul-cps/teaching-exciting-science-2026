@@ -38,7 +38,11 @@ def report():
 def test_actual_guard_delivers_original_stamp_without_poll_timer(node):
     n,executor=node;n.analysis_timer.cancel()
     seen=[];owner=threading.get_ident()
-    n._publish_report=lambda payload,stamp,**kw:seen.append((payload,stamp,threading.get_ident()))
+    def publish(payload,stamp,*,commit,**kw):
+        commit()
+        seen.append((payload,stamp,threading.get_ident()))
+        return True
+    n._publish_report=publish
     n.analysis_worker._analyze=lambda job:report()
     stamp=n.get_clock().now().to_msg()
     n.analysis_worker.submit({'stamp':stamp.sec+stamp.nanosec*1e-9,'ros_stamp':stamp})

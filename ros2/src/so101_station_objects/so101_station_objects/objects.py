@@ -1,6 +1,7 @@
 """RGB-D colored-object observations and unqualified geometric grasp proposals."""
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
@@ -1402,7 +1403,6 @@ class ColoredObjectsNode:
                 return True
 
             def _consume_analysis(self):
-                from so101_station_perception.tag_observations import stamp_is_fresh
                 if not self._consume_analysis_faults():
                     return
                 recorder = getattr(self, "timing_recorder", None)
@@ -1419,6 +1419,11 @@ class ColoredObjectsNode:
                     self._timing_current = timing
                     worker_timing(timing, packet[1])
                 if timing is not None:timing_site(timing, 10)
+                self._complete_report(job, report, error)
+
+            def _complete_report(self, job, report, error=None):
+                from so101_station_perception.tag_observations import stamp_is_fresh
+                timing = job.get("_analysis_timing")
                 stamp = job["stamp"]
                 now = self.get_clock().now().nanoseconds * 1e-9
                 if (stamp <= (self.last_analysis_result_stamp or float("-inf"))
@@ -1450,10 +1455,14 @@ class ColoredObjectsNode:
                         self._publish_unavailable(job["ros_stamp"], "unavailable", str(error))
                         return
                 TimingRecorder.clock(timing, 19) if timing is not None else None
-                self.last_analysis_result_stamp = stamp
+                # Stage only the shell: update replaces its track mapping before
+                # writes and reads old nested track/ownership values unchanged.
+                staged_tracker = copy.copy(self.tracker)
+                report = dict(report)
+                staged_cache = self.last_support_plane
                 plane = report["support_plane"]
                 if plane.get("plane_source") != "cached_measured_support_plane":
-                    self.last_support_plane = {
+                    staged_cache = {
                         "normal": np.asarray(plane["normal"], dtype=float).copy(),
                         "d": float(plane["d"]), "plane_source": plane["plane_source"],
                         "support_points": int(plane["support_points"]),
@@ -1481,20 +1490,26 @@ class ColoredObjectsNode:
                         self._publish_unavailable(job["ros_stamp"], "unavailable", str(error))
                         return
                 TimingRecorder.clock(timing, 21) if timing is not None else None
-                objects = self.tracker.update(report["objects"], stamp,
+                objects = staged_tracker.update(report["objects"], stamp,
                                               expected_owned_positions=expected_owned_positions)
                 report["objects"] = objects
-                report["expired_tracks"] = self.tracker.expired_tracks
-                report["acquisition"] = self.tracker.acquisition_diagnostics()
+                report["expired_tracks"] = staged_tracker.expired_tracks
+                report["acquisition"] = staged_tracker.acquisition_diagnostics()
                 report["stamp"] = stamp
                 report["support_plane"] = {
                     key: (value.tolist() if isinstance(value, np.ndarray) else value)
                     for key, value in report["support_plane"].items()
                     if key != "inlier_mask" and key != "residuals_m"}
                 kwargs = {} if job.get("derived_token") is None else {"derived_token": job["derived_token"]}
-                self._publish_report(report, job["ros_stamp"], **kwargs)
+                def commit():
+                    # Private, precomputed assignments only; final admission is
+                    # owned by the serialized executor publisher below.
+                    self.tracker = staged_tracker
+                    self.last_support_plane = staged_cache
+                    self.last_analysis_result_stamp = stamp
+                self._publish_report(report, job["ros_stamp"], commit=commit, **kwargs)
 
-            def _publish_report(self, report, stamp, derived_token=None):
+            def _publish_report(self, report, stamp, derived_token=None, *, commit=None) -> bool:
                 detections = Detection3DArray()
                 detections.header.stamp, detections.header.frame_id = stamp, self.board_frame
                 markers = MarkerArray()
@@ -1627,7 +1642,9 @@ class ColoredObjectsNode:
                     try:self.derived.check(derived_token)
                     except ValueError as error:
                         self._publish_unavailable(stamp, "unavailable", str(error))
-                        return
+                        return False
+                if commit is not None:
+                    commit()
                 self.detections_pub.publish(detections)
                 self.markers_pub.publish(markers)
                 self.grasps_pub.publish(grasps)
@@ -1638,6 +1655,7 @@ class ColoredObjectsNode:
                 self.status_pub.publish(message)
                 TimingRecorder.clock(timing, 13) if timing is not None else None
                 if timing is not None:finish_node(self, 1)
+                return True
 
         return _Node(*args, **kwargs)
 

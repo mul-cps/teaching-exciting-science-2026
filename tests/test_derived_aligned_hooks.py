@@ -24,8 +24,11 @@ def test_both_nodes_default_off_and_objects_check_before_tracker():
         text=path.read_text();assert '"allow_derived_source", False' in text or '"allow_derived_source": False' in text
         assert 'DerivedAligned' in text and 'derived_token' in text
     path=ROOT/'ros2/src/so101_station_objects/so101_station_objects/objects.py'
-    text=ast.get_source_segment(path.read_text(),function(path,'_consume_analysis'))
-    assert text.index('self.derived.check(')<text.index('self.tracker.update(')
+    receipt=ast.get_source_segment(path.read_text(),function(path,'_consume_analysis'))
+    assert 'self._complete_report(job, report, error)' in receipt
+    text=ast.get_source_segment(path.read_text(),function(path,'_complete_report'))
+    assert text.index('self.derived.check(')<text.index('staged_tracker.update(')
+    assert text.index('lookup_transform(')<text.rindex('self.derived.check(')<text.index('staged_tracker.update(')
 
 
 def test_adapter_intake_has_no_pixel_decode_copy_or_extra_images():
@@ -64,6 +67,6 @@ def test_launch_default_off_and_recovery_inputs_not_remapped():
 def test_object_final_admission_follows_all_materialization_and_unavailable_unchanged():
     path=ROOT/'ros2/src/so101_station_objects/so101_station_objects/objects.py'
     text=ast.get_source_segment(path.read_text(),function(path,'_publish_report'))
-    assert text.index('json.dumps(status')<text.index('self.derived.check(derived_token)')<text.index('self.detections_pub.publish(')
+    assert text.index('json.dumps(status')<text.index('self.derived.check(derived_token)')<text.index('commit()')<text.index('self.detections_pub.publish(')
     unavailable=ast.get_source_segment(path.read_text(),function(path,'_publish_unavailable'))
     assert 'derived_token' not in unavailable and 'publish(detections)' not in unavailable

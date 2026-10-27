@@ -108,6 +108,8 @@ def test_five_source_check_sites_and_final_publication_order_static():
     publish=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='_publish_report')
     final=next(n for n in publish.body if isinstance(n,ast.If) and ast.unparse(n.test)=='derived_token is not None')
     following=publish.body[publish.body.index(final)+1:]
+    assert ast.unparse(following.pop(0))=='if commit is not None:\n    commit()'
+    assert ast.unparse(following.pop())=='return True'
     assert [ast.unparse(n.value.func) for n in following[:4]]==['self.detections_pub.publish','self.markers_pub.publish','self.grasps_pub.publish','self.contacts_pub.publish']
     assert ast.unparse(following[-2]).startswith('TimingRecorder.clock(timing, 13)')
     assert ast.unparse(following[-1])=='if timing is not None:\n    finish_node(self, 1)'
@@ -185,6 +187,23 @@ def test_timing_preserves_accepted_publication_and_algorithms():
     names={'timing','TimingRecorder','timing_site','finish_node'}
     publish.body=[stmt for stmt in publish.body if not any(isinstance(n,ast.Name) and n.id in names for n in ast.walk(stmt))]
     digest=stable_ast_digest
+    # Reviewed admission delta only; restore those exact nodes and compare the
+    # complete remaining publisher to its historical accepted fingerprint.
+    assert [arg.arg for arg in publish.args.kwonlyargs] == ['commit']
+    assert ast.unparse(publish.args.kw_defaults[0]) == 'None'
+    assert ast.unparse(publish.returns) == 'bool'
+    commits=[stmt for stmt in publish.body if isinstance(stmt,ast.If) and ast.unparse(stmt.test)=='commit is not None']
+    assert len(commits)==1 and ast.unparse(commits[0])=='if commit is not None:\n    commit()'
+    final=next(stmt for stmt in publish.body if isinstance(stmt,ast.If) and ast.unparse(stmt.test)=='derived_token is not None')
+    rejected=[stmt for stmt in ast.walk(final) if isinstance(stmt,ast.Return)]
+    assert len(rejected)==1 and ast.unparse(rejected[0])=='return False'
+    assert ast.unparse(publish.body[-1])=='return True'
+    publish.args.kwonlyargs=[]
+    publish.args.kw_defaults=[]
+    publish.returns=None
+    publish.body.remove(commits[0])
+    publish.body.pop()
+    rejected[0].value=None
     assert digest(publish)==ACCEPTED_PUBLISH_AST
     actual={node.name:digest(node) for node in tree.body if isinstance(node,(ast.FunctionDef,ast.ClassDef)) and node.name!='ColoredObjectsNode'}
     assert actual==ACCEPTED_ALGORITHM_AST

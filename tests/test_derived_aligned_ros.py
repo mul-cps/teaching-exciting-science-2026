@@ -127,7 +127,7 @@ def test_expired_object_result_does_not_publish_or_acquire(notification_error):
     path=ROOT/'ros2/src/so101_station_objects/so101_station_objects/objects.py'
     tree=ast.parse(path.read_text())
     callbacks={item.name:item for item in ast.walk(tree) if isinstance(item,ast.FunctionDef)
-        and item.name in ('_consume_analysis','_consume_analysis_faults')}
+        and item.name in ('_consume_analysis','_consume_analysis_faults','_complete_report')}
     # Exercise the actual result guard callback and its shared fault gate. The
     # independent50ms timer must retain the same real fault method as well.
     calls=[item for item in ast.walk(tree) if isinstance(item,ast.Call) and isinstance(item.func,ast.Attribute)]
@@ -150,6 +150,7 @@ def test_expired_object_result_does_not_publish_or_acquire(notification_error):
         last_analysis_result_stamp=None,require_registration_tracking=False,
         tracker=NS(update=lambda *args:updates.append(args)),_publish_unavailable=lambda *args:publications.append(args))
     node._consume_analysis_faults=MethodType(namespace['_consume_analysis_faults'],node)
+    node._complete_report=MethodType(namespace['_complete_report'],node)
     namespace['_consume_analysis'](node)
     assert not updates and node.last_analysis_result_stamp is None
     assert invalidations == ([None] if notification_error is not None else [])

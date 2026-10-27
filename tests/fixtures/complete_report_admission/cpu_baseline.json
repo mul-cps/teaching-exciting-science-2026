@@ -1,0 +1,4838 @@
+{
+  "cases": [
+    {
+      "accepted_state": {
+        "last_analysis_result_stamp": 1793130292.6264591,
+        "last_marker_update_stamp": {
+          "__ros_type__": "builtin_interfaces.msg._time.Time",
+          "data": {
+            "nanosec": 626459089,
+            "sec": 1793130292
+          }
+        },
+        "last_support_plane": {
+          "d": 0.0,
+          "normal": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ]
+          },
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "stamp": 1793130292.6264591,
+          "support_inliers": 265,
+          "support_points": 265
+        },
+        "marker_clear_sent": true,
+        "tracker": {
+          "acquisition_min_frames": 3,
+          "ambiguity_margin": 0.015,
+          "attachment_records": {},
+          "expired_tracks": [],
+          "ineligible_new_observations": 0,
+          "last_acquisition_stamp": 1793130292.6264591,
+          "max_age": 1.0,
+          "max_distance": 0.06,
+          "max_pending_tracks": 64,
+          "max_speed": 0.5,
+          "next_id": 2,
+          "owned": {
+            "__type__": "builtins.set",
+            "repr": "set()"
+          },
+          "prediction_distance_cap": 0.35,
+          "tracks": {
+            "1": {
+              "acquisition_observations": 1,
+              "color": "red",
+              "confirmed": false,
+              "first_stamp": 1793130292.6264591,
+              "position": {
+                "__ndarray__": true,
+                "data": [
+                  -0.0007800000309944148,
+                  0.008580000340938566,
+                  0.00999998450279238
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              },
+              "position_semantics": "support_plane_box_estimate",
+              "stamp": 1793130292.6264591,
+              "surface_centroid": {
+                "__ndarray__": true,
+                "data": [
+                  -0.0007800000309944154,
+                  0.008580000340938568,
+                  0.01999996900558476
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              },
+              "velocity": {
+                "__ndarray__": true,
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              }
+            }
+          }
+        }
+      },
+      "analyzer_report": {
+        "color_mask_backend": {
+          "device": null,
+          "fallback_reason": null,
+          "gpu_available": null,
+          "requested": "cpu",
+          "selected": "cpu"
+        },
+        "frame_id": "charuco_board",
+        "objects": [
+          {
+            "acquisition_eligibility_reason": "observed_silhouette_within_image",
+            "acquisition_eligible": true,
+            "collision_checked": false,
+            "color": "red",
+            "contour": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  305.0,
+                  220.0
+                ],
+                [
+                  305.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  220.0
+                ]
+              ],
+              "dtype": "float32",
+              "shape": [
+                4,
+                2
+              ]
+            },
+            "depth_points": 900,
+            "depth_validation": {
+              "accepted": true,
+              "depth_cut_pixels": 0,
+              "metrics": {
+                "centroid_camera_m": [
+                  -0.0007800000309944154,
+                  -0.008580000340938568,
+                  0.7800000309944153
+                ],
+                "color_pixels": 900,
+                "core_supported_fraction": 1.0,
+                "depth_neighbor_jump_fraction": 0.0,
+                "invalid_local_depth_fraction": 0.0,
+                "largest_depth_gap_m": 0.0,
+                "local_support_pixels": 900,
+                "plane_residual_p95_m": 0.0,
+                "saturation_p10": 255.0,
+                "semantic_identity": "unqualified_colored_surface",
+                "silhouette_rectangularity": 1.0,
+                "split_minority_fraction": 0.0011111111111111111,
+                "support_plane_gate_applied": false,
+                "supported_fraction": 1.0,
+                "visible_extents_m": [
+                  0.04212000167369843,
+                  0.04212000167369842,
+                  0.0
+                ],
+                "workspace_gate_applied": false
+              },
+              "reason": "depth_supported_colored_surface"
+            },
+            "dimension_uncertainty_m": {
+              "__ndarray__": true,
+              "data": [
+                0.013502489196043431,
+                0.01350248919604343,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_m": {
+              "__ndarray__": true,
+              "data": [
+                0.04212000167369843,
+                0.04212000167369843,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_semantics": "support_plane_box_extent_estimate",
+            "eligibility_reason": "inside_pickup_roi",
+            "execution_eligibility_reason": "not_ik_or_collision_checked",
+            "execution_eligible": false,
+            "geometric_only": true,
+            "grasps": [
+              {
+                "approach_direction": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.0,
+                    -0.0,
+                    -1.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "axis_rank": 0.04524005979767609,
+                "closing_axis": {
+                  "__ndarray__": true,
+                  "data": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "contacts_camera": {
+                  "__ndarray__": true,
+                  "data": [
+                    [
+                      -0.023400030929832463,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ],
+                    [
+                      0.021840028867843628,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ]
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    2,
+                    3
+                  ]
+                },
+                "opening_m": 0.04524005979767609,
+                "position": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.000780001030994416,
+                    0.00858001134093857,
+                    0.00999998450279238
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                }
+              }
+            ],
+            "height_m": 0.01999996900558476,
+            "ik_validated": false,
+            "image_boundary_sides": [],
+            "object_center_qualified": false,
+            "observation_geometry": "support_plane_box_estimate",
+            "orientation_matrix": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "dtype": "float64",
+              "shape": [
+                3,
+                3
+              ]
+            },
+            "pickup_eligible": true,
+            "pixel_area": 900,
+            "position": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944148,
+                0.008580000340938566,
+                0.00999998450279238
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "silhouette_validation": {
+              "accepted": true,
+              "metrics": {
+                "applied_to": "final_child_contour",
+                "contour_area_px2": 841.0,
+                "convex_hull_fill": 1.0,
+                "min_rectangle_fill": 1.0,
+                "min_rectangle_fill_required": 0.45,
+                "observed_boundary_fill": 1.0,
+                "observed_components": 1,
+                "observed_enclosing_pixel_area": 900.0,
+                "observed_pixel_fill": 1.0,
+                "observed_pixels": 900,
+                "reconstructed_min_rectangle_fill": 1.0,
+                "semantic_identity": "unqualified_convex_brick_shape_prior",
+                "shape_evidence": "original_color_depth_pixels",
+                "workspace_gate_applied": false
+              },
+              "reason": "silhouette_consistent_with_convex_brick_prior"
+            },
+            "surface_centroid": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944154,
+                0.008580000340938568,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "surface_centroid_spread_m": {
+              "__ndarray__": true,
+              "data": [
+                0.021060000836849214,
+                0.02106000083684921,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            }
+          }
+        ],
+        "observation_depth_range_m": [
+          0.1,
+          1.2
+        ],
+        "qualified": false,
+        "support_plane": {
+          "all_p95_m": 0.0,
+          "d": 0.0,
+          "inlier_mask": {
+            "__ndarray__": true,
+            "data": [
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true
+            ],
+            "dtype": "bool",
+            "shape": [
+              265
+            ]
+          },
+          "inlier_p95_m": 0.0,
+          "median_m": 0.0,
+          "normal": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ]
+          },
+          "p95_m": 0.0,
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "residuals_m": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              265
+            ]
+          },
+          "support_inliers": 265,
+          "support_points": 265
+        },
+        "validation_diagnostics": {
+          "color_parent_components": 1,
+          "depth_accepted_components": 1,
+          "depth_components": 1,
+          "rejected_components": 0,
+          "rejected_samples": [],
+          "rejection_reasons": {},
+          "silhouette_accepted": 1,
+          "silhouette_checks": 1
+        }
+      },
+      "consumed_report": {
+        "acquisition": {
+          "confirmed_count": 0,
+          "evidence": "consecutive_unambiguous_independent_acquisition_frames",
+          "ineligible_new_observations": 0,
+          "max_pending_tracks": 64,
+          "minimum_frames": 3,
+          "pending_count": 1
+        },
+        "color_mask_backend": {
+          "device": null,
+          "fallback_reason": null,
+          "gpu_available": null,
+          "requested": "cpu",
+          "selected": "cpu"
+        },
+        "expired_tracks": [],
+        "frame_id": "charuco_board",
+        "objects": [],
+        "observation_depth_range_m": [
+          0.1,
+          1.2
+        ],
+        "qualified": false,
+        "stamp": 1793130292.6264591,
+        "support_plane": {
+          "all_p95_m": 0.0,
+          "d": 0.0,
+          "inlier_p95_m": 0.0,
+          "median_m": 0.0,
+          "normal": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "p95_m": 0.0,
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "support_inliers": 265,
+          "support_points": 265
+        },
+        "validation_diagnostics": {
+          "color_parent_components": 1,
+          "depth_accepted_components": 1,
+          "depth_components": 1,
+          "rejected_components": 0,
+          "rejected_samples": [],
+          "rejection_reasons": {},
+          "silhouette_accepted": 1,
+          "silhouette_checks": 1
+        }
+      },
+      "label": "complete_1",
+      "original_ros_stamp": {
+        "nanosec": 626459089,
+        "sec": 1793130292
+      }
+    },
+    {
+      "accepted_state": {
+        "last_analysis_result_stamp": 1793130293.1125884,
+        "last_marker_update_stamp": {
+          "__ros_type__": "builtin_interfaces.msg._time.Time",
+          "data": {
+            "nanosec": 112588385,
+            "sec": 1793130293
+          }
+        },
+        "last_support_plane": {
+          "d": 0.0,
+          "normal": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ]
+          },
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "stamp": 1793130293.1125884,
+          "support_inliers": 265,
+          "support_points": 265
+        },
+        "marker_clear_sent": true,
+        "tracker": {
+          "acquisition_min_frames": 3,
+          "ambiguity_margin": 0.015,
+          "attachment_records": {},
+          "expired_tracks": [],
+          "ineligible_new_observations": 0,
+          "last_acquisition_stamp": 1793130293.1125884,
+          "max_age": 1.0,
+          "max_distance": 0.06,
+          "max_pending_tracks": 64,
+          "max_speed": 0.5,
+          "next_id": 2,
+          "owned": {
+            "__type__": "builtins.set",
+            "repr": "set()"
+          },
+          "prediction_distance_cap": 0.35,
+          "tracks": {
+            "1": {
+              "acquisition_observations": 2,
+              "color": "red",
+              "confirmed": false,
+              "first_stamp": 1793130292.6264591,
+              "position": {
+                "__ndarray__": true,
+                "data": [
+                  -0.0007800000309944148,
+                  0.008580000340938566,
+                  0.00999998450279238
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              },
+              "position_semantics": "support_plane_box_estimate",
+              "stamp": 1793130293.1125884,
+              "surface_centroid": {
+                "__ndarray__": true,
+                "data": [
+                  -0.0007800000309944154,
+                  0.008580000340938568,
+                  0.01999996900558476
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              },
+              "velocity": {
+                "__ndarray__": true,
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              }
+            }
+          }
+        }
+      },
+      "analyzer_report": {
+        "color_mask_backend": {
+          "device": null,
+          "fallback_reason": null,
+          "gpu_available": null,
+          "requested": "cpu",
+          "selected": "cpu"
+        },
+        "frame_id": "charuco_board",
+        "objects": [
+          {
+            "acquisition_eligibility_reason": "observed_silhouette_within_image",
+            "acquisition_eligible": true,
+            "collision_checked": false,
+            "color": "red",
+            "contour": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  305.0,
+                  220.0
+                ],
+                [
+                  305.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  220.0
+                ]
+              ],
+              "dtype": "float32",
+              "shape": [
+                4,
+                2
+              ]
+            },
+            "depth_points": 900,
+            "depth_validation": {
+              "accepted": true,
+              "depth_cut_pixels": 0,
+              "metrics": {
+                "centroid_camera_m": [
+                  -0.0007800000309944154,
+                  -0.008580000340938568,
+                  0.7800000309944153
+                ],
+                "color_pixels": 900,
+                "core_supported_fraction": 1.0,
+                "depth_neighbor_jump_fraction": 0.0,
+                "invalid_local_depth_fraction": 0.0,
+                "largest_depth_gap_m": 0.0,
+                "local_support_pixels": 900,
+                "plane_residual_p95_m": 0.0,
+                "saturation_p10": 255.0,
+                "semantic_identity": "unqualified_colored_surface",
+                "silhouette_rectangularity": 1.0,
+                "split_minority_fraction": 0.0011111111111111111,
+                "support_plane_gate_applied": false,
+                "supported_fraction": 1.0,
+                "visible_extents_m": [
+                  0.04212000167369843,
+                  0.04212000167369842,
+                  0.0
+                ],
+                "workspace_gate_applied": false
+              },
+              "reason": "depth_supported_colored_surface"
+            },
+            "dimension_uncertainty_m": {
+              "__ndarray__": true,
+              "data": [
+                0.013502489196043431,
+                0.01350248919604343,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_m": {
+              "__ndarray__": true,
+              "data": [
+                0.04212000167369843,
+                0.04212000167369843,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_semantics": "support_plane_box_extent_estimate",
+            "eligibility_reason": "inside_pickup_roi",
+            "execution_eligibility_reason": "not_ik_or_collision_checked",
+            "execution_eligible": false,
+            "geometric_only": true,
+            "grasps": [
+              {
+                "approach_direction": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.0,
+                    -0.0,
+                    -1.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "axis_rank": 0.04524005979767609,
+                "closing_axis": {
+                  "__ndarray__": true,
+                  "data": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "contacts_camera": {
+                  "__ndarray__": true,
+                  "data": [
+                    [
+                      -0.023400030929832463,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ],
+                    [
+                      0.021840028867843628,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ]
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    2,
+                    3
+                  ]
+                },
+                "opening_m": 0.04524005979767609,
+                "position": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.000780001030994416,
+                    0.00858001134093857,
+                    0.00999998450279238
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                }
+              }
+            ],
+            "height_m": 0.01999996900558476,
+            "ik_validated": false,
+            "image_boundary_sides": [],
+            "object_center_qualified": false,
+            "observation_geometry": "support_plane_box_estimate",
+            "orientation_matrix": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "dtype": "float64",
+              "shape": [
+                3,
+                3
+              ]
+            },
+            "pickup_eligible": true,
+            "pixel_area": 900,
+            "position": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944148,
+                0.008580000340938566,
+                0.00999998450279238
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "silhouette_validation": {
+              "accepted": true,
+              "metrics": {
+                "applied_to": "final_child_contour",
+                "contour_area_px2": 841.0,
+                "convex_hull_fill": 1.0,
+                "min_rectangle_fill": 1.0,
+                "min_rectangle_fill_required": 0.45,
+                "observed_boundary_fill": 1.0,
+                "observed_components": 1,
+                "observed_enclosing_pixel_area": 900.0,
+                "observed_pixel_fill": 1.0,
+                "observed_pixels": 900,
+                "reconstructed_min_rectangle_fill": 1.0,
+                "semantic_identity": "unqualified_convex_brick_shape_prior",
+                "shape_evidence": "original_color_depth_pixels",
+                "workspace_gate_applied": false
+              },
+              "reason": "silhouette_consistent_with_convex_brick_prior"
+            },
+            "surface_centroid": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944154,
+                0.008580000340938568,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "surface_centroid_spread_m": {
+              "__ndarray__": true,
+              "data": [
+                0.021060000836849214,
+                0.02106000083684921,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            }
+          }
+        ],
+        "observation_depth_range_m": [
+          0.1,
+          1.2
+        ],
+        "qualified": false,
+        "support_plane": {
+          "all_p95_m": 0.0,
+          "d": 0.0,
+          "inlier_mask": {
+            "__ndarray__": true,
+            "data": [
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true
+            ],
+            "dtype": "bool",
+            "shape": [
+              265
+            ]
+          },
+          "inlier_p95_m": 0.0,
+          "median_m": 0.0,
+          "normal": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ]
+          },
+          "p95_m": 0.0,
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "residuals_m": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              265
+            ]
+          },
+          "support_inliers": 265,
+          "support_points": 265
+        },
+        "validation_diagnostics": {
+          "color_parent_components": 1,
+          "depth_accepted_components": 1,
+          "depth_components": 1,
+          "rejected_components": 0,
+          "rejected_samples": [],
+          "rejection_reasons": {},
+          "silhouette_accepted": 1,
+          "silhouette_checks": 1
+        }
+      },
+      "consumed_report": {
+        "acquisition": {
+          "confirmed_count": 0,
+          "evidence": "consecutive_unambiguous_independent_acquisition_frames",
+          "ineligible_new_observations": 0,
+          "max_pending_tracks": 64,
+          "minimum_frames": 3,
+          "pending_count": 1
+        },
+        "color_mask_backend": {
+          "device": null,
+          "fallback_reason": null,
+          "gpu_available": null,
+          "requested": "cpu",
+          "selected": "cpu"
+        },
+        "expired_tracks": [],
+        "frame_id": "charuco_board",
+        "objects": [],
+        "observation_depth_range_m": [
+          0.1,
+          1.2
+        ],
+        "qualified": false,
+        "stamp": 1793130293.1125884,
+        "support_plane": {
+          "all_p95_m": 0.0,
+          "d": 0.0,
+          "inlier_p95_m": 0.0,
+          "median_m": 0.0,
+          "normal": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "p95_m": 0.0,
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "support_inliers": 265,
+          "support_points": 265
+        },
+        "validation_diagnostics": {
+          "color_parent_components": 1,
+          "depth_accepted_components": 1,
+          "depth_components": 1,
+          "rejected_components": 0,
+          "rejected_samples": [],
+          "rejection_reasons": {},
+          "silhouette_accepted": 1,
+          "silhouette_checks": 1
+        }
+      },
+      "label": "complete_2",
+      "original_ros_stamp": {
+        "nanosec": 112588385,
+        "sec": 1793130293
+      }
+    },
+    {
+      "accepted_state": {
+        "last_analysis_result_stamp": 1793130293.564611,
+        "last_marker_update_stamp": {
+          "__ros_type__": "builtin_interfaces.msg._time.Time",
+          "data": {
+            "nanosec": 564611054,
+            "sec": 1793130293
+          }
+        },
+        "last_support_plane": {
+          "d": 0.0,
+          "normal": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ]
+          },
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "stamp": 1793130293.564611,
+          "support_inliers": 265,
+          "support_points": 265
+        },
+        "marker_clear_sent": false,
+        "tracker": {
+          "acquisition_min_frames": 3,
+          "ambiguity_margin": 0.015,
+          "attachment_records": {},
+          "expired_tracks": [],
+          "ineligible_new_observations": 0,
+          "last_acquisition_stamp": 1793130293.564611,
+          "max_age": 1.0,
+          "max_distance": 0.06,
+          "max_pending_tracks": 64,
+          "max_speed": 0.5,
+          "next_id": 2,
+          "owned": {
+            "__type__": "builtins.set",
+            "repr": "set()"
+          },
+          "prediction_distance_cap": 0.35,
+          "tracks": {
+            "1": {
+              "acquisition_observations": 3,
+              "color": "red",
+              "confirmed": true,
+              "first_stamp": 1793130292.6264591,
+              "position": {
+                "__ndarray__": true,
+                "data": [
+                  -0.0007800000309944148,
+                  0.008580000340938566,
+                  0.00999998450279238
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              },
+              "position_semantics": "support_plane_box_estimate",
+              "stamp": 1793130293.564611,
+              "surface_centroid": {
+                "__ndarray__": true,
+                "data": [
+                  -0.0007800000309944154,
+                  0.008580000340938568,
+                  0.01999996900558476
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              },
+              "velocity": {
+                "__ndarray__": true,
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              }
+            }
+          }
+        }
+      },
+      "analyzer_report": {
+        "color_mask_backend": {
+          "device": null,
+          "fallback_reason": null,
+          "gpu_available": null,
+          "requested": "cpu",
+          "selected": "cpu"
+        },
+        "frame_id": "charuco_board",
+        "objects": [
+          {
+            "acquisition_eligibility_reason": "observed_silhouette_within_image",
+            "acquisition_eligible": true,
+            "collision_checked": false,
+            "color": "red",
+            "contour": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  305.0,
+                  220.0
+                ],
+                [
+                  305.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  220.0
+                ]
+              ],
+              "dtype": "float32",
+              "shape": [
+                4,
+                2
+              ]
+            },
+            "depth_points": 900,
+            "depth_validation": {
+              "accepted": true,
+              "depth_cut_pixels": 0,
+              "metrics": {
+                "centroid_camera_m": [
+                  -0.0007800000309944154,
+                  -0.008580000340938568,
+                  0.7800000309944153
+                ],
+                "color_pixels": 900,
+                "core_supported_fraction": 1.0,
+                "depth_neighbor_jump_fraction": 0.0,
+                "invalid_local_depth_fraction": 0.0,
+                "largest_depth_gap_m": 0.0,
+                "local_support_pixels": 900,
+                "plane_residual_p95_m": 0.0,
+                "saturation_p10": 255.0,
+                "semantic_identity": "unqualified_colored_surface",
+                "silhouette_rectangularity": 1.0,
+                "split_minority_fraction": 0.0011111111111111111,
+                "support_plane_gate_applied": false,
+                "supported_fraction": 1.0,
+                "visible_extents_m": [
+                  0.04212000167369843,
+                  0.04212000167369842,
+                  0.0
+                ],
+                "workspace_gate_applied": false
+              },
+              "reason": "depth_supported_colored_surface"
+            },
+            "dimension_uncertainty_m": {
+              "__ndarray__": true,
+              "data": [
+                0.013502489196043431,
+                0.01350248919604343,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_m": {
+              "__ndarray__": true,
+              "data": [
+                0.04212000167369843,
+                0.04212000167369843,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_semantics": "support_plane_box_extent_estimate",
+            "eligibility_reason": "inside_pickup_roi",
+            "execution_eligibility_reason": "not_ik_or_collision_checked",
+            "execution_eligible": false,
+            "geometric_only": true,
+            "grasps": [
+              {
+                "approach_direction": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.0,
+                    -0.0,
+                    -1.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "axis_rank": 0.04524005979767609,
+                "closing_axis": {
+                  "__ndarray__": true,
+                  "data": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "contacts_camera": {
+                  "__ndarray__": true,
+                  "data": [
+                    [
+                      -0.023400030929832463,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ],
+                    [
+                      0.021840028867843628,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ]
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    2,
+                    3
+                  ]
+                },
+                "opening_m": 0.04524005979767609,
+                "position": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.000780001030994416,
+                    0.00858001134093857,
+                    0.00999998450279238
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                }
+              }
+            ],
+            "height_m": 0.01999996900558476,
+            "ik_validated": false,
+            "image_boundary_sides": [],
+            "object_center_qualified": false,
+            "observation_geometry": "support_plane_box_estimate",
+            "orientation_matrix": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "dtype": "float64",
+              "shape": [
+                3,
+                3
+              ]
+            },
+            "pickup_eligible": true,
+            "pixel_area": 900,
+            "position": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944148,
+                0.008580000340938566,
+                0.00999998450279238
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "silhouette_validation": {
+              "accepted": true,
+              "metrics": {
+                "applied_to": "final_child_contour",
+                "contour_area_px2": 841.0,
+                "convex_hull_fill": 1.0,
+                "min_rectangle_fill": 1.0,
+                "min_rectangle_fill_required": 0.45,
+                "observed_boundary_fill": 1.0,
+                "observed_components": 1,
+                "observed_enclosing_pixel_area": 900.0,
+                "observed_pixel_fill": 1.0,
+                "observed_pixels": 900,
+                "reconstructed_min_rectangle_fill": 1.0,
+                "semantic_identity": "unqualified_convex_brick_shape_prior",
+                "shape_evidence": "original_color_depth_pixels",
+                "workspace_gate_applied": false
+              },
+              "reason": "silhouette_consistent_with_convex_brick_prior"
+            },
+            "surface_centroid": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944154,
+                0.008580000340938568,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "surface_centroid_spread_m": {
+              "__ndarray__": true,
+              "data": [
+                0.021060000836849214,
+                0.02106000083684921,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            }
+          }
+        ],
+        "observation_depth_range_m": [
+          0.1,
+          1.2
+        ],
+        "qualified": false,
+        "support_plane": {
+          "all_p95_m": 0.0,
+          "d": 0.0,
+          "inlier_mask": {
+            "__ndarray__": true,
+            "data": [
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true
+            ],
+            "dtype": "bool",
+            "shape": [
+              265
+            ]
+          },
+          "inlier_p95_m": 0.0,
+          "median_m": 0.0,
+          "normal": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ]
+          },
+          "p95_m": 0.0,
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "residuals_m": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              265
+            ]
+          },
+          "support_inliers": 265,
+          "support_points": 265
+        },
+        "validation_diagnostics": {
+          "color_parent_components": 1,
+          "depth_accepted_components": 1,
+          "depth_components": 1,
+          "rejected_components": 0,
+          "rejected_samples": [],
+          "rejection_reasons": {},
+          "silhouette_accepted": 1,
+          "silhouette_checks": 1
+        }
+      },
+      "consumed_report": {
+        "acquisition": {
+          "confirmed_count": 1,
+          "evidence": "consecutive_unambiguous_independent_acquisition_frames",
+          "ineligible_new_observations": 0,
+          "max_pending_tracks": 64,
+          "minimum_frames": 3,
+          "pending_count": 0
+        },
+        "color_mask_backend": {
+          "device": null,
+          "fallback_reason": null,
+          "gpu_available": null,
+          "requested": "cpu",
+          "selected": "cpu"
+        },
+        "expired_tracks": [],
+        "frame_id": "charuco_board",
+        "objects": [
+          {
+            "acquisition_eligibility_reason": "observed_silhouette_within_image",
+            "acquisition_eligible": true,
+            "acquisition_observations": 3,
+            "acquisition_state": "confirmed",
+            "age_s": 0.9381518363952637,
+            "collision_checked": false,
+            "color": "red",
+            "contour": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  305.0,
+                  220.0
+                ],
+                [
+                  305.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  220.0
+                ]
+              ],
+              "dtype": "float32",
+              "shape": [
+                4,
+                2
+              ]
+            },
+            "depth_points": 900,
+            "depth_validation": {
+              "accepted": true,
+              "depth_cut_pixels": 0,
+              "metrics": {
+                "centroid_camera_m": [
+                  -0.0007800000309944154,
+                  -0.008580000340938568,
+                  0.7800000309944153
+                ],
+                "color_pixels": 900,
+                "core_supported_fraction": 1.0,
+                "depth_neighbor_jump_fraction": 0.0,
+                "invalid_local_depth_fraction": 0.0,
+                "largest_depth_gap_m": 0.0,
+                "local_support_pixels": 900,
+                "plane_residual_p95_m": 0.0,
+                "saturation_p10": 255.0,
+                "semantic_identity": "unqualified_colored_surface",
+                "silhouette_rectangularity": 1.0,
+                "split_minority_fraction": 0.0011111111111111111,
+                "support_plane_gate_applied": false,
+                "supported_fraction": 1.0,
+                "visible_extents_m": [
+                  0.04212000167369843,
+                  0.04212000167369842,
+                  0.0
+                ],
+                "workspace_gate_applied": false
+              },
+              "reason": "depth_supported_colored_surface"
+            },
+            "dimension_uncertainty_m": {
+              "__ndarray__": true,
+              "data": [
+                0.013502489196043431,
+                0.01350248919604343,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_m": {
+              "__ndarray__": true,
+              "data": [
+                0.04212000167369843,
+                0.04212000167369843,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_semantics": "support_plane_box_extent_estimate",
+            "eligibility_reason": "inside_pickup_roi",
+            "execution_eligibility_reason": "not_ik_or_collision_checked",
+            "execution_eligible": false,
+            "geometric_only": true,
+            "grasps": [
+              {
+                "approach_direction": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.0,
+                    -0.0,
+                    -1.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "axis_rank": 0.04524005979767609,
+                "closing_axis": {
+                  "__ndarray__": true,
+                  "data": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "contacts_camera": {
+                  "__ndarray__": true,
+                  "data": [
+                    [
+                      -0.023400030929832463,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ],
+                    [
+                      0.021840028867843628,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ]
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    2,
+                    3
+                  ]
+                },
+                "opening_m": 0.04524005979767609,
+                "position": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.000780001030994416,
+                    0.00858001134093857,
+                    0.00999998450279238
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                }
+              }
+            ],
+            "height_m": 0.01999996900558476,
+            "ik_validated": false,
+            "image_boundary_sides": [],
+            "object_center_qualified": false,
+            "observation_geometry": "support_plane_box_estimate",
+            "orientation_matrix": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "dtype": "float64",
+              "shape": [
+                3,
+                3
+              ]
+            },
+            "pickup_eligible": true,
+            "pixel_area": 900,
+            "position": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944148,
+                0.008580000340938566,
+                0.00999998450279238
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "silhouette_validation": {
+              "accepted": true,
+              "metrics": {
+                "applied_to": "final_child_contour",
+                "contour_area_px2": 841.0,
+                "convex_hull_fill": 1.0,
+                "min_rectangle_fill": 1.0,
+                "min_rectangle_fill_required": 0.45,
+                "observed_boundary_fill": 1.0,
+                "observed_components": 1,
+                "observed_enclosing_pixel_area": 900.0,
+                "observed_pixel_fill": 1.0,
+                "observed_pixels": 900,
+                "reconstructed_min_rectangle_fill": 1.0,
+                "semantic_identity": "unqualified_convex_brick_shape_prior",
+                "shape_evidence": "original_color_depth_pixels",
+                "workspace_gate_applied": false
+              },
+              "reason": "silhouette_consistent_with_convex_brick_prior"
+            },
+            "surface_centroid": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944154,
+                0.008580000340938568,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "surface_centroid_spread_m": {
+              "__ndarray__": true,
+              "data": [
+                0.021060000836849214,
+                0.02106000083684921,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "track_id": 1,
+            "velocity": {
+              "__ndarray__": true,
+              "data": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            }
+          }
+        ],
+        "observation_depth_range_m": [
+          0.1,
+          1.2
+        ],
+        "qualified": false,
+        "stamp": 1793130293.564611,
+        "support_plane": {
+          "all_p95_m": 0.0,
+          "d": 0.0,
+          "inlier_p95_m": 0.0,
+          "median_m": 0.0,
+          "normal": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "p95_m": 0.0,
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "support_inliers": 265,
+          "support_points": 265
+        },
+        "validation_diagnostics": {
+          "color_parent_components": 1,
+          "depth_accepted_components": 1,
+          "depth_components": 1,
+          "rejected_components": 0,
+          "rejected_samples": [],
+          "rejection_reasons": {},
+          "silhouette_accepted": 1,
+          "silhouette_checks": 1
+        }
+      },
+      "label": "complete_3",
+      "original_ros_stamp": {
+        "nanosec": 564611054,
+        "sec": 1793130293
+      }
+    },
+    {
+      "accepted_state": {
+        "last_analysis_result_stamp": 1793130294.0153081,
+        "last_marker_update_stamp": {
+          "__ros_type__": "builtin_interfaces.msg._time.Time",
+          "data": {
+            "nanosec": 15308046,
+            "sec": 1793130294
+          }
+        },
+        "last_support_plane": {
+          "d": 0.0,
+          "normal": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ]
+          },
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "stamp": 1793130293.564611,
+          "support_inliers": 265,
+          "support_points": 265
+        },
+        "marker_clear_sent": false,
+        "tracker": {
+          "acquisition_min_frames": 3,
+          "ambiguity_margin": 0.015,
+          "attachment_records": {},
+          "expired_tracks": [],
+          "ineligible_new_observations": 0,
+          "last_acquisition_stamp": 1793130294.0153081,
+          "max_age": 1.0,
+          "max_distance": 0.06,
+          "max_pending_tracks": 64,
+          "max_speed": 0.5,
+          "next_id": 2,
+          "owned": {
+            "__type__": "builtins.set",
+            "repr": "set()"
+          },
+          "prediction_distance_cap": 0.35,
+          "tracks": {
+            "1": {
+              "acquisition_observations": 3,
+              "color": "red",
+              "confirmed": true,
+              "first_stamp": 1793130292.6264591,
+              "position": {
+                "__ndarray__": true,
+                "data": [
+                  -0.0007800000309944148,
+                  0.008580000340938566,
+                  0.00999998450279238
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              },
+              "position_semantics": "support_plane_box_estimate",
+              "stamp": 1793130294.0153081,
+              "surface_centroid": {
+                "__ndarray__": true,
+                "data": [
+                  -0.0007800000309944154,
+                  0.008580000340938568,
+                  0.01999996900558476
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              },
+              "velocity": {
+                "__ndarray__": true,
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              }
+            }
+          }
+        }
+      },
+      "analyzer_report": {
+        "color_mask_backend": {
+          "device": null,
+          "fallback_reason": null,
+          "gpu_available": null,
+          "requested": "cpu",
+          "selected": "cpu"
+        },
+        "frame_id": "charuco_board",
+        "objects": [
+          {
+            "acquisition_eligibility_reason": "observed_silhouette_within_image",
+            "acquisition_eligible": true,
+            "collision_checked": false,
+            "color": "red",
+            "contour": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  305.0,
+                  220.0
+                ],
+                [
+                  305.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  220.0
+                ]
+              ],
+              "dtype": "float32",
+              "shape": [
+                4,
+                2
+              ]
+            },
+            "depth_points": 900,
+            "depth_validation": {
+              "accepted": true,
+              "depth_cut_pixels": 0,
+              "metrics": {
+                "centroid_camera_m": [
+                  -0.0007800000309944154,
+                  -0.008580000340938568,
+                  0.7800000309944153
+                ],
+                "color_pixels": 900,
+                "core_supported_fraction": 1.0,
+                "depth_neighbor_jump_fraction": 0.0,
+                "invalid_local_depth_fraction": 0.0,
+                "largest_depth_gap_m": 0.0,
+                "local_support_pixels": 900,
+                "plane_residual_p95_m": 0.0,
+                "saturation_p10": 255.0,
+                "semantic_identity": "unqualified_colored_surface",
+                "silhouette_rectangularity": 1.0,
+                "split_minority_fraction": 0.0011111111111111111,
+                "support_plane_gate_applied": false,
+                "supported_fraction": 1.0,
+                "visible_extents_m": [
+                  0.04212000167369843,
+                  0.04212000167369842,
+                  0.0
+                ],
+                "workspace_gate_applied": false
+              },
+              "reason": "depth_supported_colored_surface"
+            },
+            "dimension_uncertainty_m": {
+              "__ndarray__": true,
+              "data": [
+                0.013502489196043431,
+                0.01350248919604343,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_m": {
+              "__ndarray__": true,
+              "data": [
+                0.04212000167369843,
+                0.04212000167369843,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_semantics": "support_plane_box_extent_estimate",
+            "eligibility_reason": "inside_pickup_roi",
+            "execution_eligibility_reason": "not_ik_or_collision_checked",
+            "execution_eligible": false,
+            "geometric_only": true,
+            "grasps": [
+              {
+                "approach_direction": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.0,
+                    -0.0,
+                    -1.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "axis_rank": 0.04524005979767609,
+                "closing_axis": {
+                  "__ndarray__": true,
+                  "data": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "contacts_camera": {
+                  "__ndarray__": true,
+                  "data": [
+                    [
+                      -0.023400030929832463,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ],
+                    [
+                      0.021840028867843628,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ]
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    2,
+                    3
+                  ]
+                },
+                "opening_m": 0.04524005979767609,
+                "position": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.000780001030994416,
+                    0.00858001134093857,
+                    0.00999998450279238
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                }
+              }
+            ],
+            "height_m": 0.01999996900558476,
+            "ik_validated": false,
+            "image_boundary_sides": [],
+            "object_center_qualified": false,
+            "observation_geometry": "support_plane_box_estimate",
+            "orientation_matrix": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "dtype": "float64",
+              "shape": [
+                3,
+                3
+              ]
+            },
+            "pickup_eligible": true,
+            "pixel_area": 900,
+            "position": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944148,
+                0.008580000340938566,
+                0.00999998450279238
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "silhouette_validation": {
+              "accepted": true,
+              "metrics": {
+                "applied_to": "final_child_contour",
+                "contour_area_px2": 841.0,
+                "convex_hull_fill": 1.0,
+                "min_rectangle_fill": 1.0,
+                "min_rectangle_fill_required": 0.45,
+                "observed_boundary_fill": 1.0,
+                "observed_components": 1,
+                "observed_enclosing_pixel_area": 900.0,
+                "observed_pixel_fill": 1.0,
+                "observed_pixels": 900,
+                "reconstructed_min_rectangle_fill": 1.0,
+                "semantic_identity": "unqualified_convex_brick_shape_prior",
+                "shape_evidence": "original_color_depth_pixels",
+                "workspace_gate_applied": false
+              },
+              "reason": "silhouette_consistent_with_convex_brick_prior"
+            },
+            "surface_centroid": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944154,
+                0.008580000340938568,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "surface_centroid_spread_m": {
+              "__ndarray__": true,
+              "data": [
+                0.021060000836849214,
+                0.02106000083684921,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            }
+          }
+        ],
+        "observation_depth_range_m": [
+          0.1,
+          1.2
+        ],
+        "qualified": false,
+        "support_plane": {
+          "d": 0.0,
+          "normal": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ]
+          },
+          "plane_source": "cached_measured_support_plane",
+          "support_inliers": 265,
+          "support_plane_age_s": 0.4506971836090088,
+          "support_points": 265
+        },
+        "validation_diagnostics": {
+          "color_parent_components": 1,
+          "depth_accepted_components": 1,
+          "depth_components": 1,
+          "rejected_components": 0,
+          "rejected_samples": [],
+          "rejection_reasons": {},
+          "silhouette_accepted": 1,
+          "silhouette_checks": 1
+        }
+      },
+      "consumed_report": {
+        "acquisition": {
+          "confirmed_count": 1,
+          "evidence": "consecutive_unambiguous_independent_acquisition_frames",
+          "ineligible_new_observations": 0,
+          "max_pending_tracks": 64,
+          "minimum_frames": 3,
+          "pending_count": 0
+        },
+        "color_mask_backend": {
+          "device": null,
+          "fallback_reason": null,
+          "gpu_available": null,
+          "requested": "cpu",
+          "selected": "cpu"
+        },
+        "expired_tracks": [],
+        "frame_id": "charuco_board",
+        "objects": [
+          {
+            "acquisition_eligibility_reason": "observed_silhouette_within_image",
+            "acquisition_eligible": true,
+            "acquisition_observations": 3,
+            "acquisition_state": "confirmed",
+            "age_s": 1.3888490200042725,
+            "collision_checked": false,
+            "color": "red",
+            "contour": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  305.0,
+                  220.0
+                ],
+                [
+                  305.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  249.0
+                ],
+                [
+                  334.0,
+                  220.0
+                ]
+              ],
+              "dtype": "float32",
+              "shape": [
+                4,
+                2
+              ]
+            },
+            "depth_points": 900,
+            "depth_validation": {
+              "accepted": true,
+              "depth_cut_pixels": 0,
+              "metrics": {
+                "centroid_camera_m": [
+                  -0.0007800000309944154,
+                  -0.008580000340938568,
+                  0.7800000309944153
+                ],
+                "color_pixels": 900,
+                "core_supported_fraction": 1.0,
+                "depth_neighbor_jump_fraction": 0.0,
+                "invalid_local_depth_fraction": 0.0,
+                "largest_depth_gap_m": 0.0,
+                "local_support_pixels": 900,
+                "plane_residual_p95_m": 0.0,
+                "saturation_p10": 255.0,
+                "semantic_identity": "unqualified_colored_surface",
+                "silhouette_rectangularity": 1.0,
+                "split_minority_fraction": 0.0011111111111111111,
+                "support_plane_gate_applied": false,
+                "supported_fraction": 1.0,
+                "visible_extents_m": [
+                  0.04212000167369843,
+                  0.04212000167369842,
+                  0.0
+                ],
+                "workspace_gate_applied": false
+              },
+              "reason": "depth_supported_colored_surface"
+            },
+            "dimension_uncertainty_m": {
+              "__ndarray__": true,
+              "data": [
+                0.013502489196043431,
+                0.01350248919604343,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_m": {
+              "__ndarray__": true,
+              "data": [
+                0.04212000167369843,
+                0.04212000167369843,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "dimensions_semantics": "support_plane_box_extent_estimate",
+            "eligibility_reason": "inside_pickup_roi",
+            "execution_eligibility_reason": "not_ik_or_collision_checked",
+            "execution_eligible": false,
+            "geometric_only": true,
+            "grasps": [
+              {
+                "approach_direction": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.0,
+                    -0.0,
+                    -1.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "axis_rank": 0.04524005979767609,
+                "closing_axis": {
+                  "__ndarray__": true,
+                  "data": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                },
+                "contacts_camera": {
+                  "__ndarray__": true,
+                  "data": [
+                    [
+                      -0.023400030929832463,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ],
+                    [
+                      0.021840028867843628,
+                      -0.00858001134093857,
+                      0.7900000154972077
+                    ]
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    2,
+                    3
+                  ]
+                },
+                "opening_m": 0.04524005979767609,
+                "position": {
+                  "__ndarray__": true,
+                  "data": [
+                    -0.000780001030994416,
+                    0.00858001134093857,
+                    0.00999998450279238
+                  ],
+                  "dtype": "float64",
+                  "shape": [
+                    3
+                  ]
+                }
+              }
+            ],
+            "height_m": 0.01999996900558476,
+            "ik_validated": false,
+            "image_boundary_sides": [],
+            "object_center_qualified": false,
+            "observation_geometry": "support_plane_box_estimate",
+            "orientation_matrix": {
+              "__ndarray__": true,
+              "data": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "dtype": "float64",
+              "shape": [
+                3,
+                3
+              ]
+            },
+            "pickup_eligible": true,
+            "pixel_area": 900,
+            "position": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944148,
+                0.008580000340938566,
+                0.00999998450279238
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "silhouette_validation": {
+              "accepted": true,
+              "metrics": {
+                "applied_to": "final_child_contour",
+                "contour_area_px2": 841.0,
+                "convex_hull_fill": 1.0,
+                "min_rectangle_fill": 1.0,
+                "min_rectangle_fill_required": 0.45,
+                "observed_boundary_fill": 1.0,
+                "observed_components": 1,
+                "observed_enclosing_pixel_area": 900.0,
+                "observed_pixel_fill": 1.0,
+                "observed_pixels": 900,
+                "reconstructed_min_rectangle_fill": 1.0,
+                "semantic_identity": "unqualified_convex_brick_shape_prior",
+                "shape_evidence": "original_color_depth_pixels",
+                "workspace_gate_applied": false
+              },
+              "reason": "silhouette_consistent_with_convex_brick_prior"
+            },
+            "surface_centroid": {
+              "__ndarray__": true,
+              "data": [
+                -0.0007800000309944154,
+                0.008580000340938568,
+                0.01999996900558476
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "surface_centroid_spread_m": {
+              "__ndarray__": true,
+              "data": [
+                0.021060000836849214,
+                0.02106000083684921,
+                0.001
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            },
+            "track_id": 1,
+            "velocity": {
+              "__ndarray__": true,
+              "data": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "dtype": "float64",
+              "shape": [
+                3
+              ]
+            }
+          }
+        ],
+        "observation_depth_range_m": [
+          0.1,
+          1.2
+        ],
+        "qualified": false,
+        "stamp": 1793130294.0153081,
+        "support_plane": {
+          "d": 0.0,
+          "normal": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "plane_source": "cached_measured_support_plane",
+          "support_inliers": 265,
+          "support_plane_age_s": 0.4506971836090088,
+          "support_points": 265
+        },
+        "validation_diagnostics": {
+          "color_parent_components": 1,
+          "depth_accepted_components": 1,
+          "depth_components": 1,
+          "rejected_components": 0,
+          "rejected_samples": [],
+          "rejection_reasons": {},
+          "silhouette_accepted": 1,
+          "silhouette_checks": 1
+        }
+      },
+      "label": "cached_plane",
+      "original_ros_stamp": {
+        "nanosec": 15308046,
+        "sec": 1793130294
+      }
+    },
+    {
+      "accepted_state": {
+        "last_analysis_result_stamp": 1793130294.4607882,
+        "last_marker_update_stamp": {
+          "__ros_type__": "builtin_interfaces.msg._time.Time",
+          "data": {
+            "nanosec": 460788339,
+            "sec": 1793130294
+          }
+        },
+        "last_support_plane": {
+          "d": 0.0,
+          "normal": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ]
+          },
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "stamp": 1793130294.4607882,
+          "support_inliers": 273,
+          "support_points": 273
+        },
+        "marker_clear_sent": true,
+        "tracker": {
+          "acquisition_min_frames": 3,
+          "ambiguity_margin": 0.015,
+          "attachment_records": {},
+          "expired_tracks": [],
+          "ineligible_new_observations": 0,
+          "last_acquisition_stamp": 1793130294.4607882,
+          "max_age": 1.0,
+          "max_distance": 0.06,
+          "max_pending_tracks": 64,
+          "max_speed": 0.5,
+          "next_id": 2,
+          "owned": {
+            "__type__": "builtins.set",
+            "repr": "set()"
+          },
+          "prediction_distance_cap": 0.35,
+          "tracks": {
+            "1": {
+              "acquisition_observations": 3,
+              "color": "red",
+              "confirmed": true,
+              "first_stamp": 1793130292.6264591,
+              "position": {
+                "__ndarray__": true,
+                "data": [
+                  -0.0007800000309944148,
+                  0.008580000340938566,
+                  0.00999998450279238
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              },
+              "position_semantics": "support_plane_box_estimate",
+              "stamp": 1793130294.0153081,
+              "surface_centroid": {
+                "__ndarray__": true,
+                "data": [
+                  -0.0007800000309944154,
+                  0.008580000340938568,
+                  0.01999996900558476
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              },
+              "velocity": {
+                "__ndarray__": true,
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "dtype": "float64",
+                "shape": [
+                  3
+                ]
+              }
+            }
+          }
+        }
+      },
+      "analyzer_report": {
+        "color_mask_backend": {
+          "device": null,
+          "fallback_reason": null,
+          "gpu_available": null,
+          "requested": "cpu",
+          "selected": "cpu"
+        },
+        "frame_id": "charuco_board",
+        "objects": [],
+        "observation_depth_range_m": [
+          0.1,
+          1.2
+        ],
+        "qualified": false,
+        "support_plane": {
+          "all_p95_m": 0.0,
+          "d": 0.0,
+          "inlier_mask": {
+            "__ndarray__": true,
+            "data": [
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true,
+              true
+            ],
+            "dtype": "bool",
+            "shape": [
+              273
+            ]
+          },
+          "inlier_p95_m": 0.0,
+          "median_m": 0.0,
+          "normal": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ]
+          },
+          "p95_m": 0.0,
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "residuals_m": {
+            "__ndarray__": true,
+            "data": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              273
+            ]
+          },
+          "support_inliers": 273,
+          "support_points": 273
+        },
+        "validation_diagnostics": {
+          "color_parent_components": 1,
+          "depth_accepted_components": 1,
+          "depth_components": 1,
+          "rejected_components": 1,
+          "rejected_samples": [
+            {
+              "color": "red",
+              "component_pixels": 480,
+              "metrics": {
+                "centroid_camera_m": [
+                  -0.014820000588893892,
+                  -0.01638000065088272,
+                  0.7800000309944153
+                ],
+                "color_pixels": 480,
+                "core_supported_fraction": 1.0,
+                "depth_neighbor_jump_fraction": 0.0,
+                "invalid_local_depth_fraction": 0.0,
+                "largest_depth_gap_m": 0.0,
+                "local_support_pixels": 480,
+                "plane_residual_p95_m": 0.0,
+                "saturation_p10": 255.0,
+                "semantic_identity": "unqualified_colored_surface",
+                "silhouette_rectangularity": 1.0,
+                "split_minority_fraction": 0.0020833333333333333,
+                "support_plane_gate_applied": false,
+                "supported_fraction": 1.0,
+                "visible_extents_m": [
+                  0.05475600217580788,
+                  0.017160000681877136,
+                  0.0
+                ],
+                "workspace_gate_applied": false
+              },
+              "parent_pixels": 480,
+              "reason": "visible_geometry_out_of_range"
+            }
+          ],
+          "rejection_reasons": {
+            "visible_geometry_out_of_range": 1
+          },
+          "silhouette_accepted": 1,
+          "silhouette_checks": 1
+        }
+      },
+      "consumed_report": {
+        "acquisition": {
+          "confirmed_count": 1,
+          "evidence": "consecutive_unambiguous_independent_acquisition_frames",
+          "ineligible_new_observations": 0,
+          "max_pending_tracks": 64,
+          "minimum_frames": 3,
+          "pending_count": 0
+        },
+        "color_mask_backend": {
+          "device": null,
+          "fallback_reason": null,
+          "gpu_available": null,
+          "requested": "cpu",
+          "selected": "cpu"
+        },
+        "expired_tracks": [],
+        "frame_id": "charuco_board",
+        "objects": [],
+        "observation_depth_range_m": [
+          0.1,
+          1.2
+        ],
+        "qualified": false,
+        "stamp": 1793130294.4607882,
+        "support_plane": {
+          "all_p95_m": 0.0,
+          "d": 0.0,
+          "inlier_p95_m": 0.0,
+          "median_m": 0.0,
+          "normal": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "p95_m": 0.0,
+          "plane_source": "measured_table_consistent_with_board_z0",
+          "support_inliers": 273,
+          "support_points": 273
+        },
+        "validation_diagnostics": {
+          "color_parent_components": 1,
+          "depth_accepted_components": 1,
+          "depth_components": 1,
+          "rejected_components": 1,
+          "rejected_samples": [
+            {
+              "color": "red",
+              "component_pixels": 480,
+              "metrics": {
+                "centroid_camera_m": [
+                  -0.014820000588893892,
+                  -0.01638000065088272,
+                  0.7800000309944153
+                ],
+                "color_pixels": 480,
+                "core_supported_fraction": 1.0,
+                "depth_neighbor_jump_fraction": 0.0,
+                "invalid_local_depth_fraction": 0.0,
+                "largest_depth_gap_m": 0.0,
+                "local_support_pixels": 480,
+                "plane_residual_p95_m": 0.0,
+                "saturation_p10": 255.0,
+                "semantic_identity": "unqualified_colored_surface",
+                "silhouette_rectangularity": 1.0,
+                "split_minority_fraction": 0.0020833333333333333,
+                "support_plane_gate_applied": false,
+                "supported_fraction": 1.0,
+                "visible_extents_m": [
+                  0.05475600217580788,
+                  0.017160000681877136,
+                  0.0
+                ],
+                "workspace_gate_applied": false
+              },
+              "parent_pixels": 480,
+              "reason": "visible_geometry_out_of_range"
+            }
+          ],
+          "rejection_reasons": {
+            "visible_geometry_out_of_range": 1
+          },
+          "silhouette_accepted": 1,
+          "silhouette_checks": 1
+        }
+      },
+      "label": "rejected_empty",
+      "original_ros_stamp": {
+        "nanosec": 460788339,
+        "sec": 1793130294
+      }
+    }
+  ],
+  "initial_state": {
+    "last_analysis_result_stamp": null,
+    "last_marker_update_stamp": null,
+    "last_support_plane": null,
+    "marker_clear_sent": true,
+    "tracker": {
+      "acquisition_min_frames": 3,
+      "ambiguity_margin": 0.015,
+      "attachment_records": {},
+      "expired_tracks": [],
+      "ineligible_new_observations": 0,
+      "last_acquisition_stamp": null,
+      "max_age": 1.0,
+      "max_distance": 0.06,
+      "max_pending_tracks": 64,
+      "max_speed": 0.5,
+      "next_id": 1,
+      "owned": {
+        "__type__": "builtins.set",
+        "repr": "set()"
+      },
+      "prediction_distance_cap": 0.35,
+      "tracks": {}
+    }
+  },
+  "provenance": {
+    "projection": {
+      "accepted_state": "<label>_after.json, entire value",
+      "analyzer_report": "<label>_analyzer_report.json, entire value",
+      "consumed_report": "<label>_consumed_report.json, entire value",
+      "encoding": "Retain original JSON values and lossless NumPy dtype/shape/data tags. No numerical normalization or timestamp regeneration.",
+      "initial_state": "complete_1_before.json, entire value",
+      "omitted_report_fields": [],
+      "origin": "Frozen pre-change CPU capture; no candidate sink outputs used.",
+      "original_ros_stamp": "<label>_publication.json detections[0].ordered_dict.header.stamp; equal to accepted_state.last_marker_update_stamp.data",
+      "other_raw_artifacts": "Dense RGB-D jobs, runtime pins, and 25 full real ROS/CDR publications remain private and unchanged. This fixture carries their selected original stamp values only."
+    },
+    "raw_artifact_manifest_sha256": "d4841c34a90567bab526fb434a5b8828b28edf071039cd259d6d960352234e92",
+    "raw_artifact_sha256": {
+      "cached_plane_after.json": "fd9a023936cc709259752949987d29cc9c06c2d286e4c74be44f3819825e4e94",
+      "cached_plane_analyzer_report.json": "09cd1b3e18bc44914998f3b80161603dd30de5f4031992f1c4520b096cfa8611",
+      "cached_plane_consumed_report.json": "092cb16ef564b0d341cba57769586fe01b091857208b996d4f0dc6cd45fdbb3e",
+      "cached_plane_publication.json": "fc2133641c8f424646d376238d2d89cf81a62a61a2256d39f27ea92c54336bdc",
+      "complete_1_after.json": "f6ec3eb0a55cbd2d2a9c90c9d2169cc96d5e0887f388908d59aec097bac4436f",
+      "complete_1_analyzer_report.json": "d5d756ea388aec7a2f93c743dd35c2ab4fa56adc25f5eb88a02ca06c02069cf0",
+      "complete_1_before.json": "94a7d5d17db134bf1ab3ec04261eecc4a0d6fa7184be1618abbb5e3ec2df573c",
+      "complete_1_consumed_report.json": "229bfe375d05c1d672682995e8c346b4aee62b7d4869cef36b1953fc74a854ba",
+      "complete_1_publication.json": "233391a681f002db492ba6a94d708133d23d167cd8a8ad05cdef5ddaadafa07c",
+      "complete_2_after.json": "fa0072a8210915cc9a92bb56d88cdf9c2382763442d55c01e7aa0cc56c361ffd",
+      "complete_2_analyzer_report.json": "d5d756ea388aec7a2f93c743dd35c2ab4fa56adc25f5eb88a02ca06c02069cf0",
+      "complete_2_consumed_report.json": "cfd525bbf75d07fabb8ccc4c1a5d9be5765671a2792b02a8cb85d114d038756a",
+      "complete_2_publication.json": "61521223cfdca8c94635daa78477a655b42e3540225cfc2e7ab9dc6e38e15d96",
+      "complete_3_after.json": "f727e35e2fe1913ed4b6ecfcf80edfe2d7edb9613ca317141ca84842134457dd",
+      "complete_3_analyzer_report.json": "d5d756ea388aec7a2f93c743dd35c2ab4fa56adc25f5eb88a02ca06c02069cf0",
+      "complete_3_consumed_report.json": "f8ab55bd0abecf39166a31137e3e059e100ff42417d8c6d391949c1ff042de9d",
+      "complete_3_publication.json": "e18d9ba3931a50c2dec6a5100f2ea401d2bd21e9c1258de4864095854089681a",
+      "rejected_empty_after.json": "fd248766db89aa572c7b7f871ddd834db01e19245803a88f6b4db05bbe042cee",
+      "rejected_empty_analyzer_report.json": "f77d85bbaf55b2b9272fbcb833ff5a791f65c81d690f4ae951b884bab0f29787",
+      "rejected_empty_consumed_report.json": "6b73686d434533fbbfd17d686d84fd86223d55f3e449e28747ef72dc588a188b",
+      "rejected_empty_publication.json": "456730f7cfb62f89087dc7b33606149b48d0c5d01df6a37fe2eca41f9ab6a272"
+    },
+    "source_commit": "443cd8f82ae19dbb1468088dbf33d9bed6851aaa",
+    "source_path": "ros2/src/so101_station_objects/so101_station_objects/objects.py",
+    "source_sha256": "7f93044041f5d9e22005fc1019a4dd751ad90443700adb5362c8aac582ea6b75"
+  },
+  "schema": 1
+}

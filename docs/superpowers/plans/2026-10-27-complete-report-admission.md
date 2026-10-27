@@ -37,12 +37,12 @@
 
 **Interfaces:** `_complete_report(self, job, report, error=None)` consumes the existing CPU completion job unchanged. `_consume_analysis` retains worker/fault/timing receipt and delegates. `_publish_report(self, report, stamp, derived_token=None, *, commit=None) -> bool` retains message construction and final source check; after successful admission it invokes a private precomputed state commit once, immediately before the existing five publishes. Rejection returns False before the callback.
 
-- [ ] Write failing CPU tests for the missing common sink and late source expiry after attachment lookup and during materialization. Pin zero rejected cache/high-water/ID/acquisition advancement, unchanged old track dictionaries/arrays/ownership and pending invalidation. Include successful measured/cached/empty reports and a three-independent-stamp acquisition sequence.
-- [ ] Run the tests with the pinned CPU Python; retain the expected RED result before production edits.
-- [ ] Extract completion in the existing order. Use `copy.copy(self.tracker)` and `dict(report)` only: current tracker replaces its track mapping before writes and reads old nested values. Stage cache/high-water locally; an internal closure commits only precomputed references/scalars at final admission. Keep source checks around attachment lookup and after all materialization.
-- [ ] Preserve exact tracker/geometry AST guards. Extend publisher/source-location guards only for the reviewed extraction, bool returns and private commit boundary; retain historical fingerprints and explicit delta evidence. Existing fake-publisher tests must honor the commit hook or exercise the real publisher.
-- [ ] Verify focused CPU tests and accepted frozen baseline data. Independent resource worker measures staging/actual sink costs and guards the no-nested-write/no-deepcopy assumption before ROS qualification. Then replay the five real-message retained batches through the actual new sink/publisher, matching all 25 messages and resulting accepted state.
-- [ ] Independent semantic/resource review; supervisor commits verified source and tests. No worker stages or commits.
+- [x] Write failing CPU tests for the missing common sink and late source expiry after attachment lookup and during materialization. Pin zero rejected cache/high-water/ID/acquisition advancement, unchanged old track dictionaries/arrays/ownership and pending invalidation. Include successful measured/cached/empty reports and a three-independent-stamp acquisition sequence.
+- [x] Run the tests with the pinned CPU Python; retain the expected RED result before production edits.
+- [x] Extract completion in the existing order. Use `copy.copy(self.tracker)` and `dict(report)` only: current tracker replaces its track mapping before writes and reads old nested values. Stage cache/high-water locally; an internal closure commits only precomputed references/scalars at final admission. Keep source checks around attachment lookup and after all materialization.
+- [x] Preserve exact tracker/geometry AST guards. Extend publisher/source-location guards only for the reviewed extraction, bool returns and private commit boundary; retain historical fingerprints and explicit delta evidence. Existing fake-publisher tests must honor the commit hook or exercise the real publisher.
+- [x] Verify focused CPU tests and accepted frozen baseline data. Independent resource worker measures staging/actual sink costs and guards the no-nested-write/no-deepcopy assumption before ROS qualification. Then replay the five real-message retained batches through the actual new sink/publisher, matching all 25 messages and resulting accepted state.
+- [x] Independent semantic/resource review; supervisor commits verified source and tests. No worker stages or commits.
 
 ## Task 2: Closed compact report and bounded ingress
 
@@ -71,9 +71,10 @@
 
 ## Task 4: Resource, full regression and checkpoint evidence
 
-**Files:** Add focused benchmark/static tests under `tools/performance/` and `tests/`; add a dated `docs/performance/` readout and machine receipt.
+**Files:** Retain focused benchmark/static tests under `tools/performance/` and `tests/`; add a dated `docs/performance/` readout and machine receipt. Reseal only current v2 source metadata and derived manifests under `tests/fixtures/native_geometry/` after the final code freeze.
 
 - [ ] Consolidate the independent Task 1 and Task 3 resource receipts, benchmark/static guards and exact admitted fixture capacities. Repeat measurements only for changed code or unresolved findings.
+- [ ] Node-only changes still alter the whole-file `objects.py` hash in oracle provenance. Replay the unchanged twelve v2 inputs, prove numerical reports/ordered pieces/arrays unchanged, and reseal only v2 procedural/matrix/observed source identities plus derived manifest hashes. Keep every v1 byte and all numerical thresholds unchanged; audit the metadata-only diff explicitly.
 - [ ] After freeze, run focused CPU and isolated real ROS lanes, then canonical pinned CPU suite once. Preserve failures, exact commands/artifacts and source/runtime pins; re-run only for changed code or unresolved findings.
 - [ ] Independently review the whole checkpoint, preserve raw evidence durably, commit/push the coherent feature branch and verify remote SHA plus unchanged clean shared main.
 
