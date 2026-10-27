@@ -22,7 +22,7 @@ def test_frozen_completion_resource_contract():
     ('report = dict(report)', 'report = dict(report)\n                device.readback()'),
     ('report = dict(report)', 'report = dict(report)\n                self._analyze_job(job)'),
     ('self.tracks = retained', 'self.tracks = retained\n        self.tracks[1]["stamp"] = stamp_s'),
-    ('if commit is not None:\n                    commit()', 'if commit is not None:\n                    pass'),
+    ('if commit is not None:\n                        commit()', 'if commit is not None:\n                        pass'),
 ])
 def test_resource_guard_rejects_negative_mutation(old, new):
     source = probe.SOURCE.read_text()

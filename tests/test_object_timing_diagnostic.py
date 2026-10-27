@@ -102,10 +102,42 @@ def test_worker_diagnostic_flag_strict_bool():
             LatestOnlyAnalysisWorker(lambda x: x, diagnostics=bad)
 
 
+def restore_reviewed_native_publication_delta(publish):
+    """Prove the exact new fence envelope, then restore historical send body."""
+    import ast
+    assert [arg.arg for arg in publish.args.kwonlyargs] == ['commit', 'native_admission']
+    assert [ast.unparse(v) for v in publish.args.kw_defaults] == ['None', 'None']
+    loop=next(n for n in ast.walk(publish) if isinstance(n,ast.For)
+              and ast.unparse(n.target)=='(grasp_index, grasp)')
+    reviewed=ast.parse('if native_admission is not None:\n'
+                       '    grasp = dict(grasp)\n'
+                       '    grasp["closing_axis"] = grasp["closing_axis"][:3].copy()\n'
+                       '    grasp["approach_direction"] = grasp["approach_direction"][:3].copy()').body[0]
+    assert ast.dump(loop.body[0],include_attributes=False)==ast.dump(reviewed,include_attributes=False)
+    loop.body.pop(0)
+    assert ast.unparse(loop.body[0]) == "rotation_grasp = grasp_pose_rotation(grasp['closing_axis'], grasp['approach_direction'])"
+    start=next(i for i,n in enumerate(publish.body) if isinstance(n,ast.Assign)
+               and ast.unparse(n).startswith('native_mode ='))
+    # Timing nodes may already have been removed by the historical guard.
+    end=next((i for i,n in enumerate(publish.body[start:],start)
+              if (isinstance(n,ast.Expr) and ast.unparse(n).startswith('TimingRecorder.clock(timing, 13)'))
+              or isinstance(n,ast.Return)),len(publish.body))
+    envelope=publish.body[start:end]
+    action=next(n for n in envelope if isinstance(n,ast.FunctionDef) and n.name=='publish_action')
+    sends=action.body[3:]
+    action.body=action.body[:3]
+    assert stable_ast_digest(ast.Module(body=envelope,type_ignores=[])) == 'a0c6393c396af4e7148944bae79251a9cb55d34c954de2dbc2b8866d7744b312'
+    publish.body[start:end]=sends
+    publish.args.kwonlyargs.pop()
+    publish.args.kw_defaults.pop()
+    return publish
+
+
 def test_five_source_check_sites_and_final_publication_order_static():
     import ast
     tree=ast.parse((ROOT/'ros2/src/so101_station_objects/so101_station_objects/objects.py').read_text())
     publish=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='_publish_report')
+    restore_reviewed_native_publication_delta(publish)
     final=next(n for n in publish.body if isinstance(n,ast.If) and ast.unparse(n.test)=='derived_token is not None')
     following=publish.body[publish.body.index(final)+1:]
     assert ast.unparse(following.pop(0))=='if commit is not None:\n    commit()'
@@ -184,6 +216,7 @@ def test_timing_preserves_accepted_publication_and_algorithms():
     source=ROOT/'ros2/src/so101_station_objects/so101_station_objects/objects.py'
     tree=ast.parse(source.read_text())
     publish=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='_publish_report')
+    restore_reviewed_native_publication_delta(publish)
     names={'timing','TimingRecorder','timing_site','finish_node'}
     publish.body=[stmt for stmt in publish.body if not any(isinstance(n,ast.Name) and n.id in names for n in ast.walk(stmt))]
     digest=stable_ast_digest

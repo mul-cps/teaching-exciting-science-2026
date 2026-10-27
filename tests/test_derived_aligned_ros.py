@@ -144,7 +144,7 @@ def test_expired_object_result_does_not_publish_or_acquire(notification_error):
     def pop_fault():order.append('fault_gate');return None
     job={'stamp':10.,'ros_stamp':Stamp(sec=10,nanosec=0),'derived_token':object()}
     def take_result():order.append('result');return job,{},None
-    node=NS(derived=NS(pop_fault=pop_fault,check=expired),_offer_derived=invalidations.append,
+    node=NS(_native_mode=False,derived=NS(pop_fault=pop_fault,check=expired),_offer_derived=invalidations.append,
         analysis_worker=NS(take_result=take_result,notification_error=notification_error),last_analysis_notification_error=None,
         get_clock=lambda:NS(now=lambda:NS(nanoseconds=10_100_000_000,to_msg=lambda:Stamp(sec=10,nanosec=100_000_000))),
         last_analysis_result_stamp=None,require_registration_tracking=False,

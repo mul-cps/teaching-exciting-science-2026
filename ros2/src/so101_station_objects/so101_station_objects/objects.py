@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 import time
 from copy import deepcopy
-from threading import Lock
+from threading import Lock, get_ident
 
 import cv2
 import numpy as np
@@ -941,9 +941,12 @@ def pregrasp_position(contact_position, approach_direction, offset_m=0.06):
     return contact - approach / norm * float(offset_m)
 
 
+_CPU_COMPLETE_SOURCE = object()
+
+
 class ColoredObjectsNode:
     """ROS adapter; imports ROS only at instantiation for offline helper tests."""
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, native_complete_provider=_CPU_COMPLETE_SOURCE, **kwargs):
         import rclpy
         from cv_bridge import CvBridge
         from geometry_msgs.msg import Pose, PoseArray
@@ -962,6 +965,9 @@ class ColoredObjectsNode:
 
         class _Node(Node):
             def __init__(self):
+                self._native_mode = native_complete_provider is not _CPU_COMPLETE_SOURCE
+                self._native_provider = native_complete_provider if self._native_mode else None
+                self.native_ingress = None
                 cv2.setNumThreads(1)
                 super().__init__("so101_colored_objects")
                 defaults = {
@@ -1008,8 +1014,9 @@ class ColoredObjectsNode:
                                                     "opencv_threads": int(cv2.getNumThreads())}
                     self.timing_pub = self.create_publisher(String, "~/analysis_timing", 1)
                     self.timing_timer = self.create_timer(.5, self._publish_timing)
-                self.color_mask_backend = ColorMaskBackend(
-                    str(self.get_parameter("color_mask_backend").value))
+                if not self._native_mode:
+                    self.color_mask_backend = ColorMaskBackend(
+                        str(self.get_parameter("color_mask_backend").value))
                 self.board_frame = str(self.get_parameter("board_frame").value)
                 self.require_registration_tracking = bool(
                     self.get_parameter("require_registration_tracking").value)
@@ -1075,7 +1082,12 @@ class ColoredObjectsNode:
                 self._fresh_next_attempt = 0.0
                 self._fresh_guard = self.create_guard_condition(self._process_offered_derived)
                 self._derived_group = MutuallyExclusiveCallbackGroup()
-                if self.get_parameter("allow_derived_source").value:
+                if self._native_mode:
+                    from so101_station_objects.native_complete_report import NativeCompleteIngress
+                    self.native_ready_guard = self.create_guard_condition(self._consume_native_complete)
+                    self.native_ingress = NativeCompleteIngress(
+                        self._native_provider, self.native_ready_guard.trigger)
+                elif self.get_parameter("allow_derived_source").value:
                     from so101_station_perception.derived_aligned import DerivedAligned
                     self.derived = DerivedAligned(
                         self, self.tf_buffer, self._process, period_s=self.period,
@@ -1094,14 +1106,37 @@ class ColoredObjectsNode:
                     self.sync = message_filters.ApproximateTimeSynchronizer(
                         [color, depth, info], queue_size=6, slop=0.04)
                     self.sync.registerCallback(self._process)
-                self.analysis_ready_guard = self.create_guard_condition(self._consume_analysis)
-                self.analysis_worker = LatestOnlyAnalysisWorker(
-                    self._analyze_job, min_start_interval_s=self.period,
-                    on_ready=self.analysis_ready_guard.trigger, diagnostics=diagnostic_flag)
+                self.analysis_worker = None
+                if not self._native_mode:
+                    self.analysis_ready_guard = self.create_guard_condition(self._consume_analysis)
+                    self.analysis_worker = LatestOnlyAnalysisWorker(
+                        self._analyze_job, min_start_interval_s=self.period,
+                        on_ready=self.analysis_ready_guard.trigger, diagnostics=diagnostic_flag)
                 self.last_analysis_result_stamp = None
                 self.last_analysis_notification_error = None
                 # Keep fault/lease invalidation active even when no result exists.
                 self.analysis_timer = self.create_timer(0.05, self._consume_analysis_faults)
+
+            def offer_native_complete(self, packet):
+                ingress = self.native_ingress
+                return False if ingress is None else ingress.offer(packet)
+
+            def _native_current(self, admission):
+                try:
+                    return (self._native_mode and self.native_ingress is not None
+                            and not self.native_ingress._closed and admission is not None
+                            and type(admission) is not bool
+                            and self._native_provider.check(admission) is None)
+                except Exception:
+                    return False
+
+            def _consume_native_complete(self):
+                admitted = self.native_ingress.take()
+                if admitted is None:return
+                sec, nanosec = divmod(admitted.identity.observation_ros_ns, 1_000_000_000)
+                stamp = Time(seconds=sec, nanoseconds=nanosec).to_msg()
+                self._complete_report({"stamp": sec + nanosec * 1e-9, "ros_stamp": stamp,
+                                       "native_admission": admitted.admission}, admitted.report)
 
             def _offer_derived(self, token):
                 # Metadata/reference handoff only, never decode, TF or image copies.
@@ -1158,6 +1193,8 @@ class ColoredObjectsNode:
                         self.timing_recorder._add("invalid")
 
             def destroy_node(self):
+                if self.native_ingress is not None:
+                    self.native_ingress.close()
                 with self._fresh_lock:
                     self._fresh_closed = True
                     self._fresh_generation += 1
@@ -1175,8 +1212,9 @@ class ColoredObjectsNode:
                     return False
                 recorder = getattr(self, "timing_recorder", None)
                 if recorder is not None:
-                    recorder.losses(worker.pending_replacements, worker.overwritten_results,
-                                    worker.diagnostic_losses["shutdown"])
+                    if worker is not None:
+                        recorder.losses(worker.pending_replacements, worker.overwritten_results,
+                                        worker.diagnostic_losses["shutdown"])
                     recorder.close()
                 return super().destroy_node()
 
@@ -1248,6 +1286,7 @@ class ColoredObjectsNode:
                 self.status_pub.publish(message)
 
             def _process(self, color_msg, depth_msg, info_msg, derived_token=None, *, fresh_generation=None):
+                if self._native_mode:return
                 from so101_station_perception.tag_observations import (
                     camera_intrinsics, depth_scale_for_encoding, stamp_is_fresh, stamp_seconds)
                 timing = begin_node(self, derived_token) if getattr(self, "timing_recorder", None) is not None else None
@@ -1350,6 +1389,8 @@ class ColoredObjectsNode:
 
             def _analyze_job(self, job):
                 """Serial analysis; backend device state belongs to this worker."""
+                if self._native_mode:
+                    raise RuntimeError("CPU analysis disabled for native source")
                 diagnostic = job.get("_analysis_timing")
                 try:
                     if diagnostic is not None:count_analyze(diagnostic)
@@ -1380,6 +1421,11 @@ class ColoredObjectsNode:
                     return report
 
             def _consume_analysis_faults(self):
+                if self._native_mode:
+                    fault = self.native_ingress.take_fault()
+                    if fault and not self.native_ingress._closed:
+                        self._publish_unavailable(self.get_clock().now().to_msg(), "unavailable", fault)
+                    return False
                 if getattr(self, "derived", None) is not None:
                     fault = self.derived.pop_fault()
                     if fault:
@@ -1425,6 +1471,14 @@ class ColoredObjectsNode:
                 from so101_station_perception.tag_observations import stamp_is_fresh
                 timing = job.get("_analysis_timing")
                 stamp = job["stamp"]
+                native_admission = job.get("native_admission")
+                native_mode = getattr(self, "_native_mode", False)
+                if native_mode:
+                    if job.get("derived_token") is not None or not self._native_current(native_admission):
+                        self._publish_unavailable(job["ros_stamp"], "unavailable", "native report admission unavailable")
+                        return
+                elif native_admission is not None:
+                    return
                 now = self.get_clock().now().nanoseconds * 1e-9
                 if (stamp <= (self.last_analysis_result_stamp or float("-inf"))
                         or not stamp_is_fresh(now, stamp, 0.5)):
@@ -1483,6 +1537,9 @@ class ColoredObjectsNode:
                     except (KeyError, TypeError, ValueError, TransformException):
                         continue
                 TimingRecorder.clock(timing, 11) if timing is not None else None
+                if native_mode and not self._native_current(native_admission):
+                    self._publish_unavailable(job["ros_stamp"], "unavailable", "native report admission unavailable")
+                    return
                 if timing is not None:timing_site(timing, 4, 20)
                 if job.get("derived_token") is not None:
                     try:self.derived.check(job["derived_token"])
@@ -1492,6 +1549,9 @@ class ColoredObjectsNode:
                 TimingRecorder.clock(timing, 21) if timing is not None else None
                 objects = staged_tracker.update(report["objects"], stamp,
                                               expected_owned_positions=expected_owned_positions)
+                if native_mode and len(staged_tracker.tracks) > self.native_ingress.limits.max_tracks:
+                    self._publish_unavailable(job["ros_stamp"], "unavailable", "native report track capacity exceeded")
+                    return
                 report["objects"] = objects
                 report["expired_tracks"] = staged_tracker.expired_tracks
                 report["acquisition"] = staged_tracker.acquisition_diagnostics()
@@ -1501,6 +1561,7 @@ class ColoredObjectsNode:
                     for key, value in report["support_plane"].items()
                     if key != "inlier_mask" and key != "residuals_m"}
                 kwargs = {} if job.get("derived_token") is None else {"derived_token": job["derived_token"]}
+                if native_mode:kwargs["native_admission"] = native_admission
                 def commit():
                     # Private, precomputed assignments only; final admission is
                     # owned by the serialized executor publisher below.
@@ -1509,7 +1570,7 @@ class ColoredObjectsNode:
                     self.last_analysis_result_stamp = stamp
                 self._publish_report(report, job["ros_stamp"], commit=commit, **kwargs)
 
-            def _publish_report(self, report, stamp, derived_token=None, *, commit=None) -> bool:
+            def _publish_report(self, report, stamp, derived_token=None, *, commit=None, native_admission=None) -> bool:
                 detections = Detection3DArray()
                 detections.header.stamp, detections.header.frame_id = stamp, self.board_frame
                 markers = MarkerArray()
@@ -1565,6 +1626,10 @@ class ColoredObjectsNode:
                     label.lifetime.sec = int(MARKER_HOLD_SECONDS)
                     markers.markers.append(label)
                     for grasp_index, grasp in enumerate(obj["grasps"]):
+                        if native_admission is not None:
+                            grasp = dict(grasp)
+                            grasp["closing_axis"] = grasp["closing_axis"][:3].copy()
+                            grasp["approach_direction"] = grasp["approach_direction"][:3].copy()
                         rotation_grasp = grasp_pose_rotation(grasp["closing_axis"], grasp["approach_direction"])
                         q_grasp = matrix_quaternion(rotation_grasp)
                         contact = Pose()
@@ -1643,16 +1708,48 @@ class ColoredObjectsNode:
                     except ValueError as error:
                         self._publish_unavailable(stamp, "unavailable", str(error))
                         return False
-                if commit is not None:
-                    commit()
-                self.detections_pub.publish(detections)
-                self.markers_pub.publish(markers)
-                self.grasps_pub.publish(grasps)
-                self.contacts_pub.publish(contacts)
-                self.last_marker_update_mono = time.monotonic()
-                self.last_marker_update_stamp = detections.header.stamp
-                self.marker_clear_sent = not bool(report["objects"])
-                self.status_pub.publish(message)
+                native_mode = getattr(self, "_native_mode", False)
+                if native_mode:
+                    if derived_token is not None or not self._native_current(native_admission):
+                        self._publish_unavailable(stamp, "unavailable", "native report admission unavailable")
+                        return False
+                elif native_admission is not None:
+                    return False
+                invoked = False
+                accepting = True
+                owner = get_ident()
+                def publish_action():
+                    nonlocal invoked
+                    if not accepting or invoked or get_ident() != owner:
+                        raise RuntimeError("native publication fence protocol violated")
+                    invoked = True
+                    if commit is not None:
+                        commit()
+                    self.detections_pub.publish(detections)
+                    self.markers_pub.publish(markers)
+                    self.grasps_pub.publish(grasps)
+                    self.contacts_pub.publish(contacts)
+                    self.last_marker_update_mono = time.monotonic()
+                    self.last_marker_update_stamp = detections.header.stamp
+                    self.marker_clear_sent = not bool(report["objects"])
+                    self.status_pub.publish(message)
+                if native_mode:
+                    try:
+                        accepted = self._native_provider.publish_if_current(native_admission, publish_action)
+                    except Exception:
+                        if invoked:
+                            raise RuntimeError("native publication failed after action began") from None
+                        self._publish_unavailable(stamp, "unavailable", "native publication admission unavailable")
+                        return False
+                    finally:
+                        accepting = False
+                    if accepted is not True or not invoked:
+                        if invoked:
+                            raise RuntimeError("native publication fence protocol violated after action")
+                        self._publish_unavailable(stamp, "unavailable", "native publication admission unavailable")
+                        return False
+                else:
+                    publish_action()
                 TimingRecorder.clock(timing, 13) if timing is not None else None
                 if timing is not None:finish_node(self, 1)
                 return True

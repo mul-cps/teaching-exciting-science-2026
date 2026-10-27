@@ -23,8 +23,23 @@ from types import MethodType, SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'ros2/src/so101_station_objects/so101_station_objects/objects.py'
-FROZEN_SOURCE = '816acf8f348e8cb12d49f25611b8b2980cb89a83dbd87f5a5aff2499202c4d1d'
+HISTORICAL_SOURCE = '816acf8f348e8cb12d49f25611b8b2980cb89a83dbd87f5a5aff2499202c4d1d'
+PRE_FIX_NATIVE_SOURCE = '6eec975e9b06892789cc8ff7daa744766a818b801f5697d398716b27b3186b27'
+FROZEN_SOURCE = '08d6d09b8768539a063bf26f30d9e4120110ee457a458af1899fd619a397b321'
 TRACKER_SOURCE = '691a85ecbb8cbc2cfbbbd44cc77a10efe6739da6c29db582fb46dc6e9914cb0e'
+
+
+def stable_ast_digest(node):
+    def canonical(value):
+        if isinstance(value, ast.AST):
+            fields = list(ast.iter_fields(value))
+            if isinstance(value, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)) and not any(key == 'type_params' for key, _ in fields):
+                fields.append(('type_params', []))
+            return [type(value).__name__, [[key, canonical(item)] for key, item in fields]]
+        if isinstance(value, list):
+            return [canonical(item) for item in value]
+        return value
+    return hashlib.sha256(json.dumps(canonical(node), separators=(',', ':')).encode()).hexdigest()
 
 
 def resource_guard(source):
@@ -53,6 +68,18 @@ def resource_guard(source):
     for n in ast.walk(sink):
         if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store) and isinstance(n.value, ast.Name) and n.value.id == 'self' and n.attr in {'tracker', 'last_support_plane', 'last_analysis_result_stamp'}:
             assert id(n) in allowed, 'accepted state written outside private commit'
+    # Task3 moves the unchanged commit/send block into a synchronous fenced
+    # action. Prove that exact envelope, then apply the original Task1 checks.
+    start = next(i for i, n in enumerate(publisher.body) if isinstance(n, ast.Assign)
+                 and ast.unparse(n).startswith('native_mode ='))
+    end = next(i for i, n in enumerate(publisher.body[start:], start)
+               if isinstance(n, ast.Expr) and ast.unparse(n).startswith('TimingRecorder.clock(timing, 13)'))
+    envelope = publisher.body[start:end]
+    action = next(n for n in envelope if isinstance(n, ast.FunctionDef) and n.name == 'publish_action')
+    sends = action.body[3:]
+    action.body = action.body[:3]
+    assert stable_ast_digest(ast.Module(body=envelope, type_ignores=[])) == 'a0c6393c396af4e7148944bae79251a9cb55d34c954de2dbc2b8866d7744b312', 'native fence envelope changed'
+    publisher.body[start:end] = sends
     final = next(i for i, n in enumerate(publisher.body) if isinstance(n, ast.If) and ast.unparse(n.test) == 'derived_token is not None')
     assert ast.unparse(publisher.body[final + 1]) == 'if commit is not None:\n    commit()'
     assert ast.unparse(publisher.body[final + 2]).startswith('self.detections_pub.publish(')
