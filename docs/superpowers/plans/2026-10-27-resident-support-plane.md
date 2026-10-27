@@ -43,12 +43,12 @@
 
 **Interfaces:** `support_cases()` returns ordered deterministic point-level fixtures and entry-image fixtures; `trace_support_case(case)` returns the actual retained call's result or typed failure plus ordered trace; `write_snapshot(directory, cases)` writes lossless arrays and a source/runtime manifest. A command-line `--output` creates the offline snapshot. Tests use the committed portable compact reference, never a private absolute path.
 
-- [ ] Write failing tests for absent trace APIs, exact two-stream RNG calls and proposal ordering, nine actual weighted fits on success, masks/metrics before snap, and typed failure order. Preserve expected RED output.
-- [ ] Instrument the actual retained `_fit_world_support`, `fit_support_plane`, `_weighted_plane` and NumPy calls without replacing their math or editing production. Wrappers must restore all replaced module attributes even after failure. Point-level fixture injection must be explicit and distinct from real image/deprojection witnesses.
-- [ ] Capture exact selected indices, all triplets/scores/winner, winning subset, each fit's weights/center/singular values/normal/d, final residuals/mask, pre/post-snap values and failure type/message. Preserve original return values and exceptions.
-- [ ] Include flat/oblique/noisy/outlier, equal-score, no-proposal/degenerate, 29/30, 2000/2001/4800 population, dominance, `.85`/snap/offset and `.003` nextafter cases. Include the existing twelve matrix inputs as actual entry-image witnesses. Distinguish genuinely reached boundaries from intended fixture names.
-- [ ] Generate references only from retained CPU code, record source/runtime/input identities, and preserve full arrays durably. Compare discrete decisions/order exactly and numerical values at the existing tolerances; separate exact artifact identity from cross-runtime regression.
-- [ ] Run focused new tests plus existing support and native-matrix tests in the pinned CPU launcher; verify all original source/fixture hashes remain unchanged. Independently review and supervisor commit.
+- [x] Write failing tests for absent trace APIs, exact two-stream RNG calls and proposal ordering, nine actual weighted fits on success, masks/metrics before snap, and typed failure order. Preserve expected RED output.
+- [x] Instrument the actual retained `_fit_world_support`, `fit_support_plane`, `_weighted_plane` and NumPy calls without replacing their math or editing production. Wrappers must restore all replaced module attributes even after failure. Point-level fixture injection must be explicit and distinct from real image/deprojection witnesses.
+- [x] Capture exact selected indices, all triplets/scores/winner, winning subset, each fit's weights/center/singular values/normal/d, final residuals/mask, pre/post-snap values and failure type/message. Preserve original return values and exceptions.
+- [x] Include flat/oblique/noisy/outlier, equal-score, no-proposal/degenerate, 29/30, 2000/2001/4800 population, dominance, `.85`/snap/offset and `.003` nextafter cases. Include the existing twelve matrix inputs as actual entry-image witnesses. Distinguish genuinely reached boundaries from intended fixture names.
+- [x] Generate references only from retained CPU code, record source/runtime/input identities, and preserve full arrays durably. Compare discrete decisions/order exactly and numerical values at the existing tolerances; separate exact artifact identity from cross-runtime regression.
+- [x] Run focused new tests plus existing support and native-matrix tests in the pinned CPU launcher; verify all original source/fixture hashes remain unchanged. Independently review and supervisor commit.
 
 ## Task 2: Exact cold controls and literal resident scalar algebra
 
