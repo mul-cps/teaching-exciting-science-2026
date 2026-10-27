@@ -33,6 +33,7 @@ _ROOT = _repository_root()
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from workshop.digital_twin.principal_axes import canonical_principal_axes  # noqa: E402
 from tools.propose_rgbd_grasp import color_masks  # noqa: E402
 from so101_station_objects.colored_object_validation import (  # noqa: E402
     DEFAULT_MAX_OBSERVATION_DEPTH_M,
@@ -237,9 +238,10 @@ def _component_geometry(contour, pixel_points, depth_values, intrinsics, distort
     axis_y = np.cross(normal, axis_x)
     tangent = np.column_stack((board @ axis_x, board @ axis_y))
     centered = tangent - np.median(tangent, axis=0)
-    _, _, vt = np.linalg.svd(centered, full_matrices=False)
+    _, spectrum, vt = np.linalg.svd(centered, full_matrices=False)
+    vt, tied = canonical_principal_axes(spectrum, vt, sample_count=len(centered))
     long_axis = vt[0, 0] * axis_x + vt[0, 1] * axis_y
-    if long_axis @ axis_x < 0:
+    if not tied[0] and long_axis @ axis_x < 0:
         long_axis = -long_axis
     short_axis = np.cross(normal, long_axis)
     coords_long, coords_short = board @ long_axis, board @ short_axis
@@ -270,7 +272,13 @@ def _component_geometry(contour, pixel_points, depth_values, intrinsics, distort
                        "contacts_camera": np.asarray(candidate["contacts"]),
                        "axis_rank": opening})
     if grasps:
-        grasps = [min(grasps, key=lambda item: item["axis_rank"])]
+        best = grasps[0]
+        for candidate in grasps[1:]:
+            width, best_width = candidate["axis_rank"], best["axis_rank"]
+            tolerance = 32 * np.finfo(np.float64).eps * max(abs(width), abs(best_width))
+            if width < best_width and best_width - width > tolerance:
+                best = candidate
+        grasps = [best]
     pickup_eligible = bool(_inside_roi(board, pickup_roi).all())
     observed_heights = np.percentile(above, [50, 90, 95])
     surface_centroid = np.median(transform_points(
@@ -330,13 +338,15 @@ def _visible_component_geometry(pixel_points, depth_values, intrinsics, distorti
     centroid = np.median(board, axis=0)
     centered = board - centroid
     covariance = centered.T @ centered / max(1, len(centered))
-    _, eigenvectors = np.linalg.eigh(covariance)
-    axes = eigenvectors[:, ::-1]
-    # PCA eigenvector signs are arbitrary. Stabilize the first two signs, then
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    rows, tied = canonical_principal_axes(eigenvalues[::-1], eigenvectors[:, ::-1].T,
+                                          sample_count=len(centered))
+    axes = rows.T.copy()
+    # PCA eigenvector signs are arbitrary. Stabilize singleton signs, then
     # form the third as a cross product so the reported basis is right-handed.
     for index in (0, 1):
         dominant = int(np.argmax(np.abs(axes[:, index])))
-        if axes[dominant, index] < 0:
+        if not tied[index] and axes[dominant, index] < 0:
             axes[:, index] *= -1
     axes[:, 2] = np.cross(axes[:, 0], axes[:, 1])
     axes[:, 2] /= np.linalg.norm(axes[:, 2])

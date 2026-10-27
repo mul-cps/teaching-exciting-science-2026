@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
+from workshop.digital_twin.principal_axes import canonical_principal_axes
 from so101_station_objects.percentile import linear_percentile
 
 
@@ -215,7 +216,8 @@ def validate_colored_component(rgb, depth_m, component_mask, intrinsics, distort
     normalized = cv2.undistortPoints(np.column_stack((x, y)).astype(float).reshape(-1, 1, 2), k, d).reshape(-1, 2)
     points = np.column_stack((normalized*depth[y, x, None], depth[y, x]))
     center = np.median(points, axis=0)
-    _, _, axes = np.linalg.svd(points-center, full_matrices=False)
+    _, spectrum, axes = np.linalg.svd(points-center, full_matrices=False)
+    axes, _ = canonical_principal_axes(spectrum, axes, sample_count=len(points))
     principal = (points-center) @ axes.T
     metrics['centroid_camera_m'] = center.tolist()
     limits = linear_percentile(principal, [5, 95], axis=0)

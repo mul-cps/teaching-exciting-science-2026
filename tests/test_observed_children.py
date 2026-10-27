@@ -9,7 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 P = ROOT/'ros2/src/so101_station_vulkan'
-FIXTURE = ROOT/'tests/fixtures/native_geometry/observed-children-v1.json'
+FIXTURE = ROOT/'tests/fixtures/native_geometry/observed-children-v2.json'
 
 
 @pytest.fixture(scope='module')
@@ -59,6 +59,15 @@ def test_overlap_nonclipping_crop_border_and_boundary_fixture_contract():
 
 def test_closed_capacity_overflow_rejects_whole_result(reference):
     assert execute(reference,cases()[0],capacity=1)=={'usable':False}
+
+
+def test_v2_observed_membership_payload_keeps_historical_cases_exact():
+    historical = json.loads((ROOT/'tests/fixtures/native_geometry/observed-children-v1.json').read_text())
+    current = json.loads(FIXTURE.read_text())
+    assert current['schema'] == 2
+    assert current['principal_axes_policy']['name'] == 'canonical-principal-axes-v1'
+    assert current['cases'] == historical['cases']
+    assert 'workshop/digital_twin/principal_axes.py' in current['sources']
 
 
 def test_frozen_oracle_source_identity():

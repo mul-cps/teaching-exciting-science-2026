@@ -1,6 +1,8 @@
 """Observed RGB-D geometry; candidates are not qualified grasp predictions."""
 import numpy as np
 
+from workshop.digital_twin.principal_axes import canonical_principal_axes
+
 
 def fuse_depth(stack, roi, min_valid_fraction=.75):
     a = np.asarray(stack)
@@ -108,6 +110,7 @@ def footprint_grasps(contourpixels, plane, intrinsics, height_m, maxopening_m, *
     _, s, vt = np.linalg.svd(points - origin, full_matrices=False)
     if s[1] < 1e-9:
         raise ValueError('Degenerate silhouette')
+    vt, _ = canonical_principal_axes(s, vt, sample_count=len(points))
     x = vt[0] - n * (vt[0] @ n)
     x /= np.linalg.norm(x)
     y = np.cross(n, x)

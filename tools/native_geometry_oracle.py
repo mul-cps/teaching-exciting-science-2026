@@ -27,9 +27,31 @@ SOURCES = [
     'ros2/src/so101_station_objects/so101_station_objects/percentile.py',
     'ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py',
     'workshop/digital_twin/grasp_geometry.py',
+    'workshop/digital_twin/principal_axes.py',
     'tools/propose_rgbd_grasp.py',
     'tools/native_geometry_oracle.py',
 ]
+
+
+ORACLE_SCHEMA = 'so101-native-full-geometry-oracle-v2'
+LEGACY_ORACLE_SCHEMA = 'so101-native-full-geometry-oracle-v1'
+REFERENCE_SCHEMA = 'so101-native-geometry-procedural-reference-v2'
+
+
+def principal_axes_policy():
+    """Explicit direction/ranking policy; not a universal LAPACK error bound."""
+    return dict(
+        name='canonical-principal-axes-v1',
+        spectrum_cluster=dict(eps64_multiplier=8,
+            scale='max(sample_count, dimension) * max(abs(spectrum))',
+            spread='complete cluster spread; no adjacent-gap chaining',
+            units=dict(svd='singular values', covariance_eigh='eigenvalues')),
+        projected_anchor_tie=dict(eps64_multiplier=64,
+            units='absolute squared norm', coordinate_order=['X', 'Y', 'Z']),
+        grasp_width_ranking_tie=dict(eps64_multiplier=32,
+            scale='max(abs(widths))', units='opening width',
+            application='after exact opening <= maxopening_m filter; retain first candidate'),
+        universal_cross_platform_bit_identity=False)
 
 
 def analyze_reference(arguments):
@@ -174,8 +196,9 @@ def freeze(arguments, directory):
         return value
     report = analyze_reference(arguments)
     # Reports contain arrays too; their references remain lossless in manifest.
-    manifest = dict(schema='so101-native-full-geometry-oracle-v1',
+    manifest = dict(schema=ORACLE_SCHEMA,
         provenance=dict(numeric_absolute_tolerance=1e-9, local_ray_absolute_tolerance=1e-12,
+            principal_axes_policy=principal_axes_policy(),
             python=platform.python_version(), numpy=np.__version__, opencv=cv2.__version__,
             scipy=importlib.metadata.version('scipy'),
             sources={p: hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in SOURCES},
@@ -190,8 +213,13 @@ def freeze(arguments, directory):
 def load_verified(directory):
     directory = Path(directory)
     manifest = json.loads((directory/'manifest.json').read_text())
-    if manifest['schema'] != 'so101-native-full-geometry-oracle-v1':
+    if manifest['schema'] not in (LEGACY_ORACLE_SCHEMA, ORACLE_SCHEMA):
         raise ValueError('unsupported geometry oracle schema')
+    if manifest['schema'] == ORACLE_SCHEMA:
+        if json.dumps(manifest['provenance'].get('principal_axes_policy'), sort_keys=True) != json.dumps(principal_axes_policy(), sort_keys=True):
+            raise ValueError('unsupported principal axes policy')
+        if 'workshop/digital_twin/principal_axes.py' not in manifest['provenance']['sources']:
+            raise ValueError('missing principal axes source binding')
     arrays = {}
     for name, meta in manifest['arrays'].items():
         if Path(name).name != name or not name.endswith('.npy'):
@@ -231,7 +259,9 @@ def reference_case(arguments):
             camera_global=plain_values(piece['camera_global']), camera_local=plain_values(piece['camera_local']),
             contours=[dict(vertices=plain_values(c['vertices']), original_membership=digest(c['original_membership']),
                            selected=digest(c['selected'])) for c in piece['contours']]))
-    return dict(schema='so101-native-geometry-procedural-reference-v1',
+    return dict(schema=REFERENCE_SCHEMA,
+                principal_axes_policy=principal_axes_policy(),
+                sources={p: hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in SOURCES},
                 numeric_absolute_tolerance=1e-9, local_ray_absolute_tolerance=1e-12,
                 report=plain_values(analyze_reference(arguments)), pieces=pieces)
 

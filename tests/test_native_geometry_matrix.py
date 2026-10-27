@@ -43,8 +43,8 @@ def test_matrix_preserves_distinct_holes_children_edges_and_independent_inputs()
     assert np.all(a['large-gray-support']['depth'] == 800)
 
 
-def test_base_report_and_ordered_pieces_keep_existing_immutable_reference():
-    expected = json.loads((ROOT/'tests/fixtures/native_geometry/procedural-v1.json').read_text())
+def test_base_report_and_ordered_pieces_match_current_versioned_reference():
+    expected = json.loads((ROOT/'tests/fixtures/native_geometry/procedural-v2.json').read_text())
     actual = matrix.oracle.reference_case(dict(matrix.cases())['base'])
     matrix.oracle.assert_report_equal(expected['report'], actual['report'])
     matrix.oracle.assert_report_equal(expected['pieces'], actual['pieces'], tolerance=1e-12)
@@ -94,10 +94,12 @@ def frozen_matrix(tmp_path_factory):
 def test_freeze_is_complete_verified_cpu_evidence_and_matches_committed_golden(frozen_matrix):
     target, manifest = frozen_matrix
     assert manifest['state'] == 'complete'
+    assert manifest['schema'] == 'so101-native-full-geometry-matrix-v2'
+    assert manifest['principal_axes_policy'] == matrix.oracle.principal_axes_policy()
     assert [c['name'] for c in manifest['cases']] == NAMES
     assert manifest['numeric_absolute_tolerance'] == 1e-9
     assert manifest['local_ray_absolute_tolerance'] == 1e-12
-    expected = json.loads((ROOT/'tests/fixtures/native_geometry/matrix-v1.json').read_text())
+    expected = json.loads((ROOT/'tests/fixtures/native_geometry/matrix-v2.json').read_text())
     matrix.assert_matrix_payload_equal(expected, manifest)
     for case in manifest['cases']:
         stored, arrays = matrix.oracle.load_verified(target/case['name'])

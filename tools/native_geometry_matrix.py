@@ -112,7 +112,8 @@ def freeze_matrix(directory):
     directory.mkdir(parents=True, exist_ok=False)
     _write_json(directory/'status.json', {'state': 'building'})
     manifest = dict(
-        schema='so101-native-full-geometry-matrix-v1', state='complete',
+        schema='so101-native-full-geometry-matrix-v2', state='complete',
+        principal_axes_policy=oracle.principal_axes_policy(),
         scope='offline retained CPU oracle; no native or physical qualification',
         numeric_absolute_tolerance=1e-9, local_ray_absolute_tolerance=1e-12,
         matrix_source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
