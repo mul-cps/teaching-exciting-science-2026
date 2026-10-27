@@ -4,6 +4,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -19,7 +20,7 @@ def generate_launch_description():
                     plugin='so101_station_vulkan::CameraComponent',
                     name='resident_camera',
                     parameters=[{'backend': LaunchConfiguration('backend'),
-                                 'serial': LaunchConfiguration('serial')}],
+                                 'serial': ParameterValue(LaunchConfiguration('serial'), value_type=str)}],
                     extra_arguments=[{'use_intra_process_comms': True}]),
                 ComposableNode(
                     package='so101_station_vulkan',
