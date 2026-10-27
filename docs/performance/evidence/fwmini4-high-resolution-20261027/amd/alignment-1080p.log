@@ -1,0 +1,11 @@
+PASS calibration_rejections=6 footprint_boundary=pass overflow_invalid=pass
+case=0 convention=0 corners=1 cpu_sdk_mismatch=0
+case=1 convention=0 corners=1 cpu_sdk_mismatch=0
+case=2 convention=0 corners=1 cpu_sdk_mismatch=0
+case=3 convention=0 corners=1 cpu_sdk_mismatch=0
+case=4 convention=0 corners=1 cpu_sdk_mismatch=0
+case=5 convention=0 corners=1 cpu_sdk_mismatch=0
+case=6 convention=0 corners=1 cpu_sdk_mismatch=0
+case=7 convention=0 corners=1 cpu_sdk_mismatch=0
+profile=1080p depth=1280x720 color=1920x1080 xyz_limit_m=1e-07
+PASS cases=8 max_xyz_error_m=0 gpu=1 physical=false

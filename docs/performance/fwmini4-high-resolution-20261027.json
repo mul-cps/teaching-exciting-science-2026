@@ -1,0 +1,1304 @@
+{
+  "scope": "higher-resolution software capability, synthetic native alignment and short camera/Core observations without RViz; not station performance/geometry/control/physical acceptance",
+  "qualified": false,
+  "execution_eligible": false,
+  "full_station_qualified": false,
+  "geometry_admission": "unqualified",
+  "source_commit": "5344d665692ab2dddb0de32ef58c8adf6aedadb8",
+  "source_files_match_native_build": 103,
+  "source_archive_sha256": "191d0cff901dfb651b8b62664fc2d2b4612857a4789914ba8c148132f216f32e",
+  "capability": {
+    "quality_target": "720p/1080p",
+    "default_profile": "720p",
+    "native_profiles": {
+      "720p": {
+        "RGB": [
+          1280,
+          720
+        ],
+        "depth": [
+          1280,
+          720
+        ],
+        "requested_fps": 30
+      },
+      "1080p": {
+        "RGB": [
+          1920,
+          1080
+        ],
+        "depth": [
+          1280,
+          720
+        ],
+        "requested_fps": 30
+      }
+    },
+    "RGB_resized": false,
+    "cold_exact_Z16_XYZ_compact_gates_unchanged": true,
+    "quality_extent_capability_implemented": true,
+    "30_Hz_processing_target_met": false
+  },
+  "native_alignment": {
+    "validated": true,
+    "scope": "synthetic software-device frozen fixtures on Intel and AMD; not physical camera equivalence",
+    "total_cases": 48,
+    "hosts": {
+      "intel": {
+        "vga": {
+          "cases": 8,
+          "exact_Z16": true,
+          "max_XYZ_error_m": 0,
+          "GPU_executed": true,
+          "physical": false,
+          "log": "alignment-vga.log",
+          "sha256": "5849efd177de3644f48cea619e4485b99fbcc2a0053df0dca1c9c654624b09de"
+        },
+        "720p": {
+          "cases": 8,
+          "exact_Z16": true,
+          "max_XYZ_error_m": 0,
+          "GPU_executed": true,
+          "physical": false,
+          "log": "alignment-720p.log",
+          "sha256": "f269a15809534fa68149314cc52e7a67cfb1b1ba64276467abeb751181b104cd"
+        },
+        "1080p": {
+          "cases": 8,
+          "exact_Z16": true,
+          "max_XYZ_error_m": 0,
+          "GPU_executed": true,
+          "physical": false,
+          "log": "alignment-1080p.log",
+          "sha256": "f0e6f1963460fa0962b8133c02bd5c3a9552e9b5fb911c3ad4c174f509255fb2"
+        }
+      },
+      "amd": {
+        "vga": {
+          "cases": 8,
+          "exact_Z16": true,
+          "max_XYZ_error_m": 0,
+          "GPU_executed": true,
+          "physical": false,
+          "log": "amd/alignment-vga.log",
+          "sha256": "5849efd177de3644f48cea619e4485b99fbcc2a0053df0dca1c9c654624b09de"
+        },
+        "720p": {
+          "cases": 8,
+          "exact_Z16": true,
+          "max_XYZ_error_m": 0,
+          "GPU_executed": true,
+          "physical": false,
+          "log": "amd/alignment-720p.log",
+          "sha256": "f269a15809534fa68149314cc52e7a67cfb1b1ba64276467abeb751181b104cd"
+        },
+        "1080p": {
+          "cases": 8,
+          "exact_Z16": true,
+          "max_XYZ_error_m": 0,
+          "GPU_executed": true,
+          "physical": false,
+          "log": "amd/alignment-1080p.log",
+          "sha256": "f0e6f1963460fa0962b8133c02bd5c3a9552e9b5fb911c3ad4c174f509255fb2"
+        }
+      }
+    }
+  },
+  "native_build": {
+    "isolated": true,
+    "package": "so101_station_vulkan",
+    "elapsed_s": 39.3,
+    "source_built_before_commit": true,
+    "post_commit_content_identity_verified": true,
+    "canonical_deployment_promoted": false
+  },
+  "canonical_CPU_suite": {
+    "passed": 4333,
+    "skipped": 133,
+    "subtests_passed": 48,
+    "seconds": 206.1,
+    "source_pins_unchanged": 464,
+    "JUnit": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "133",
+      "tests": "4514",
+      "time": "206.078",
+      "timestamp": "2026-10-27T14:25:20.937907+01:00",
+      "hostname": "cps-wkstn-hpz2minig1a-ellensohn"
+    },
+    "native_ROS_and_physical_skips_qualified": false,
+    "history": [
+      {
+        "log": "cpu/workshop-highres-cpu-20261027.log",
+        "outcome": "direct pytest environment mismatch;19collectionerrors/57skips; superseded by canonical launcher"
+      },
+      {
+        "log": "cpu/workshop-highres-cpu-canonical-20261027.log",
+        "outcome": "2stale source-identity guards failed;4331passed/133skips/48subtests; guards corrected without product/numeric changes and final canonical rerun green"
+      }
+    ]
+  },
+  "live_runs": {
+    "720p/cpu": {
+      "profile_requested": "720p",
+      "mode": "cpu",
+      "middleware": "rmw_fastrtps_cpp",
+      "domain": "179",
+      "logical_cpus": 4,
+      "scope": "CameraComponent+ObjectsComponent only; excludes marker registration and control",
+      "container_pid": 496330,
+      "collector_exit": 0,
+      "observed_seconds": 17.907203305047005,
+      "host_busy_fraction_including_startup_and_other_processes": 0.30875122910521136,
+      "summary": {
+        "schema": "raw-resident-live-collector-v1",
+        "mode_requested": "cpu",
+        "physical_camera_capture": true,
+        "full_station_qualified": false,
+        "execution_eligible": false,
+        "geometry_admission": "unqualified",
+        "passed": true,
+        "errors": [],
+        "steady_seconds": 15.009683860000223,
+        "unique_measured_outputs": 237,
+        "output_hz": 15.789806248457285,
+        "collector_received_age_p95_ms": 126.275408,
+        "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+        "container_pid": 496330,
+        "container_cpu_ms_proc_stat": 19040.0,
+        "container_cpu_ms_per_unique_output": 80.33755274261604,
+        "container_cpu_method": "actual containerPID process utime+stime; startup excluded; tick quantization; driverIRQ/kworker excluded",
+        "source_generation": 17687362775920829728,
+        "last_status_fields": {
+          "backend": "cpu",
+          "alignment": "vendor_cpu",
+          "profile": "720p",
+          "color_width": "1280",
+          "color_height": "720",
+          "depth_width": "1280",
+          "depth_height": "720",
+          "fps": "30",
+          "vulkan_allocation_count": "0",
+          "fallback_reason": "",
+          "geometry_admission": "unqualified",
+          "execution_eligible": "false",
+          "full_station_qualified": "false",
+          "recording": "disabled",
+          "received": "212",
+          "completed": "210",
+          "dropped": "0",
+          "replaced": "0",
+          "duplicate_or_regressed": "0",
+          "host_plane_copy_bytes": "4608000",
+          "native_upload_bytes": "0",
+          "aligned_d2d_bytes": "0",
+          "alignment_fault_readback_bytes": "0",
+          "core_compact_readback_bytes": "0"
+        }
+      },
+      "rss_kib_after_steady": {
+        "VmHWM": "287996 kB",
+        "VmRSS": "287996 kB"
+      },
+      "actual_extents": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "profile_matches": true,
+      "steady_vulkan_allocation_counts": [],
+      "allocation_count_stable": true,
+      "source_frame_gaps": {
+        "source_frame": 207,
+        "depth_source_frame": 207
+      },
+      "passed": true,
+      "container_fraction_of_one_core": 1.2685143922811253,
+      "launcher_exit": 0
+    },
+    "720p/vulkan": {
+      "profile_requested": "720p",
+      "mode": "vulkan",
+      "middleware": "rmw_fastrtps_cpp",
+      "domain": "179",
+      "logical_cpus": 4,
+      "scope": "CameraComponent+ObjectsComponent only; excludes marker registration and control",
+      "container_pid": 496750,
+      "collector_exit": 0,
+      "observed_seconds": 18.82253604591824,
+      "host_busy_fraction_including_startup_and_other_processes": 0.15120545073375258,
+      "summary": {
+        "schema": "raw-resident-live-collector-v1",
+        "mode_requested": "vulkan",
+        "physical_camera_capture": true,
+        "full_station_qualified": false,
+        "execution_eligible": false,
+        "geometry_admission": "unqualified",
+        "passed": true,
+        "errors": [],
+        "steady_seconds": 15.032936951029114,
+        "unique_measured_outputs": 287,
+        "output_hz": 19.0914124721552,
+        "collector_received_age_p95_ms": 82.543386,
+        "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+        "container_pid": 496750,
+        "container_cpu_ms_proc_stat": 5860.0,
+        "container_cpu_ms_per_unique_output": 20.418118466898953,
+        "container_cpu_method": "actual containerPID process utime+stime; startup excluded; tick quantization; driverIRQ/kworker excluded",
+        "source_generation": 1567097785004861516,
+        "last_status_fields": {
+          "backend": "vulkan",
+          "alignment": "raw_vulkan",
+          "profile": "720p",
+          "color_width": "1280",
+          "color_height": "720",
+          "depth_width": "1280",
+          "depth_height": "720",
+          "fps": "30",
+          "vulkan_allocation_count": "35",
+          "fallback_reason": "",
+          "geometry_admission": "unqualified",
+          "execution_eligible": "false",
+          "full_station_qualified": "false",
+          "recording": "disabled",
+          "received": "424",
+          "completed": "270",
+          "dropped": "0",
+          "replaced": "152",
+          "duplicate_or_regressed": "0",
+          "host_plane_copy_bytes": "4608000",
+          "native_upload_bytes": "4608000",
+          "aligned_d2d_bytes": "1843200",
+          "alignment_fault_readback_bytes": "4",
+          "core_compact_readback_bytes": "163856"
+        }
+      },
+      "rss_kib_after_steady": {
+        "VmHWM": "396464 kB",
+        "VmRSS": "199564 kB"
+      },
+      "actual_extents": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "profile_matches": true,
+      "steady_vulkan_allocation_counts": [
+        35
+      ],
+      "allocation_count_stable": true,
+      "source_frame_gaps": {
+        "source_frame": 161,
+        "depth_source_frame": 161
+      },
+      "passed": true,
+      "container_fraction_of_one_core": 0.3898107215568971,
+      "launcher_exit": 0
+    },
+    "720p/auto": {
+      "profile_requested": "720p",
+      "mode": "auto",
+      "middleware": "rmw_fastrtps_cpp",
+      "domain": "179",
+      "logical_cpus": 4,
+      "scope": "CameraComponent+ObjectsComponent only; excludes marker registration and control",
+      "container_pid": 497161,
+      "collector_exit": 0,
+      "observed_seconds": 18.676750414073467,
+      "host_busy_fraction_including_startup_and_other_processes": 0.11541632316570483,
+      "summary": {
+        "schema": "raw-resident-live-collector-v1",
+        "mode_requested": "auto",
+        "physical_camera_capture": true,
+        "full_station_qualified": false,
+        "execution_eligible": false,
+        "geometry_admission": "unqualified",
+        "passed": true,
+        "errors": [],
+        "steady_seconds": 15.037283119978383,
+        "unique_measured_outputs": 287,
+        "output_hz": 19.085894553564312,
+        "collector_received_age_p95_ms": 82.69451,
+        "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+        "container_pid": 497161,
+        "container_cpu_ms_proc_stat": 5780.0,
+        "container_cpu_ms_per_unique_output": 20.139372822299652,
+        "container_cpu_method": "actual containerPID process utime+stime; startup excluded; tick quantization; driverIRQ/kworker excluded",
+        "source_generation": 12694507199416096458,
+        "last_status_fields": {
+          "backend": "vulkan",
+          "alignment": "raw_vulkan",
+          "profile": "720p",
+          "color_width": "1280",
+          "color_height": "720",
+          "depth_width": "1280",
+          "depth_height": "720",
+          "fps": "30",
+          "vulkan_allocation_count": "35",
+          "fallback_reason": "",
+          "geometry_admission": "unqualified",
+          "execution_eligible": "false",
+          "full_station_qualified": "false",
+          "recording": "disabled",
+          "received": "424",
+          "completed": "270",
+          "dropped": "0",
+          "replaced": "152",
+          "duplicate_or_regressed": "0",
+          "host_plane_copy_bytes": "4608000",
+          "native_upload_bytes": "4608000",
+          "aligned_d2d_bytes": "1843200",
+          "alignment_fault_readback_bytes": "4",
+          "core_compact_readback_bytes": "163856"
+        }
+      },
+      "rss_kib_after_steady": {
+        "VmHWM": "396256 kB",
+        "VmRSS": "199444 kB"
+      },
+      "actual_extents": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "profile_matches": true,
+      "steady_vulkan_allocation_counts": [
+        35
+      ],
+      "allocation_count_stable": true,
+      "source_frame_gaps": {
+        "source_frame": 162,
+        "depth_source_frame": 162
+      },
+      "passed": true,
+      "container_fraction_of_one_core": 0.3843779460613301,
+      "launcher_exit": 0
+    },
+    "1080p/cpu": {
+      "profile_requested": "1080p",
+      "mode": "cpu",
+      "middleware": "rmw_fastrtps_cpp",
+      "domain": "179",
+      "logical_cpus": 4,
+      "scope": "CameraComponent+ObjectsComponent only; excludes marker registration and control",
+      "container_pid": 497560,
+      "collector_exit": 0,
+      "observed_seconds": 18.11256713408511,
+      "host_busy_fraction_including_startup_and_other_processes": 0.3699124878455341,
+      "summary": {
+        "schema": "raw-resident-live-collector-v1",
+        "mode_requested": "cpu",
+        "physical_camera_capture": true,
+        "full_station_qualified": false,
+        "execution_eligible": false,
+        "geometry_admission": "unqualified",
+        "passed": true,
+        "errors": [],
+        "steady_seconds": 15.022016251925379,
+        "unique_measured_outputs": 178,
+        "output_hz": 11.84927489192309,
+        "collector_received_age_p95_ms": 168.121437,
+        "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+        "container_pid": 497560,
+        "container_cpu_ms_proc_stat": 23160.0,
+        "container_cpu_ms_per_unique_output": 130.1123595505618,
+        "container_cpu_method": "actual containerPID process utime+stime; startup excluded; tick quantization; driverIRQ/kworker excluded",
+        "source_generation": 11639001828719450747,
+        "last_status_fields": {
+          "backend": "cpu",
+          "alignment": "vendor_cpu",
+          "profile": "1080p",
+          "color_width": "1920",
+          "color_height": "1080",
+          "depth_width": "1280",
+          "depth_height": "720",
+          "fps": "30",
+          "vulkan_allocation_count": "0",
+          "fallback_reason": "",
+          "geometry_admission": "unqualified",
+          "execution_eligible": "false",
+          "full_station_qualified": "false",
+          "recording": "disabled",
+          "received": "152",
+          "completed": "150",
+          "dropped": "0",
+          "replaced": "0",
+          "duplicate_or_regressed": "0",
+          "host_plane_copy_bytes": "10368000",
+          "native_upload_bytes": "0",
+          "aligned_d2d_bytes": "0",
+          "alignment_fault_readback_bytes": "0",
+          "core_compact_readback_bytes": "0"
+        }
+      },
+      "rss_kib_after_steady": {
+        "VmHWM": "562664 kB",
+        "VmRSS": "562664 kB"
+      },
+      "actual_extents": [
+        1920,
+        1080,
+        1280,
+        720
+      ],
+      "profile_matches": true,
+      "steady_vulkan_allocation_counts": [],
+      "allocation_count_stable": true,
+      "source_frame_gaps": {
+        "source_frame": 266,
+        "depth_source_frame": 266
+      },
+      "passed": true,
+      "container_fraction_of_one_core": 1.5417371151513415,
+      "launcher_exit": 0
+    },
+    "1080p/vulkan": {
+      "profile_requested": "1080p",
+      "mode": "vulkan",
+      "middleware": "rmw_fastrtps_cpp",
+      "domain": "179",
+      "logical_cpus": 4,
+      "scope": "CameraComponent+ObjectsComponent only; excludes marker registration and control",
+      "container_pid": 497956,
+      "collector_exit": 0,
+      "observed_seconds": 19.37450352893211,
+      "host_busy_fraction_including_startup_and_other_processes": 0.19327953432993783,
+      "summary": {
+        "schema": "raw-resident-live-collector-v1",
+        "mode_requested": "vulkan",
+        "physical_camera_capture": true,
+        "full_station_qualified": false,
+        "execution_eligible": false,
+        "geometry_admission": "unqualified",
+        "passed": true,
+        "errors": [],
+        "steady_seconds": 15.032972437911667,
+        "unique_measured_outputs": 131,
+        "output_hz": 8.714178153458924,
+        "collector_received_age_p95_ms": 146.45952699999998,
+        "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+        "container_pid": 497956,
+        "container_cpu_ms_proc_stat": 10560.0,
+        "container_cpu_ms_per_unique_output": 80.61068702290076,
+        "container_cpu_method": "actual containerPID process utime+stime; startup excluded; tick quantization; driverIRQ/kworker excluded",
+        "source_generation": 17391571182311057295,
+        "last_status_fields": {
+          "backend": "vulkan",
+          "alignment": "raw_vulkan",
+          "profile": "1080p",
+          "color_width": "1920",
+          "color_height": "1080",
+          "depth_width": "1280",
+          "depth_height": "720",
+          "fps": "30",
+          "vulkan_allocation_count": "35",
+          "fallback_reason": "",
+          "geometry_admission": "unqualified",
+          "execution_eligible": "false",
+          "full_station_qualified": "false",
+          "recording": "disabled",
+          "received": "412",
+          "completed": "120",
+          "dropped": "0",
+          "replaced": "290",
+          "duplicate_or_regressed": "0",
+          "host_plane_copy_bytes": "8064000",
+          "native_upload_bytes": "8064000",
+          "aligned_d2d_bytes": "4147200",
+          "alignment_fault_readback_bytes": "4",
+          "core_compact_readback_bytes": "163856"
+        }
+      },
+      "rss_kib_after_steady": {
+        "VmHWM": "790828 kB",
+        "VmRSS": "332320 kB"
+      },
+      "actual_extents": [
+        1920,
+        1080,
+        1280,
+        720
+      ],
+      "profile_matches": true,
+      "steady_vulkan_allocation_counts": [
+        35
+      ],
+      "allocation_count_stable": true,
+      "source_frame_gaps": {
+        "source_frame": 316,
+        "depth_source_frame": 316
+      },
+      "passed": true,
+      "container_fraction_of_one_core": 0.7024558877902767,
+      "launcher_exit": 0
+    },
+    "1080p/auto": {
+      "profile_requested": "1080p",
+      "mode": "auto",
+      "middleware": "rmw_fastrtps_cpp",
+      "domain": "179",
+      "logical_cpus": 4,
+      "scope": "CameraComponent+ObjectsComponent only; excludes marker registration and control",
+      "container_pid": 498355,
+      "collector_exit": 0,
+      "observed_seconds": 19.323422673041932,
+      "host_busy_fraction_including_startup_and_other_processes": 0.19309887193098874,
+      "summary": {
+        "schema": "raw-resident-live-collector-v1",
+        "mode_requested": "auto",
+        "physical_camera_capture": true,
+        "full_station_qualified": false,
+        "execution_eligible": false,
+        "geometry_admission": "unqualified",
+        "passed": true,
+        "errors": [],
+        "steady_seconds": 15.009572666021995,
+        "unique_measured_outputs": 132,
+        "output_hz": 8.79438761763123,
+        "collector_received_age_p95_ms": 142.894041,
+        "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+        "container_pid": 498355,
+        "container_cpu_ms_proc_stat": 10590.0,
+        "container_cpu_ms_per_unique_output": 80.22727272727273,
+        "container_cpu_method": "actual containerPID process utime+stime; startup excluded; tick quantization; driverIRQ/kworker excluded",
+        "source_generation": 464040463750387434,
+        "last_status_fields": {
+          "backend": "vulkan",
+          "alignment": "raw_vulkan",
+          "profile": "1080p",
+          "color_width": "1920",
+          "color_height": "1080",
+          "depth_width": "1280",
+          "depth_height": "720",
+          "fps": "30",
+          "vulkan_allocation_count": "35",
+          "fallback_reason": "",
+          "geometry_admission": "unqualified",
+          "execution_eligible": "false",
+          "full_station_qualified": "false",
+          "recording": "disabled",
+          "received": "409",
+          "completed": "120",
+          "dropped": "0",
+          "replaced": "287",
+          "duplicate_or_regressed": "0",
+          "host_plane_copy_bytes": "8064000",
+          "native_upload_bytes": "8064000",
+          "aligned_d2d_bytes": "4147200",
+          "alignment_fault_readback_bytes": "4",
+          "core_compact_readback_bytes": "163856"
+        }
+      },
+      "rss_kib_after_steady": {
+        "VmHWM": "788904 kB",
+        "VmRSS": "330472 kB"
+      },
+      "actual_extents": [
+        1920,
+        1080,
+        1280,
+        720
+      ],
+      "profile_matches": true,
+      "steady_vulkan_allocation_counts": [
+        35
+      ],
+      "allocation_count_stable": true,
+      "source_frame_gaps": {
+        "source_frame": 316,
+        "depth_source_frame": 316
+      },
+      "passed": true,
+      "container_fraction_of_one_core": 0.705549733869051,
+      "launcher_exit": 0
+    }
+  },
+  "metrics": {
+    "720p/cpu": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.009683860000223,
+      "unique_outputs": 237,
+      "output_hz": 15.789806248457285,
+      "total_four_core_CPU_percent": 31.71285980702813,
+      "one_core_CPU_percent": 126.85143922811253,
+      "CPU_ms_per_output": 80.33755274261604,
+      "collector_host_receipt_age_p95_ms": 126.275408,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 51,
+          "last": 494,
+          "unique_ids": 237,
+          "missing_between_first_last": 207,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 49,
+          "last": 492,
+          "unique_ids": 237,
+          "missing_between_first_last": 207,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "287996 kB",
+        "VmRSS": "287996 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [],
+      "requested_processing_30_Hz_met": false
+    },
+    "720p/vulkan": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.032936951029114,
+      "unique_outputs": 287,
+      "output_hz": 19.0914124721552,
+      "total_four_core_CPU_percent": 9.745268038922427,
+      "one_core_CPU_percent": 38.98107215568971,
+      "CPU_ms_per_output": 20.418118466898953,
+      "collector_host_receipt_age_p95_ms": 82.543386,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 67,
+          "last": 514,
+          "unique_ids": 287,
+          "missing_between_first_last": 161,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 64,
+          "last": 511,
+          "unique_ids": 287,
+          "missing_between_first_last": 161,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "396464 kB",
+        "VmRSS": "199564 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [
+        35
+      ],
+      "requested_processing_30_Hz_met": false
+    },
+    "720p/auto": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.037283119978383,
+      "unique_outputs": 287,
+      "output_hz": 19.085894553564312,
+      "total_four_core_CPU_percent": 9.609448651533253,
+      "one_core_CPU_percent": 38.43779460613301,
+      "CPU_ms_per_output": 20.139372822299652,
+      "collector_host_receipt_age_p95_ms": 82.69451,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 66,
+          "last": 514,
+          "unique_ids": 287,
+          "missing_between_first_last": 162,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 63,
+          "last": 511,
+          "unique_ids": 287,
+          "missing_between_first_last": 162,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "396256 kB",
+        "VmRSS": "199444 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [
+        35
+      ],
+      "requested_processing_30_Hz_met": false
+    },
+    "1080p/cpu": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.022016251925379,
+      "unique_outputs": 178,
+      "output_hz": 11.84927489192309,
+      "total_four_core_CPU_percent": 38.54342787878354,
+      "one_core_CPU_percent": 154.17371151513416,
+      "CPU_ms_per_output": 130.1123595505618,
+      "collector_host_receipt_age_p95_ms": 168.121437,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 54,
+          "last": 497,
+          "unique_ids": 178,
+          "missing_between_first_last": 266,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 51,
+          "last": 494,
+          "unique_ids": 178,
+          "missing_between_first_last": 266,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "562664 kB",
+        "VmRSS": "562664 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [],
+      "requested_processing_30_Hz_met": false
+    },
+    "1080p/vulkan": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.032972437911667,
+      "unique_outputs": 131,
+      "output_hz": 8.714178153458924,
+      "total_four_core_CPU_percent": 17.561397194756918,
+      "one_core_CPU_percent": 70.24558877902767,
+      "CPU_ms_per_output": 80.61068702290076,
+      "collector_host_receipt_age_p95_ms": 146.45952699999998,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 82,
+          "last": 528,
+          "unique_ids": 131,
+          "missing_between_first_last": 316,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 79,
+          "last": 525,
+          "unique_ids": 131,
+          "missing_between_first_last": 316,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "790828 kB",
+        "VmRSS": "332320 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [
+        35
+      ],
+      "requested_processing_30_Hz_met": false
+    },
+    "1080p/auto": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.009572666021995,
+      "unique_outputs": 132,
+      "output_hz": 8.79438761763123,
+      "total_four_core_CPU_percent": 17.638743346726272,
+      "one_core_CPU_percent": 70.55497338690509,
+      "CPU_ms_per_output": 80.22727272727273,
+      "collector_host_receipt_age_p95_ms": 142.894041,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 82,
+          "last": 529,
+          "unique_ids": 132,
+          "missing_between_first_last": 316,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 79,
+          "last": 526,
+          "unique_ids": 132,
+          "missing_between_first_last": 316,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "788904 kB",
+        "VmRSS": "330472 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [
+        35
+      ],
+      "requested_processing_30_Hz_met": false
+    }
+  },
+  "measurement_limits": [
+    "short sequential uncontrolled live inputs; six isolated scalar SDK2.58.3 runs plus two optimized system SDK2.58.4 CPU baselines; no matched-pixel replay or CPU reservation",
+    "collector/profile/allocation safety PASS is not station performance qualification",
+    "source gaps count missing IDs only between first/last observed unique source IDs; periodic producer counters are a different interval",
+    "last received/completed/replaced counters must not be combined to derive exact steady output throughput",
+    "collector age is host receipt ROS time to collector receipt, not hardware exposure age or processing latency; FPS is independently counted",
+    "containerCPU utime+stime steady interval excludes startup,driverIRQ/kworker and other processes; totalCPU percent divides processCPU by four logical cores",
+    "host busy snapshot includes startup/other processes over a different interval; HWM includes startup and cold diagnostic memory",
+    "1080p strict Vulkan produces fewer unique outputs/s than CPU despite lower processCPU occupancy",
+    "markers remain CPU OpenCV; full geometry/control/soak/physical station acceptance remain unqualified",
+    "GPU output slower than optimized system SDK CPU at both profiles; different SDKs and sequential live inputs limit causality",
+    "1080p GPU CPUms/output exceeds optimized CPU; lower CPU/sec partly reflects fewer completed outputs, not uniformly efficient offload",
+    "no RViz during these runs; actual GPU RViz30fps at VGA/720p/1080p remains pending"
+  ],
+  "final_state": {
+    "observed_utc": "2026-10-27T13:32:28.762666+00:00",
+    "source_matches_commit": "5344d665692ab2dddb0de32ef58c8adf6aedadb8",
+    "source_files_verified": 103,
+    "library_hashes": {
+      "libresident_components.so": "679c5c8f5c510672723cbafa4c61096a607e1a77d40929c7417e7d49eb62702c",
+      "libresident_rgbd.so": "adf3b2801a88d217fb494c2401b30f6992996dc7721499537fd325c3a4f9216e",
+      "libresident_alignment.so": "5ea5045d082481f8660aac80e3d78c9b01ef5081abdbe161d01710838dab30a9"
+    },
+    "sdk_sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+    "owner_unit": "MainPID=181501\nActiveState=active\nActiveEnterTimestamp=Thu 2026-10-22 11:36:45 CEST\n",
+    "camera_fuser_exit": 1,
+    "camera_fuser_output": ""
+  },
+  "evidence": {
+    "directory": "evidence/fwmini4-high-resolution-20261027",
+    "raw_archive": "fwmini4-highres-live-20261027.tar.gz",
+    "sha256": "bcb4b7b4f2b557ca619935673b29f77b31bf7fdad043634b6a792fd2d5023a08",
+    "bytes": 93541,
+    "selfcheck_passed": true,
+    "publication_runtime_work": false,
+    "system_CPU_raw_archive_sha256": "604b489246680602737d030d57bef9b3413e19a3101ff26f514cac1ab4397126"
+  },
+  "recorded_core": {
+    "scope": "same recorded prealigned pair per profile; excludes acquisition,alignment,full geometry; private input pixels/calibration not published",
+    "profiles": {
+      "720p": {
+        "runs": {
+          "compare": {
+            "backend": "vulkan",
+            "fallback_reason": "",
+            "device": "Intel(R) Graphics (ADL-N)",
+            "frames": 2,
+            "width": 1280,
+            "height": 720,
+            "dense_readback": true,
+            "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+            "full_station_qualified": false,
+            "hot_path_vulkan_allocations": 0,
+            "upload_bytes_per_frame": 4608000,
+            "readback_bytes_per_frame": 103383056,
+            "p50_ms": 48.74406,
+            "p95_ms": 48.74406,
+            "p99_ms": 48.74406,
+            "process_cpu_p50_ms": 1.474,
+            "process_cpu_p95_ms": 1.474,
+            "timing_scope": "submit through finish; excludes compiler, construction, fixture and comparison",
+            "pipeline_scope": "prealigned RGB8/Z16 core; excludes capture, alignment and full geometry",
+            "startup_excluded": true,
+            "compiler_excluded": true,
+            "warmup_frames": 1,
+            "stage_ownership": "Vulkan: resident shaders"
+          },
+          "cpu": {
+            "backend": "cpu",
+            "fallback_reason": "",
+            "device": "native CPU",
+            "frames": 20,
+            "width": 1280,
+            "height": 720,
+            "dense_readback": false,
+            "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+            "full_station_qualified": false,
+            "hot_path_vulkan_allocations": 0,
+            "upload_bytes_per_frame": 4608000,
+            "readback_bytes_per_frame": 0,
+            "p50_ms": 14.28217,
+            "p95_ms": 14.436687,
+            "p99_ms": 14.436687,
+            "process_cpu_p50_ms": 14.286,
+            "process_cpu_p95_ms": 14.44,
+            "timing_scope": "submit through finish; excludes compiler, construction, fixture and comparison",
+            "pipeline_scope": "prealigned RGB8/Z16 core; excludes capture, alignment and full geometry",
+            "startup_excluded": true,
+            "compiler_excluded": true,
+            "warmup_frames": 5,
+            "stage_ownership": "C++: convert,candidates,CC,reduce,morphology"
+          },
+          "vulkan": {
+            "backend": "vulkan",
+            "fallback_reason": "",
+            "device": "Intel(R) Graphics (ADL-N)",
+            "frames": 20,
+            "width": 1280,
+            "height": 720,
+            "dense_readback": false,
+            "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+            "full_station_qualified": false,
+            "hot_path_vulkan_allocations": 0,
+            "upload_bytes_per_frame": 4608000,
+            "readback_bytes_per_frame": 163856,
+            "p50_ms": 41.102772,
+            "p95_ms": 41.361404,
+            "p99_ms": 41.361404,
+            "process_cpu_p50_ms": 1.438,
+            "process_cpu_p95_ms": 1.498,
+            "timing_scope": "submit through finish; excludes compiler, construction, fixture and comparison",
+            "pipeline_scope": "prealigned RGB8/Z16 core; excludes capture, alignment and full geometry",
+            "startup_excluded": true,
+            "compiler_excluded": true,
+            "warmup_frames": 5,
+            "stage_ownership": "Vulkan: resident shaders",
+            "gpu_stage_mean_ms": {
+              "upload": 0.854776,
+              "convert": 3.503318,
+              "cuts": 0.615057,
+              "tiled_boundary_cc": 31.722247,
+              "reduce": 0.434401,
+              "morphology": 2.544227,
+              "gather": 1.134888,
+              "readback": 0.036263
+            }
+          }
+        },
+        "dense_compare": {
+          "successful": true,
+          "frames": 2,
+          "warmup_frames": 1,
+          "all_arrays_and_compact_morphology_matched": true,
+          "timing_percentiles_statistically_robust": false
+        },
+        "CC_fraction_of_sum_of_stage_means_percent": 77.66460896962204,
+        "input_images_and_calibration_retained_private_on_fwmini4": true
+      },
+      "1080p": {
+        "runs": {
+          "compare": {
+            "backend": "vulkan",
+            "fallback_reason": "",
+            "device": "Intel(R) Graphics (ADL-N)",
+            "frames": 2,
+            "width": 1920,
+            "height": 1080,
+            "dense_readback": true,
+            "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+            "full_station_qualified": false,
+            "hot_path_vulkan_allocations": 0,
+            "upload_bytes_per_frame": 10368000,
+            "readback_bytes_per_frame": 232407056,
+            "p50_ms": 113.815792,
+            "p95_ms": 113.815792,
+            "p99_ms": 113.815792,
+            "process_cpu_p50_ms": 3.163,
+            "process_cpu_p95_ms": 3.163,
+            "timing_scope": "submit through finish; excludes compiler, construction, fixture and comparison",
+            "pipeline_scope": "prealigned RGB8/Z16 core; excludes capture, alignment and full geometry",
+            "startup_excluded": true,
+            "compiler_excluded": true,
+            "warmup_frames": 1,
+            "stage_ownership": "Vulkan: resident shaders"
+          },
+          "cpu": {
+            "backend": "cpu",
+            "fallback_reason": "",
+            "device": "native CPU",
+            "frames": 20,
+            "width": 1920,
+            "height": 1080,
+            "dense_readback": false,
+            "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+            "full_station_qualified": false,
+            "hot_path_vulkan_allocations": 0,
+            "upload_bytes_per_frame": 10368000,
+            "readback_bytes_per_frame": 0,
+            "p50_ms": 32.052029,
+            "p95_ms": 32.302838,
+            "p99_ms": 32.302838,
+            "process_cpu_p50_ms": 32.054,
+            "process_cpu_p95_ms": 32.296,
+            "timing_scope": "submit through finish; excludes compiler, construction, fixture and comparison",
+            "pipeline_scope": "prealigned RGB8/Z16 core; excludes capture, alignment and full geometry",
+            "startup_excluded": true,
+            "compiler_excluded": true,
+            "warmup_frames": 5,
+            "stage_ownership": "C++: convert,candidates,CC,reduce,morphology"
+          },
+          "vulkan": {
+            "backend": "vulkan",
+            "fallback_reason": "",
+            "device": "Intel(R) Graphics (ADL-N)",
+            "frames": 20,
+            "width": 1920,
+            "height": 1080,
+            "dense_readback": false,
+            "qualified_scope": "aligned pinhole RGB8/Z16: integer HSV, depth cuts, 8-connected membership, compact counts/bounds",
+            "full_station_qualified": false,
+            "hot_path_vulkan_allocations": 0,
+            "upload_bytes_per_frame": 10368000,
+            "readback_bytes_per_frame": 163856,
+            "p50_ms": 96.100787,
+            "p95_ms": 96.270089,
+            "p99_ms": 96.270089,
+            "process_cpu_p50_ms": 2.861,
+            "process_cpu_p95_ms": 3.357,
+            "timing_scope": "submit through finish; excludes compiler, construction, fixture and comparison",
+            "pipeline_scope": "prealigned RGB8/Z16 core; excludes capture, alignment and full geometry",
+            "startup_excluded": true,
+            "compiler_excluded": true,
+            "warmup_frames": 5,
+            "stage_ownership": "Vulkan: resident shaders",
+            "gpu_stage_mean_ms": {
+              "upload": 1.794122,
+              "convert": 8.191195,
+              "cuts": 1.385539,
+              "tiled_boundary_cc": 74.921954,
+              "reduce": 1.140911,
+              "morphology": 6.049359,
+              "gather": 2.281969,
+              "readback": 0.03644
+            }
+          }
+        },
+        "dense_compare": {
+          "successful": true,
+          "frames": 2,
+          "warmup_frames": 1,
+          "all_arrays_and_compact_morphology_matched": true,
+          "timing_percentiles_statistically_robust": false
+        },
+        "CC_fraction_of_sum_of_stage_means_percent": 78.20541703688968,
+        "input_images_and_calibration_retained_private_on_fwmini4": true
+      }
+    },
+    "GPU_Core_slower_than_CPU_on_these_inputs": true,
+    "FPS_not_derived_from_timing_percentiles": true,
+    "performance_adoption_qualified": false
+  },
+  "optimized_system_CPU_baseline": {
+    "SDK": "unmodified optimized system librealsense2 2.58.4",
+    "profiles": {
+      "720p": {
+        "runner": {
+          "profile_requested": "720p",
+          "mode": "cpu",
+          "middleware": "rmw_fastrtps_cpp",
+          "domain": "179",
+          "logical_cpus": 4,
+          "scope": "CameraComponent+ObjectsComponent only; excludes marker registration and control",
+          "container_pid": 500078,
+          "collector_exit": 0,
+          "observed_seconds": 17.55523516505491,
+          "host_busy_fraction_including_startup_and_other_processes": 0.2505024404249211,
+          "summary": {
+            "schema": "raw-resident-live-collector-v1",
+            "mode_requested": "cpu",
+            "physical_camera_capture": true,
+            "full_station_qualified": false,
+            "execution_eligible": false,
+            "geometry_admission": "unqualified",
+            "passed": true,
+            "errors": [],
+            "steady_seconds": 15.020442766021006,
+            "unique_measured_outputs": 449,
+            "output_hz": 29.892594179428603,
+            "collector_received_age_p95_ms": 66.01494,
+            "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+            "container_pid": 500078,
+            "container_cpu_ms_proc_stat": 14970.0,
+            "container_cpu_ms_per_unique_output": 33.34075723830735,
+            "container_cpu_method": "actual containerPID process utime+stime; startup excluded; tick quantization; driverIRQ/kworker excluded",
+            "source_generation": 6073645196547535877,
+            "last_status_fields": {
+              "backend": "cpu",
+              "alignment": "vendor_cpu",
+              "profile": "720p",
+              "color_width": "1280",
+              "color_height": "720",
+              "depth_width": "1280",
+              "depth_height": "720",
+              "fps": "30",
+              "vulkan_allocation_count": "0",
+              "fallback_reason": "",
+              "geometry_admission": "unqualified",
+              "execution_eligible": "false",
+              "full_station_qualified": "false",
+              "recording": "disabled",
+              "received": "451",
+              "completed": "450",
+              "dropped": "0",
+              "replaced": "0",
+              "duplicate_or_regressed": "0",
+              "host_plane_copy_bytes": "4608000",
+              "native_upload_bytes": "0",
+              "aligned_d2d_bytes": "0",
+              "alignment_fault_readback_bytes": "0",
+              "core_compact_readback_bytes": "0"
+            }
+          },
+          "rss_kib_after_steady": {
+            "VmHWM": "289116 kB",
+            "VmRSS": "289116 kB"
+          },
+          "actual_extents": [
+            1280,
+            720,
+            1280,
+            720
+          ],
+          "profile_matches": true,
+          "steady_vulkan_allocation_counts": [],
+          "allocation_count_stable": true,
+          "source_frame_gaps": {
+            "source_frame": 1,
+            "depth_source_frame": 1
+          },
+          "passed": true,
+          "container_fraction_of_one_core": 0.9966417257595684,
+          "launcher_exit": 0
+        },
+        "metrics": {
+          "output_hz": 29.892594179428603,
+          "total_four_core_CPU_percent": 24.91604314398921,
+          "CPU_ms_per_output": 33.34075723830735,
+          "collector_host_receipt_age_p95_ms": 66.01494,
+          "source_ID_window": {
+            "source_frame": {
+              "first": 49,
+              "last": 498,
+              "unique_ids": 449,
+              "missing_between_first_last": 1,
+              "regressions": 0
+            },
+            "depth_source_frame": {
+              "first": 46,
+              "last": 495,
+              "unique_ids": 449,
+              "missing_between_first_last": 1,
+              "regressions": 0
+            }
+          }
+        },
+        "performance_qualified": false
+      },
+      "1080p": {
+        "runner": {
+          "profile_requested": "1080p",
+          "mode": "cpu",
+          "middleware": "rmw_fastrtps_cpp",
+          "domain": "179",
+          "logical_cpus": 4,
+          "scope": "CameraComponent+ObjectsComponent only; excludes marker registration and control",
+          "container_pid": 500185,
+          "collector_exit": 0,
+          "observed_seconds": 17.75736082601361,
+          "host_busy_fraction_including_startup_and_other_processes": 0.2764990053992612,
+          "summary": {
+            "schema": "raw-resident-live-collector-v1",
+            "mode_requested": "cpu",
+            "physical_camera_capture": true,
+            "full_station_qualified": false,
+            "execution_eligible": false,
+            "geometry_admission": "unqualified",
+            "passed": true,
+            "errors": [],
+            "steady_seconds": 15.038846765994094,
+            "unique_measured_outputs": 263,
+            "output_hz": 17.488043072205294,
+            "collector_received_age_p95_ms": 117.70261099999999,
+            "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+            "container_pid": 500185,
+            "container_cpu_ms_proc_stat": 16350.0,
+            "container_cpu_ms_per_unique_output": 62.167300380228134,
+            "container_cpu_method": "actual containerPID process utime+stime; startup excluded; tick quantization; driverIRQ/kworker excluded",
+            "source_generation": 18446391613354074154,
+            "last_status_fields": {
+              "backend": "cpu",
+              "alignment": "vendor_cpu",
+              "profile": "1080p",
+              "color_width": "1920",
+              "color_height": "1080",
+              "depth_width": "1280",
+              "depth_height": "720",
+              "fps": "30",
+              "vulkan_allocation_count": "0",
+              "fallback_reason": "",
+              "geometry_admission": "unqualified",
+              "execution_eligible": "false",
+              "full_station_qualified": "false",
+              "recording": "disabled",
+              "received": "242",
+              "completed": "240",
+              "dropped": "0",
+              "replaced": "0",
+              "duplicate_or_regressed": "0",
+              "host_plane_copy_bytes": "10368000",
+              "native_upload_bytes": "0",
+              "aligned_d2d_bytes": "0",
+              "alignment_fault_readback_bytes": "0",
+              "core_compact_readback_bytes": "0"
+            }
+          },
+          "rss_kib_after_steady": {
+            "VmHWM": "548848 kB",
+            "VmRSS": "548848 kB"
+          },
+          "actual_extents": [
+            1920,
+            1080,
+            1280,
+            720
+          ],
+          "profile_matches": true,
+          "steady_vulkan_allocation_counts": [],
+          "allocation_count_stable": true,
+          "source_frame_gaps": {
+            "source_frame": 184,
+            "depth_source_frame": 184
+          },
+          "passed": true,
+          "container_fraction_of_one_core": 1.0871844267321542,
+          "launcher_exit": 0
+        },
+        "metrics": {
+          "output_hz": 17.488043072205294,
+          "total_four_core_CPU_percent": 27.179610668303855,
+          "CPU_ms_per_output": 62.167300380228134,
+          "collector_host_receipt_age_p95_ms": 117.70261099999999,
+          "source_ID_window": {
+            "source_frame": {
+              "first": 52,
+              "last": 498,
+              "unique_ids": 263,
+              "missing_between_first_last": 184,
+              "regressions": 0
+            },
+            "depth_source_frame": {
+              "first": 49,
+              "last": 495,
+              "unique_ids": 263,
+              "missing_between_first_last": 184,
+              "regressions": 0
+            }
+          }
+        },
+        "performance_qualified": false
+      }
+    },
+    "scope": "sequential uncontrolled live inputs; different SDK from isolated scalar 2.58.3 GPU/CPU baseline; no matched-pixel replay",
+    "raw_archive": "fwmini4-highres-system-cpu-20261027.tar.gz",
+    "sha256": "604b489246680602737d030d57bef9b3413e19a3101ff26f514cac1ab4397126",
+    "GPU_output_slower_than_optimized_CPU_both_profiles": true,
+    "1080p_GPU_CPU_ms_per_output_exceeds_optimized_CPU": true,
+    "uniform_offload_efficiency_claim": false
+  },
+  "RViz": {
+    "present_during_measurements": false,
+    "required_target": "actual GPU RViz 30 fps at all three VGA/720p/1080p profiles",
+    "validated": false
+  }
+}

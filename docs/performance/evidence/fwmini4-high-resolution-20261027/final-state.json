@@ -1,0 +1,14 @@
+{
+  "observed_utc": "2026-10-27T13:32:28.762666+00:00",
+  "source_matches_commit": "5344d665692ab2dddb0de32ef58c8adf6aedadb8",
+  "source_files_verified": 103,
+  "library_hashes": {
+    "libresident_components.so": "679c5c8f5c510672723cbafa4c61096a607e1a77d40929c7417e7d49eb62702c",
+    "libresident_rgbd.so": "adf3b2801a88d217fb494c2401b30f6992996dc7721499537fd325c3a4f9216e",
+    "libresident_alignment.so": "5ea5045d082481f8660aac80e3d78c9b01ef5081abdbe161d01710838dab30a9"
+  },
+  "sdk_sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+  "owner_unit": "MainPID=181501\nActiveState=active\nActiveEnterTimestamp=Thu 2026-10-22 11:36:45 CEST\n",
+  "camera_fuser_exit": 1,
+  "camera_fuser_output": ""
+}

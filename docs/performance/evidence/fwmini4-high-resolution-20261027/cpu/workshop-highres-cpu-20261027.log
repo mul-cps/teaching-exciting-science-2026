@@ -1,0 +1,185 @@
+
+==================================== ERRORS ====================================
+_________ ERROR collecting tests/test_completion_event_final_gates.py __________
+ImportError while importing test module '/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_completion_event_final_gates.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../miniforge3/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_completion_event_final_gates.py:7: in <module>
+    from so101_station_perception import perception_recovery as m
+ros2/src/so101_station_perception/so101_station_perception/perception_recovery.py:13: in <module>
+    import rclpy
+E   ModuleNotFoundError: No module named 'rclpy'
+___________ ERROR collecting tests/test_perception_supervisor_ros.py ___________
+tests/test_perception_supervisor_ros.py:9: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177','Use tools/test_perception_supervisor.sh (fixed isolated domain177)'
+E   AssertionError: Use tools/test_perception_supervisor.sh (fixed isolated domain177)
+E   assert None == '177'
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+______________ ERROR collecting tests/test_pre_outage_history.py _______________
+tests/test_pre_outage_history.py:6: in <module>
+    from test_perception_supervisor_ros import supervisor
+<frozen importlib._bootstrap>:1360: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1331: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:935: in _load_unlocked
+    ???
+/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+tests/test_perception_supervisor_ros.py:9: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177','Use tools/test_perception_supervisor.sh (fixed isolated domain177)'
+E   AssertionError: Use tools/test_perception_supervisor.sh (fixed isolated domain177)
+E   assert None == '177'
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+________ ERROR collecting tests/test_supervisor_adoption_ack_launch.py _________
+tests/test_supervisor_adoption_ack_launch.py:3: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177' and os.environ.get('ROS_LOCALHOST_ONLY')=='1'
+E   AssertionError: assert (None == '177')
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+__________ ERROR collecting tests/test_supervisor_adoption_ack_ros.py __________
+tests/test_supervisor_adoption_ack_ros.py:3: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177' and os.environ.get('ROS_LOCALHOST_ONLY')=='1'
+E   AssertionError: assert (None == '177')
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+_____ ERROR collecting tests/test_supervisor_completed_adoption_history.py _____
+ImportError while importing test module '/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_supervisor_completed_adoption_history.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../miniforge3/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_completed_adoption_history.py:8: in <module>
+    from so101_station_perception import perception_supervisor as m
+ros2/src/so101_station_perception/so101_station_perception/perception_supervisor.py:12: in <module>
+    import rclpy
+E   ModuleNotFoundError: No module named 'rclpy'
+_ ERROR collecting tests/test_supervisor_consumer_reconciliation_performance.py _
+ImportError while importing test module '/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_supervisor_consumer_reconciliation_performance.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../miniforge3/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_consumer_reconciliation_performance.py:4: in <module>
+    from std_srvs.srv import Trigger
+E   ModuleNotFoundError: No module named 'std_srvs'
+____ ERROR collecting tests/test_supervisor_consumer_reconciliation_ros.py _____
+tests/test_supervisor_consumer_reconciliation_ros.py:3: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177'
+E   AssertionError: assert None == '177'
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+___________ ERROR collecting tests/test_supervisor_health_expiry.py ____________
+tests/test_supervisor_health_expiry.py:3: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177','Use fixed isolated177 launcher'
+E   AssertionError: Use fixed isolated177 launcher
+E   assert None == '177'
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+___________ ERROR collecting tests/test_supervisor_health_refresh.py ___________
+tests/test_supervisor_health_refresh.py:3: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177'
+E   AssertionError: assert None == '177'
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+________ ERROR collecting tests/test_supervisor_late_local_adoption.py _________
+tests/test_supervisor_late_local_adoption.py:3: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177'
+E   AssertionError: assert None == '177'
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+_______________ ERROR collecting tests/test_supervisor_launch.py _______________
+tests/test_supervisor_launch.py:5: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177','Use fixed177 supervisor test launcher'
+E   AssertionError: Use fixed177 supervisor test launcher
+E   assert None == '177'
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+___________ ERROR collecting tests/test_supervisor_native_witness.py ___________
+tests/test_supervisor_native_witness.py:3: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177'
+E   AssertionError: assert None == '177'
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+____________ ERROR collecting tests/test_supervisor_performance.py _____________
+tests/test_supervisor_performance.py:10: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177','Use fixed177 test launcher'
+E   AssertionError: Use fixed177 test launcher
+E   assert None == '177'
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+______ ERROR collecting tests/test_supervisor_private_availability_dds.py ______
+tests/test_supervisor_private_availability_dds.py:13: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177' and os.environ.get('ROS_LOCALHOST_ONLY')=='1'
+E   AssertionError: assert (None == '177')
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+_____ ERROR collecting tests/test_supervisor_private_availability_final.py _____
+tests/test_supervisor_private_availability_final.py:3: in <module>
+    assert os.environ.get("ROS_DOMAIN_ID")=="177" and os.environ.get("ROS_LOCALHOST_ONLY")=="1"
+E   AssertionError: assert (None == '177')
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+____ ERROR collecting tests/test_supervisor_private_availability_launch.py _____
+tests/test_supervisor_private_availability_launch.py:3: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177' and os.environ.get('ROS_LOCALHOST_ONLY')=='1'
+E   AssertionError: assert (None == '177')
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+__ ERROR collecting tests/test_supervisor_private_availability_performance.py __
+tests/test_supervisor_private_availability_performance.py:3: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177' and os.environ.get('ROS_LOCALHOST_ONLY')=='1'
+E   AssertionError: assert (None == '177')
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+______ ERROR collecting tests/test_supervisor_private_availability_ros.py ______
+tests/test_supervisor_private_availability_ros.py:3: in <module>
+    assert os.environ.get('ROS_DOMAIN_ID')=='177' and os.environ.get('ROS_LOCALHOST_ONLY')=='1'
+E   AssertionError: assert (None == '177')
+E    +  where None = get('ROS_DOMAIN_ID')
+E    +    where get = environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}).get
+E    +      where environ({'SHELL': '/bin/bash', 'IMSETTINGS_INTEGRATE_DESKTOP': 'yes', 'SESSION_MANAGER': 'local/unix:@/tmp/.ICE-unix/4...N': '9.1.1', 'LD_LIBRARY_PATH': '/tmp/workshop-test-pinned313-20261027/lib/python3.13/site-packages/cv2/../../lib64:'}) = <module 'os' (frozen)>.environ
+=========================== short test summary info ============================
+ERROR tests/test_completion_event_final_gates.py
+ERROR tests/test_perception_supervisor_ros.py - AssertionError: Use tools/tes...
+ERROR tests/test_pre_outage_history.py - AssertionError: Use tools/test_perce...
+ERROR tests/test_supervisor_adoption_ack_launch.py - AssertionError: assert (...
+ERROR tests/test_supervisor_adoption_ack_ros.py - AssertionError: assert (Non...
+ERROR tests/test_supervisor_completed_adoption_history.py
+ERROR tests/test_supervisor_consumer_reconciliation_performance.py
+ERROR tests/test_supervisor_consumer_reconciliation_ros.py - AssertionError: ...
+ERROR tests/test_supervisor_health_expiry.py - AssertionError: Use fixed isol...
+ERROR tests/test_supervisor_health_refresh.py - AssertionError: assert None =...
+ERROR tests/test_supervisor_late_local_adoption.py - AssertionError: assert N...
+ERROR tests/test_supervisor_launch.py - AssertionError: Use fixed177 supervis...
+ERROR tests/test_supervisor_native_witness.py - AssertionError: assert None =...
+ERROR tests/test_supervisor_performance.py - AssertionError: Use fixed177 tes...
+ERROR tests/test_supervisor_private_availability_dds.py - AssertionError: ass...
+ERROR tests/test_supervisor_private_availability_final.py - AssertionError: a...
+ERROR tests/test_supervisor_private_availability_launch.py - AssertionError: ...
+ERROR tests/test_supervisor_private_availability_performance.py - AssertionEr...
+ERROR tests/test_supervisor_private_availability_ros.py - AssertionError: ass...
+!!!!!!!!!!!!!!!!!!! Interrupted: 19 errors during collection !!!!!!!!!!!!!!!!!!!
+57 skipped, 19 errors in 1.48s

@@ -1,0 +1,134 @@
+{
+  "README.md": {
+    "bytes": 4098,
+    "sha256": "a515799e8ba8feb52091ce8192be4826ff030ff5fa671dcfe827c1bcf701b9f8"
+  },
+  "amd/alignment-1080p.log": {
+    "bytes": 583,
+    "sha256": "f0e6f1963460fa0962b8133c02bd5c3a9552e9b5fb911c3ad4c174f509255fb2"
+  },
+  "amd/alignment-720p.log": {
+    "bytes": 581,
+    "sha256": "f269a15809534fa68149314cc52e7a67cfb1b1ba64276467abeb751181b104cd"
+  },
+  "amd/alignment-vga.log": {
+    "bytes": 578,
+    "sha256": "5849efd177de3644f48cea619e4485b99fbcc2a0053df0dca1c9c654624b09de"
+  },
+  "commit-source-check.json": {
+    "bytes": 312,
+    "sha256": "412cd65994d86a3febf79f82e312791e764fe09cfa8e509eba12f9b29c390110"
+  },
+  "cpu/workshop-highres-cpu-20261027.log": {
+    "bytes": 18742,
+    "sha256": "6199276c56df8ea9f1847de4e5cb293cc50c59ea6925f5151ab1e09338047a5a"
+  },
+  "cpu/workshop-highres-cpu-canonical-20261027.log": {
+    "bytes": 7562,
+    "sha256": "699de9c61f3ff2c761f704f3c65c03a4c9e212356fef74163a8532d991325b98"
+  },
+  "cpu/workshop-highres-cpu-final-20261027-source-pins-after.json": {
+    "bytes": 52748,
+    "sha256": "d5bb18b096a0bb40fc6c1fef312d09aaf55b88d2775b211f204f3a4bf08e2077"
+  },
+  "cpu/workshop-highres-cpu-final-20261027-source-pins-before.json": {
+    "bytes": 52748,
+    "sha256": "d5bb18b096a0bb40fc6c1fef312d09aaf55b88d2775b211f204f3a4bf08e2077"
+  },
+  "cpu/workshop-highres-cpu-final-20261027.log": {
+    "bytes": 5455,
+    "sha256": "bc026cf1680d1fdab86af4f1a16cf7aa0ced3e1209203f40a3fa5494f880e344"
+  },
+  "cpu/workshop-highres-cpu-final-20261027.xml": {
+    "bytes": 758992,
+    "sha256": "401ce1f291456d9a7b78efa41df0fdce40aeea386ae2b9081fed0f9f608c4390"
+  },
+  "final-state.json": {
+    "bytes": 728,
+    "sha256": "044e5a5d33b81009c6ec8da179bc935152db2d86e2f1eb4c86bd601dd799e2c4"
+  },
+  "fwmini4-highres-build-20261027.sh": {
+    "bytes": 1424,
+    "sha256": "63c3bcc88e4c9a18aa04c11849e6c497385e52e52259988598267d2fae4c96fa"
+  },
+  "fwmini4-highres-live-20261027.tar.gz": {
+    "bytes": 93541,
+    "sha256": "bcb4b7b4f2b557ca619935673b29f77b31bf7fdad043634b6a792fd2d5023a08"
+  },
+  "fwmini4-highres-system-cpu-20261027.tar.gz": {
+    "bytes": 42822,
+    "sha256": "604b489246680602737d030d57bef9b3413e19a3101ff26f514cac1ab4397126"
+  },
+  "fwmini4-resident-highres-runner-20261027.py": {
+    "bytes": 4794,
+    "sha256": "ec713a7decd7a6db3ef25c239b1ab5c9f6a77c3087ffda28b1af1e27658fde2b"
+  },
+  "raw-archive-inventory.json": {
+    "bytes": 4186,
+    "sha256": "bc2bc3c0437c1280f3c1bfbf1c55e33e4c5e44dfa738464b79de9b7c339a61db"
+  },
+  "recorded-core/fwmini4-highres-core-profile-20261027.py": {
+    "bytes": 2777,
+    "sha256": "b3135dfe81cc7e888db1e240dc58cb7bb86308b5d29584bc3579c391afb877ce"
+  },
+  "recorded-core/summary.json": {
+    "bytes": 6885,
+    "sha256": "c0a7641a0179508744d305e8753ef4670e9e1cd56115ae42160246f4c508ac8e"
+  },
+  "reviews/alignment.json": {
+    "bytes": 3657,
+    "sha256": "c6a5b4060119aec97540824792058c1908984a0b17c06bf9a517dde228d16411"
+  },
+  "reviews/camera.json": {
+    "bytes": 8262,
+    "sha256": "a43f73084507db93e301772fdc666d6ba401775ada7e349ba2971a6a25b6b411"
+  },
+  "reviews/core.json": {
+    "bytes": 2658,
+    "sha256": "6ed002c9500aab0409dd8b41140d27216b1754feb16415d8929dca175429033f"
+  },
+  "selfcheck-result.json": {
+    "bytes": 7605,
+    "sha256": "9ef1215fc4178c61ca5bffae91553f524fe889e68bb50499ec2034f3ce454d8c"
+  },
+  "selfcheck.py": {
+    "bytes": 10557,
+    "sha256": "3fe89a751fca48ae694dcda414210cf1872ca5110703dec1a6a8004f3cdbb185"
+  },
+  "system-raw-archive-inventory.json": {
+    "bytes": 1199,
+    "sha256": "fbdde95425c62e3e4e232fa16eddd8890e9ed0fef1c1446bdcd37bf329293107"
+  },
+  "workshop-highres-alignment-shaders-20261027/build-proof.json": {
+    "bytes": 1614,
+    "sha256": "2a093db260e1f3529c140aebbcd3452d36ad5fe3761e1267c284716c253963cd"
+  },
+  "workshop-highres-alignment-shaders-20261027/finalize.spv": {
+    "bytes": 34276,
+    "sha256": "72546ce6c44bb5ee82335a537ccac376d3cde7bcdd490a38b43c7dc5ad27bef7"
+  },
+  "workshop-highres-alignment-shaders-20261027/finalize.spv.sha256": {
+    "bytes": 79,
+    "sha256": "9128f5e607405381234425a450abcc2b864ae69f21dac7ad7938d76f3ce0c408"
+  },
+  "workshop-highres-alignment-shaders-20261027/provenance.txt": {
+    "bytes": 375,
+    "sha256": "0d32603a30ad9e80ef9b7f1dac36debb5b1e4cb76608b92c77ec27582c627c78"
+  },
+  "workshop-highres-alignment-shaders-20261027/source.sha256": {
+    "bytes": 65,
+    "sha256": "9fd3380593fff969149cc0ec79986ba70ca859acbf107a98e4be3fc12da9f0b9"
+  },
+  "workshop-highres-alignment-shaders-20261027/splat.spv": {
+    "bytes": 44636,
+    "sha256": "8bb596f39c287a59667f27bbbcfde87ce788960d32ab2e1e066980e4e92980ad"
+  },
+  "workshop-highres-alignment-shaders-20261027/splat.spv.sha256": {
+    "bytes": 76,
+    "sha256": "288df32ffcbffdaa92bdf53c20af6fca41bd33960f6dfefbe75f03f8c1d2c95a"
+  },
+  "workshop-highres-source-manifest-20261027.json": {
+    "bytes": 13862,
+    "sha256": "6efcd55f3bb20899cfb4e6f2988872e5396713b3e434375aca4c2d2a79b4a982"
+  }
+}

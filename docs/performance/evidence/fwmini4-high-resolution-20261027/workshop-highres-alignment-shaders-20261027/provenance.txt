@@ -1,0 +1,6 @@
+compiler=/home/bjoern/.local/opt/slang-2026.19/bin/slangc
+version=2026.19
+source_sha256=2ca8f792c0f1aca25c884803b020ce6cfc39761a8ff9bc9ec114bbb7b02e6041
+alignment.slang=ffb7e4bf3ac4f9becd2267b2bed8a5c1fbc2ee22c9725ca1f4157a0787667903
+exact_divide.slang=43281d1db2cc83f6d47cedcd56a838301030ce9449d4f99d860d66fd6c228cb3
+flags=-target spirv -profile sm_6_0 -fp-mode precise -O2

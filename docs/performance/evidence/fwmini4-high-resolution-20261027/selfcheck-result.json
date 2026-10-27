@@ -1,0 +1,231 @@
+{
+  "passed": true,
+  "runtime_executed": false,
+  "raw_archive_sha256": "bcb4b7b4f2b557ca619935673b29f77b31bf7fdad043634b6a792fd2d5023a08",
+  "raw_regular_members_verified": 28,
+  "source_files_match_commit": 103,
+  "canonical_source_pins_before_after_equal": 464,
+  "canonical_CPU_log_and_JUnit_pass": true,
+  "native_alignment_cases_verified": 48,
+  "live_runs_recomputed": {
+    "720p/cpu": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.009683860000223,
+      "unique_outputs": 237,
+      "output_hz": 15.789806248457285,
+      "total_four_core_CPU_percent": 31.71285980702813,
+      "one_core_CPU_percent": 126.85143922811253,
+      "CPU_ms_per_output": 80.33755274261604,
+      "collector_host_receipt_age_p95_ms": 126.275408,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 51,
+          "last": 494,
+          "unique_ids": 237,
+          "missing_between_first_last": 207,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 49,
+          "last": 492,
+          "unique_ids": 237,
+          "missing_between_first_last": 207,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "287996 kB",
+        "VmRSS": "287996 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [],
+      "requested_processing_30_Hz_met": false
+    },
+    "720p/vulkan": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.032936951029114,
+      "unique_outputs": 287,
+      "output_hz": 19.0914124721552,
+      "total_four_core_CPU_percent": 9.745268038922427,
+      "one_core_CPU_percent": 38.98107215568971,
+      "CPU_ms_per_output": 20.418118466898953,
+      "collector_host_receipt_age_p95_ms": 82.543386,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 67,
+          "last": 514,
+          "unique_ids": 287,
+          "missing_between_first_last": 161,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 64,
+          "last": 511,
+          "unique_ids": 287,
+          "missing_between_first_last": 161,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "396464 kB",
+        "VmRSS": "199564 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [
+        35
+      ],
+      "requested_processing_30_Hz_met": false
+    },
+    "720p/auto": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.037283119978383,
+      "unique_outputs": 287,
+      "output_hz": 19.085894553564312,
+      "total_four_core_CPU_percent": 9.609448651533253,
+      "one_core_CPU_percent": 38.43779460613301,
+      "CPU_ms_per_output": 20.139372822299652,
+      "collector_host_receipt_age_p95_ms": 82.69451,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 66,
+          "last": 514,
+          "unique_ids": 287,
+          "missing_between_first_last": 162,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 63,
+          "last": 511,
+          "unique_ids": 287,
+          "missing_between_first_last": 162,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "396256 kB",
+        "VmRSS": "199444 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [
+        35
+      ],
+      "requested_processing_30_Hz_met": false
+    },
+    "1080p/cpu": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.022016251925379,
+      "unique_outputs": 178,
+      "output_hz": 11.84927489192309,
+      "total_four_core_CPU_percent": 38.54342787878354,
+      "one_core_CPU_percent": 154.17371151513416,
+      "CPU_ms_per_output": 130.1123595505618,
+      "collector_host_receipt_age_p95_ms": 168.121437,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 54,
+          "last": 497,
+          "unique_ids": 178,
+          "missing_between_first_last": 266,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 51,
+          "last": 494,
+          "unique_ids": 178,
+          "missing_between_first_last": 266,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "562664 kB",
+        "VmRSS": "562664 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [],
+      "requested_processing_30_Hz_met": false
+    },
+    "1080p/vulkan": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.032972437911667,
+      "unique_outputs": 131,
+      "output_hz": 8.714178153458924,
+      "total_four_core_CPU_percent": 17.561397194756918,
+      "one_core_CPU_percent": 70.24558877902767,
+      "CPU_ms_per_output": 80.61068702290076,
+      "collector_host_receipt_age_p95_ms": 146.45952699999998,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 82,
+          "last": 528,
+          "unique_ids": 131,
+          "missing_between_first_last": 316,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 79,
+          "last": 525,
+          "unique_ids": 131,
+          "missing_between_first_last": 316,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "790828 kB",
+        "VmRSS": "332320 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [
+        35
+      ],
+      "requested_processing_30_Hz_met": false
+    },
+    "1080p/auto": {
+      "collector_profile_allocation_safety_pass": true,
+      "performance_qualified": false,
+      "steady_seconds": 15.009572666021995,
+      "unique_outputs": 132,
+      "output_hz": 8.79438761763123,
+      "total_four_core_CPU_percent": 17.638743346726272,
+      "one_core_CPU_percent": 70.55497338690509,
+      "CPU_ms_per_output": 80.22727272727273,
+      "collector_host_receipt_age_p95_ms": 142.894041,
+      "age_semantics": "host receipt ROS time to collector receipt; NOT hardware capture age",
+      "source_ID_window": {
+        "source_frame": {
+          "first": 82,
+          "last": 529,
+          "unique_ids": 132,
+          "missing_between_first_last": 316,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 79,
+          "last": 526,
+          "unique_ids": 132,
+          "missing_between_first_last": 316,
+          "regressions": 0
+        }
+      },
+      "RSS_HWM_kib_snapshot": {
+        "VmHWM": "788904 kB",
+        "VmRSS": "330472 kB"
+      },
+      "HWM_includes_startup": true,
+      "steady_Vulkan_allocation_counts": [
+        35
+      ],
+      "requested_processing_30_Hz_met": false
+    }
+  },
+  "scope": "initial six scalar-SDK camera runs; see final-selfcheck.json for full eight-run/Core evidence validation"
+}

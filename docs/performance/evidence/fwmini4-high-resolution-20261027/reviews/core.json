@@ -1,0 +1,48 @@
+{
+  "scope": "CPU-only independent Core resource review; no GPU or SSH; synthetic Vulkan host timing excludes driver/GPU",
+  "worktree": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022",
+  "compile_argv": [
+    "g++",
+    "-std=c++17",
+    "-O2",
+    "-pthread",
+    "-I/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/include",
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/cc_copyback_host_benchmark.cpp",
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp",
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp",
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/src/frame_pool.cpp",
+    "-o",
+    "/tmp/workshop-core-independent-review-20261027-1pr7ozt4/host-benchmark"
+  ],
+  "focused_pytest": {
+    "passed": 69,
+    "duration_s": 4.31,
+    "files": [
+      "tests/test_resident_device_depth.py",
+      "tests/test_resident_vulkan_guard.py",
+      "tests/test_resident_cc_atomic_fusion.py",
+      "tests/test_resident_cc_copyback_guard.py",
+      "tests/test_resident_cc_copyback_model.py"
+    ]
+  },
+  "source_sha256": {
+    "ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp": "604fbf940aa8883ddee95544a26a93be6eed6339b52badeb7d1847cd886fb49f",
+    "ros2/src/so101_station_vulkan/src/frame_pool.cpp": "6f0afbb259e3733495b1c479f8659bac2c9930f97d1f9d44d12ef08735101011",
+    "ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp": "28646b4fa2e84375492d3e705ab3506a2b01c63d1f34d7623038df4f8b6a321b",
+    "ros2/src/so101_station_vulkan/test/device_depth_host_test.cpp": "c77e75dd0f10a6d1b566c0d9cde2d39172deda08debcc66ef1f18253e31211dd",
+    "ros2/src/so101_station_vulkan/test/cc_copyback_host_benchmark.cpp": "c9dfe0f28d4e59d8e2ca9ad68c8b31f6a64609e52df4fd7391e9689f08511103",
+    "ros2/src/so101_station_vulkan/test/raw_resident_perf_benchmark.cpp": "6388666f33a8414701b7099016e1d7cb97fec1d38fcf71339351ac5d24beee14"
+  },
+  "host_benchmark": {
+    "scope": "actual atomic-fusion Pipeline submit/finish, synthetic Vulkan only; excludes driver and GPU",
+    "iterations": 100000,
+    "host_cycle_ns": 338.032,
+    "parent_copies": 0,
+    "parent_copy_bytes_per_frame": 0,
+    "dispatches": 71,
+    "barriers": 74,
+    "hot_heap_allocations": 0,
+    "hot_buffer_allocations": 0,
+    "hot_wait_calls": 0
+  }
+}

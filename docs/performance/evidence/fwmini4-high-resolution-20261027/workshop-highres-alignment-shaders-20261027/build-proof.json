@@ -1,0 +1,51 @@
+{
+  "gpu_executed": false,
+  "source_hashes": {
+    "alignment.slang": "ffb7e4bf3ac4f9becd2267b2bed8a5c1fbc2ee22c9725ca1f4157a0787667903",
+    "exact_divide.slang": "43281d1db2cc83f6d47cedcd56a838301030ce9449d4f99d860d66fd6c228cb3"
+  },
+  "composite": "2ca8f792c0f1aca25c884803b020ce6cfc39761a8ff9bc9ec114bbb7b02e6041",
+  "commands": [
+    {
+      "command": [
+        "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/shaders/alignment.slang",
+        "-entry",
+        "splat",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2",
+        "-o",
+        "/tmp/workshop-highres-alignment-shaders-20261027/splat.spv"
+      ],
+      "sha256": "8bb596f39c287a59667f27bbbcfde87ce788960d32ab2e1e066980e4e92980ad"
+    },
+    {
+      "command": [
+        "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/shaders/alignment.slang",
+        "-entry",
+        "finalize",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2",
+        "-o",
+        "/tmp/workshop-highres-alignment-shaders-20261027/finalize.spv"
+      ],
+      "sha256": "72546ce6c44bb5ee82335a537ccac376d3cde7bcdd490a38b43c7dc5ad27bef7"
+    }
+  ],
+  "spirv_validation": "vulkan1.1"
+}

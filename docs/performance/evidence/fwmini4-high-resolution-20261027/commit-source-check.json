@@ -1,0 +1,7 @@
+{
+  "commit": "5344d665692ab2dddb0de32ef58c8adf6aedadb8",
+  "verified_files": 103,
+  "all_match": true,
+  "method": "publication-time SHA256 of git show COMMIT:path versus native content-bundle manifest; no source edits",
+  "manifest_sha256": "6efcd55f3bb20899cfb4e6f2988872e5396713b3e434375aca4c2d2a79b4a982"
+}

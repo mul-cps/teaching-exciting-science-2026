@@ -1,0 +1,142 @@
+[
+  {
+    "file": "live/720p/auto.collector.log",
+    "bytes": 1431,
+    "sha256": "be61bea9794cef51e6d2e30619f60cecde84c82a05f70826d056e1d2ebc3e6a6"
+  },
+  {
+    "file": "live/720p/vulkan.json",
+    "bytes": 206338,
+    "sha256": "0a56d6ca2c6103cf61eb0b6a8714b22e46f615914677c67807307235f96c95f4"
+  },
+  {
+    "file": "live/720p/cpu.json",
+    "bytes": 169912,
+    "sha256": "35362d3be615f9631817c5e519fec49029ba7f7f854f467ac8b784dfd4d75088"
+  },
+  {
+    "file": "live/720p/auto.runner.json",
+    "bytes": 2514,
+    "sha256": "c83583e899bbfd7e9da035d10eb04cc07c3e690f560c032dda8f338c25d373a3"
+  },
+  {
+    "file": "live/720p/cpu.launch.log",
+    "bytes": 2009,
+    "sha256": "4b9871ce8156f5905e2a0f6caf3cf3ea2683bdf71c77e83e1e53b080171af10a"
+  },
+  {
+    "file": "live/720p/auto.launch.log",
+    "bytes": 2009,
+    "sha256": "2acf7b3a57d6a18bf925b1da471db4d488326204c526dd9b56f7b8872f4dcea2"
+  },
+  {
+    "file": "live/720p/auto.json",
+    "bytes": 206618,
+    "sha256": "d5830db73242d7602160f78acb84f69d0f75cdf3cb0021568b8bd287f962fd66"
+  },
+  {
+    "file": "live/720p/vulkan.runner.json",
+    "bytes": 2515,
+    "sha256": "474d170c4099137c7b472775d4d6f5f9735b0a06d49d7c8c97c1e201aea8043e"
+  },
+  {
+    "file": "live/720p/cpu.runner.json",
+    "bytes": 2481,
+    "sha256": "d60bd34363c365ccd14ebed1bd5030c3b4b2642294bc71d3e6e4c9ede3daabd4"
+  },
+  {
+    "file": "live/720p/vulkan.launch.log",
+    "bytes": 2009,
+    "sha256": "ca11d4b3f4c0641847cc87a1894fc7808ea1387894c875070ba91bc6cd570af9"
+  },
+  {
+    "file": "live/720p/vulkan.collector.log",
+    "bytes": 1431,
+    "sha256": "db03199794855781a94f69ff21ca9900fa041d8d2fffb425e6c3d5f0073e7bd0"
+  },
+  {
+    "file": "live/720p/cpu.collector.log",
+    "bytes": 1409,
+    "sha256": "0a2f35bd51ac4b2b673ebe9d34d8ec0b82597e0c200ec81da5b825dee362ff82"
+  },
+  {
+    "file": "live/1080p/cpu.runner.json",
+    "bytes": 2483,
+    "sha256": "fc4b70d6dea7bb6d41070163a709fa33c010e119efd26391fb63c294a0bdc241"
+  },
+  {
+    "file": "live/1080p/cpu.launch.log",
+    "bytes": 2009,
+    "sha256": "0b402b55ff1bbdd6d743c0f2a177c3d35cb60a719a07fc9f374e4730a2feaa52"
+  },
+  {
+    "file": "live/1080p/vulkan.runner.json",
+    "bytes": 2530,
+    "sha256": "0a11de8bfdd36b77252b95bcb423bce01208efd9ce9dc63adac0c68513433ff9"
+  },
+  {
+    "file": "live/1080p/cpu.json",
+    "bytes": 128163,
+    "sha256": "74563c758d55a864e783447cceada70a3353220b0da95001db9c37f011229d72"
+  },
+  {
+    "file": "live/1080p/cpu.collector.log",
+    "bytes": 1411,
+    "sha256": "1752d742c35270bf204decc011dc22041f8ab90cc15a0cfe235738828a13e7c5"
+  },
+  {
+    "file": "live/1080p/vulkan.collector.log",
+    "bytes": 1444,
+    "sha256": "71db6460d1ffcfec347ed3b428031aca1914b92f5391c89894c661b1d502ac0b"
+  },
+  {
+    "file": "live/1080p/auto.launch.log",
+    "bytes": 2009,
+    "sha256": "b27f36c57fbbc7821c58c61e29e9236561054dd93bdf5c4a469c6555ae9eda95"
+  },
+  {
+    "file": "live/1080p/auto.json",
+    "bytes": 96283,
+    "sha256": "d9d88afa37e3761e42421b597b5281f01979acc8958462ea5efd0344a52d9deb"
+  },
+  {
+    "file": "live/1080p/vulkan.launch.log",
+    "bytes": 2009,
+    "sha256": "8d94672611b5a856f392f7adea05de21c960cad0175b4f462f1b68df0c2debc0"
+  },
+  {
+    "file": "live/1080p/vulkan.json",
+    "bytes": 95905,
+    "sha256": "a5047bbcccc201c8cc6e6ca6486d6a8c7889be6caa0820fa1de6ca735f923aa2"
+  },
+  {
+    "file": "live/1080p/auto.collector.log",
+    "bytes": 1431,
+    "sha256": "db1c82fb675485f8bfff40ab27573d5111840e208afb3aa7763b10108a58caee"
+  },
+  {
+    "file": "live/1080p/auto.runner.json",
+    "bytes": 2515,
+    "sha256": "b7e543940da35da7a7815c9a3671e5e239c634c8f1649398c9b73b0fd5d82130"
+  },
+  {
+    "file": "build.stdout",
+    "bytes": 117308,
+    "sha256": "9400915826f9ccd68fafbe2704000307374a318dfe01dae5a12844ca60549b11"
+  },
+  {
+    "file": "alignment-vga.log",
+    "bytes": 578,
+    "sha256": "5849efd177de3644f48cea619e4485b99fbcc2a0053df0dca1c9c654624b09de"
+  },
+  {
+    "file": "alignment-720p.log",
+    "bytes": 581,
+    "sha256": "f269a15809534fa68149314cc52e7a67cfb1b1ba64276467abeb751181b104cd"
+  },
+  {
+    "file": "alignment-1080p.log",
+    "bytes": 583,
+    "sha256": "f0e6f1963460fa0962b8133c02bd5c3a9552e9b5fb911c3ad4c174f509255fb2"
+  }
+]

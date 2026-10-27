@@ -1,0 +1,112 @@
+{
+  "scope": "CPU-only independent alignment source/resource/ABI review, no GPU or SSH",
+  "source_sha256": {
+    "ros2/src/so101_station_vulkan/src/alignment.cpp": "a776abbb179d2b94866f15ab74c2c6c489c53c87eb226365de72e7b0d1628b68",
+    "ros2/src/so101_station_vulkan/src/alignment_reference.cpp": "20a7037b2b2aa88c0bceedcb05de7f9d30adcebde73416ff66a8fb80c1df3566",
+    "ros2/src/so101_station_vulkan/shaders/alignment.slang": "ffb7e4bf3ac4f9becd2267b2bed8a5c1fbc2ee22c9725ca1f4157a0787667903",
+    "ros2/src/so101_station_vulkan/test/alignment_oracle.cpp": "95b7746d0a0c7729a88b1099f6f4b8ed91e5e86fe30498abcd0eb6ba3473e84f"
+  },
+  "offline_compile": [
+    {
+      "entry": "splat",
+      "argv": [
+        "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/shaders/alignment.slang",
+        "-entry",
+        "splat",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2",
+        "-o",
+        "/tmp/workshop-alignment-independent-review-20261027-3eoo1u21/splat.spv"
+      ],
+      "sha256": "8bb596f39c287a59667f27bbbcfde87ce788960d32ab2e1e066980e4e92980ad",
+      "spirv_val_passed": true,
+      "extent_member_offsets": {
+        "19": 76,
+        "20": 80,
+        "21": 84,
+        "22": 88
+      },
+      "capabilities": [
+        "Shader"
+      ]
+    },
+    {
+      "entry": "finalize",
+      "argv": [
+        "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+        "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/shaders/alignment.slang",
+        "-entry",
+        "finalize",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2",
+        "-o",
+        "/tmp/workshop-alignment-independent-review-20261027-3eoo1u21/finalize.spv"
+      ],
+      "sha256": "72546ce6c44bb5ee82335a537ccac376d3cde7bcdd490a38b43c7dc5ad27bef7",
+      "spirv_val_passed": true,
+      "extent_member_offsets": {
+        "19": 76,
+        "20": 80,
+        "21": 84,
+        "22": 88
+      },
+      "capabilities": [
+        "Shader"
+      ]
+    }
+  ],
+  "focused_pytest": {
+    "passed": 6,
+    "skipped": 1,
+    "duration_s": 2.28,
+    "skip_reason": "offline tools absent from initial default PATH; separately compiled+validated both alignment entries"
+  },
+  "performance_gate": "PASS: measured100000cycle720p/1080pactualAlignmenthostorchestration; colorNfillguards and actualSPIRVextentoffset regressiontests added",
+  "independent_host_cost": [
+    {
+      "profile": "720p",
+      "iterations": 100000,
+      "warmup": 1000,
+      "ns_per_cycle": 40.1599,
+      "hot_heap": 0,
+      "hot_buffers": 0,
+      "hot_waits": 0,
+      "GPU_executed": false
+    },
+    {
+      "profile": "1080p",
+      "iterations": 100000,
+      "warmup": 1000,
+      "ns_per_cycle": 39.6523,
+      "hot_heap": 0,
+      "hot_buffers": 0,
+      "hot_waits": 0,
+      "GPU_executed": false
+    }
+  ],
+  "focused_pytest_final": {
+    "passed": 7,
+    "skipped": 0,
+    "explicit_offline_tools": true
+  },
+  "reviewed_test_sha256": {
+    "tests/test_alignment_extents.py": "9cabc9cfaca7a39a2fc0f912b37264f4a07fa9041ab2b72293367430b1c3f788",
+    "tests/test_alignment_exact_divide.py": "dd8a225ee48c81a42893bd3a42bea8f0be4253fb1450bc6560541f3dbc644ad5",
+    "tests/test_alignment_exact_divide_perf.py": "63ad754419de9dd9db277241eb9a0944763f5bef09c0a81bc87b805a588fed03"
+  }
+}

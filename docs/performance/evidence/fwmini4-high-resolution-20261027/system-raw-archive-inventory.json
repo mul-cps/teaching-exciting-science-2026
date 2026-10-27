@@ -1,0 +1,42 @@
+[
+  {
+    "file": "live/720p/cpu.json",
+    "bytes": 321010,
+    "sha256": "bcaf197dbd1de95963b5ec1b769fb48beaca5ebc6e640e015f3154f2492205db"
+  },
+  {
+    "file": "live/720p/cpu.collector.log",
+    "bytes": 1406,
+    "sha256": "a2042885ad6a5f4324920a2f4c45383477d4aa3db33a00650023d5470739b28f"
+  },
+  {
+    "file": "live/720p/cpu.launch.log",
+    "bytes": 1914,
+    "sha256": "6d1f732ad29dcfbf01d44eb1c6cb41edd37b4f045641c1709d7f10d913afd591"
+  },
+  {
+    "file": "live/720p/cpu.runner.json",
+    "bytes": 2472,
+    "sha256": "c7957368415cf91db354d71d232d0905aaf92494cf25f25b2f0b99cc5588b6a6"
+  },
+  {
+    "file": "live/1080p/cpu.launch.log",
+    "bytes": 1914,
+    "sha256": "aa8636b50045b4a26001dc9f7098373540caa45bb7b900ab1ee88acf91072554"
+  },
+  {
+    "file": "live/1080p/cpu.collector.log",
+    "bytes": 1421,
+    "sha256": "b7a2e8c51f93c0b82db0196aa43b3b53ceb08c86ee7abac438b77464df7675b1"
+  },
+  {
+    "file": "live/1080p/cpu.runner.json",
+    "bytes": 2493,
+    "sha256": "50716529863922d31ee5dd57ff9da508ef6e60c944cc52776774ebc52fd8a871"
+  },
+  {
+    "file": "live/1080p/cpu.json",
+    "bytes": 188641,
+    "sha256": "12e573a7dcc19101cb1583c598cd2f8317b50d572111f8277fa12b7b22dae244"
+  }
+]

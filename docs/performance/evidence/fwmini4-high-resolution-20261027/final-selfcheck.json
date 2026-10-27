@@ -1,0 +1,89 @@
+{
+  "passed": true,
+  "runtime_executed": false,
+  "files_hashed": 33,
+  "raw_members": 28,
+  "optimized_CPU_raw_members": 8,
+  "native_synthetic_alignment_cases": 48,
+  "unchanged_CPU_pins": 464,
+  "live_metrics": {
+    "720p/cpu": {
+      "output_hz": 15.789806248457285,
+      "total_four_core_CPU_percent": 31.712859807028135,
+      "receipt_age_p95_ms": 126.275408
+    },
+    "720p/vulkan": {
+      "output_hz": 19.0914124721552,
+      "total_four_core_CPU_percent": 9.745268038922427,
+      "receipt_age_p95_ms": 82.543386
+    },
+    "720p/auto": {
+      "output_hz": 19.085894553564312,
+      "total_four_core_CPU_percent": 9.609448651533251,
+      "receipt_age_p95_ms": 82.69451
+    },
+    "1080p/cpu": {
+      "output_hz": 11.84927489192309,
+      "total_four_core_CPU_percent": 38.54342787878353,
+      "receipt_age_p95_ms": 168.121437
+    },
+    "1080p/vulkan": {
+      "output_hz": 8.714178153458924,
+      "total_four_core_CPU_percent": 17.561397194756918,
+      "receipt_age_p95_ms": 146.45952699999998
+    },
+    "1080p/auto": {
+      "output_hz": 8.79438761763123,
+      "total_four_core_CPU_percent": 17.638743346726272,
+      "receipt_age_p95_ms": 142.894041
+    }
+  },
+  "optimized_CPU_metrics": {
+    "720p": {
+      "output_hz": 29.892594179428603,
+      "total_four_core_CPU_percent": 24.91604314398921,
+      "CPU_ms_per_output": 33.34075723830735,
+      "collector_host_receipt_age_p95_ms": 66.01494,
+      "source_ID_window": {
+        "source_frame": {
+          "first": 49,
+          "last": 498,
+          "unique_ids": 449,
+          "missing_between_first_last": 1,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 46,
+          "last": 495,
+          "unique_ids": 449,
+          "missing_between_first_last": 1,
+          "regressions": 0
+        }
+      }
+    },
+    "1080p": {
+      "output_hz": 17.488043072205294,
+      "total_four_core_CPU_percent": 27.179610668303855,
+      "CPU_ms_per_output": 62.167300380228134,
+      "collector_host_receipt_age_p95_ms": 117.70261099999999,
+      "source_ID_window": {
+        "source_frame": {
+          "first": 52,
+          "last": 498,
+          "unique_ids": 263,
+          "missing_between_first_last": 184,
+          "regressions": 0
+        },
+        "depth_source_frame": {
+          "first": 49,
+          "last": 495,
+          "unique_ids": 263,
+          "missing_between_first_last": 184,
+          "regressions": 0
+        }
+      }
+    }
+  },
+  "recorded_Core_runs": 6,
+  "RViz_validated": false
+}
