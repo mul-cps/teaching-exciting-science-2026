@@ -52,15 +52,17 @@
 
 ## Task 2: Exact cold controls and literal resident scalar algebra
 
-**Files:** Create `tools/prepare_support_sampling.py`, `include/so101_station_vulkan/support_plane_scalar.slang` under the Vulkan package, native CPU tests and `tests/test_native_support_scalar.py`.
+**Files:** Create `tools/prepare_support_sampling.py`, `tests/test_native_support_sampling.py`, `include/so101_station_vulkan/support_plane_scalar.slang` under the Vulkan package, native CPU tests and `tests/test_native_support_scalar.py`.
 
 **Interfaces:** Sampling artifact maps resident P to the exact ordered M=min(P,2000) indices and resident M to the separately seeded 120 triplets, with checked offsets and hashes. Shared host/shader functions consume fixed small QR/SVD factors and return finite singular values, right singular vectors and explicit convergence status.
 
-- [ ] Add failing exhaustive sampling checks for all currently admitted P/M, separate RNG streams, corrupt/missing tables and checked size arithmetic. Use Task 1's NumPy oracle, not the new generator as its own expected result.
-- [ ] Generate configuration-owned cold tables with no per-frame host selection or table upload. Report exact headers/payload/offset bytes and reject incomplete/mismatched artifacts.
+- [x] Add failing exhaustive sampling checks for all currently admitted P/M, separate RNG streams, corrupt/missing tables and checked size arithmetic. Use Task 1's NumPy oracle, not the new generator as its own expected result.
+- [x] Generate configuration-owned cold tables with no per-frame host selection or table upload. Report exact headers/payload/offset bytes and reject incomplete/mismatched artifacts.
 - [ ] Implement host-compilable literal binary64 helpers for weighted-center/QR factors and the 3x3 SVD using existing add/multiply/divide/sqrt/comparison primitives. Keep rank/orientation thresholds unchanged; operational nonconvergence is explicit failure.
 - [ ] Compare literal production helpers against Task 1's actual nine-fit traces, including rank/tie/near-boundary cases and reconstruction/orthogonality. Any changed retained decision blocks admission and requires a supervisor design ruling.
 - [ ] Run native CPU tests, offline shader/SPIR-V capability checks and focused scalar regressions. No GPU execution. Independent review and supervisor commit.
+
+**Task 2A checkpoint, 27 October:** The cold builder/reader and atomic no-clobber publication passed independent scoped review and 64 focused tests. At G=4800 the immutable artifact is 25,265,520 bytes (64 header, 27,216 offsets, 25,238,240 indices). The combined pinned CPU lane passed 4,836 tests, 138 unchanged skips and 48 subtests in 283.71 s; all 1,654 source hashes matched before/after. Evidence: `/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/combined-cpu-checkpoint-20261027/`; sampling archive SHA256 `ec5332c4aeb4a3de6c465ef19bf9e01e6577674f645a7fd8ad34aed231392c24`. This closes the cold-control portion only; literal scalar algebra, resident integration and GPU performance remain pending.
 
 ## Task 3: Complete resident support estimator and leases
 
