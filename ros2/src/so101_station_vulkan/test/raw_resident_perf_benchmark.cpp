@@ -83,11 +83,11 @@ AlignmentCalibration calibration(const CameraCaptureProfile& profile){
  c.depth_to_color.rotation[0]=c.depth_to_color.rotation[4]=c.depth_to_color.rotation[8]=1;return c;
 }
 constexpr char serial[]="camera-serial-longer-than-small-string-capacity-012345678901234567890123456789";
-RawFrame frame(RawCaptureBridge& b,uint64_t id){auto f=b.acquire();require(bool(f));auto& m=f.core.slot().metadata;m.frame_number=id;m.depth_frame_number=id+9;m.timestamp_ns=id*1000;m.calibration_generation=7;m.hardware_timestamp_ms=id;m.depth_hardware_timestamp_ms=id+1;m.timestamp_domain=1;m.depth_timestamp_domain=2;m.serial=serial;f.core.slot().calibration=b.expected_calibration();f.depth.metadata()=m;return f;}
+RawFrame frame(RawCaptureBridge& b,uint64_t id){auto f=b.acquire();require(bool(f));auto& m=f.core.slot().metadata;m.publication_session_token=700+id;m.frame_number=id;m.depth_frame_number=id+9;m.timestamp_ns=id*1000;m.calibration_generation=7;m.hardware_timestamp_ms=id;m.depth_hardware_timestamp_ms=id+1;m.timestamp_domain=1;m.depth_timestamp_domain=2;m.serial=serial;f.core.slot().calibration=b.expected_calibration();f.depth.metadata()=m;return f;}
 struct FakeSourceFrame{uint64_t get_frame_number()const{return 101;}double get_timestamp()const{return 1234.5;}int get_frame_timestamp_domain()const{return 1;}};
 struct FakeSourceFrames{FakeSourceFrame get_color_frame()const{return {};}FakeSourceFrame get_depth_frame()const{return {};}};
 struct ActualMetadataBodyFixture{
- std::string serial_=serial;CameraSourceCalibration source_;
+ std::string serial_=serial;CameraSourceCalibration source_;uint64_t publication_session_token_=7;
  void original_metadata(FrameMetadata& m,const FakeSourceFrames& native,uint64_t receipt)
  #include "camera_metadata_shared.h"
 };
@@ -134,15 +134,15 @@ int main(int argc,char** argv){try{
  volatile unsigned matches=0;auto comparison_start=std::chrono::steady_clock::now();
  for(unsigned i=0;i<100000;++i)matches+=same_camera_source(camera_source,camera_source);
  double source_ns=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-comparison_start).count()/100000;require(matches==100000);
- ResidentPublicationGate publication;publication.reserve(&publication);publication.admit(&publication,7);unsigned publications=0;
+ ResidentPublicationGate publication;auto session=publication.reserve(&publication);publication.admit(&publication,session,7);unsigned publications=0;
  auto gate_start=std::chrono::steady_clock::now();
- for(unsigned i=0;i<100000;i++)require(publication.publish(7,[&]{++publications;}));
+ for(unsigned i=0;i<100000;i++)require(publication.publish(7,session,[&]{++publications;}));
  double gate_ns=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-gate_start).count()/100000;require(publications==100000);
  ActualMetadataBodyFixture metadata_fixture;metadata_fixture.source_=camera_source;
  FrameMetadata current,failure,copied_core,copied_depth;for(auto* m:{&current,&failure,&copied_core,&copied_depth})m->serial.reserve(sizeof(serial));
  auto metadata_allocations=heap_allocations;auto metadata_start=std::chrono::steady_clock::now();
  for(unsigned i=0;i<100000;i++){metadata_fixture.original_metadata(current,FakeSourceFrames{},i);failure=current;copied_core=current;copied_depth=current;}
- double metadata_ns=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-metadata_start).count()/100000;require(heap_allocations==metadata_allocations&&copied_depth.serial==serial&&copied_depth.width==profile.color_width&&copied_depth.height==profile.color_height);
+ double metadata_ns=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-metadata_start).count()/100000;require(heap_allocations==metadata_allocations&&copied_depth.serial==serial&&copied_depth.width==profile.color_width&&copied_depth.height==profile.color_height&&copied_depth.publication_session_token==7);
  auto before=heap_allocations,buffers=buffer_allocations,waits=wait_calls;constexpr unsigned warmup=1000,cycles=100000;
  auto cycle=[&](uint64_t id){auto q=frame(bridge,id);require(bridge.accept_source(id,id+9));bridge.offer(std::move(q));bridge.dispatch_pending();require(bridge.collect(done));done={};};
  for(unsigned i=0;i<warmup;i++)cycle(100+i);

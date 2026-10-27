@@ -13,7 +13,7 @@ ADMISSION = (P / 'src/raw_camera_admission.cpp').read_text()
 
 
 def body(name):
-    match = re.search(r'\b' + re.escape(name) + r'\([^;]*?\)\s*(?:const\s*)?\{', CAMERA)
+    match = re.search(r'\b' + re.escape(name) + r'\([^;]*?\)\s*(?:(?:const|noexcept)\s*)?\{', CAMERA)
     assert match, name
     start = match.end()
     depth = 1
@@ -47,7 +47,7 @@ class RawCameraAdmission(unittest.TestCase):
         self.assertIn('gate.observe(', warm)
         # A startup failure must release this owned capture before the caller's
         # prepared cold bridge unwinds and drains its GPU resources.
-        self.assertIn('catch(...){publication_gate().invalidate(this);stop_owned_camera();throw;}', warm)
+        self.assertIn('catch(...){publication_gate().invalidate(this,ownership_.token());stop_owned_camera();throw;}', warm)
         self.assertNotIn('frames_->publish', warm)
         self.assertNotIn('bridge_->', warm)
         self.assertNotIn('camera_generation(', warm)
@@ -67,11 +67,12 @@ class RawCameraAdmission(unittest.TestCase):
         for forbidden in ('process(', 'diagnostic_', 'alignment_reference(', 'Context::',
                           'make_unique', 'new ', 'resize(', 'reserve(', 'camera_generation('):
             self.assertNotIn(forbidden, raw)
-        capture = body('capture_pending')
+        capture = body('worker_loop')
         self.assertIn('if(bridge_->gpu_alignment())copy_raw_planes', capture)
         self.assertIn('else copy_vendor_planes', capture)
-        self.assertLess(capture.index('verify_original'), capture.index('bridge_->offer'))
-        self.assertLess(capture.index('discard_pending'), capture.index('bridge_->acquire'))
+        self.assertLess(capture.index('scheduler_.take'), capture.index('bridge_->acquire'))
+        self.assertLess(capture.index('bridge_->acquire'), capture.index('bridge_->offer'))
+        self.assertLess(body('capture_pending').index('verify_original'), body('capture_pending').index('scheduler_.accept'))
         for name in ('tick', 'capture_pending', 'copy_raw_planes', 'verify_original'):
             for forbidden in ('camera_generation(', 'probe_loaded_sdk_alignment(',
                               'diagnostic_', 'wait_for_frames(', 'make_unique', 'resize('):
@@ -109,7 +110,7 @@ class RawCameraAdmission(unittest.TestCase):
         self.assertIn('gate.require_complete()', cold)
         self.assertIn('if(failed_||passes_!=3)', ADMISSION)
         self.assertIn('native_nonzero<24||aligned_nonzero<24', ADMISSION)
-        self.assertIn('catch(...){publication_gate().invalidate(this);stop_owned_camera();throw;}', cold)
+        self.assertIn('catch(...){publication_gate().invalidate(this,ownership_.token());stop_owned_camera();throw;}', cold)
         self.assertIn('std::chrono::steady_clock::now()+10s', cold)
         ctor = body('CameraComponent')
         for before, after in [('probe_loaded_sdk_alignment()', 'camera_.start(config)'),
@@ -118,7 +119,7 @@ class RawCameraAdmission(unittest.TestCase):
                               ('cold_live_selfcheck(std::move(cold))', 'frames_=create_publisher'),
                               ('cold_live_selfcheck(std::move(cold))', 'create_wall_timer')]:
             self.assertLess(ctor.index(before), ctor.index(after))
-        self.assertIn('catch(...){publication_gate().invalidate(this);stop_owned_camera();publication_gate().release(this);throw;}', ctor)
+        self.assertIn('catch(...){shutdown_threads();publication_gate().invalidate(this,ownership_.token());throw;}', ctor)
         self.assertIn('if(!raw&&!running_)', ctor)
         self.assertIn('CPU fallback restart source calibration differs from resolved profiles', ctor)
         self.assertIn('ownership_(publication_gate(),this)', CAMERA)
@@ -126,12 +127,16 @@ class RawCameraAdmission(unittest.TestCase):
 
     def test_unknown_is_latched_with_original_receipt(self):
         tick = body('tick')
-        self.assertLess(tick.index('bridge_->collect'), tick.index('camera_.poll_for_frames'))
-        self.assertLess(tick.index('received_ros_ns='), tick.index('capture_pending'))
+        capture_loop = body('capture_loop')
+        self.assertLess(capture_loop.index('received_ros_ns='), capture_loop.index('capture_pending'))
+        self.assertNotIn('poll_for_frames', tick)
+        self.assertNotIn('bridge_->', tick)
         capture = body('capture_pending')
-        self.assertIn('source identity/timestamp regressed; restart required', capture)
+        self.assertIn('source_admission_.observe', capture)
         failed = body('latch_failure')
-        self.assertLess(failed.index('publication_gate().invalidate(this,[&]{failures_->publish(diagnostic);})'), failed.index('stop_owned_camera()'))
+        self.assertIn('shutdown_threads()', failed)
+        self.assertIn('publication_gate().finalize_unknown(this,ownership_.token(),[&]{failures_->publish(static_cast<const std_msgs::msg::String&>(failure_diagnostic_));})', failed)
+        self.assertLess(body('shutdown_threads').index('ownership_.revoke()'), body('shutdown_threads').index('stop_owned_camera()'))
         self.assertIn('publication_gate().publish(slot.metadata.calibration_generation', CAMERA)
         self.assertIn('m.timestamp_ns', failed)
         self.assertIn('m.frame_number', failed)
@@ -144,15 +149,15 @@ class RawCameraAdmission(unittest.TestCase):
         self.assertEqual(CAMERA.count('"/station/resident/measurements"'), 1)
         ctor = body('CameraComponent')
         self.assertIn('failures_=create_publisher<std_msgs::msg::String>("/station/resident/measurements"', ctor)
-        self.assertIn('publication_gate().invalidate(this,[&]{measurement_writer()=failures_;})', ctor)
+        self.assertIn('publication_gate().invalidate(this,ownership_.token(),[&]{measurement_writer()=failures_;})', ctor)
         self.assertLess(ctor.index('measurement_writer()=failures_'), ctor.index('publication_gate().admit'))
         objects = CAMERA[CAMERA.index('class ObjectsComponent'):]
         self.assertNotIn('create_publisher', objects)
         self.assertNotIn('Publisher<std_msgs::msg::String>::SharedPtr', objects)
-        self.assertIn('publication_gate().publish(slot.metadata.calibration_generation,[&]{', objects)
+        self.assertIn('publication_gate().publish(slot.metadata.calibration_generation,slot.metadata.publication_session_token,[&]{', objects)
         self.assertIn('auto measurements_=measurement_writer().lock();', objects)
         self.assertIn('if(measurements_)measurements_->publish', objects)
-        self.assertIn('publication_gate().invalidate(this,[&]{failures_->publish(diagnostic);})', body('latch_failure'))
+        self.assertIn('publication_gate().finalize_unknown(this,ownership_.token(),[&]{failures_->publish(static_cast<const std_msgs::msg::String&>(failure_diagnostic_));})', body('latch_failure'))
 
     def test_software_probe_cannot_be_manually_selected(self):
         self.assertIn('for(unsigned fixture:{2u,3u,4u})', ADMISSION)

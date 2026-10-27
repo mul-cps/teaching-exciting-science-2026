@@ -86,8 +86,8 @@ int main(){
 def test_selected_profile_is_explicit_and_all_plane_extents_are_reported():
     camera = (P / 'src/camera_component.cpp').read_text()
     launch = (P / 'launch/resident_rgbd.launch.py').read_text()
-    assert 'declare_parameter<std::string>("profile","720p")' in camera
-    assert "DeclareLaunchArgument('profile', default_value='720p', choices=['vga', '720p', '1080p'])" in launch
+    assert 'declare_parameter<std::string>("profile","realtime")' in camera
+    assert "DeclareLaunchArgument('profile', default_value='realtime', choices=['realtime', 'medium', 'high_quality', 'vga', '720p', '1080p'])" in launch
     assert "'profile': ParameterValue(LaunchConfiguration('profile'), value_type=str)" in launch
     assert 'kWidth' not in camera and 'kHeight' not in camera and 'kPixels' not in camera
     for field in ('profile=%s', 'color_width=%u', 'color_height=%u', 'depth_width=%u', 'depth_height=%u', 'fps=%u', 'vulkan_allocation_count=%llu'):

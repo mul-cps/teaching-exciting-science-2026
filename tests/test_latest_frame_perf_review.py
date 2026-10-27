@@ -51,13 +51,14 @@ def test_accepted_source_identity_is_original_and_receipt_precedes_alignment():
     assert 'auto color=native.get_color_frame();auto depth=native.get_depth_frame();' in metadata
     assert 'm.timestamp_ns=receipt;' in metadata
     assert 'now()' not in metadata
-    assert capture.index('original_metadata(last_input_,native,received_ros_ns)') < capture.index('copy_raw_planes(')
-    assert capture.index('original_metadata(last_input_,native,received_ros_ns)') < capture.index('copy_vendor_planes(')
-    assert 'now()' not in capture
-    assert capture.index('accept_source(')<capture.index('discard_pending(')<capture.index('bridge_->acquire(')<capture.index('copy_raw_planes(')
-    assert capture.index('bridge_->acquire(')<capture.index('copy_vendor_planes(')
-    assert tick.index('bridge_->collect(')<tick.index('poll_for_frames(')<tick.index('now().nanoseconds()')<tick.index('capture_pending(')<tick.index('dispatch_pending(')
-    assert 'return;' not in tick
+    assert capture.index('original_metadata(last_input_,native,received_ros_ns)') < capture.index('source_admission_.observe(') < capture.index('scheduler_.accept(')
+    assert 'now()' not in capture and 'bridge_->' not in capture
+    polling=body(camera,'void capture_loop(');worker=body(camera,'void worker_loop(')
+    assert polling.index('poll_for_frames(')<polling.index('now().nanoseconds()')<polling.index('capture_pending(')
+    assert 'copy_raw_planes' not in polling and 'frames_->publish' not in polling
+    assert worker.index('copy_raw_planes(')<worker.index('bridge_->dispatch_pending(')
+    assert worker.index('copy_vendor_planes(')<worker.index('bridge_->dispatch_pending(')
+    assert worker.index('frames_->publish(')<worker.index('scheduler_.complete(')
     constructor=body(camera,'explicit CameraComponent(')
     assert constructor.index('probe_loaded_sdk_alignment(')<constructor.index('raw_admission_failure(')<constructor.index('camera_.start(')
     assert constructor.index('require_raw_or_cpu_fallback(mode,fallback_reason_)')<constructor.index('camera_.start(')

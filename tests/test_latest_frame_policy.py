@@ -10,25 +10,23 @@ def body(text,name):
         depth+=(text[i]=='{')-(text[i]=='}');i+=1
     return text[start+1:i-1]
 
-def test_newest_arrival_is_considered_before_pending_dispatch():
-    text=SOURCE.read_text();tick=body(text,'void tick()')
-    bridge=(ROOT/'ros2/src/so101_station_vulkan/include/so101_station_vulkan/raw_capture_bridge.hpp').read_text()
-    assert 'std::unique_ptr<RawCaptureBridge> bridge_' in text
-    assert 'LatestFrameQueue<RawFrame> queue_' in bridge
-    assert 'FrameLease core;' in bridge and 'AlignmentLease depth;' in bridge
-    assert tick.index('bridge_->collect(') < tick.index('poll_for_frames')
-    assert tick.index('poll_for_frames') < tick.index('bridge_->dispatch_pending();')
-    assert 'capture_pending(native,received_ros_ns)' in tick
-    assert tick.index('now().nanoseconds()') < tick.index('capture_pending(')
-    assert 'return;' not in tick[:tick.index('bridge_->dispatch_pending();')]
+def test_newest_native_arrival_is_selected_only_when_worker_idle():
+    text=SOURCE.read_text();capture=body(text,'void capture_pending(');worker=body(text,'void worker_loop(')
+    assert 'LatestNativeScheduler<rs2::frameset,FrameMetadata> scheduler_' in text
+    assert capture.index('verify_original(native)') < capture.index('source_admission_.observe(last_input_)') < capture.index('scheduler_.accept(')
+    assert 'bridge_->' not in capture and 'copy_raw_planes(' not in capture and 'copy_vendor_planes(' not in capture
+    assert worker.index('bridge_->collect(') < worker.index('scheduler_.take(') < worker.index('bridge_->dispatch_pending();')
+    assert worker.index('frames_->publish(') < worker.index('scheduler_.complete(')
+    assert 'std::thread([this]{capture_loop();})' in text and 'std::thread([this]{worker_loop();})' in text
+    tick=body(text,'void tick()');assert 'poll_for_frames' not in tick and 'bridge_->' not in tick
 
 def test_original_source_metadata_and_truthful_age_remain_visible():
     text=SOURCE.read_text();capture=body(text,'void capture_pending(')
     metadata=body(text,'void original_metadata(')
     assert 'm.timestamp_ns=receipt;' in metadata
     assert 'now()' not in metadata and 'now()' not in capture
-    assert capture.index('original_metadata(last_input_,native,received_ros_ns)') < capture.index('copy_raw_planes(')
-    assert capture.index('original_metadata(last_input_,native,received_ros_ns)') < capture.index('copy_vendor_planes(')
+    assert capture.index('original_metadata(last_input_,native,received_ros_ns)') < capture.index('scheduler_.accept(')
+    assert 'publication_session_token=publication_session_token_' in metadata
     for field in ('frame_number','depth_frame_number','hardware_timestamp_ms',
                   'depth_hardware_timestamp_ms','timestamp_domain','depth_timestamp_domain'):
         original='depth' if field.startswith('depth_') else 'color'

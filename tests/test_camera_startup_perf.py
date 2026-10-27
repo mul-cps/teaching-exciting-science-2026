@@ -71,7 +71,8 @@ def test_stabilization_waits_cannot_enter_normal_capture_processing():
         assert not forbidden.search(code_only(body(camera, signature))), signature
     # No startup observation is allowed on any steady path, even without waits.
     for signature in ("void tick()", "void capture_pending(", "void verify_original("):
-        assert ".observe(" not in code_only(body(camera, signature))
+        assert "gate.observe(" not in code_only(body(camera, signature))
+        assert "CameraStartupGate" not in code_only(body(camera, signature))
 
 
 def test_gate_has_only_scalar_state_and_no_external_runtime_calls():

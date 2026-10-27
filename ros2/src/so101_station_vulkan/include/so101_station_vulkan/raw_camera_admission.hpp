@@ -4,6 +4,7 @@
 namespace so101_station_vulkan {
 struct CameraCaptureProfile {unsigned color_width,color_height,depth_width,depth_height,fps;};
 CameraCaptureProfile camera_capture_profile(const std::string& name);
+const char* canonical_camera_profile(const std::string& name);
 // Bounded immutable source description, compared by value without padding bytes.
 struct CameraProfileIdentity {
  int unique_id=0, stream_index=0, width=0, height=0, fps=0, format=0, stream=0;
@@ -47,29 +48,46 @@ public:
 class ResidentPublicationGate {
  std::mutex mutex_;
  const void* owner_=nullptr;
- uint64_t generation_=0;
+ uint64_t owner_token_=0,next_token_=0,generation_=0;
+ bool admitted_=false,unknown_finalized_=false;
+ std::atomic<uint64_t> live_token_{0};
+ bool current(const void* owner,uint64_t token)const{return owner&&owner_==owner&&token&&owner_token_==token;}
 public:
- void reserve(const void* owner);
- void admit(const void* owner,uint64_t generation);
- void release(const void* owner);
- void invalidate(const void* owner);
- template<class Publish> void invalidate(const void* owner,Publish&& publish_unknown){
-  std::lock_guard<std::mutex> lock(mutex_);
-  if(!owner||owner_!=owner)return;
-  generation_=0;publish_unknown();
+ uint64_t reserve(const void* owner);
+ void admit(const void* owner,uint64_t token,uint64_t generation);
+ void release(const void* owner,uint64_t token);
+ // Capture-side revocation is a bounded atomic CAS, never a mutex or DDS call.
+ bool revoke(uint64_t token)noexcept {
+  return token&&live_token_.compare_exchange_strong(token,0,std::memory_order_acq_rel);
  }
- template<class Publish> bool publish(uint64_t generation,Publish&& publish_current){
+ void invalidate(const void* owner,uint64_t token);
+ template<class Publish> void invalidate(const void* owner,uint64_t token,Publish&& callback){
   std::lock_guard<std::mutex> lock(mutex_);
-  if(!owner_||!generation||generation_!=generation)return false;
+  if(!current(owner,token))return;
+  live_token_.store(0,std::memory_order_release);generation_=0;callback();
+ }
+ template<class Publish> void finalize_unknown(const void* owner,uint64_t token,Publish&& publish_unknown){
+  std::lock_guard<std::mutex> lock(mutex_);
+  if(!current(owner,token)||unknown_finalized_)return;
+  live_token_.store(0,std::memory_order_release);generation_=0;unknown_finalized_=true;publish_unknown();
+ }
+ template<class Publish> bool publish(uint64_t generation,uint64_t token,Publish&& publish_current){
+  std::lock_guard<std::mutex> lock(mutex_);
+  // This final acquire-check is the commit point. An entered callback may
+  // finish after revoke; ordered UNKNOWN waits for it on this same writer lock.
+  if(!owner_||!generation||generation_!=generation||!token||live_token_.load(std::memory_order_acquire)!=token)return false;
   publish_current();return true;
  }
 };
 class ResidentCameraOwner {
  ResidentPublicationGate& gate_;
  const void* owner_;
+ uint64_t token_;
 public:
- ResidentCameraOwner(ResidentPublicationGate& gate,const void* owner):gate_(gate),owner_(owner){gate_.reserve(owner_);}
- ~ResidentCameraOwner(){gate_.release(owner_);}
+ ResidentCameraOwner(ResidentPublicationGate& gate,const void* owner):gate_(gate),owner_(owner),token_(gate_.reserve(owner_)){}
+ ~ResidentCameraOwner(){gate_.release(owner_,token_);}
+ uint64_t token()const noexcept{return token_;}
+ void revoke()noexcept{gate_.revoke(token_);}
  ResidentCameraOwner(const ResidentCameraOwner&)=delete;
  ResidentCameraOwner& operator=(const ResidentCameraOwner&)=delete;
 };

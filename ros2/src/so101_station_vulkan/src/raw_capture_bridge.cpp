@@ -30,7 +30,7 @@ RawFrame RawCaptureBridge::acquire(){
  // Preserve string capacity when clearing stale source provenance on slot reuse.
  m.width=core_->width();m.height=core_->height();m.frame_number=0;m.timestamp_ns=0;
  m.calibration_generation=0;m.depth_frame_number=0;m.hardware_timestamp_ms=0;
- m.depth_hardware_timestamp_ms=0;m.timestamp_domain=0;m.depth_timestamp_domain=0;m.serial.clear();
+ m.depth_hardware_timestamp_ms=0;m.timestamp_domain=0;m.depth_timestamp_domain=0;m.publication_session_token=0;m.serial.clear();
  s.calibration=Calibration{};
  return f;
 }
@@ -49,7 +49,7 @@ void RawCaptureBridge::validate(const RawFrame& f)const{
     m.calibration_generation!=d.calibration_generation||m.calibration_generation!=k.generation||
     !std::isfinite(m.hardware_timestamp_ms)||!std::isfinite(m.depth_hardware_timestamp_ms)||
     m.hardware_timestamp_ms!=d.hardware_timestamp_ms||m.depth_hardware_timestamp_ms!=d.depth_hardware_timestamp_ms||
-    m.timestamp_domain!=d.timestamp_domain||m.depth_timestamp_domain!=d.depth_timestamp_domain||m.serial!=d.serial||
+    m.timestamp_domain!=d.timestamp_domain||m.depth_timestamp_domain!=d.depth_timestamp_domain||m.publication_session_token!=d.publication_session_token||m.serial!=d.serial||
     c.fx!=k.fx||c.fy!=k.fy||c.cx!=k.cx||c.cy!=k.cy||c.depth_scale!=k.depth_scale||c.generation!=k.generation)
   throw std::invalid_argument("raw capture source cohort/calibration mismatch");
 }

@@ -6,11 +6,17 @@
 #include <stdexcept>
 #include <vector>
 namespace so101_station_vulkan {
+const char* canonical_camera_profile(const std::string& name){
+ if(name=="realtime"||name=="vga")return "realtime";
+ if(name=="medium"||name=="720p")return "medium";
+ if(name=="high_quality"||name=="1080p")return "high_quality";
+ throw std::invalid_argument("camera profile must be realtime, medium or high_quality (aliases vga, 720p, 1080p)");
+}
 CameraCaptureProfile camera_capture_profile(const std::string& name){
- if(name=="vga")return {640,480,640,480,30};
- if(name=="720p")return {1280,720,1280,720,30};
- if(name=="1080p")return {1920,1080,1280,720,30};
- throw std::invalid_argument("camera profile must be vga, 720p or 1080p");
+ const std::string canonical=canonical_camera_profile(name);
+ if(canonical=="realtime")return {640,480,640,480,30};
+ if(canonical=="medium")return {1280,720,1280,720,30};
+ return {1920,1080,1280,720,30};
 }
 bool CameraProfileIdentity::operator==(const CameraProfileIdentity& b)const {
  return unique_id==b.unique_id&&stream_index==b.stream_index&&width==b.width&&height==b.height&&fps==b.fps&&format==b.format&&stream==b.stream;
@@ -133,23 +139,23 @@ void ColdCameraSelfcheck::verify(const FrameMetadata& m,const uint16_t* native,c
 void ColdCameraSelfcheck::require_complete()const{
  if(failed_||passes_!=3)throw std::runtime_error("three original-cohort cold selfchecks are required");
 }
-void ResidentPublicationGate::reserve(const void* owner){
+uint64_t ResidentPublicationGate::reserve(const void* owner){
  std::lock_guard<std::mutex> lock(mutex_);
- if(!owner||owner_)throw std::runtime_error("resident measurement stream already has a camera owner");
- owner_=owner;generation_=0;
+ if(!owner||owner_||next_token_==UINT64_MAX)throw std::runtime_error("resident measurement stream already owned or session token exhausted");
+ owner_=owner;owner_token_=++next_token_;generation_=0;admitted_=false;unknown_finalized_=false;live_token_.store(0,std::memory_order_release);return owner_token_;
 }
-void ResidentPublicationGate::admit(const void* owner,uint64_t generation){
+void ResidentPublicationGate::admit(const void* owner,uint64_t token,uint64_t generation){
  std::lock_guard<std::mutex> lock(mutex_);
- if(!owner||owner_!=owner||!generation)throw std::runtime_error("resident publication owner/generation mismatch");
- generation_=generation;
+ if(!current(owner,token)||!generation||admitted_)throw std::runtime_error("resident publication owner/session/generation mismatch or readmission");
+ generation_=generation;admitted_=true;live_token_.store(token,std::memory_order_release);
 }
-void ResidentPublicationGate::release(const void* owner){
+void ResidentPublicationGate::release(const void* owner,uint64_t token){
  std::lock_guard<std::mutex> lock(mutex_);
- if(owner_==owner){generation_=0;owner_=nullptr;}
+ if(current(owner,token)){live_token_.store(0,std::memory_order_release);generation_=0;owner_=nullptr;owner_token_=0;}
 }
-void ResidentPublicationGate::invalidate(const void* owner){
+void ResidentPublicationGate::invalidate(const void* owner,uint64_t token){
  std::lock_guard<std::mutex> lock(mutex_);
- if(owner_==owner)generation_=0;
+ if(current(owner,token)){live_token_.store(0,std::memory_order_release);generation_=0;}
 }
 void require_raw_or_cpu_fallback(const std::string& mode,const std::string& failure){
  if(mode!="auto"&&mode!="vulkan"&&mode!="cpu")throw std::invalid_argument("unknown camera backend");

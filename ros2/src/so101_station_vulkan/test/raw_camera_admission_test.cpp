@@ -73,25 +73,25 @@ int main(){
  ColdCameraSelfcheck duplicate(generation,"fake");verify(duplicate);bool duplicated=false;try{verify(duplicate);}catch(const std::exception&){duplicated=true;}assert(duplicated);
  // A real mutex orders in-progress publication before UNKNOWN, then blocks
  // queued old generations. No Vulkan/ROS objects are involved in this race test.
- ResidentPublicationGate publication;int owner1=0,owner2=0;publication.reserve(&owner1);
+ ResidentPublicationGate publication;int owner1=0,owner2=0;auto token1=publication.reserve(&owner1);
  bool competing=false;try{publication.reserve(&owner2);}catch(const std::exception&){competing=true;}assert(competing);
- assert(!publication.publish(0,[]{assert(false);}));publication.admit(&owner1,17);
+ assert(!publication.publish(0,token1,[]{assert(false);}));publication.admit(&owner1,token1,17);
  std::mutex barrier_mutex;std::condition_variable barrier;bool entered=false,release_publish=false;
  std::atomic<bool> invalidating{false};std::atomic<unsigned> order{0};unsigned success_order=0,unknown_order=0;
- std::thread publishing([&]{assert(publication.publish(17,[&]{
+ std::thread publishing([&]{assert(publication.publish(17,token1,[&]{
   std::unique_lock<std::mutex> lock(barrier_mutex);entered=true;barrier.notify_all();barrier.wait(lock,[&]{return release_publish;});success_order=++order;
  }));});
  {std::unique_lock<std::mutex> lock(barrier_mutex);barrier.wait(lock,[&]{return entered;});}
- std::thread failing([&]{invalidating=true;publication.invalidate(&owner1,[&]{unknown_order=++order;});});
+ std::thread failing([&]{invalidating=true;publication.finalize_unknown(&owner1,token1,[&]{unknown_order=++order;});});
  while(!invalidating.load())std::this_thread::yield();assert(order==0);
  {std::lock_guard<std::mutex> lock(barrier_mutex);release_publish=true;}barrier.notify_all();
  publishing.join();failing.join();assert(success_order==1&&unknown_order==2);
- assert(!publication.publish(17,[]{assert(false);}));publication.release(&owner1);
- publication.reserve(&owner2);publication.admit(&owner2,18);
- publication.invalidate(&owner1,[]{assert(false);});publication.release(&owner1);
- assert(!publication.publish(17,[]{assert(false);}));assert(publication.publish(18,[]{}));publication.release(&owner2);
+ assert(!publication.publish(17,token1,[]{assert(false);}));publication.release(&owner1,token1);
+ auto token2=publication.reserve(&owner2);publication.admit(&owner2,token2,18);
+ publication.finalize_unknown(&owner1,token1,[]{assert(false);});publication.release(&owner1,token1);
+ assert(!publication.publish(17,token1,[]{assert(false);}));assert(publication.publish(18,token2,[]{}));publication.release(&owner2,token2);
  {ResidentCameraOwner ownership(publication,&owner1);} // Constructor unwinding cleanup is RAII.
- publication.reserve(&owner2);publication.release(&owner2);
+ token2=publication.reserve(&owner2);publication.release(&owner2,token2);
  // Admit exactly the selected native pairs, retaining stream identity and rates.
  for(auto dimensions:{std::array<int,4>{640,480,640,480},{1280,720,1280,720},{1920,1080,1280,720}}){
   auto high=s;high.color.width=dimensions[0];high.color.height=dimensions[1];high.depth.width=dimensions[2];high.depth.height=dimensions[3];
@@ -124,6 +124,19 @@ int main(){
  for(auto pair:{std::array<int,4>{1920,1080,640,480},{1280,720,640,480},{640,480,1280,720}}){auto bad=s;bad.color.width=pair[0];bad.color.height=pair[1];bad.depth.width=pair[2];bad.depth.height=pair[3];bool rejected=false;try{validate_camera_profiles(bad);}catch(const std::exception&){rejected=true;}assert(rejected);}
  bool invalid_name=false;try{camera_capture_profile("custom");}catch(const std::invalid_argument&){invalid_name=true;}assert(invalid_name);
  std::cout<<"PASS high_resolution_profiles cold_native_depth_coverage\n";
+ // Canonical names and legacy aliases have identical native extents.
+ for(auto names:{std::pair<const char*,const char*>{"realtime","vga"},{"medium","720p"},{"high_quality","1080p"}}){auto a=camera_capture_profile(names.first),b=camera_capture_profile(names.second);assert(a.color_width==b.color_width&&a.depth_width==b.depth_width&&a.fps==30);assert(std::string(canonical_camera_profile(names.second))==names.first);}
+ // Fast revoke cannot wait behind an already committed DDS callback.
+ auto session=publication.reserve(&owner1);publication.admit(&owner1,session,17);entered=false;release_publish=false;order=0;
+ std::thread committed([&]{assert(publication.publish(17,session,[&]{std::unique_lock<std::mutex> lock(barrier_mutex);entered=true;barrier.notify_all();barrier.wait(lock,[&]{return release_publish;});++order;}));});
+ {std::unique_lock<std::mutex> lock(barrier_mutex);barrier.wait(lock,[&]{return entered;});}
+ assert(publication.revoke(session));assert(order==0);
+ {std::lock_guard<std::mutex> lock(barrier_mutex);release_publish=true;}barrier.notify_all();committed.join();
+ // Revocation cannot be undone by re-admitting the same owner/token.
+ bool readmitted=false;try{publication.admit(&owner1,session,17);}catch(const std::exception&){readmitted=true;}assert(readmitted);
+ publication.finalize_unknown(&owner1,session,[&]{assert(++order==2);});assert(!publication.publish(17,session,[]{assert(false);}));publication.release(&owner1,session);
+ auto replacement=publication.reserve(&owner1);publication.admit(&owner1,replacement,17);assert(replacement!=session);assert(!publication.revoke(session));
+ publication.finalize_unknown(&owner1,session,[]{assert(false);});assert(!publication.publish(17,session,[]{assert(false);}));assert(publication.publish(17,replacement,[]{}));publication.release(&owner1,replacement);
  // Actual loaded SDK software frames: no Context, no USB, no physical PASS.
  auto actual=probe_loaded_sdk_alignment();assert(actual.fixtures==3);assert(actual.admitted());
  std::cout<<"PASS source_identity profile_calibration generation SDK_scalar_probe fallback strict physical=false\n";

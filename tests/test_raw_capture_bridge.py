@@ -34,7 +34,7 @@ def test_typed_lifetime_and_shutdown_order():
     assert collect.index('core_->ready') < collect.index('depth_->ready') < collect.index('core_->finish') < collect.index('queue_.take_completed')
     assert 'failed_=true;throw;' in collect
     validate = body(source, 'RawCaptureBridge::validate(')
-    for field in ('width', 'height', 'frame_number', 'depth_frame_number', 'timestamp_ns', 'calibration_generation', 'hardware_timestamp_ms', 'depth_hardware_timestamp_ms', 'timestamp_domain', 'depth_timestamp_domain', 'serial'):
+    for field in ('width', 'height', 'frame_number', 'depth_frame_number', 'timestamp_ns', 'calibration_generation', 'hardware_timestamp_ms', 'depth_hardware_timestamp_ms', 'timestamp_domain', 'depth_timestamp_domain', 'publication_session_token', 'serial'):
         assert f'm.{field}' in validate
     assert 'core_->owns(f.core)' in validate and 'depth_->owns(f.depth)' in validate
 

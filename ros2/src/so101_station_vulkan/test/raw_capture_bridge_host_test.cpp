@@ -87,9 +87,9 @@ std::unique_ptr<RawCaptureBridge> bridge(const char* shaders){
  return std::make_unique<RawCaptureBridge>(std::move(p),std::move(a));
 }
 RawFrame frame(RawCaptureBridge& b,unsigned id){auto f=b.acquire();require(bool(f));auto& m=f.core.slot().metadata;
- require(m.width==640&&m.height==480&&!m.frame_number&&!m.depth_frame_number&&!m.timestamp_ns&&!m.calibration_generation&&!m.hardware_timestamp_ms&&!m.depth_hardware_timestamp_ms&&!m.timestamp_domain&&!m.depth_timestamp_domain&&m.serial.empty());
+ require(m.width==640&&m.height==480&&!m.frame_number&&!m.depth_frame_number&&!m.timestamp_ns&&!m.calibration_generation&&!m.hardware_timestamp_ms&&!m.depth_hardware_timestamp_ms&&!m.timestamp_domain&&!m.depth_timestamp_domain&&!m.publication_session_token&&m.serial.empty());
  auto& d=f.depth.metadata();require(d.width==640&&d.height==480&&d.calibration_generation==7&&!d.frame_number&&!d.depth_frame_number&&!d.timestamp_ns&&!d.hardware_timestamp_ms&&!d.depth_hardware_timestamp_ms&&!d.timestamp_domain&&!d.depth_timestamp_domain&&d.serial.empty());
- m.frame_number=id;m.depth_frame_number=id+9;m.timestamp_ns=id*1000;m.calibration_generation=7;m.hardware_timestamp_ms=id;m.depth_hardware_timestamp_ms=id+1;m.timestamp_domain=1;m.depth_timestamp_domain=2;m.serial="camera-serial-longer-than-small-string-capacity-012345678901234567890123456789";f.core.slot().calibration=b.expected_calibration();f.depth.metadata()=m;return f;}
+ m.publication_session_token=700+id;m.frame_number=id;m.depth_frame_number=id+9;m.timestamp_ns=id*1000;m.calibration_generation=7;m.hardware_timestamp_ms=id;m.depth_hardware_timestamp_ms=id+1;m.timestamp_domain=1;m.depth_timestamp_domain=2;m.serial="camera-serial-longer-than-small-string-capacity-012345678901234567890123456789";f.core.slot().calibration=b.expected_calibration();f.depth.metadata()=m;return f;}
 template<class F>void rejects(F fn){bool rejected=false;try{fn();}catch(const std::exception&){rejected=true;}require(rejected);}
 int main(int argc,char** argv){try{
  require(argc==2);
@@ -101,7 +101,7 @@ int main(int argc,char** argv){try{
  source={};auto two=frame(*b,3),three=frame(*b,4);require(!b->acquire());
  require(&two.depth.aligned()!=depth_buffer&&&three.depth.aligned()!=depth_buffer);
  RawFrame done;require(!b->collect(done));require(!done);two={};three={};source={};
- complete[uintptr_t(b->active().core.slot().fence)]=true;require(b->collect(done));require(bool(done.depth));
+ complete[uintptr_t(b->active().core.slot().fence)]=true;require(b->collect(done));require(bool(done.depth));require(done.core.slot().metadata.publication_session_token==701&&done.depth.metadata().publication_session_token==701);
  auto late=done.core;done={};b.reset();require(late.slot().references==1);late={};
  // Foreign source, exact calibration and every provenance cohort are admitted
  // before the producer receives queue work.
@@ -111,6 +111,7 @@ int main(int argc,char** argv){try{
  auto foreign_depth=other_alignment->acquire();foreign_depth.metadata()=x.core.slot().metadata;
  swapped.depth=foreign_depth;rejects([&]{b->offer(swapped);});
  x.core.slot().calibration.generation=8;rejects([&]{b->offer(x);});x.core.slot().calibration.generation=7;
+ x.depth.metadata().publication_session_token++;rejects([&]{b->offer(x);});x.depth.metadata()=x.core.slot().metadata;
  x.depth.metadata().timestamp_ns++;rejects([&]{b->offer(x);});x.depth.metadata()=x.core.slot().metadata;
  auto foreign=bridge(argv[1]);auto z=frame(*foreign,7);rejects([&]{b->offer(z);});require(submits==before);
  x={};y={};swapped={};z={};foreign.reset();

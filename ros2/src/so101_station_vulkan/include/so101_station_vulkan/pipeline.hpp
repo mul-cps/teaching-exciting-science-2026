@@ -13,7 +13,7 @@ namespace so101_station_vulkan {
 constexpr unsigned kSlots=3, kMaxComponents=4096;
 constexpr size_t kMaxFramePixels=size_t(1920)*1080;
 struct Calibration { float fx=600,fy=600,cx=320,cy=240,depth_scale=.001f; uint64_t generation=0; };
-struct FrameMetadata { uint32_t width=0,height=0; uint64_t frame_number=0, timestamp_ns=0, calibration_generation=0; uint64_t depth_frame_number=0; double hardware_timestamp_ms=0,depth_hardware_timestamp_ms=0; int timestamp_domain=0,depth_timestamp_domain=0; std::string serial; };
+struct FrameMetadata { uint32_t width=0,height=0; uint64_t frame_number=0, timestamp_ns=0, calibration_generation=0; uint64_t depth_frame_number=0; double hardware_timestamp_ms=0,depth_hardware_timestamp_ms=0; int timestamp_domain=0,depth_timestamp_domain=0; uint64_t publication_session_token=0; std::string serial; };
 struct Component { uint32_t root,color,count,x0,y0,x1,y1,min_z_bits,max_z_bits,closed_count; bool operator==(const Component& b) const; };
 struct Context;
 struct Buffer {

@@ -101,12 +101,14 @@ def test_camera_normal_raw_path_uses_batched_copies_and_reserved_status():
     assert 'metadata.serial.reserve(serial_.size())' in make_bridge
     assert 'f.depth.metadata().serial.reserve(serial_.size())' in make_bridge
     capture = body(camera, 'capture_pending(')
-    assert capture.index('verify_original') < capture.index('bridge_->offer')
-    assert 'if(bridge_->gpu_alignment())copy_raw_planes' in capture
-    assert 'else copy_vendor_planes' in capture
-    failed = body(camera, 'latch_failure(')
-    assert failed.index('timer_->cancel()') < failed.index('stop_owned_camera()')
-    assert 'publication_gate().invalidate(this' in failed
+    assert capture.index('verify_original') < capture.index('scheduler_.accept')
+    worker = body(camera, 'worker_loop(')
+    assert 'if(bridge_->gpu_alignment())copy_raw_planes' in worker
+    assert 'else copy_vendor_planes' in worker
+    assert 'bridge_->' not in capture
+    failed = body(camera, 'void latch_failure(')
+    assert failed.index('timer_->cancel()') < failed.index('shutdown_threads()')
+    assert 'publication_gate().finalize_unknown(this,ownership_.token()' in failed
     assert 'now()' not in failed
 
 
@@ -130,18 +132,20 @@ def test_cold_selfcheck_is_distinct_bounded_and_retains_original_raw_view():
 def test_publication_generation_is_locked_through_publish_and_failure():
     header = (P / 'include/so101_station_vulkan/raw_camera_admission.hpp').read_text()
     publish = body(header, 'bool publish(')
-    invalidate = body(header, 'void invalidate(const void* owner,Publish&&')
-    assert publish.index('std::lock_guard<std::mutex>') < publish.index('generation_!=generation') < publish.index('publish_current()')
+    invalidate = body(header, 'void finalize_unknown(const void* owner,uint64_t token,Publish&&')
+    assert publish.index('std::lock_guard<std::mutex>') < publish.index('live_token_.load') < publish.index('publish_current()')
     assert '!owner_||!generation' in publish
-    assert invalidate.index('std::lock_guard<std::mutex>') < invalidate.index('if(!owner||owner_!=owner)return') < invalidate.index('generation_=0') < invalidate.index('publish_unknown()')
+    assert invalidate.index('std::lock_guard<std::mutex>') < invalidate.index('!current(owner,token)') < invalidate.index('generation_=0') < invalidate.index('publish_unknown()')
+    revoke = body(header, 'bool revoke(')
+    assert 'compare_exchange_strong' in revoke and 'mutex' not in revoke and 'publish' not in revoke
     admission = (P / 'src/raw_camera_admission.cpp').read_text()
     release = body(admission, 'ResidentPublicationGate::release(')
-    assert 'if(owner_==owner)' in release and 'generation_=0;owner_=nullptr' in release
+    assert 'if(current(owner,token))' in release and 'generation_=0;owner_=nullptr' in release
     camera = (P / 'src/camera_component.cpp').read_text()
     assert camera.index('ResidentCameraOwner ownership_') < camera.index('rs2::context cameras_')
     assert 'publication_gate().publish(slot.metadata.calibration_generation' in camera
     cold = body(camera, 'cold_live_selfcheck(')
-    assert 'catch(...){publication_gate().invalidate(this);stop_owned_camera();throw;}' in cold
+    assert 'catch(...){publication_gate().invalidate(this,ownership_.token());stop_owned_camera();throw;}' in cold
     verify = body(admission, 'ColdCameraSelfcheck::verify(')
     assert 'native_nonzero<24||aligned_nonzero<24' in verify
     assert 'gpu.component_count>kMaxComponents||cpu.component_count>kMaxComponents' in verify

@@ -11,7 +11,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('backend', default_value='auto', choices=['auto', 'vulkan', 'cpu']),
         DeclareLaunchArgument('serial', default_value=''),
-        DeclareLaunchArgument('profile', default_value='720p', choices=['vga', '720p', '1080p']),
+        DeclareLaunchArgument('profile', default_value='realtime', choices=['realtime', 'medium', 'high_quality', 'vga', '720p', '1080p']),
         ComposableNodeContainer(
             name='resident_rgbd_container', namespace='',
             package='rclcpp_components', executable='component_container',
