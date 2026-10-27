@@ -1,0 +1,12 @@
+{"case": "base", "wall_p50_ms": 4.0536675, "CPU_p50_ms": 4.0342565, "parity": true}
+{"case": "invalid-hole", "wall_p50_ms": 3.3509735, "CPU_p50_ms": 3.3325, "parity": true}
+{"case": "touching-depth-children", "wall_p50_ms": 3.450671, "CPU_p50_ms": 3.4330425, "parity": true}
+{"case": "nonplanar-two-face", "wall_p50_ms": 4.2363365, "CPU_p50_ms": 4.2185625, "parity": true}
+{"case": "sensor-edge", "wall_p50_ms": 3.764337, "CPU_p50_ms": 3.7482095, "parity": true}
+{"case": "sparse-concave", "wall_p50_ms": 3.3710405, "CPU_p50_ms": 3.3531995, "parity": true}
+{"case": "partial-observation-roi", "wall_p50_ms": 4.116741, "CPU_p50_ms": 4.095718, "parity": true}
+{"case": "partial-pickup-roi", "wall_p50_ms": 4.1526085, "CPU_p50_ms": 4.131834, "parity": true}
+{"case": "distortion-4", "wall_p50_ms": 4.175572, "CPU_p50_ms": 4.1526005, "parity": true}
+{"case": "distortion-5", "wall_p50_ms": 4.171144, "CPU_p50_ms": 4.1478705, "parity": true}
+{"case": "distortion-8", "wall_p50_ms": 4.1657385, "CPU_p50_ms": 4.143257, "parity": true}
+{"case": "large-gray-support", "wall_p50_ms": 7.8466885, "CPU_p50_ms": 7.8175775, "parity": true}

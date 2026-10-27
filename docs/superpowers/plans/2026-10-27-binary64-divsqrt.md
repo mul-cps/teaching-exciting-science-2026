@@ -62,4 +62,6 @@ Signed zeros and all infinity/NaN combinations; subnormal inputs/results and und
 - [x] A separate reviewer checks finite correction bounds, shifts/overflow and absence of new allocation/sync/host work. Add an actual CPU per-operation benchmark and static negative guards before GPU execution. These numbers are host arithmetic costs, not station FPS.
 - [x] After semantic/resource approval, run the frozen diagnostic on actual Intel and AMD with explicit ICDs. Require byte-exact expected results; retain failures and all source/compiler/device/driver pins. Do not restart station services or acquire hardware cameras/arms.
 - [x] Run the canonical pinned CPU suite and relevant native builds after source freeze. Recheck old geometry SPIR-V/capabilities and existing arithmetic without weakening gates.
-- [ ] Independently review and commit the coherent source/evidence checkpoint, push the feature branch, verify remote SHA, and continue complete geometry, deployment, physical cycles and workshop release. Main remains gated on the complete objective.
+- [x] Independently review and commit the coherent source/evidence checkpoint, push the feature branch, and verify the remote SHA.
+
+The full workshop goal remains active after this arithmetic checkpoint: complete geometry, deployment, physical cycles and the workshop release. Main remains gated on that complete objective.

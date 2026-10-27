@@ -1,0 +1,50 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_________________ test_divsqrt_generation_validation_and_kind __________________
+
+executable = PosixPath('/tmp/pytest-of-bjoern/pytest-584/soft-binary64-probe0/probe')
+tmp_path = PosixPath('/tmp/pytest-of-bjoern/pytest-584/test_divsqrt_generation_valida0')
+
+    def test_divsqrt_generation_validation_and_kind(executable,tmp_path):
+>    a=tmp_path/'a.bin';b=tmp_path/'b.bin';report=invoke(executable,'--generate-divsqrt',a,'--count',16384)
+                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_soft_binary64_divsqrt_probe.py:10: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+executable = PosixPath('/tmp/pytest-of-bjoern/pytest-584/soft-binary64-probe0/probe')
+success = True
+args = ('--generate-divsqrt', PosixPath('/tmp/pytest-of-bjoern/pytest-584/test_divsqrt_generation_valida0/a.bin'), '--count', 16384)
+result = CompletedProcess(args=['/tmp/pytest-of-bjoern/pytest-584/soft-binary64-probe0/probe', '--generate-divsqrt', '/tmp/pyte...-seed 17 --testfloat-dir DIR] | --validate CORPUS | --validate-spirv SPIRV | --vulkan CORPUS SPIRV NEW_OUTPUT_DIR"}\n')
+@py_assert1 = 1
+
+    def invoke(executable, *args, success=True):
+        result = subprocess.run([str(executable), *map(str, args)], text=True,
+                                capture_output=True, timeout=30)
+        if success:
+>           assert result.returncode == 0, result.stderr
+E           AssertionError: {"status":"error","error":"usage: --generate NEW_CORPUS [--count 65536 --seed 17 --testfloat-dir DIR] | --validate CORPUS | --validate-spirv SPIRV | --vulkan CORPUS SPIRV NEW_OUTPUT_DIR"}
+E             
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['/tmp/pytest-of-bjoern/pytest-584/soft-binary64-probe0/probe', '--generate-divsqrt', '/tmp/pyte...-seed 17 --testfloat-dir DIR] | --validate CORPUS | --validate-spirv SPIRV | --vulkan CORPUS SPIRV NEW_OUTPUT_DIR"}\n').returncode
+
+tests/test_soft_binary64_probe.py:32: AssertionError
+________________ test_distinct_shader_compiles_and_kind_marker _________________
+
+executable = PosixPath('/tmp/pytest-of-bjoern/pytest-584/soft-binary64-probe0/probe')
+tmp_path = PosixPath('/tmp/pytest-of-bjoern/pytest-584/test_distinct_shader_compiles_0')
+
+    def test_distinct_shader_compiles_and_kind_marker(executable,tmp_path):
+     compiler=Path('/home/bjoern/.local/opt/slang-2026.19/bin/slangc');validator=Path('/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-val');disassembler=validator.with_name('spirv-dis')
+     if not compiler.is_file():pytest.skip('qualified offline Slang unavailable')
+>    assert SHADER.is_file();source=SHADER.read_text();assert 'sf64_div_bits(' in source and 'sf64_sqrt_bits(' in source
+     ^^^^^^^^^^^^^^^^^^^^^^^
+E    AssertionError: assert False
+E     +  where False = is_file()
+E     +    where is_file = PosixPath('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/performance/soft_binary64_divsqrt_probe.slang').is_file
+
+tests/test_soft_binary64_divsqrt_probe.py:25: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_soft_binary64_divsqrt_probe.py::test_divsqrt_generation_validation_and_kind
+FAILED tests/test_soft_binary64_divsqrt_probe.py::test_distinct_shader_compiles_and_kind_marker
+2 failed in 0.88s

@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/full-geometry-cpu-budget-20261027/profile_geometry.py", line 59, in <module>
+    assert snap==case
+           ^^^^^^^^^^
+AssertionError

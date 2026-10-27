@@ -1,0 +1,109 @@
+{
+  "verdict": "APPROVE isolated dual-device software binary64 arithmetic diagnostic, no geometry/QR/station/per-frame-performance admission",
+  "head": "6f87074e621a8a8aa0c5b9941a1489df39fed65e",
+  "branch": "feat/beginner-vulkan-20261022",
+  "AMD_review_sha256": "ae207291d69b6e344ba5d68581c1c458e5acd6d5abc4bc7d87734ef730b5162c",
+  "Intel_author_proof_sha256": "a847239f25bf95db82157564b6c15d5ab29623317974fd9863b262af638a339e",
+  "Intel_build_pins_sha256": "64f31decc2c6d652812666e42359b52ea799a289b687bb8025012b2fadef9bc3",
+  "Intel_archive_sha256": "572d84ad3d94263b1c2fef3d179bfe4cef548eae391392474ec461d77080bb7b",
+  "Intel_archive_members_verified": 137,
+  "Intel_inventory_entries_verified": 136,
+  "Intel_runtime_preflight_pins": 31,
+  "Intel_header_pins_recorded": 331,
+  "Intel_relevant_Core_source_API_pins_independently_verified": {
+    "include/so101_station_vulkan/pipeline.hpp": "e145310402b0328e8173e9eee358e4bdf931f8672800bb0fc1594b91f1ce0f8b",
+    "src/vulkan_context.cpp": "c31886988dfdc31df69f40c8e96b11bb70f8ae1db2b749c14869642d34bd0c88",
+    "src/frame_pool.cpp": "6f0afbb259e3733495b1c479f8659bac2c9930f97d1f9d44d12ef08735101011",
+    "src/gpu_pipeline.cpp": "28646b4fa2e84375492d3e705ab3506a2b01c63d1f34d7623038df4f8b6a321b"
+  },
+  "Intel_executable_sha256": "c3aab15f62ed1ea35a5553613f6ec14bef11154f2ee866b39f0832e0a851d3c6",
+  "Intel_ICD_manifest_pin": {
+    "path": "/usr/share/vulkan/icd.d/intel_icd.json",
+    "sha256": "09e7ca55461c3f2d65e5df6a6b8f06a7ce2c86fc58a93a18d2dbe3575623de83",
+    "bytes": 137
+  },
+  "Intel_trials": [
+    {
+      "kind": "SF64D001",
+      "rows": 1147832,
+      "words": 4591328,
+      "output_bytes": 36730624,
+      "expected_actual_sha256": "9a5430ee8a54685c0066ad6977492d3b561bb46d2c3e248dbce5c08342859310",
+      "corpus_sha256": "ae5ad399de8aef39fa4b11a3206e8df261a7c535f6987668cf0c6e7d0747e1e1",
+      "spirv_sha256": "d34d2f8bde36d9296d07c791589c461a8900100c1714dd64870a6e2c9ede9fa2",
+      "result_sha256": "f4f63be0a0a0c21008299a1e29f81dd5fae4b60c00b214dac89696c5ab0c4b64",
+      "device": "Intel(R) Graphics (ADL-N)",
+      "vendor_id": 32902,
+      "device_id": 18129,
+      "driver_version": 104865800,
+      "api_version": 4211006,
+      "physical_int64": 1,
+      "enabled_int64": 1,
+      "physical_float64": 0,
+      "enabled_float64": 0
+    },
+    {
+      "kind": "SF64P001",
+      "rows": 65536,
+      "words": 262144,
+      "output_bytes": 2097152,
+      "expected_actual_sha256": "486bf206e27e8ed88ce54e5d7eb5d2b5a2fe8adfcfd5e99c220dbd6ab4328ec5",
+      "corpus_sha256": "5efc8cdbd62a5d086e56f316194038cae81254de86a70c0959612c8e7b628b8a",
+      "spirv_sha256": "a68c380a5558b6e3af5c7e6e541a0ddf654ae6e50b1e8998d6f5125918581d8a",
+      "result_sha256": "74e44bfe11c976940276784c0557120fe134c780abf201a58d09133658458ae1",
+      "device": "Intel(R) Graphics (ADL-N)",
+      "vendor_id": 32902,
+      "device_id": 18129,
+      "driver_version": 104865800,
+      "api_version": 4211006,
+      "physical_int64": 1,
+      "enabled_int64": 1,
+      "physical_float64": 0,
+      "enabled_float64": 0
+    }
+  ],
+  "Intel_closure_checks": [
+    {
+      "name": "divsqrt",
+      "observed_prepinned_shared_libraries": 28,
+      "non_ELF_data": [
+        "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/cache/mesa_shader_cache/index",
+        "/etc/ld.so.cache"
+      ],
+      "mapping_union_snapshot_files": 20,
+      "observed_Intel_ICD_sha256": "01a6aa501cf9f4cb87ea0b3c9465317e783ff58d1c021b5b59d09f8e6ecde857",
+      "source_binary_headers_runtime_postcheck": true,
+      "initial_success_output_identical": true,
+      "success_sha256": "a83cc2b87751e20bf4294ab5d17c25206735284a45f5fcb48f95a28823eb671f",
+      "watchdog_sha256": "354105c1d8c3872af860f2c0a20df3b81b14235b1d796a5c15cbb02cac235483"
+    },
+    {
+      "name": "primitive",
+      "observed_prepinned_shared_libraries": 28,
+      "non_ELF_data": [
+        "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/cache/mesa_shader_cache/index"
+      ],
+      "mapping_union_snapshot_files": 16,
+      "observed_Intel_ICD_sha256": "01a6aa501cf9f4cb87ea0b3c9465317e783ff58d1c021b5b59d09f8e6ecde857",
+      "source_binary_headers_runtime_postcheck": true,
+      "initial_success_output_identical": true,
+      "success_sha256": "4961c7cb1a2c9bb37be0e64d858fc1efb87dbfba744c89b4ecb46c1a00b4c693",
+      "watchdog_sha256": "e491316553c50d9d8a8f2c5b39dda32468ae5eef92182410408b3b21cb66e9b2"
+    }
+  ],
+  "cross_device_output_hashes_match_expected": true,
+  "words_compared_per_device": 4853472,
+  "total_words_compared": 9706944,
+  "source_pins": {
+    "ros2/src/so101_station_vulkan/shaders/soft_binary64.slang": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+    "ros2/src/so101_station_vulkan/third_party/softfloat/provenance.json": "4504697e3e600ee01f031e301ca0902a7e4f21e02503cc00ddd9c0a744e2f806",
+    "ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp": "8d7279bb0d75e59409d859c8b3a338955ca365c72d84615ac1a0babba40db5b8",
+    "tests/test_soft_binary64_divsqrt.py": "5cd745a002f48dfd13e7e6b9ee3ab2a3de2874275afb0af805bd211e9070e7ab",
+    "tools/performance/soft_binary64_divsqrt_probe.slang": "24ab6c8df95b66cf56312739d8cede0ff75d461cc953c35d0e06a6987ec31647",
+    "tools/performance/qualify_soft_binary64.cpp": "01eb382d6035861818f636f06d24e3b7b4ec1d5ca0ec87ce7e571350529ab4ed",
+    "tests/test_soft_binary64_divsqrt_probe.py": "c1f651ac316d4801102e533da228582d97cfaf47026c2286a3d53b83b45c8a9e",
+    "tools/performance/README.md": "feb49c600044b7798b833b8b9c8267d3266ddbc005fc99da9b97693ef885ba29"
+  },
+  "history": "AMD first successes repeated to prepin implicit Mesa device-select; Intel first successes repeated to retain mapping union, non-ELF cache classification and tar-directory packaging corrections preserved; every initial/final raw output hash identical. No numerical failure or oracle change.",
+  "boundary": "Reviewer executed only local hashing, parsing and direct extraction of stored corpus words3..6. No numerical regeneration/GPU/SSH/ROS/services/hardware. Recorded process wall/CPU is isolated diagnostic setup+dispatch+transfer+validation+output, not GPU/per-frame timing. AMD Float64 enabled but neither shader requires it; Intel physical/enabled Float64=0 confirms that boundary. Core reuse is narrow immutable Context/Buffer/API identity, not current full ROS build."
+}

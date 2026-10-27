@@ -1,0 +1,71 @@
+{
+  "kind": "full-vulkan-qualifier-compile-only",
+  "gpu_executed": false,
+  "binary_executed": false,
+  "source_sha256": "01eb382d6035861818f636f06d24e3b7b4ec1d5ca0ec87ce7e571350529ab4ed",
+  "helper_sha256": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+  "flags": [
+    "-std=c++17",
+    "-O2",
+    "-ffp-contract=off",
+    "-fno-fast-math",
+    "-frounding-math",
+    "-Wall",
+    "-Wextra",
+    "-Wno-missing-field-initializers"
+  ],
+  "installed_headers": "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/include",
+  "vulkan_headers": "/tmp/observed-children-native-20261027/local/build/so101_station_vulkan/vulkan-sdk",
+  "pins": [
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/qualify-vulkan-compile-only",
+      "sha256": "e4fbeb67f9007ca4b4707858c8fc604a295c09aa88c3a8639080683ef6e82b9f",
+      "bytes": 98560
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/full-build.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/full-build-ldd.txt",
+      "sha256": "2bd599d6a82468807d352aef75af06c55bc125f8df72bcd846fcb0a2c165a6d0",
+      "bytes": 519
+    },
+    {
+      "path": "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/libresident_rgbd.so",
+      "sha256": "33a2deeff920bb3934b81e907beeb375d5b8546da6ae6058f3c41087418e4dd1",
+      "bytes": 113008
+    },
+    {
+      "path": "/usr/lib64/ld-linux-x86-64.so.2",
+      "sha256": "4e5d39355699e90fa29313d3100e82af4a23290028c58c364d6a249ef6a78e5e",
+      "bytes": 1002600
+    },
+    {
+      "path": "/usr/lib64/libc.so.6",
+      "sha256": "a5c5ad9d59d3c69eda93aa8f82930ba06cc4e893a113e66c85ad6e96243d53c8",
+      "bytes": 2482096
+    },
+    {
+      "path": "/usr/lib64/libgcc_s-16-20260819.so.1",
+      "sha256": "c71a62b5ef442ab8cf4470874dee6f2383d73a744f0006b6d287412f131c2e09",
+      "bytes": 186512
+    },
+    {
+      "path": "/usr/lib64/libm.so.6",
+      "sha256": "16a03ce6d24c8a46742206d4a9c1d35bb6577ae2384f153dc6ef4a4b62b5357f",
+      "bytes": 1153848
+    },
+    {
+      "path": "/usr/lib64/libstdc++.so.6.0.36",
+      "sha256": "fc224ee3cc56b9b3e58453bfb9a0cac3a696e60fd33ba48b6a30eb22b76cc867",
+      "bytes": 2884696
+    },
+    {
+      "path": "/usr/lib64/libvulkan.so.1.4.341",
+      "sha256": "a09dab583a4b8e50bba61d1284b46b9d6256300713aa1db6f20f06b2dbbe0696",
+      "bytes": 569952
+    }
+  ]
+}

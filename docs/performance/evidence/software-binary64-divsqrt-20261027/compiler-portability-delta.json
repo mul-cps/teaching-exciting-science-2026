@@ -1,0 +1,24 @@
+{
+  "verdict": "APPROVE one-line test compiler-portability delta only",
+  "old_test_sha256": "b2bcb989975abf3c83916150001715922ada9745a6435b30e546ffc48472e86b",
+  "new_test_sha256": "5cd745a002f48dfd13e7e6b9ee3ab2a3de2874275afb0af805bd211e9070e7ab",
+  "change": "Remove workstation-specific UBSan default; existing build() falls back compiler override -> CXX -> c++",
+  "command": "SF64_UBSAN_CXX=/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-g++ /tmp/workshop-test-pinned313-20261027/bin/python -m pytest -q tests/test_soft_binary64_divsqrt.py::test_undefined_behavior_sanitizer",
+  "result": ".                                                                        [100%]\n1 passed in 0.82s",
+  "compiler_sha256": "e802ef021bccd09d2ae1dae3f9400e53ab2c2c7bc2b4e47dc29a81c7ec3bcd31",
+  "unchanged_source_pins": {
+    "ros2/src/so101_station_vulkan/shaders/soft_binary64.slang": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+    "ros2/src/so101_station_vulkan/third_party/softfloat/provenance.json": "4504697e3e600ee01f031e301ca0902a7e4f21e02503cc00ddd9c0a744e2f806",
+    "ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp": "8d7279bb0d75e59409d859c8b3a338955ca365c72d84615ac1a0babba40db5b8",
+    "tools/performance/soft_binary64_divsqrt_probe.slang": "24ab6c8df95b66cf56312739d8cede0ff75d461cc953c35d0e06a6987ec31647",
+    "tools/performance/qualify_soft_binary64.cpp": "01eb382d6035861818f636f06d24e3b7b4ec1d5ca0ec87ce7e571350529ab4ed",
+    "tests/test_soft_binary64_divsqrt_probe.py": "c1f651ac316d4801102e533da228582d97cfaf47026c2286a3d53b83b45c8a9e",
+    "tools/performance/README.md": "feb49c600044b7798b833b8b9c8267d3266ddbc005fc99da9b97693ef885ba29",
+    "tests/test_soft_binary64_perf.py": "2b6103431351822c496c279fa58e4eadce1235df9dd36d6c4c06fce5e4b13e75"
+  },
+  "unchanged_author_artifacts_checked": 39,
+  "prior_semantic_proof_sha256": "caec45ef93306ab1aa6707653d90d7367c041769366b7b48ecd7f3afa3b77b70",
+  "prior_author_proof_sha256": "a798ddb62dbe81d36c6f55d5c3e88b4563a0ddbbfa77e5c635cc34ed41148c14",
+  "numeric_oracle_shader_corpus_changes": false,
+  "repository_edits_by_reviewer": false
+}

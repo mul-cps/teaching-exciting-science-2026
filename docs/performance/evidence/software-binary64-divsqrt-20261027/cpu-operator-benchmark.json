@@ -1,0 +1,310 @@
+{
+  "scope": "CPU arithmetic only; excludes GPU and station performance",
+  "operations_per_trial": 32768,
+  "warmup_trials": 2,
+  "trials": 7,
+  "rounding": "nearest ties even; FTZ/DAZ disabled",
+  "scenarios": [
+    {
+      "population": "ordinary",
+      "operation": "div",
+      "hot_heap_allocations": 0,
+      "input_bytes": 16384,
+      "checksum": 11715135246229031520,
+      "software_p50_ns": 216.57,
+      "native_p50_ns": 1.70151,
+      "software_cpu_p50_ns": 216.057,
+      "native_cpu_p50_ns": 1.70667,
+      "software_samples_ns": [
+        218.837,
+        217.572,
+        217.265,
+        216.57,
+        201.075,
+        169.633,
+        163.867
+      ],
+      "native_samples_ns": [
+        1.70456,
+        1.70242,
+        1.70303,
+        1.70151,
+        1.31476,
+        1.30801,
+        1.29395
+      ],
+      "software_cpu_samples_ns": [
+        218.358,
+        217.175,
+        216.766,
+        216.057,
+        200.296,
+        169.235,
+        163.661
+      ],
+      "native_cpu_samples_ns": [
+        1.70944,
+        1.70731,
+        1.70853,
+        1.70667,
+        1.32083,
+        1.31165,
+        1.30157
+      ]
+    },
+    {
+      "population": "ordinary",
+      "operation": "sqrt",
+      "hot_heap_allocations": 0,
+      "input_bytes": 16384,
+      "checksum": 13175481513721560064,
+      "software_p50_ns": 179.999,
+      "native_p50_ns": 1.91064,
+      "software_cpu_p50_ns": 179.779,
+      "native_cpu_p50_ns": 1.91431,
+      "software_samples_ns": [
+        179.54,
+        176.02,
+        174.768,
+        179.999,
+        180.049,
+        181.199,
+        183.914
+      ],
+      "native_samples_ns": [
+        1.90881,
+        1.91064,
+        1.91342,
+        1.59543,
+        1.62875,
+        1.95255,
+        2.01031
+      ],
+      "software_cpu_samples_ns": [
+        179.328,
+        175.799,
+        174.597,
+        179.779,
+        179.796,
+        180.947,
+        183.496
+      ],
+      "native_cpu_samples_ns": [
+        1.91275,
+        1.91431,
+        1.91705,
+        1.59909,
+        1.63242,
+        1.95618,
+        2.01398
+      ]
+    },
+    {
+      "population": "subnormal",
+      "operation": "div",
+      "hot_heap_allocations": 0,
+      "input_bytes": 16384,
+      "checksum": 12406130317396410240,
+      "software_p50_ns": 171.856,
+      "native_p50_ns": 2.71692,
+      "software_cpu_p50_ns": 171.6,
+      "native_cpu_p50_ns": 2.72086,
+      "software_samples_ns": [
+        180.739,
+        176.794,
+        173.974,
+        171.856,
+        170.804,
+        167.886,
+        164.717
+      ],
+      "native_samples_ns": [
+        2.75638,
+        2.82791,
+        2.71692,
+        2.71661,
+        2.77472,
+        2.71112,
+        2.54938
+      ],
+      "software_cpu_samples_ns": [
+        180.33,
+        176.52,
+        173.718,
+        171.6,
+        170.626,
+        167.544,
+        164.378
+      ],
+      "native_cpu_samples_ns": [
+        2.76123,
+        2.77988,
+        2.72086,
+        2.72025,
+        2.72852,
+        2.71475,
+        2.55301
+      ]
+    },
+    {
+      "population": "subnormal",
+      "operation": "sqrt",
+      "hot_heap_allocations": 0,
+      "input_bytes": 16384,
+      "checksum": 62526655384867040,
+      "software_p50_ns": 182.499,
+      "native_p50_ns": 3.72867,
+      "software_cpu_p50_ns": 182.09,
+      "native_cpu_p50_ns": 3.7323,
+      "software_samples_ns": [
+        179.018,
+        179.762,
+        185.183,
+        185.411,
+        185.241,
+        182.499,
+        178.533
+      ],
+      "native_samples_ns": [
+        3.55225,
+        3.55164,
+        3.73816,
+        3.8476,
+        3.73203,
+        3.72867,
+        3.61398
+      ],
+      "software_cpu_samples_ns": [
+        178.475,
+        178.869,
+        184.67,
+        184.824,
+        184.667,
+        182.09,
+        178.082
+      ],
+      "native_cpu_samples_ns": [
+        3.55585,
+        3.55524,
+        3.74207,
+        3.76071,
+        3.73566,
+        3.7323,
+        3.61734
+      ]
+    },
+    {
+      "population": "special",
+      "operation": "div",
+      "hot_heap_allocations": 0,
+      "input_bytes": 16384,
+      "checksum": 16465160237666533376,
+      "software_p50_ns": 9.24902,
+      "native_p50_ns": 2.30569,
+      "software_cpu_p50_ns": 9.24924,
+      "native_cpu_p50_ns": 2.31238,
+      "software_samples_ns": [
+        9.22,
+        9.24902,
+        9.31323,
+        9.22183,
+        9.24509,
+        9.46948,
+        9.46643
+      ],
+      "native_samples_ns": [
+        2.30048,
+        2.29929,
+        2.30569,
+        2.30447,
+        2.39069,
+        2.31546,
+        2.31638
+      ],
+      "software_cpu_samples_ns": [
+        9.22354,
+        9.25226,
+        9.24924,
+        9.22507,
+        9.2486,
+        9.47607,
+        9.46997
+      ],
+      "native_cpu_samples_ns": [
+        2.30383,
+        2.30289,
+        2.31238,
+        2.30777,
+        2.33838,
+        2.31912,
+        2.32001
+      ]
+    },
+    {
+      "population": "special",
+      "operation": "sqrt",
+      "hot_heap_allocations": 0,
+      "input_bytes": 16384,
+      "checksum": 7638104968020358336,
+      "software_p50_ns": 19.6991,
+      "native_p50_ns": 3.17404,
+      "software_cpu_p50_ns": 19.6414,
+      "native_cpu_p50_ns": 3.17795,
+      "software_samples_ns": [
+        19.6991,
+        19.5915,
+        19.6352,
+        19.8798,
+        19.9981,
+        19.6129,
+        19.8446
+      ],
+      "native_samples_ns": [
+        3.16516,
+        3.16333,
+        3.17404,
+        3.17249,
+        3.17587,
+        3.18961,
+        3.19696
+      ],
+      "software_cpu_samples_ns": [
+        19.6414,
+        19.5979,
+        19.5884,
+        19.7957,
+        19.9477,
+        19.6162,
+        19.7792
+      ],
+      "native_cpu_samples_ns": [
+        3.17184,
+        3.16696,
+        3.17795,
+        3.17615,
+        3.17978,
+        3.19327,
+        3.20059
+      ]
+    }
+  ],
+  "compile_command": [
+    "g++",
+    "-std=c++17",
+    "-O2",
+    "-ffp-contract=off",
+    "-fno-fast-math",
+    "-frounding-math",
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_perf_benchmark.cpp",
+    "-o",
+    "/tmp/pytest-of-bjoern/pytest-624/test_actual_divsqrt_cpu_cost0/divsqrt_perf"
+  ],
+  "compiler": "g++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "platform": "Linux-7.2.8-200.fc44.x86_64-x86_64-with-glibc2.43",
+  "cpu": "\t: AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+  "source_sha256": {
+    "ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_perf_benchmark.cpp": "b13a276ed6c567993d8b6d501c60905f5497027d5906be39138b8f4856379bac",
+    "ros2/src/so101_station_vulkan/shaders/soft_binary64.slang": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+    "tests/test_soft_binary64_divsqrt_perf.py": "cfd697b191e9c0bf78c390fc883894a6098ae2a08b26dd51751458d5cc67946d"
+  }
+}

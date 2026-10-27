@@ -1,0 +1,53 @@
+{
+  "verdict": "APPROVE CPU/offline semantic and bounded-resource prerequisite only; actual GPU qualification remains required",
+  "worktree": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022",
+  "branch": "feat/beginner-vulkan-20261022",
+  "head": "6f87074e621a8a8aa0c5b9941a1489df39fed65e",
+  "source_pins": {
+    "ros2/src/so101_station_vulkan/shaders/soft_binary64.slang": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+    "ros2/src/so101_station_vulkan/third_party/softfloat/provenance.json": "4504697e3e600ee01f031e301ca0902a7e4f21e02503cc00ddd9c0a744e2f806",
+    "ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp": "8d7279bb0d75e59409d859c8b3a338955ca365c72d84615ac1a0babba40db5b8",
+    "tests/test_soft_binary64_divsqrt.py": "b2bcb989975abf3c83916150001715922ada9745a6435b30e546ffc48472e86b",
+    "tools/performance/soft_binary64_divsqrt_probe.slang": "24ab6c8df95b66cf56312739d8cede0ff75d461cc953c35d0e06a6987ec31647",
+    "tools/performance/qualify_soft_binary64.cpp": "01eb382d6035861818f636f06d24e3b7b4ec1d5ca0ec87ce7e571350529ab4ed",
+    "tests/test_soft_binary64_divsqrt_probe.py": "c1f651ac316d4801102e533da228582d97cfaf47026c2286a3d53b83b45c8a9e",
+    "tools/performance/README.md": "feb49c600044b7798b833b8b9c8267d3266ddbc005fc99da9b97693ef885ba29",
+    "tests/test_soft_binary64_perf.py": "2b6103431351822c496c279fa58e4eadce1235df9dd36d6c4c06fce5e4b13e75"
+  },
+  "author_proof_sha256": "a798ddb62dbe81d36c6f55d5c3e88b4563a0ddbbfa77e5c635cc34ed41148c14",
+  "author_pins_independently_checked": {
+    "source_pins": 8,
+    "tool_pins": 6,
+    "runtime_library_pins": 11,
+    "upstream_pins": 2,
+    "artifact_pins": 39
+  },
+  "independent_tests": {
+    "focused": "35 passed in 9.36s, no skips",
+    "exact_integer": {
+      "pairs": 30547,
+      "matched": true,
+      "oracle": "Python unbounded-integer exact ratio RNE and isqrt/midpoint comparison; no native floating arithmetic",
+      "covers": "all finite encoded exponents, five fraction boundaries, both signs, 10000 random pairs, explicit specials",
+      "helper_sha256": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d"
+    },
+    "loop_guard": "7 retained negative cases passed in focused suite; 3 additional private start-bound/foreign-location mutants rejected, 10 total; whole-file keyword position equality is not a general for whitelist"
+  },
+  "recurrence_review": {
+    "division": "62 steps61..0; normalized denominator2^52..2^53-1; remainder<denominator and doubled<2^54; quotient in[2^62,2^63); residual sticky plus existing10-bit RNE round; exponent -1076..3119",
+    "sqrt": "63 steps62..0; unbiased exponent -1074..1023, floor half -537..511, parity0/1; conceptual sig<<(72+parity)<2^126; restoring remainder invariant r<2root+1; unsigned lost carry accounted by mandatory subtraction; final sqrt cannot underflow finite-positive binary64",
+    "shifts": "normalization1..52 for nonzero subnormals; high8/9; division bit0..61; actual SPIR-V digit branch dominates shift, pair32..62 => count0..60; shared jam guards0/1..62/>=63"
+  },
+  "actual_spirv": {
+    "sha256": "d34d2f8bde36d9296d07c791589c461a8900100c1714dd64870a6e2c9ede9fa2",
+    "disassembly_sha256": "92360d51536881c9bbbc1b1d08c1940309a41fdbb33421bd28a571e3fa104d29",
+    "shift_guard_lines": [
+      725,
+      737
+    ],
+    "guard_excerpt_sha256": "873aaf446bfad15fbbedb043bcb32164c28591bd3298d4967c88ce13df970749"
+  },
+  "compatibility": "shared helper old text byte-identical after removing two new functions; oldP00165,536-row corpus and JSON byte-identical to immutable HEAD qualifier baseline",
+  "protocol_review": "distinctD0018-byte magic,24-byte header,seven U64row,1..4Mcount/exactlength/word ranges; native oracle independent from helper, official expectations crosschecked; wrong shader-kind rejected before Context/output resource allocation; oldCLI summaries unchanged",
+  "scope": "No repository edits, GPU/ROS/services/SSH/USB. Diagnostic batches/readbacks are explicit output, not a new station hot path; no geometry/QR/full-station or exception-flag/NaN-payload qualification."
+}

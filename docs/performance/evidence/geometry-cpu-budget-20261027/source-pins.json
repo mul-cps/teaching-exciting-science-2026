@@ -1,0 +1,9 @@
+{
+  "ros2/src/so101_station_objects/so101_station_objects/objects.py": "4f11ebcd55bb801f9a9e425a1a6a7aa373152c3d1ed738469b4662519c04b5f9",
+  "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "32df75dbc4bd21b99949cd8683fc6dc0300b91818330110c38ef709db52a6a1e",
+  "ros2/src/so101_station_objects/so101_station_objects/percentile.py": "5c65d7d3e23c9f14921775f117a0ddaf70127be2711496bc019dc4b50d073106",
+  "ros2/src/so101_station_objects/so101_station_objects/color_mask_backend.py": "52350f7d664428fa437022fb3bbd3e93761501492a02bbcecb21e0dbed3a27b6",
+  "workshop/digital_twin/grasp_geometry.py": "9165c9515a8b83760bdf38cd036e2fbb3b088a8da5cc29d8df21d6cdbd5ff0e5",
+  "tools/propose_rgbd_grasp.py": "47eb0ec6e9cbc9917506fa355593eaab1188e6c270d4104bc7db41e3c183c90e",
+  "tools/native_geometry_oracle.py": "d4ac49f21a1cd15151e3b589b760c594c576aac096fe7ce401bed4eee64b5452"
+}

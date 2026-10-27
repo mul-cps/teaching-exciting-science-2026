@@ -1,0 +1,612 @@
+{
+  "kind": "soft-binary64-divsqrt-task1-2-cpu-offline-only",
+  "gpu_executed": false,
+  "head": "6f87074e621a8a8aa0c5b9941a1489df39fed65e",
+  "python": {
+    "executable": "/tmp/workshop-test-pinned313-20261027/bin/python",
+    "version": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]"
+  },
+  "official_vector_counts": {
+    "f64_div": 46464,
+    "f64_sqrt": 768,
+    "f32_to_f64": 600
+  },
+  "old_primitive_baseline_commit": "6f87074e621a8a8aa0c5b9941a1489df39fed65e",
+  "old_primitive_corpus_bytes_equal": true,
+  "old_primitive_summary_equal": true,
+  "commands": [
+    [
+      "c++",
+      "-std=c++17",
+      "-O2",
+      "-ffp-contract=off",
+      "-fno-fast-math",
+      "-frounding-math",
+      "-Wall",
+      "-Wextra",
+      "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp",
+      "-o",
+      "/tmp/soft-binary64-divsqrt-20261027/host"
+    ],
+    [
+      "/tmp/soft-binary64-divsqrt-20261027/host"
+    ],
+    [
+      "/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-g++",
+      "-std=c++17",
+      "-O2",
+      "-ffp-contract=off",
+      "-fno-fast-math",
+      "-frounding-math",
+      "-Wall",
+      "-Wextra",
+      "-fsanitize=undefined",
+      "-fno-sanitize-recover=undefined",
+      "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp",
+      "-o",
+      "/tmp/soft-binary64-divsqrt-20261027/host-ubsan"
+    ],
+    [
+      "/tmp/soft-binary64-divsqrt-20261027/host-ubsan"
+    ],
+    [
+      "c++",
+      "-std=c++17",
+      "-O2",
+      "-ffp-contract=off",
+      "-fno-fast-math",
+      "-frounding-math",
+      "-Wall",
+      "-Wextra",
+      "-DSOFT_BINARY64_CPU_ONLY",
+      "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/performance/qualify_soft_binary64.cpp",
+      "-o",
+      "/tmp/soft-binary64-divsqrt-20261027/qualify-cpu"
+    ],
+    [
+      "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen",
+      "-level",
+      "1",
+      "-rnear_even",
+      "-tininessafter",
+      "f64_div"
+    ],
+    [
+      "/tmp/soft-binary64-divsqrt-20261027/host",
+      "f64_div",
+      "/tmp/soft-binary64-divsqrt-20261027/official/f64_div.txt"
+    ],
+    [
+      "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen",
+      "-level",
+      "1",
+      "-rnear_even",
+      "-tininessafter",
+      "f64_sqrt"
+    ],
+    [
+      "/tmp/soft-binary64-divsqrt-20261027/host",
+      "f64_sqrt",
+      "/tmp/soft-binary64-divsqrt-20261027/official/f64_sqrt.txt"
+    ],
+    [
+      "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen",
+      "-level",
+      "1",
+      "-rnear_even",
+      "-tininessafter",
+      "f32_to_f64"
+    ],
+    [
+      "/tmp/soft-binary64-divsqrt-20261027/qualify-cpu",
+      "--generate-divsqrt",
+      "/tmp/soft-binary64-divsqrt-20261027/divsqrt-1100000.bin",
+      "--count",
+      "1100000",
+      "--seed",
+      "17",
+      "--testfloat-dir",
+      "/tmp/soft-binary64-divsqrt-20261027/official"
+    ],
+    [
+      "/tmp/soft-binary64-divsqrt-20261027/qualify-cpu",
+      "--validate",
+      "/tmp/soft-binary64-divsqrt-20261027/divsqrt-1100000.bin"
+    ],
+    [
+      "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+      "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/performance/soft_binary64_divsqrt_probe.slang",
+      "-entry",
+      "main",
+      "-stage",
+      "compute",
+      "-target",
+      "spirv",
+      "-profile",
+      "sm_6_0",
+      "-fp-mode",
+      "precise",
+      "-O2",
+      "-I",
+      "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/shaders",
+      "-o",
+      "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_divsqrt_probe.spv"
+    ],
+    [
+      "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-val",
+      "--target-env",
+      "vulkan1.1",
+      "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_divsqrt_probe.spv"
+    ],
+    [
+      "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-dis",
+      "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_divsqrt_probe.spv"
+    ],
+    [
+      "/tmp/soft-binary64-divsqrt-20261027/qualify-cpu",
+      "--validate-spirv",
+      "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_divsqrt_probe.spv",
+      "--kind",
+      "SF64D001"
+    ],
+    [
+      "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+      "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/performance/soft_binary64_probe.slang",
+      "-entry",
+      "main",
+      "-stage",
+      "compute",
+      "-target",
+      "spirv",
+      "-profile",
+      "sm_6_0",
+      "-fp-mode",
+      "precise",
+      "-O2",
+      "-I",
+      "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/shaders",
+      "-o",
+      "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_probe.spv"
+    ],
+    [
+      "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-val",
+      "--target-env",
+      "vulkan1.1",
+      "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_probe.spv"
+    ],
+    [
+      "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-dis",
+      "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_probe.spv"
+    ],
+    [
+      "/tmp/soft-binary64-divsqrt-20261027/qualify-cpu",
+      "--validate-spirv",
+      "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_probe.spv",
+      "--kind",
+      "SF64P001"
+    ],
+    [
+      "git",
+      "show",
+      "6f87074e621a8a8aa0c5b9941a1489df39fed65e:tools/performance/qualify_soft_binary64.cpp"
+    ],
+    [
+      "c++",
+      "-std=c++17",
+      "-O2",
+      "-ffp-contract=off",
+      "-fno-fast-math",
+      "-frounding-math",
+      "-Wall",
+      "-Wextra",
+      "-DSOFT_BINARY64_CPU_ONLY",
+      "/tmp/soft-binary64-divsqrt-20261027/qualify-baseline.cpp",
+      "-o",
+      "/tmp/soft-binary64-divsqrt-20261027/qualify-baseline"
+    ],
+    [
+      "/tmp/soft-binary64-divsqrt-20261027/qualify-cpu",
+      "--generate",
+      "/tmp/soft-binary64-divsqrt-20261027/old-current.bin",
+      "--count",
+      "65536",
+      "--seed",
+      "17"
+    ],
+    [
+      "/tmp/soft-binary64-divsqrt-20261027/qualify-baseline",
+      "--generate",
+      "/tmp/soft-binary64-divsqrt-20261027/old-baseline.bin",
+      "--count",
+      "65536",
+      "--seed",
+      "17"
+    ],
+    [
+      "which",
+      "c++"
+    ],
+    [
+      "/usr/bin/c++",
+      "--version"
+    ],
+    [
+      "/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-g++",
+      "--version"
+    ],
+    [
+      "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+      "-version"
+    ],
+    [
+      "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-val",
+      "--version"
+    ],
+    [
+      "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-dis",
+      "--version"
+    ],
+    [
+      "ldd",
+      "/tmp/soft-binary64-divsqrt-20261027/host"
+    ],
+    [
+      "ldd",
+      "/tmp/soft-binary64-divsqrt-20261027/host-ubsan"
+    ],
+    [
+      "ldd",
+      "/tmp/soft-binary64-divsqrt-20261027/qualify-cpu"
+    ],
+    [
+      "ldd",
+      "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen"
+    ],
+    [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ]
+  ],
+  "source_pins": [
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/shaders/soft_binary64.slang",
+      "sha256": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+      "bytes": 13022
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/third_party/softfloat/provenance.json",
+      "sha256": "4504697e3e600ee01f031e301ca0902a7e4f21e02503cc00ddd9c0a744e2f806",
+      "bytes": 7521
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp",
+      "sha256": "8d7279bb0d75e59409d859c8b3a338955ca365c72d84615ac1a0babba40db5b8",
+      "bytes": 3523
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_soft_binary64_divsqrt.py",
+      "sha256": "b2bcb989975abf3c83916150001715922ada9745a6435b30e546ffc48472e86b",
+      "bytes": 2817
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/performance/soft_binary64_divsqrt_probe.slang",
+      "sha256": "24ab6c8df95b66cf56312739d8cede0ff75d461cc953c35d0e06a6987ec31647",
+      "bytes": 889
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/performance/qualify_soft_binary64.cpp",
+      "sha256": "01eb382d6035861818f636f06d24e3b7b4ec1d5ca0ec87ce7e571350529ab4ed",
+      "bytes": 26583
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_soft_binary64_divsqrt_probe.py",
+      "sha256": "c1f651ac316d4801102e533da228582d97cfaf47026c2286a3d53b83b45c8a9e",
+      "bytes": 4149
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/performance/README.md",
+      "sha256": "feb49c600044b7798b833b8b9c8267d3266ddbc005fc99da9b97693ef885ba29",
+      "bytes": 29937
+    }
+  ],
+  "tool_pins": [
+    {
+      "path": "/usr/bin/c++",
+      "sha256": "579d25c2d1e45abeed0c63a517b5c52f6d09ea811a787bf7a7c677a7fd0726f6",
+      "bytes": 1508440
+    },
+    {
+      "path": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-g++",
+      "sha256": "e802ef021bccd09d2ae1dae3f9400e53ab2c2c7bc2b4e47dc29a81c7ec3bcd31",
+      "bytes": 2177240
+    },
+    {
+      "path": "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+      "sha256": "19c0217f848537db2a87120eb1b3f882ab2e3eb54fdec4cf5300035943704145",
+      "bytes": 225304
+    },
+    {
+      "path": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-val",
+      "sha256": "075f8f6a15c15dc13ec6632ad8c054a9bb14e522a68b17a28402a6462d5057a7",
+      "bytes": 56168
+    },
+    {
+      "path": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-dis",
+      "sha256": "fda9219a7a7ede6f7aa42e5d44905d513c929cc28c361cbf6a593e1ee315913f",
+      "bytes": 170248
+    },
+    {
+      "path": "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen",
+      "sha256": "6eed86c55d10662bde201e8652a55587978609bfe020a146c0a5e2b84c7229bf",
+      "bytes": 216184
+    }
+  ],
+  "runtime_library_pins": [
+    {
+      "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libgcc_s.so.1",
+      "sha256": "5444fbe71e8cfe3bd05cdf2b44bd8c2e553e6e7e276977089b5e4e1a1ceed531",
+      "bytes": 922624
+    },
+    {
+      "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libstdc++.so.6.0.36",
+      "sha256": "10f0d3c46c070acd4abea2ccf2500ff0ec77e9b90154b82ea2720dba05510cb9",
+      "bytes": 23874544
+    },
+    {
+      "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libubsan.so.1.0.0",
+      "sha256": "0734775e369e9bc99eff0cdf6c843e30c1575b77c93cd8d0ca85d518702458e7",
+      "bytes": 3468624
+    },
+    {
+      "path": "/usr/lib64/ld-linux-x86-64.so.2",
+      "sha256": "4e5d39355699e90fa29313d3100e82af4a23290028c58c364d6a249ef6a78e5e",
+      "bytes": 1002600
+    },
+    {
+      "path": "/usr/lib64/libc.so.6",
+      "sha256": "a5c5ad9d59d3c69eda93aa8f82930ba06cc4e893a113e66c85ad6e96243d53c8",
+      "bytes": 2482096
+    },
+    {
+      "path": "/usr/lib64/libdl.so.2",
+      "sha256": "54d56c0f10466a05cc92685f8062ee6a2eaf59c62fb6f724217e984fcfbb5031",
+      "bytes": 11256
+    },
+    {
+      "path": "/usr/lib64/libgcc_s-16-20260819.so.1",
+      "sha256": "c71a62b5ef442ab8cf4470874dee6f2383d73a744f0006b6d287412f131c2e09",
+      "bytes": 186512
+    },
+    {
+      "path": "/usr/lib64/libm.so.6",
+      "sha256": "16a03ce6d24c8a46742206d4a9c1d35bb6577ae2384f153dc6ef4a4b62b5357f",
+      "bytes": 1153848
+    },
+    {
+      "path": "/usr/lib64/libpthread.so.0",
+      "sha256": "41cad1a2bda56ff226e0b08db7edfaf4ec47d876ab1414a979fd157467b6c39d",
+      "bytes": 11272
+    },
+    {
+      "path": "/usr/lib64/librt.so.1",
+      "sha256": "3a23e51370381b0ab993932341fd69643ade24869936e471e1dde2e62398d9f7",
+      "bytes": 11416
+    },
+    {
+      "path": "/usr/lib64/libstdc++.so.6.0.36",
+      "sha256": "fc224ee3cc56b9b3e58453bfb9a0cac3a696e60fd33ba48b6a30eb22b76cc867",
+      "bytes": 2884696
+    }
+  ],
+  "upstream_pins": [
+    {
+      "path": "/tmp/workshop-testfloat-reference-20261027/SoftFloat-3e/source/f64_div.c",
+      "sha256": "879f81a01150a94a48583133c526650c4c5423c5719c1f367a61c0113f88b713",
+      "bytes": 6599
+    },
+    {
+      "path": "/tmp/workshop-testfloat-reference-20261027/SoftFloat-3e/source/f64_sqrt.c",
+      "sha256": "181790dd6916704eb333c314384943fbe75f2174988d4e75b4f9f76f032d4664",
+      "bytes": 5317
+    }
+  ],
+  "artifact_pins": [
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/c++-version.txt",
+      "sha256": "1ec97cade9463bc6e46d21fb06cd72855b96218e690e869fa9e11cea2b442115",
+      "bytes": 247
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/combined-first.log",
+      "sha256": "6537e5b22cfca5d1b19b20d7de7aa6cbcd0ad2b416b811375459bdf8e2454390",
+      "bytes": 110
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/divsqrt-1100000.bin",
+      "sha256": "ae5ad399de8aef39fa4b11a3206e8df261a7c535f6987668cf0c6e7d0747e1e1",
+      "bytes": 64278616
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/divsqrt-generation.json",
+      "sha256": "089e7fa273f4f17b857b50c8e813a7f82d62d4a9ae6636aa8b0df2cae33872f0",
+      "bytes": 352
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/divsqrt-validation.json",
+      "sha256": "bd64612b4a1411f7e4255bf5fed771a3575a3941f1912d3ea8f611b8530c1f32",
+      "bytes": 348
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/f64_div-host.log",
+      "sha256": "20d0bf8460a58725f3d82fbd6fc737f57c4f4d0007d73dfbc61a731957d69a19",
+      "bytes": 32
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/f64_sqrt-host.log",
+      "sha256": "49b7603c6f566a147ac72ee7bfe5782bb1dd0d1a2ab0e1cfb8c5ad69cd9a7aa0",
+      "bytes": 31
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/focused-green.log",
+      "sha256": "c5d2b7ddcd5958552e7c985d227a14fe6407f7ad79dfe92204fc6aaa2976ec4f",
+      "bytes": 99
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/focused-pinned313.log",
+      "sha256": "72a2c4702abf1b602bf8b58d22ee8e165fe09beba36290746afc6e4b79812511",
+      "bytes": 99
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/host",
+      "sha256": "bc08db44a7588e31b7ff04b18610723bf359559432cf98e84fd1f94ea975c908",
+      "bytes": 29728
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/host-ldd.txt",
+      "sha256": "722a876fd77058dcb511e6add9d8abe2a400399d1b8629c5ec4a3ab4b3b07187",
+      "bytes": 314
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/host-million.log",
+      "sha256": "3dab42aaa6486ee36639003648a333c5b6016f1cf2f72c17f3a808b68b2b6a35",
+      "bytes": 82
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/host-ubsan",
+      "sha256": "6b8b539bfe8a7b618b0a790e4d39f03d08eabc482e615b3bf6ba14eaddad8caf",
+      "bytes": 46792
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/host-ubsan-ldd.txt",
+      "sha256": "0ca2e1f49b475ebf3b72a2a761d2f24c456135f09a9d00ee1996b5f6c456ad22",
+      "bytes": 660
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/host-ubsan-million.log",
+      "sha256": "3dab42aaa6486ee36639003648a333c5b6016f1cf2f72c17f3a808b68b2b6a35",
+      "bytes": 82
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/old-baseline.bin",
+      "sha256": "5efc8cdbd62a5d086e56f316194038cae81254de86a70c0959612c8e7b628b8a",
+      "bytes": 3670040
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/old-baseline.json",
+      "sha256": "42a027ddace9db89ed7031d06b010a35ca638f9e9128d62f547d82c99eb85098",
+      "bytes": 313
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/old-current.bin",
+      "sha256": "5efc8cdbd62a5d086e56f316194038cae81254de86a70c0959612c8e7b628b8a",
+      "bytes": 3670040
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/old-current.json",
+      "sha256": "42a027ddace9db89ed7031d06b010a35ca638f9e9128d62f547d82c99eb85098",
+      "bytes": 313
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/prepare-proof-first-version-failure.log",
+      "sha256": "b1c017db512c85be3c85482bf5377c2b451f82b5c4d75319b94a708fdb504b54",
+      "bytes": 959
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/qualify-baseline",
+      "sha256": "b6347ea4db3024c3b9ba57305e47fadb6b318a5833a89ef7b6d5257c2e8e0885",
+      "bytes": 72688
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/qualify-baseline.cpp",
+      "sha256": "5cd3ef8e6cefb9489688f4bcabc3a704cb656446863beeffd62b583b6dcc1ef6",
+      "bytes": 24396
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/qualify-cpu",
+      "sha256": "92074b7a9d0016bd4236dde1da1412c7ec502a5713ca09e1d9ccba2a61b88c20",
+      "bytes": 78056
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/qualify-cpu-ldd.txt",
+      "sha256": "dc4dd8a0b9493e98e7114495cadb2d32c672c6cc2421fbb58b494388ccb4fdf8",
+      "bytes": 314
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/slangc-version.txt",
+      "sha256": "42ad77b311af0569bbe0cbf6c7c0bf02796b72c7e159245759a2e1d66a9d73a8",
+      "bytes": 8
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_divsqrt_probe-validation.json",
+      "sha256": "78e8832fae13495c4c84082e778119da7633064d6a2021780d20f940b94e44a9",
+      "bytes": 191
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_divsqrt_probe.spv",
+      "sha256": "d34d2f8bde36d9296d07c791589c461a8900100c1714dd64870a6e2c9ede9fa2",
+      "bytes": 17684
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_divsqrt_probe.spvasm",
+      "sha256": "92360d51536881c9bbbc1b1d08c1940309a41fdbb33421bd28a571e3fa104d29",
+      "bytes": 45871
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_probe-validation.json",
+      "sha256": "952815ded8a185ba3dc1917d5794048937fc3f689314b5cc25348def231df61a",
+      "bytes": 166
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_probe.spv",
+      "sha256": "a68c380a5558b6e3af5c7e6e541a0ddf654ae6e50b1e8998d6f5125918581d8a",
+      "bytes": 24980
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_probe.spvasm",
+      "sha256": "d4488560a446508da0ee2124d240f2350647a71df9f30fedc93f27a6114710e6",
+      "bytes": 64815
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/spirv-dis-version.txt",
+      "sha256": "2ccf316f80286b9fb442be93c0984c331ad7d8c0ee07780edf18130946d7fca2",
+      "bytes": 48
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/spirv-val-version.txt",
+      "sha256": "c1a5fbaf7f46bd9a367147e607f1854f4eee47fee0c0e8202e8cc46b7d4652a1",
+      "bytes": 434
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/task1-initial-green.log",
+      "sha256": "b2112ab5f7c758a409f7564234854c558a53753c13bda00dbfefbc01b5b05a67",
+      "bytes": 3875
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/task1-red.log",
+      "sha256": "7daa14bfbc0bfa41c438328abc44fdfa3b452f6649151dfed297ec12ad521420",
+      "bytes": 5094
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/task2-red.log",
+      "sha256": "02bc7dfd9b287d3cf62a83771ef78ef8e4ed786e03c5a874130fd16b0927e7c0",
+      "bytes": 3557
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/testfloat-ldd.txt",
+      "sha256": "1ccf770bb13320f2a9f9300c77665981c46c422770c24d8dbb1c786a7e863b2c",
+      "bytes": 192
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/x86_64-conda-linux-gnu-g++-version.txt",
+      "sha256": "deed5763b338abd9a505420ad3805b0f7e0006d0b392786ccbe8c1672f0c6200",
+      "bytes": 263
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-20261027/prepare_proof.py",
+      "sha256": "225895dd935fb420a56bad0230e9642191851f1ee6d91762348b66ebab7db40a",
+      "bytes": 5388
+    }
+  ],
+  "source_posthashes_match": true
+}

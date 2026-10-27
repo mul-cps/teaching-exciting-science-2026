@@ -1,0 +1,33 @@
+Traceback (most recent call last):
+  File "/tmp/full-geometry-cpu-budget-20261027/profile_geometry.py", line 63, in <module>
+    before=oracle.analyze_reference(args);oracle.assert_report_equal(expected,before);digest,payload=report(before);(a.output/(name+'-complete-report.json')).write_bytes(payload)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/full-geometry-cpu-budget-20261027/source/tools/native_geometry_oracle.py", line 147, in assert_report_equal
+    assert_report_equal(expected[key], actual[key], path+'.'+str(key), tolerance)
+  File "/tmp/full-geometry-cpu-budget-20261027/source/tools/native_geometry_oracle.py", line 151, in assert_report_equal
+    assert_report_equal(left, right, path+f'[{i}]', tolerance)
+  File "/tmp/full-geometry-cpu-budget-20261027/source/tools/native_geometry_oracle.py", line 147, in assert_report_equal
+    assert_report_equal(expected[key], actual[key], path+'.'+str(key), tolerance)
+  File "/tmp/full-geometry-cpu-budget-20261027/source/tools/native_geometry_oracle.py", line 147, in assert_report_equal
+    assert_report_equal(expected[key], actual[key], path+'.'+str(key), tolerance)
+  File "/tmp/full-geometry-cpu-budget-20261027/source/tools/native_geometry_oracle.py", line 147, in assert_report_equal
+    assert_report_equal(expected[key], actual[key], path+'.'+str(key), tolerance)
+  File "/tmp/full-geometry-cpu-budget-20261027/source/tools/native_geometry_oracle.py", line 151, in assert_report_equal
+    assert_report_equal(left, right, path+f'[{i}]', tolerance)
+  File "/tmp/full-geometry-cpu-budget-20261027/source/tools/native_geometry_oracle.py", line 155, in assert_report_equal
+    np.testing.assert_allclose(actual, expected, rtol=0, atol=tolerance, err_msg=path)
+  File "/usr/lib/python3/dist-packages/numpy/testing/_private/utils.py", line 1504, in assert_allclose
+    assert_array_compare(compare, actual, desired, err_msg=str(err_msg),
+  File "/usr/lib/python3.12/contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/numpy/testing/_private/utils.py", line 797, in assert_array_compare
+    raise AssertionError(msg)
+AssertionError: 
+Not equal to tolerance rtol=0, atol=1e-09
+report.objects[0].depth_validation.metrics.visible_extents_m[0]
+Mismatched elements: 1 / 1 (100%)
+Max absolute difference: 0.00120229
+Max relative difference: 0.04087256
+ x: array(0.028213)
+ y: array(0.029416)

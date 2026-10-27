@@ -1,0 +1,560 @@
+{
+  "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/geometry-cpu-budget-20261027.tar.gz",
+  "sha256": "46ad6ff008cf7afa41b656c86d8e636e560df6f5793f827be2790b92a6ef22f6",
+  "bytes": 2701038,
+  "members": [
+    {
+      "name": "full-geometry-cpu-budget-20261027/README.md",
+      "bytes": 6451
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/compare_traces.py",
+      "bytes": 3326
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/dependency-supplement.json",
+      "bytes": 63421
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/diagnose_portability.py",
+      "bytes": 5423
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/diagnose_portability_failures.py",
+      "bytes": 5642
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/factory.py",
+      "bytes": 1785
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/handoff-inventory.json",
+      "bytes": 22576
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/initial-manifest-check-failure.log",
+      "bytes": 184
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/linear-algebra-comparison.json",
+      "bytes": 150665
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local/input-pins.json",
+      "bytes": 60152
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-failing-case-traces/linear-algebra-calls.npz",
+      "bytes": 80358
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-failing-case-traces/nonplanar-two-face-complete-report.json",
+      "bytes": 5918
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-failing-case-traces/result.json",
+      "bytes": 70213
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-failing-case-traces/sensor-edge-complete-report.json",
+      "bytes": 4738
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-failing-case-traces.log",
+      "bytes": 568
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/base-complete-report.json",
+      "bytes": 5783
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/base-cprofile.json",
+      "bytes": 27534
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/base.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/distortion-4-complete-report.json",
+      "bytes": 5842
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/distortion-4-cprofile.json",
+      "bytes": 27352
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/distortion-4.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/distortion-5-complete-report.json",
+      "bytes": 5841
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/distortion-5-cprofile.json",
+      "bytes": 27449
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/distortion-5.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/distortion-8-complete-report.json",
+      "bytes": 5839
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/distortion-8-cprofile.json",
+      "bytes": 27467
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/distortion-8.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/input-pins.json",
+      "bytes": 60152
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/invalid-hole-complete-report.json",
+      "bytes": 2369
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/invalid-hole-cprofile.json",
+      "bytes": 26962
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/invalid-hole.prof",
+      "bytes": 31209
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/large-gray-support-complete-report.json",
+      "bytes": 19060
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/large-gray-support-cprofile.json",
+      "bytes": 26679
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/large-gray-support.prof",
+      "bytes": 24970
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/nonplanar-two-face-complete-report.json",
+      "bytes": 5918
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/nonplanar-two-face-cprofile.json",
+      "bytes": 27441
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/nonplanar-two-face.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/partial-observation-roi-complete-report.json",
+      "bytes": 5783
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/partial-observation-roi-cprofile.json",
+      "bytes": 27435
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/partial-observation-roi.prof",
+      "bytes": 38936
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/partial-pickup-roi-complete-report.json",
+      "bytes": 5785
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/partial-pickup-roi-cprofile.json",
+      "bytes": 27440
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/partial-pickup-roi.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/result.json",
+      "bytes": 228845
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/sensor-edge-complete-report.json",
+      "bytes": 4738
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/sensor-edge-cprofile.json",
+      "bytes": 26962
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/sensor-edge.prof",
+      "bytes": 36277
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/sparse-concave-complete-report.json",
+      "bytes": 2322
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/sparse-concave-cprofile.json",
+      "bytes": 27024
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/sparse-concave.prof",
+      "bytes": 33251
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/touching-depth-children-complete-report.json",
+      "bytes": 3131
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/touching-depth-children-cprofile.json",
+      "bytes": 26913
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final/touching-depth-children.prof",
+      "bytes": 31209
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-final.log",
+      "bytes": 1126
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/base-complete-report.json",
+      "bytes": 5783
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/base-cprofile.json",
+      "bytes": 27336
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/base.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/distortion-4-complete-report.json",
+      "bytes": 5842
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/distortion-4-cprofile.json",
+      "bytes": 27315
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/distortion-4.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/distortion-5-complete-report.json",
+      "bytes": 5841
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/distortion-5-cprofile.json",
+      "bytes": 27466
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/distortion-5.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/distortion-8-complete-report.json",
+      "bytes": 5839
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/distortion-8-cprofile.json",
+      "bytes": 27368
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/distortion-8.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/input-pins.json",
+      "bytes": 60152
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/invalid-hole-complete-report.json",
+      "bytes": 2369
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/invalid-hole-cprofile.json",
+      "bytes": 27077
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/invalid-hole.prof",
+      "bytes": 31209
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/large-gray-support-complete-report.json",
+      "bytes": 19060
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/large-gray-support-cprofile.json",
+      "bytes": 26620
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/large-gray-support.prof",
+      "bytes": 24970
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/nonplanar-two-face-complete-report.json",
+      "bytes": 5918
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/nonplanar-two-face-cprofile.json",
+      "bytes": 27285
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/nonplanar-two-face.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/partial-observation-roi-complete-report.json",
+      "bytes": 5783
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/partial-observation-roi-cprofile.json",
+      "bytes": 27359
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/partial-observation-roi.prof",
+      "bytes": 38936
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/partial-pickup-roi-complete-report.json",
+      "bytes": 5785
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/partial-pickup-roi-cprofile.json",
+      "bytes": 27221
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/partial-pickup-roi.prof",
+      "bytes": 39018
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/result.json",
+      "bytes": 238092
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/sensor-edge-complete-report.json",
+      "bytes": 4738
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/sensor-edge-cprofile.json",
+      "bytes": 27146
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/sensor-edge.prof",
+      "bytes": 36277
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/sparse-concave-complete-report.json",
+      "bytes": 2322
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/sparse-concave-cprofile.json",
+      "bytes": 27050
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/sparse-concave.prof",
+      "bytes": 33251
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/touching-depth-children-complete-report.json",
+      "bytes": 3131
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/touching-depth-children-cprofile.json",
+      "bytes": 27000
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries/touching-depth-children.prof",
+      "bytes": 31209
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-pinned-libraries.log",
+      "bytes": 1122
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/base-complete-report.json",
+      "bytes": 5783
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/base-linear-algebra-calls.npz",
+      "bytes": 42992
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/distortion-4-complete-report.json",
+      "bytes": 5842
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/distortion-5-complete-report.json",
+      "bytes": 5841
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/distortion-8-complete-report.json",
+      "bytes": 5839
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/invalid-hole-complete-report.json",
+      "bytes": 2369
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/large-gray-support-complete-report.json",
+      "bytes": 19060
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/nonplanar-two-face-complete-report.json",
+      "bytes": 5918
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/partial-observation-roi-complete-report.json",
+      "bytes": 5783
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/partial-pickup-roi-complete-report.json",
+      "bytes": 5785
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/result.json",
+      "bytes": 46482
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/sensor-edge-complete-report.json",
+      "bytes": 4738
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/sparse-concave-complete-report.json",
+      "bytes": 2322
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability/touching-depth-children-complete-report.json",
+      "bytes": 3131
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local-portability.log",
+      "bytes": 3590
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/local.log",
+      "bytes": 184
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/make_summary.py",
+      "bytes": 11873
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/pinned-runtime-install.log",
+      "bytes": 994
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/profile_geometry.py",
+      "bytes": 10378
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-failing-case-traces/linear-algebra-calls.npz",
+      "bytes": 80399
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-failing-case-traces/nonplanar-two-face-complete-report.json",
+      "bytes": 5911
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-failing-case-traces/result.json",
+      "bytes": 70449
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-failing-case-traces/sensor-edge-complete-report.json",
+      "bytes": 4738
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-import-failure.log",
+      "bytes": 1134
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-pinned.log",
+      "bytes": 2763
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/base-complete-report.json",
+      "bytes": 5783
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/base-linear-algebra-calls.npz",
+      "bytes": 42975
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/distortion-4-complete-report.json",
+      "bytes": 5841
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/distortion-5-complete-report.json",
+      "bytes": 5839
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/distortion-8-complete-report.json",
+      "bytes": 5838
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/invalid-hole-complete-report.json",
+      "bytes": 2369
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/large-gray-support-complete-report.json",
+      "bytes": 19060
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/nonplanar-two-face-complete-report.json",
+      "bytes": 5911
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/partial-observation-roi-complete-report.json",
+      "bytes": 5783
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/partial-pickup-roi-complete-report.json",
+      "bytes": 5785
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/result.json",
+      "bytes": 47136
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/sensor-edge-complete-report.json",
+      "bytes": 4738
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/sparse-concave-complete-report.json",
+      "bytes": 2322
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-portability/touching-depth-children-complete-report.json",
+      "bytes": 3131
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-runtime-parity-failure.log",
+      "bytes": 2484
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/remote-runtime-proof.json",
+      "bytes": 9316
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/runtime_probe.py",
+      "bytes": 1898
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/source-inputs.tar.gz",
+      "bytes": 3809617
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/summary.json",
+      "bytes": 240094
+    },
+    {
+      "name": "full-geometry-cpu-budget-20261027/transfer-manifest.json",
+      "bytes": 63175
+    }
+  ],
+  "scope": "Synthetic inputs/reports/traces and source snapshots only; no native numerical libraries copied."
+}

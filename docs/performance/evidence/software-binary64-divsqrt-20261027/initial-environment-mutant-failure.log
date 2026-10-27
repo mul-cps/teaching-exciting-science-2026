@@ -1,0 +1,48 @@
+..F.F....s                                                               [100%]
+=================================== FAILURES ===================================
+________________ test_behavioral_correction_mutants[mutation1] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-bjoern/pytest-581/test_behavioral_correction_mut1')
+mutation = ('sqrt-carry', 'carry || remainder >= trial', 'remainder >= trial')
+
+    @pytest.mark.parametrize('mutation',[('division-sticky','quotient | uint64_t(remainder != 0)','quotient'),('sqrt-carry','carry || remainder >= trial','remainder >= trial'),('sqrt-sticky','root | uint64_t(remainder != 0)','root')])
+    def test_behavioral_correction_mutants(tmp_path,mutation):
+     name,old,new=mutation;source=MODULE.read_text();assert source.count(old)==1
+     module=tmp_path/(name+'.slang');module.write_text(source.replace(old,new));host=tmp_path/(name+'.cpp');host.write_text(HOST.read_text().replace('"../shaders/soft_binary64.slang"','"'+str(module)+'"'));binary=tmp_path/name;build(host,binary)
+>    result=subprocess.run([str(binary)],capture_output=True,text=True,timeout=30);assert result.returncode==1,(name,result.stdout,result.stderr);assert 'got=' in result.stderr
+                                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E    AssertionError: ('sqrt-carry', 'exact div/sqrt random_pairs=1000000 plus edge/exponent/square-neighbor cases PASS
+E      ', '')
+E    assert 0 == 1
+E     +  where 0 = CompletedProcess(args=['/tmp/pytest-of-bjoern/pytest-581/test_behavioral_correction_mut1/sqrt-carry'], returncode=0, stdout='exact div/sqrt random_pairs=1000000 plus edge/exponent/square-neighbor cases PASS\n', stderr='').returncode
+
+tests/test_soft_binary64_divsqrt.py:22: AssertionError
+______________________ test_undefined_behavior_sanitizer _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-bjoern/pytest-581/test_undefined_behavior_saniti0')
+
+    def test_undefined_behavior_sanitizer(tmp_path):
+>    binary=tmp_path/'ubsan';build(HOST,binary,['-fsanitize=undefined','-fno-sanitize-recover=undefined'])
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_soft_binary64_divsqrt.py:25: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = PosixPath('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp')
+binary = PosixPath('/tmp/pytest-of-bjoern/pytest-581/test_undefined_behavior_saniti0/ubsan')
+extra = ['-fsanitize=undefined', '-fno-sanitize-recover=undefined']
+
+    def build(source,binary,extra=()):
+>    r=subprocess.run([os.environ.get('CXX','c++'),*FLAGS,*extra,str(source),'-o',str(binary)],capture_output=True,text=True);assert r.returncode==0,r.stderr
+                                                                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E    AssertionError: /usr/bin/ld.bfd: cannot find /usr/lib64/libubsan.so.1.0.0: No such file or directory
+E      collect2: error: ld returned 1 exit status
+E      
+E    assert 1 == 0
+E     +  where 1 = CompletedProcess(args=['c++', '-std=c++17', '-O2', '-Wall', '-Wextra', '-ffp-contract=off', '-fno-fast-math', '-fround...fd: cannot find /usr/lib64/libubsan.so.1.0.0: No such file or directory\ncollect2: error: ld returned 1 exit status\n').returncode
+
+tests/test_soft_binary64_divsqrt.py:11: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_soft_binary64_divsqrt.py::test_behavioral_correction_mutants[mutation1]
+FAILED tests/test_soft_binary64_divsqrt.py::test_undefined_behavior_sanitizer
+2 failed, 7 passed, 1 skipped in 4.86s

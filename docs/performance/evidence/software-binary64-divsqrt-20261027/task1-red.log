@@ -1,0 +1,46 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_missing_divsqrt_apis_and_native_conformance _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-bjoern/pytest-579/test_missing_divsqrt_apis_and_0')
+
+    def test_missing_divsqrt_apis_and_native_conformance(tmp_path):
+>    binary=tmp_path/'host';build(HOST,binary)
+                            ^^^^^^^^^^^^^^^^^^
+
+tests/test_soft_binary64_divsqrt.py:14: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = PosixPath('/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp')
+binary = PosixPath('/tmp/pytest-of-bjoern/pytest-579/test_missing_divsqrt_apis_and_0/host')
+extra = ()
+
+    def build(source,binary,extra=()):
+>    r=subprocess.run([os.environ.get('CXX','c++'),*FLAGS,*extra,str(source),'-o',str(binary)],capture_output=True,text=True);assert r.returncode==0,r.stderr
+                                                                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E    AssertionError: /home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp: In function ‘void pair(uint64_t, uint64_t)’:
+E      /home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp:21:50: error: ‘sf64_div_bits’ was not declared in this scope; did you mean ‘sf64_mul_bits’?
+E         21 | void pair(uint64_t a,uint64_t b){equal("div",a,b,sf64_div_bits(a,b),native_div(a,b));equal("sqrt",a,0,sf64_sqrt_bits(a),native_sqrt(a));}
+E            |                                                  ^~~~~~~~~~~~~
+E            |                                                  sf64_mul_bits
+E      /home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp:21:103: error: ‘sf64_sqrt_bits’ was not declared in this scope; did you mean ‘sf64_mul_bits’?
+E         21 | void pair(uint64_t a,uint64_t b){equal("div",a,b,sf64_div_bits(a,b),native_div(a,b));equal("sqrt",a,0,sf64_sqrt_bits(a),native_sqrt(a));}
+E            |                                                                                                       ^~~~~~~~~~~~~~
+E            |                                                                                                       sf64_mul_bits
+E      /home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp: In function ‘int main(int, char**)’:
+E      /home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp:30:130: error: ‘sf64_div_bits’ was not declared in this scope; did you mean ‘sf64_mul_bits’?
+E         30 |    equal("native-TestFloat",a,b,op=="f64_div"?native_div(a,b):native_sqrt(a),canonical(want));equal(op.c_str(),a,b,op=="f64_div"?sf64_div_bits(a,b):sf64_sqrt_bits(a),canonical(want));++count;
+E            |                                                                                                                                  ^~~~~~~~~~~~~
+E            |                                                                                                                                  sf64_mul_bits
+E      /home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp:30:149: error: ‘sf64_sqrt_bits’ was not declared in this scope; did you mean ‘sf64_mul_bits’?
+E         30 |    equal("native-TestFloat",a,b,op=="f64_div"?native_div(a,b):native_sqrt(a),canonical(want));equal(op.c_str(),a,b,op=="f64_div"?sf64_div_bits(a,b):sf64_sqrt_bits(a),canonical(want));++count;
+E            |                                                                                                                                                     ^~~~~~~~~~~~~~
+E            |                                                                                                                                                     sf64_mul_bits
+E      
+E    assert 1 == 0
+E     +  where 1 = CompletedProcess(args=['c++', '-std=c++17', '-O2', '-Wall', '-Wextra', '-ffp-contract=off', '-fno-fast-math', '-fround...                                                                                                      sf64_mul_bits\n').returncode
+
+tests/test_soft_binary64_divsqrt.py:11: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_soft_binary64_divsqrt.py::test_missing_divsqrt_apis_and_native_conformance
+1 failed in 0.24s

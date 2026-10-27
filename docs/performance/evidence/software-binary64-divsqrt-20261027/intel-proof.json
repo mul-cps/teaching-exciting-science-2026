@@ -1,0 +1,321 @@
+{
+  "kind": "Intel-software-binary64-divsqrt-and-primitive-exact-arithmetic-diagnostic",
+  "gpu_executed": true,
+  "all_matched": true,
+  "full_geometry_qualified": false,
+  "QR_admitted": false,
+  "camera_qualified": false,
+  "performance_adopted": false,
+  "current_full_ROS_build_claimed": false,
+  "source_pins": [
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/shaders/soft_binary64.slang",
+      "sha256": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+      "bytes": 13022
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/third_party/softfloat/provenance.json",
+      "sha256": "4504697e3e600ee01f031e301ca0902a7e4f21e02503cc00ddd9c0a744e2f806",
+      "bytes": 7521
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_host_test.cpp",
+      "sha256": "8d7279bb0d75e59409d859c8b3a338955ca365c72d84615ac1a0babba40db5b8",
+      "bytes": 3523
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_soft_binary64_divsqrt.py",
+      "sha256": "5cd745a002f48dfd13e7e6b9ee3ab2a3de2874275afb0af805bd211e9070e7ab",
+      "bytes": 2743,
+      "initial_freeze_sha256": "b2bcb989975abf3c83916150001715922ada9745a6435b30e546ffc48472e86b",
+      "parent_authorized_delta": "only default UBSan compiler portability; numerical helper/harness/corpus/SPV unchanged"
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/performance/soft_binary64_divsqrt_probe.slang",
+      "sha256": "24ab6c8df95b66cf56312739d8cede0ff75d461cc953c35d0e06a6987ec31647",
+      "bytes": 889
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/performance/qualify_soft_binary64.cpp",
+      "sha256": "01eb382d6035861818f636f06d24e3b7b4ec1d5ca0ec87ce7e571350529ab4ed",
+      "bytes": 26583
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/test_soft_binary64_divsqrt_probe.py",
+      "sha256": "c1f651ac316d4801102e533da228582d97cfaf47026c2286a3d53b83b45c8a9e",
+      "bytes": 4149
+    },
+    {
+      "path": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tools/performance/README.md",
+      "sha256": "feb49c600044b7798b833b8b9c8267d3266ddbc005fc99da9b97693ef885ba29",
+      "bytes": 29937
+    }
+  ],
+  "prior_native_core_build": "sourcearchive7da3bf0621541e263bd69ceabc810e4a824d5ce0156b07e96b5a3dc5834d2642; exact relevant Context/Buffer sources and pipeline ABI header verified against current frozen worktree before building",
+  "build_manifest": {
+    "path": "/tmp/soft-binary64-divsqrt-intel-20261027/remote-final/build-pins.json",
+    "sha256": "64f31decc2c6d652812666e42359b52ea799a289b687bb8025012b2fadef9bc3",
+    "bytes": 72115
+  },
+  "results": [
+    {
+      "name": "divsqrt",
+      "device": "Intel(R) Graphics (ADL-N)",
+      "case_count": 1147832,
+      "compared_words": 4591328,
+      "mismatch_counts_per_word": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "word_semantics": [
+        "division",
+        "square_root",
+        "binary32_widen",
+        "comparison_finiteness_flags"
+      ],
+      "output_sha256": "9a5430ee8a54685c0066ad6977492d3b561bb46d2c3e248dbce5c08342859310",
+      "features": {
+        "physical_shader_float64": 0,
+        "enabled_shader_float64": 0,
+        "physical_shader_int64": 1,
+        "enabled_shader_int64": 1
+      },
+      "watchdog": {
+        "command": [
+          "/usr/bin/timeout",
+          "--signal=TERM",
+          "--kill-after=5s",
+          "120s",
+          "/usr/bin/time",
+          "-v",
+          "-o",
+          "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/divsqrt/time.txt",
+          "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/qualify-soft-binary64",
+          "--vulkan",
+          "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/inputs/divsqrt-1100000.bin",
+          "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/inputs/soft_binary64_divsqrt_probe.spv",
+          "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/divsqrt/output"
+        ],
+        "returncode": 0,
+        "abort_signal": null,
+        "elapsed_wall_seconds": 0.9709715161006898,
+        "signals": [
+          "KILL remaining owned PG before leader reap"
+        ],
+        "remote_guardian": "GNU timeout120s TERM+5s KILL",
+        "waitid_WNOWAIT": true,
+        "reaped": true
+      },
+      "GNU_time": {
+        "Command being timed": "\"/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/qualify-soft-binary64 --vulkan /home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/inputs/divsqrt-1100000.bin /home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/inputs/soft_binary64_divsqrt_probe.spv /home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/divsqrt/output\"",
+        "User time (seconds)": "0.61",
+        "System time (seconds)": "0.16",
+        "Percent of CPU this job got": "80%",
+        "Elapsed (wall clock) time (h:mm:ss or m:ss)": "0:00.96",
+        "Average shared text size (kbytes)": "0",
+        "Average unshared data size (kbytes)": "0",
+        "Average stack size (kbytes)": "0",
+        "Average total size (kbytes)": "0",
+        "Maximum resident set size (kbytes)": "315760",
+        "Average resident set size (kbytes)": "0",
+        "Major (requiring I/O) page faults": "0",
+        "Minor (reclaiming a frame) page faults": "93451",
+        "Voluntary context switches": "81",
+        "Involuntary context switches": "4",
+        "Swaps": "0",
+        "File system inputs": "0",
+        "File system outputs": "197324",
+        "Socket messages sent": "0",
+        "Socket messages received": "0",
+        "Signals delivered": "0",
+        "Page size (bytes)": "4096",
+        "Exit status": "0"
+      },
+      "timing_scope": "entire native diagnostic including corpus parsing, device/pipeline setup, dispatch+transfers, exact CPU comparisons and raw artifact writes; not per-operation GPU timing or performance adoption",
+      "identities_and_station_owner_verified": true
+    },
+    {
+      "name": "primitive",
+      "device": "Intel(R) Graphics (ADL-N)",
+      "case_count": 65536,
+      "compared_words": 262144,
+      "mismatch_counts_per_word": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "word_semantics": [
+        "addition",
+        "multiplication",
+        "binary32_widen",
+        "comparison_finiteness_flags"
+      ],
+      "output_sha256": "486bf206e27e8ed88ce54e5d7eb5d2b5a2fe8adfcfd5e99c220dbd6ab4328ec5",
+      "features": {
+        "physical_shader_float64": 0,
+        "enabled_shader_float64": 0,
+        "physical_shader_int64": 1,
+        "enabled_shader_int64": 1
+      },
+      "watchdog": {
+        "command": [
+          "/usr/bin/timeout",
+          "--signal=TERM",
+          "--kill-after=5s",
+          "120s",
+          "/usr/bin/time",
+          "-v",
+          "-o",
+          "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/primitive/time.txt",
+          "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/qualify-soft-binary64",
+          "--vulkan",
+          "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/inputs/old-current.bin",
+          "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/inputs/soft_binary64_probe.spv",
+          "/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/primitive/output"
+        ],
+        "returncode": 0,
+        "abort_signal": null,
+        "elapsed_wall_seconds": 0.07542968692723662,
+        "signals": [
+          "KILL remaining owned PG before leader reap"
+        ],
+        "remote_guardian": "GNU timeout120s TERM+5s KILL",
+        "waitid_WNOWAIT": true,
+        "reaped": true
+      },
+      "GNU_time": {
+        "Command being timed": "\"/home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/qualify-soft-binary64 --vulkan /home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/inputs/old-current.bin /home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/inputs/soft_binary64_probe.spv /home/bjoern/.local/share/exciting-science/validation/soft-binary64-divsqrt-20261027/primitive/output\"",
+        "User time (seconds)": "0.04",
+        "System time (seconds)": "0.02",
+        "Percent of CPU this job got": "94%",
+        "Elapsed (wall clock) time (h:mm:ss or m:ss)": "0:00.07",
+        "Average shared text size (kbytes)": "0",
+        "Average unshared data size (kbytes)": "0",
+        "Average stack size (kbytes)": "0",
+        "Average total size (kbytes)": "0",
+        "Maximum resident set size (kbytes)": "36764",
+        "Average resident set size (kbytes)": "0",
+        "Major (requiring I/O) page faults": "0",
+        "Minor (reclaiming a frame) page faults": "8901",
+        "Voluntary context switches": "14",
+        "Involuntary context switches": "0",
+        "Swaps": "0",
+        "File system inputs": "0",
+        "File system outputs": "11319",
+        "Socket messages sent": "0",
+        "Socket messages received": "0",
+        "Signals delivered": "0",
+        "Page size (bytes)": "4096",
+        "Exit status": "0"
+      },
+      "timing_scope": "entire native diagnostic including corpus parsing, device/pipeline setup, dispatch+transfers, exact CPU comparisons and raw artifact writes; not per-operation GPU timing or performance adoption",
+      "identities_and_station_owner_verified": true
+    }
+  ],
+  "raw_archive": {
+    "path": "/tmp/soft-binary64-divsqrt-intel-20261027/intel-evidence-final.tar.gz",
+    "sha256": "572d84ad3d94263b1c2fef3d179bfe4cef548eae391392474ec461d77080bb7b",
+    "bytes": 178251845
+  },
+  "remote_inventory": {
+    "path": "/tmp/soft-binary64-divsqrt-intel-20261027/remote-final/remote-artifact-inventory-final.json",
+    "sha256": "63290de952d945420682806d8a9eeff87b3ea2e56e96f114056cab7cd6bd828b",
+    "bytes": 19775
+  },
+  "inventory_members_verified": 136,
+  "local_integer_comparator": {
+    "python": {
+      "path": "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "sha256": "cae490445f238af0d9a5793d28bc4cafa889fc56cebca8423fcdaf0a0a6cfbb4",
+      "bytes": 32959480
+    },
+    "python_version": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+    "numpy_version": "2.5.4",
+    "source": {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/check_evidence.py",
+      "sha256": "bc2607cb1402b93c1535b296b283ce781f045f7b9e43785896ac27a52c9b2216",
+      "bytes": 7009
+    }
+  },
+  "retained_failures": [
+    {
+      "stage": "initial-map-sampling",
+      "reason": "last-only mapping snapshot lost already-unloaded Intel driver; initial exact GPU outputs preserved and unchanged inputs repeated with union sampler"
+    },
+    {
+      "stage": "union-map-classification",
+      "reason": "filename substring falsely classified non-ELF /etc/ld.so.cache as shared library; changed actual-code classifier to ELF magic and finalized saved D001 artifacts CPU-only; no extra D001 dispatch"
+    },
+    {
+      "stage": "archive-packaging",
+      "returncode": 1,
+      "reason": "tar reported top directory changed while writing archive inside that directory; complete gzip/tar extracted and every inventoried file hash/size verified; no arithmetic/protocol/native failure and no GPU rerun"
+    }
+  ],
+  "pins": [
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/preflight.json",
+      "sha256": "ba0f9a9a5c8f4fc1a7e3f9b75de25178d0f1c2fad9173164d3fd17ad449295ef",
+      "bytes": 5248
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/remote_protocol.py",
+      "sha256": "6775131bcdfe342c51c44f2930aaa3719d6be70ace58816817cb69e8adb6e930",
+      "bytes": 10946
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/prepare.log",
+      "sha256": "6ddcca5d4b897084642e23714077dfb01371c72f96814fb2c1389ed587d3f550",
+      "bytes": 16
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/divsqrt-launch.log",
+      "sha256": "052d732f449ff3426a7439412df28d4ef96f88c781dbe4227fa2b0b5f8df69dd",
+      "bytes": 113
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/primitive-launch.log",
+      "sha256": "d9c854ac7ab7d1d8aeccabc7a4bcbb22a674231c1fb6afd70630ec6bca7d3d6e",
+      "bytes": 113
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/remote-results-readout.log",
+      "sha256": "a0470db1a586266927fa321648a6b96ba3ef3c82247ac15beca347259d0937fb",
+      "bytes": 7573
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/remote-final-archive-sha256.txt",
+      "sha256": "5c15d1f931233a1be5abfff0c35212c101afd87a26d55443d5b320b3644e6163",
+      "bytes": 65
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/divsqrt-launch-repeat.log",
+      "sha256": "badd813cbf81792c9e97a408bb1068374b0b929a39ddcd307ef3b01ff42897ad",
+      "bytes": 707
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/primitive-launch-repeat.log",
+      "sha256": "d9c854ac7ab7d1d8aeccabc7a4bcbb22a674231c1fb6afd70630ec6bca7d3d6e",
+      "bytes": 113
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/divsqrt-finalize.log",
+      "sha256": "052d732f449ff3426a7439412df28d4ef96f88c781dbe4227fa2b0b5f8df69dd",
+      "bytes": 113
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/comparison-map-closure-red.log",
+      "sha256": "746f5e2563defa1de462d0615e6d58e1851f3b24a0731b416ce645e9900b138c",
+      "bytes": 641
+    },
+    {
+      "path": "/tmp/soft-binary64-divsqrt-intel-20261027/remote_protocol_attempt1.py",
+      "sha256": "7f01bfffb7877635572098ae3826cc5ed3fb87b2551ff0b8c64d6f26b92f6539",
+      "bytes": 10385
+    }
+  ],
+  "numerical_failures": []
+}

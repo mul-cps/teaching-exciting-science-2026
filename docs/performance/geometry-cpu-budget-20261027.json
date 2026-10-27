@@ -1,0 +1,2946 @@
+{
+  "source_commit": "3416f2b9a08306afb13db94f787538e9d668d55b",
+  "scope": "Retained full CPU geometry original12 synthetic matrix; no camera/ROS/GPU/actuation. No full-station/headroom/performance-adoption claim.",
+  "factor_probe_admitted_or_used": false,
+  "qualified": false,
+  "local": {
+    "accepted_frozen_report_cases": 12,
+    "primary_result": "local-final/result.json",
+    "primary_runtime": {
+      "host": "cps-wkstn-hpz2minig1a-ellensohn",
+      "machine": "x86_64",
+      "python": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+      "executable": "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "numpy": "2.5.4",
+      "opencv": "4.14.0",
+      "scipy": "1.17.1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "opencv_threads": 1,
+      "cpu_count": 32
+    },
+    "warmup": 3,
+    "repetitions": 20,
+    "profile_repetitions": 3,
+    "nonoverlapping_profile_exclusive_sums_verified": true,
+    "all_complete_reports_equal_before_during_after_instrumentation": true,
+    "replication_with_library_pins": "local-pinned-libraries/result.json",
+    "note": "Primary first local budget preserved. Replication adds library provenance, not an optimization or speedup claim. Nested inclusive profile times overlap; exclusive times sum to analyze_rgbd. Wrapper/cProfile attribution includes overhead and is not throughput. Root-exclusive work includes inline preprocessing/observed mask assembly/branching/report assembly. JSON serialization is separately measured outside analyze_rgbd."
+  },
+  "cases": [
+    {
+      "name": "base",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 63,
+      "support_selected": 63,
+      "returned_objects": 1,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 1,
+        "depth_accepted_components": 1,
+        "rejected_components": 0,
+        "silhouette_checks": 1,
+        "silhouette_accepted": 1,
+        "rejection_reasons": {},
+        "rejected_samples": []
+      },
+      "report_sha256": "c54324ea315dca5c299b6b61bb795d128876faee841db1374fd0afa6779a19ed",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 4.0536675,
+        "p95_ms": 4.15686275,
+        "min_ms": 4.00204,
+        "max_ms": 4.285184,
+        "mean_ms": 4.06689435
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 4.0342565,
+        "p95_ms": 4.11170465,
+        "min_ms": 3.978692,
+        "max_ms": 4.255452,
+        "mean_ms": 4.045232700000001
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.048682,
+        "p95_ms": 0.0663636,
+        "min_ms": 0.044604,
+        "max_ms": 0.069732,
+        "mean_ms": 0.052491199999999995
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07826966666666667,
+          "per_analyze_exclusive_cpu_ms": 0.07826966666666667
+        },
+        "projection": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.13407,
+          "per_analyze_exclusive_cpu_ms": 0.13407
+        },
+        "world_transform": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.119922,
+          "per_analyze_exclusive_cpu_ms": 0.119922
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.07787233333333334,
+          "per_analyze_exclusive_cpu_ms": 0.07787233333333334
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.247892,
+          "per_analyze_exclusive_cpu_ms": 0.17001966666666665
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.020061,
+          "per_analyze_exclusive_cpu_ms": 0.020061
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.07459366666666667,
+          "per_analyze_exclusive_cpu_ms": 0.07459366666666667
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.600691,
+          "per_analyze_exclusive_cpu_ms": 2.2581443333333335
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.7320676666666666,
+          "per_analyze_exclusive_cpu_ms": 0.07095666666666667
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.09042,
+          "per_analyze_exclusive_cpu_ms": 0.09042
+        },
+        "OpenCV/findContours": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.017295,
+          "per_analyze_exclusive_cpu_ms": 0.017295
+        },
+        "OpenCV/drawContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.006369,
+          "per_analyze_exclusive_cpu_ms": 0.006369
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07749533333333333,
+          "per_analyze_exclusive_cpu_ms": 0.066595
+        },
+        "component_validation/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02326066666666667,
+          "per_analyze_exclusive_cpu_ms": 0.02326066666666667
+        },
+        "component_validation/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.01806066666666667,
+          "per_analyze_exclusive_cpu_ms": 0.01806066666666667
+        },
+        "component_validation/linear_percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.05522033333333334,
+          "per_analyze_exclusive_cpu_ms": 0.05522033333333334
+        },
+        "component_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.23639333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.13518333333333335
+        },
+        "ROI_predicate": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.009010333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.009010333333333334
+        },
+        "OpenCV/morphologyEx": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.005633333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.005633333333333333
+        },
+        "elongated_contour_split": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.002244,
+          "per_analyze_exclusive_cpu_ms": 0.002244
+        },
+        "silhouette_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.03907666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.036806
+        },
+        "child_visibility": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.018197333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.018197333333333333
+        },
+        "visible_geometry/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.020324666666666668,
+          "per_analyze_exclusive_cpu_ms": 0.020324666666666668
+        },
+        "visible_geometry/PCA_eigh": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.011802333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.011802333333333333
+        },
+        "visible_geometry/linear_percentile": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.049138666666666664,
+          "per_analyze_exclusive_cpu_ms": 0.049138666666666664
+        },
+        "visible_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.201661,
+          "per_analyze_exclusive_cpu_ms": 0.073691
+        },
+        "pickup_geometry/percentile": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.144518,
+          "per_analyze_exclusive_cpu_ms": 0.144518
+        },
+        "pickup_geometry/median": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.031171333333333332,
+          "per_analyze_exclusive_cpu_ms": 0.031171333333333332
+        },
+        "pickup_geometry/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.016137,
+          "per_analyze_exclusive_cpu_ms": 0.016137
+        },
+        "grasp_proposals/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.010242333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.010242333333333334
+        },
+        "grasp_proposals": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.116642,
+          "per_analyze_exclusive_cpu_ms": 0.10639966666666667
+        },
+        "pickup_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.543446,
+          "per_analyze_exclusive_cpu_ms": 0.13514133333333334
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 4.219190333333333,
+          "per_analyze_exclusive_cpu_ms": 0.13241966666666666
+        }
+      }
+    },
+    {
+      "name": "invalid-hole",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 63,
+      "support_selected": 63,
+      "returned_objects": 0,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 1,
+        "depth_accepted_components": 0,
+        "rejected_components": 1,
+        "silhouette_checks": 0,
+        "silhouette_accepted": 0,
+        "rejection_reasons": {
+          "locally_unsupported_color_depth": 1
+        },
+        "rejected_samples": [
+          {
+            "color": "red",
+            "reason": "locally_unsupported_color_depth",
+            "parent_pixels": 144,
+            "component_pixels": 119,
+            "metrics": {
+              "color_pixels": 119,
+              "local_support_pixels": 144,
+              "semantic_identity": "unqualified_colored_surface",
+              "workspace_gate_applied": false,
+              "support_plane_gate_applied": false,
+              "supported_fraction": 0.8263888888888888,
+              "invalid_local_depth_fraction": 0.1736111111111111,
+              "core_supported_fraction": 0.8263888888888888,
+              "centroid_camera_m": [
+                0.0,
+                0.0,
+                0.7800000309944153
+              ],
+              "visible_extents_m": [
+                0.02978333880706096,
+                0.02978333880706096,
+                0.0
+              ],
+              "plane_residual_p95_m": 0.0,
+              "largest_depth_gap_m": 0.0,
+              "split_minority_fraction": 0.008403361344537815,
+              "depth_neighbor_jump_fraction": 0.0,
+              "saturation_p10": 255.0,
+              "silhouette_rectangularity": 1.0
+            }
+          }
+        ]
+      },
+      "report_sha256": "8e2a3b753eb4a378c2e4c6cd82b43457a8c2cd5a6a503fc314c6d28d8d3123a2",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 3.3509735,
+        "p95_ms": 3.444704,
+        "min_ms": 3.148602,
+        "max_ms": 3.722142,
+        "mean_ms": 3.3284273
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 3.3325,
+        "p95_ms": 3.4280144000000004,
+        "min_ms": 3.134931,
+        "max_ms": 3.70546,
+        "mean_ms": 3.3123508999999998
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.024035,
+        "p95_ms": 0.0344364,
+        "min_ms": 0.023204,
+        "max_ms": 0.036368,
+        "mean_ms": 0.0267464
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07455633333333332,
+          "per_analyze_exclusive_cpu_ms": 0.07455633333333332
+        },
+        "projection": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.03242733333333333,
+          "per_analyze_exclusive_cpu_ms": 0.03242733333333333
+        },
+        "world_transform": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.03094466666666667,
+          "per_analyze_exclusive_cpu_ms": 0.03094466666666667
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.07548133333333333,
+          "per_analyze_exclusive_cpu_ms": 0.07548133333333333
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.248916,
+          "per_analyze_exclusive_cpu_ms": 0.17343466666666665
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.019814,
+          "per_analyze_exclusive_cpu_ms": 0.019814
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.07599533333333333,
+          "per_analyze_exclusive_cpu_ms": 0.07599533333333333
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.6265196666666664,
+          "per_analyze_exclusive_cpu_ms": 2.2817943333333335
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.7592723333333335,
+          "per_analyze_exclusive_cpu_ms": 0.06938066666666667
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.089929,
+          "per_analyze_exclusive_cpu_ms": 0.089929
+        },
+        "OpenCV/findContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.011642333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.011642333333333334
+        },
+        "OpenCV/drawContours": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.0034663333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.0034663333333333334
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07670366666666667,
+          "per_analyze_exclusive_cpu_ms": 0.06633433333333333
+        },
+        "component_validation/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.023400333333333332,
+          "per_analyze_exclusive_cpu_ms": 0.023400333333333332
+        },
+        "component_validation/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.01734233333333333,
+          "per_analyze_exclusive_cpu_ms": 0.01734233333333333
+        },
+        "component_validation/linear_percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.056219,
+          "per_analyze_exclusive_cpu_ms": 0.056219
+        },
+        "component_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.235171,
+          "per_analyze_exclusive_cpu_ms": 0.13347
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 3.3025306666666667,
+          "per_analyze_exclusive_cpu_ms": 0.06689833333333332
+        }
+      }
+    },
+    {
+      "name": "touching-depth-children",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 63,
+      "support_selected": 63,
+      "returned_objects": 0,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 2,
+        "depth_accepted_components": 0,
+        "rejected_components": 2,
+        "silhouette_checks": 0,
+        "silhouette_accepted": 0,
+        "rejection_reasons": {
+          "locally_unsupported_color_depth": 2
+        },
+        "rejected_samples": [
+          {
+            "color": "red",
+            "reason": "locally_unsupported_color_depth",
+            "parent_pixels": 288,
+            "component_pixels": 132,
+            "metrics": {
+              "color_pixels": 132,
+              "local_support_pixels": 156,
+              "semantic_identity": "unqualified_colored_surface",
+              "workspace_gate_applied": false,
+              "support_plane_gate_applied": false,
+              "supported_fraction": 0.8461538461538461,
+              "invalid_local_depth_fraction": 0.0,
+              "core_supported_fraction": 0.8461538461538461,
+              "centroid_camera_m": [
+                -0.018200000723203023,
+                -0.0013000000516573589,
+                0.7800000309944153
+              ],
+              "visible_extents_m": [
+                0.028600001136461894,
+                0.026000001033147178,
+                0.0
+              ],
+              "plane_residual_p95_m": 0.0,
+              "largest_depth_gap_m": 0.0,
+              "split_minority_fraction": 0.007575757575757576,
+              "depth_neighbor_jump_fraction": 0.0,
+              "saturation_p10": 255.0,
+              "silhouette_rectangularity": 1.0
+            }
+          },
+          {
+            "color": "red",
+            "reason": "locally_unsupported_color_depth",
+            "parent_pixels": 288,
+            "component_pixels": 132,
+            "metrics": {
+              "color_pixels": 132,
+              "local_support_pixels": 156,
+              "semantic_identity": "unqualified_colored_surface",
+              "workspace_gate_applied": false,
+              "support_plane_gate_applied": false,
+              "supported_fraction": 0.8461538461538461,
+              "invalid_local_depth_fraction": 0.0,
+              "core_supported_fraction": 0.8461538461538461,
+              "centroid_camera_m": [
+                0.014800000190734864,
+                -0.0012333333492279054,
+                0.7400000095367432
+              ],
+              "visible_extents_m": [
+                0.02713333368301392,
+                0.024666666984558105,
+                0.0
+              ],
+              "plane_residual_p95_m": 0.0,
+              "largest_depth_gap_m": 0.0,
+              "split_minority_fraction": 0.007575757575757576,
+              "depth_neighbor_jump_fraction": 0.0,
+              "saturation_p10": 255.0,
+              "silhouette_rectangularity": 1.0
+            }
+          }
+        ]
+      },
+      "report_sha256": "c8e7cca97e3e0efc5b0ed5ae9fba5f46d17565aa5df9b5ee579f7867802030bb",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 3.450671,
+        "p95_ms": 3.53778445,
+        "min_ms": 3.39699,
+        "max_ms": 3.58801,
+        "mean_ms": 3.460596
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 3.4330425,
+        "p95_ms": 3.52037465,
+        "min_ms": 3.377143,
+        "max_ms": 3.568343,
+        "mean_ms": 3.44323995
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.033784,
+        "p95_ms": 0.0464934,
+        "min_ms": 0.03212,
+        "max_ms": 0.048902,
+        "mean_ms": 0.0368714
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.078053,
+          "per_analyze_exclusive_cpu_ms": 0.078053
+        },
+        "projection": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.03178333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.03178333333333333
+        },
+        "world_transform": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.030173333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.030173333333333333
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.07445333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.07445333333333333
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.24178333333333335,
+          "per_analyze_exclusive_cpu_ms": 0.16733
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.019359666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.019359666666666667
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.075041,
+          "per_analyze_exclusive_cpu_ms": 0.075041
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.6131043333333337,
+          "per_analyze_exclusive_cpu_ms": 2.2769203333333334
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.7424873333333335,
+          "per_analyze_exclusive_cpu_ms": 0.06742633333333332
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.08983266666666667,
+          "per_analyze_exclusive_cpu_ms": 0.08983266666666667
+        },
+        "OpenCV/findContours": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.017119,
+          "per_analyze_exclusive_cpu_ms": 0.017119
+        },
+        "OpenCV/drawContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.004752,
+          "per_analyze_exclusive_cpu_ms": 0.004752
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.10126,
+          "per_analyze_exclusive_cpu_ms": 0.08735733333333333
+        },
+        "component_validation/median": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.04501433333333334,
+          "per_analyze_exclusive_cpu_ms": 0.04501433333333334
+        },
+        "component_validation/SVD": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.03254766666666667,
+          "per_analyze_exclusive_cpu_ms": 0.03254766666666667
+        },
+        "component_validation/linear_percentile": {
+          "calls": 18,
+          "per_analyze_inclusive_cpu_ms": 0.09660533333333333,
+          "per_analyze_exclusive_cpu_ms": 0.09660533333333333
+        },
+        "component_validation": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.428624,
+          "per_analyze_exclusive_cpu_ms": 0.24648833333333334
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 3.5100503333333335,
+          "per_analyze_exclusive_cpu_ms": 0.06979333333333333
+        }
+      }
+    },
+    {
+      "name": "nonplanar-two-face",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 63,
+      "support_selected": 63,
+      "returned_objects": 1,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 1,
+        "depth_accepted_components": 1,
+        "rejected_components": 0,
+        "silhouette_checks": 1,
+        "silhouette_accepted": 1,
+        "rejection_reasons": {},
+        "rejected_samples": []
+      },
+      "report_sha256": "a2bb9acb06e1b3d9f1aad1e32d8ffdcd47f69925e869888ae43e1c7e9069ae38",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 4.2363365,
+        "p95_ms": 4.32397125,
+        "min_ms": 4.149679,
+        "max_ms": 4.356789,
+        "mean_ms": 4.235687349999999
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 4.2185625,
+        "p95_ms": 4.30400015,
+        "min_ms": 4.129206,
+        "max_ms": 4.333833,
+        "mean_ms": 4.21450795
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.049383,
+        "p95_ms": 0.0687082,
+        "min_ms": 0.046798,
+        "max_ms": 0.072227,
+        "mean_ms": 0.0541962
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07848733333333333,
+          "per_analyze_exclusive_cpu_ms": 0.07848733333333333
+        },
+        "projection": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.137312,
+          "per_analyze_exclusive_cpu_ms": 0.137312
+        },
+        "world_transform": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.12423266666666667,
+          "per_analyze_exclusive_cpu_ms": 0.12423266666666667
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.07543,
+          "per_analyze_exclusive_cpu_ms": 0.07543
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.242872,
+          "per_analyze_exclusive_cpu_ms": 0.167442
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.020007666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.020007666666666667
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.076313,
+          "per_analyze_exclusive_cpu_ms": 0.076313
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.5960686666666666,
+          "per_analyze_exclusive_cpu_ms": 2.256876
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.729793,
+          "per_analyze_exclusive_cpu_ms": 0.07187833333333332
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.090296,
+          "per_analyze_exclusive_cpu_ms": 0.090296
+        },
+        "OpenCV/findContours": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.017122666666666668,
+          "per_analyze_exclusive_cpu_ms": 0.017122666666666668
+        },
+        "OpenCV/drawContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.006311666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.006311666666666667
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.08186366666666667,
+          "per_analyze_exclusive_cpu_ms": 0.07098966666666667
+        },
+        "component_validation/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.023203333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.023203333333333333
+        },
+        "component_validation/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02100633333333333,
+          "per_analyze_exclusive_cpu_ms": 0.02100633333333333
+        },
+        "component_validation/linear_percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.057114,
+          "per_analyze_exclusive_cpu_ms": 0.057114
+        },
+        "component_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.24311966666666665,
+          "per_analyze_exclusive_cpu_ms": 0.13721366666666665
+        },
+        "ROI_predicate": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.009107,
+          "per_analyze_exclusive_cpu_ms": 0.009107
+        },
+        "OpenCV/morphologyEx": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.005597,
+          "per_analyze_exclusive_cpu_ms": 0.005597
+        },
+        "elongated_contour_split": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.002174,
+          "per_analyze_exclusive_cpu_ms": 0.002174
+        },
+        "silhouette_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.039137,
+          "per_analyze_exclusive_cpu_ms": 0.036899666666666664
+        },
+        "child_visibility": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.018134,
+          "per_analyze_exclusive_cpu_ms": 0.018134
+        },
+        "visible_geometry/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.021510666666666668,
+          "per_analyze_exclusive_cpu_ms": 0.021510666666666668
+        },
+        "visible_geometry/PCA_eigh": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.014991333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.014991333333333334
+        },
+        "visible_geometry/linear_percentile": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.051463,
+          "per_analyze_exclusive_cpu_ms": 0.051463
+        },
+        "visible_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.210912,
+          "per_analyze_exclusive_cpu_ms": 0.07578833333333333
+        },
+        "pickup_geometry/percentile": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.14892533333333335,
+          "per_analyze_exclusive_cpu_ms": 0.14892533333333335
+        },
+        "pickup_geometry/median": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.033355666666666665,
+          "per_analyze_exclusive_cpu_ms": 0.033355666666666665
+        },
+        "pickup_geometry/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.01778333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.01778333333333333
+        },
+        "grasp_proposals/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.010499666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.010499666666666666
+        },
+        "grasp_proposals": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.120766,
+          "per_analyze_exclusive_cpu_ms": 0.11026633333333333
+        },
+        "pickup_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.562906,
+          "per_analyze_exclusive_cpu_ms": 0.13868466666666665
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 4.262344666666667,
+          "per_analyze_exclusive_cpu_ms": 0.13592833333333335
+        }
+      }
+    },
+    {
+      "name": "sensor-edge",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 72,
+      "support_selected": 72,
+      "returned_objects": 1,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 1,
+        "depth_accepted_components": 1,
+        "rejected_components": 0,
+        "silhouette_checks": 1,
+        "silhouette_accepted": 1,
+        "rejection_reasons": {},
+        "rejected_samples": []
+      },
+      "report_sha256": "68fa363b91707fbf9f051d614567021d7f73e0f4184e38d27fad6f689f37deaa",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 3.764337,
+        "p95_ms": 3.97170485,
+        "min_ms": 3.658843,
+        "max_ms": 3.985439,
+        "mean_ms": 3.7771448
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 3.7482095,
+        "p95_ms": 3.9486230499999997,
+        "min_ms": 3.638354,
+        "max_ms": 3.954248,
+        "mean_ms": 3.7571904
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.045125,
+        "p95_ms": 0.057472199999999994,
+        "min_ms": 0.039134,
+        "max_ms": 0.059943,
+        "mean_ms": 0.0464754
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07388233333333333,
+          "per_analyze_exclusive_cpu_ms": 0.07388233333333333
+        },
+        "projection": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.08467566666666668,
+          "per_analyze_exclusive_cpu_ms": 0.08467566666666668
+        },
+        "world_transform": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.08219733333333333,
+          "per_analyze_exclusive_cpu_ms": 0.08219733333333333
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.08080566666666668,
+          "per_analyze_exclusive_cpu_ms": 0.08080566666666668
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.255525,
+          "per_analyze_exclusive_cpu_ms": 0.17471933333333334
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.021166,
+          "per_analyze_exclusive_cpu_ms": 0.021166
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.083326,
+          "per_analyze_exclusive_cpu_ms": 0.083326
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.7079566666666666,
+          "per_analyze_exclusive_cpu_ms": 2.3479396666666665
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.8391193333333336,
+          "per_analyze_exclusive_cpu_ms": 0.06968733333333332
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.09135466666666667,
+          "per_analyze_exclusive_cpu_ms": 0.09135466666666667
+        },
+        "OpenCV/findContours": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.01976366666666667,
+          "per_analyze_exclusive_cpu_ms": 0.01976366666666667
+        },
+        "OpenCV/drawContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.006595333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.006595333333333333
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.08732,
+          "per_analyze_exclusive_cpu_ms": 0.07472366666666667
+        },
+        "component_validation/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.024278666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.024278666666666667
+        },
+        "component_validation/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02028066666666667,
+          "per_analyze_exclusive_cpu_ms": 0.02028066666666667
+        },
+        "component_validation/linear_percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.056924,
+          "per_analyze_exclusive_cpu_ms": 0.056924
+        },
+        "component_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.25456666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.14773
+        },
+        "ROI_predicate": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.002722,
+          "per_analyze_exclusive_cpu_ms": 0.002722
+        },
+        "OpenCV/morphologyEx": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.005691,
+          "per_analyze_exclusive_cpu_ms": 0.005691
+        },
+        "elongated_contour_split": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.0022606666666666665,
+          "per_analyze_exclusive_cpu_ms": 0.0022606666666666665
+        },
+        "silhouette_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.03924333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.036845
+        },
+        "child_visibility": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.018481333333333332,
+          "per_analyze_exclusive_cpu_ms": 0.018481333333333332
+        },
+        "visible_geometry/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02084266666666667,
+          "per_analyze_exclusive_cpu_ms": 0.02084266666666667
+        },
+        "visible_geometry/PCA_eigh": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.012222666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.012222666666666666
+        },
+        "visible_geometry/linear_percentile": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.05002466666666666,
+          "per_analyze_exclusive_cpu_ms": 0.05002466666666666
+        },
+        "visible_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.20635,
+          "per_analyze_exclusive_cpu_ms": 0.07568433333333333
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 3.8145786666666663,
+          "per_analyze_exclusive_cpu_ms": 0.12975433333333333
+        }
+      }
+    },
+    {
+      "name": "sparse-concave",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 65,
+      "support_selected": 65,
+      "returned_objects": 0,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 1,
+        "depth_accepted_components": 1,
+        "rejected_components": 1,
+        "silhouette_checks": 1,
+        "silhouette_accepted": 0,
+        "rejection_reasons": {
+          "silhouette_inconsistent_with_convex_brick": 1
+        },
+        "rejected_samples": [
+          {
+            "color": "red",
+            "reason": "silhouette_inconsistent_with_convex_brick",
+            "parent_pixels": 63,
+            "component_pixels": 63,
+            "metrics": {
+              "min_rectangle_fill_required": 0.45,
+              "semantic_identity": "unqualified_convex_brick_shape_prior",
+              "applied_to": "final_child_contour",
+              "workspace_gate_applied": false,
+              "min_rectangle_fill": 0.3347107438016529,
+              "contour_area_px2": 40.5,
+              "convex_hull_fill": 0.5031055900621118,
+              "shape_evidence": "original_color_depth_pixels",
+              "reconstructed_min_rectangle_fill": 0.3347107438016529,
+              "observed_pixels": 63,
+              "observed_enclosing_pixel_area": 144.0,
+              "observed_pixel_fill": 0.4375,
+              "observed_boundary_fill": 0.3347107438016529,
+              "observed_components": 1
+            }
+          }
+        ]
+      },
+      "report_sha256": "fae96e96735b652c1fec425b9a16c03e73ebe537d561470c9045b28544d39104",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 3.3710405,
+        "p95_ms": 3.5204983999999997,
+        "min_ms": 3.314274,
+        "max_ms": 3.52442,
+        "mean_ms": 3.3891017000000003
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 3.3531995,
+        "p95_ms": 3.5026088,
+        "min_ms": 3.299606,
+        "max_ms": 3.510205,
+        "mean_ms": 3.3714167
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.024847,
+        "p95_ms": 0.035343,
+        "min_ms": 0.020719,
+        "max_ms": 0.03687,
+        "mean_ms": 0.026850799999999998
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07448966666666668,
+          "per_analyze_exclusive_cpu_ms": 0.07448966666666668
+        },
+        "projection": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.052602,
+          "per_analyze_exclusive_cpu_ms": 0.052602
+        },
+        "world_transform": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.05537366666666666,
+          "per_analyze_exclusive_cpu_ms": 0.05537366666666666
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.07927533333333332,
+          "per_analyze_exclusive_cpu_ms": 0.07927533333333332
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.24809866666666666,
+          "per_analyze_exclusive_cpu_ms": 0.16882333333333335
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.019637,
+          "per_analyze_exclusive_cpu_ms": 0.019637
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.07659033333333333,
+          "per_analyze_exclusive_cpu_ms": 0.07659033333333333
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.6447406666666664,
+          "per_analyze_exclusive_cpu_ms": 2.3004146666666667
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.7727806666666663,
+          "per_analyze_exclusive_cpu_ms": 0.06745
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.089628,
+          "per_analyze_exclusive_cpu_ms": 0.089628
+        },
+        "OpenCV/findContours": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.016507666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.016507666666666667
+        },
+        "OpenCV/drawContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.006471666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.006471666666666667
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.078083,
+          "per_analyze_exclusive_cpu_ms": 0.06787366666666667
+        },
+        "component_validation/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02129,
+          "per_analyze_exclusive_cpu_ms": 0.02129
+        },
+        "component_validation/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.016941666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.016941666666666667
+        },
+        "component_validation/linear_percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.05241233333333334,
+          "per_analyze_exclusive_cpu_ms": 0.05241233333333334
+        },
+        "component_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.2222,
+          "per_analyze_exclusive_cpu_ms": 0.127074
+        },
+        "ROI_predicate": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.002615,
+          "per_analyze_exclusive_cpu_ms": 0.002615
+        },
+        "OpenCV/morphologyEx": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.005383,
+          "per_analyze_exclusive_cpu_ms": 0.005383
+        },
+        "elongated_contour_split": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.0022976666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.0022976666666666666
+        },
+        "silhouette_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.035075666666666665,
+          "per_analyze_exclusive_cpu_ms": 0.03271166666666667
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 3.4296063333333335,
+          "per_analyze_exclusive_cpu_ms": 0.093744
+        }
+      }
+    },
+    {
+      "name": "partial-observation-roi",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 63,
+      "support_selected": 63,
+      "returned_objects": 1,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 1,
+        "depth_accepted_components": 1,
+        "rejected_components": 0,
+        "silhouette_checks": 1,
+        "silhouette_accepted": 1,
+        "rejection_reasons": {},
+        "rejected_samples": []
+      },
+      "report_sha256": "c54324ea315dca5c299b6b61bb795d128876faee841db1374fd0afa6779a19ed",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 4.116741,
+        "p95_ms": 4.209289550000001,
+        "min_ms": 4.093913,
+        "max_ms": 4.704383,
+        "mean_ms": 4.15271535
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 4.095718,
+        "p95_ms": 4.19128155,
+        "min_ms": 4.072862,
+        "max_ms": 4.649458,
+        "mean_ms": 4.1305141
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.04766,
+        "p95_ms": 0.063333,
+        "min_ms": 0.046207,
+        "max_ms": 0.066024,
+        "mean_ms": 0.0519058
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07620966666666668,
+          "per_analyze_exclusive_cpu_ms": 0.07620966666666668
+        },
+        "projection": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.138192,
+          "per_analyze_exclusive_cpu_ms": 0.138192
+        },
+        "world_transform": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.12441733333333332,
+          "per_analyze_exclusive_cpu_ms": 0.12441733333333332
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.07743533333333333,
+          "per_analyze_exclusive_cpu_ms": 0.07743533333333333
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.24839233333333335,
+          "per_analyze_exclusive_cpu_ms": 0.170957
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.020181333333333332,
+          "per_analyze_exclusive_cpu_ms": 0.020181333333333332
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.07887466666666668,
+          "per_analyze_exclusive_cpu_ms": 0.07887466666666668
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.676222,
+          "per_analyze_exclusive_cpu_ms": 2.3287736666666663
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.8085533333333337,
+          "per_analyze_exclusive_cpu_ms": 0.07153733333333333
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.09288466666666667,
+          "per_analyze_exclusive_cpu_ms": 0.09288466666666667
+        },
+        "OpenCV/findContours": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.017517,
+          "per_analyze_exclusive_cpu_ms": 0.017517
+        },
+        "OpenCV/drawContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.006395666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.006395666666666667
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07983966666666667,
+          "per_analyze_exclusive_cpu_ms": 0.06883166666666667
+        },
+        "component_validation/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.023397333333333332,
+          "per_analyze_exclusive_cpu_ms": 0.023397333333333332
+        },
+        "component_validation/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.018565333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.018565333333333333
+        },
+        "component_validation/linear_percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.057355,
+          "per_analyze_exclusive_cpu_ms": 0.057355
+        },
+        "component_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.241269,
+          "per_analyze_exclusive_cpu_ms": 0.13731933333333335
+        },
+        "ROI_predicate": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.013378333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.013378333333333334
+        },
+        "OpenCV/morphologyEx": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.005640666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.005640666666666667
+        },
+        "elongated_contour_split": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.0023743333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.0023743333333333333
+        },
+        "silhouette_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.03985466666666666,
+          "per_analyze_exclusive_cpu_ms": 0.037483333333333334
+        },
+        "child_visibility": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.01922633333333333,
+          "per_analyze_exclusive_cpu_ms": 0.01922633333333333
+        },
+        "visible_geometry/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.021236333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.021236333333333333
+        },
+        "visible_geometry/PCA_eigh": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.012403,
+          "per_analyze_exclusive_cpu_ms": 0.012403
+        },
+        "visible_geometry/linear_percentile": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.04971,
+          "per_analyze_exclusive_cpu_ms": 0.04971
+        },
+        "visible_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.20937966666666666,
+          "per_analyze_exclusive_cpu_ms": 0.07656033333333333
+        },
+        "pickup_geometry/percentile": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.146124,
+          "per_analyze_exclusive_cpu_ms": 0.146124
+        },
+        "pickup_geometry/median": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.031689666666666665,
+          "per_analyze_exclusive_cpu_ms": 0.031689666666666665
+        },
+        "pickup_geometry/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.016300666666666665,
+          "per_analyze_exclusive_cpu_ms": 0.016300666666666665
+        },
+        "grasp_proposals/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.010623666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.010623666666666667
+        },
+        "grasp_proposals": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.12081966666666667,
+          "per_analyze_exclusive_cpu_ms": 0.110196
+        },
+        "pickup_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.556734,
+          "per_analyze_exclusive_cpu_ms": 0.13786866666666667
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 4.337387666666667,
+          "per_analyze_exclusive_cpu_ms": 0.137728
+        }
+      }
+    },
+    {
+      "name": "partial-pickup-roi",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 63,
+      "support_selected": 63,
+      "returned_objects": 1,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 1,
+        "depth_accepted_components": 1,
+        "rejected_components": 0,
+        "silhouette_checks": 1,
+        "silhouette_accepted": 1,
+        "rejection_reasons": {},
+        "rejected_samples": []
+      },
+      "report_sha256": "43c118d5f2c82f2f5d498368dac5ea235af260d6c7442c0b93083fb867111bb4",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 4.1526085,
+        "p95_ms": 4.379350100000001,
+        "min_ms": 4.105726,
+        "max_ms": 4.567205,
+        "mean_ms": 4.19349285
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 4.131834,
+        "p95_ms": 4.35214615,
+        "min_ms": 4.08313,
+        "max_ms": 4.545987,
+        "mean_ms": 4.17111085
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.04762,
+        "p95_ms": 0.069996,
+        "min_ms": 0.047109,
+        "max_ms": 0.07422,
+        "mean_ms": 0.053833599999999995
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07756866666666667,
+          "per_analyze_exclusive_cpu_ms": 0.07756866666666667
+        },
+        "projection": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.143968,
+          "per_analyze_exclusive_cpu_ms": 0.143968
+        },
+        "world_transform": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.12645733333333334,
+          "per_analyze_exclusive_cpu_ms": 0.12645733333333334
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.07914233333333333,
+          "per_analyze_exclusive_cpu_ms": 0.07914233333333333
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.25744666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.17830433333333334
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.020816,
+          "per_analyze_exclusive_cpu_ms": 0.020816
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.07853066666666667,
+          "per_analyze_exclusive_cpu_ms": 0.07853066666666667
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.7181063333333335,
+          "per_analyze_exclusive_cpu_ms": 2.361313
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.854178,
+          "per_analyze_exclusive_cpu_ms": 0.07444266666666667
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.09431366666666667,
+          "per_analyze_exclusive_cpu_ms": 0.09431366666666667
+        },
+        "OpenCV/findContours": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.02002033333333333,
+          "per_analyze_exclusive_cpu_ms": 0.02002033333333333
+        },
+        "OpenCV/drawContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.007314,
+          "per_analyze_exclusive_cpu_ms": 0.007314
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.08508933333333332,
+          "per_analyze_exclusive_cpu_ms": 0.07289633333333333
+        },
+        "component_validation/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.023347,
+          "per_analyze_exclusive_cpu_ms": 0.023347
+        },
+        "component_validation/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.018942333333333332,
+          "per_analyze_exclusive_cpu_ms": 0.018942333333333332
+        },
+        "component_validation/linear_percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.058449,
+          "per_analyze_exclusive_cpu_ms": 0.058449
+        },
+        "component_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.25325166666666665,
+          "per_analyze_exclusive_cpu_ms": 0.14708333333333334
+        },
+        "ROI_predicate": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.009905666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.009905666666666667
+        },
+        "OpenCV/morphologyEx": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.006078333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.006078333333333333
+        },
+        "elongated_contour_split": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.0026246666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.0026246666666666666
+        },
+        "silhouette_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.04624,
+          "per_analyze_exclusive_cpu_ms": 0.043328
+        },
+        "child_visibility": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.019553333333333332,
+          "per_analyze_exclusive_cpu_ms": 0.019553333333333332
+        },
+        "visible_geometry/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02163033333333333,
+          "per_analyze_exclusive_cpu_ms": 0.02163033333333333
+        },
+        "visible_geometry/PCA_eigh": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.013137666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.013137666666666666
+        },
+        "visible_geometry/linear_percentile": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.05162033333333334,
+          "per_analyze_exclusive_cpu_ms": 0.05162033333333334
+        },
+        "visible_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.21616233333333335,
+          "per_analyze_exclusive_cpu_ms": 0.07944266666666668
+        },
+        "pickup_geometry/percentile": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.14928266666666665,
+          "per_analyze_exclusive_cpu_ms": 0.14928266666666665
+        },
+        "pickup_geometry/median": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.032267,
+          "per_analyze_exclusive_cpu_ms": 0.032267
+        },
+        "pickup_geometry/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.017099,
+          "per_analyze_exclusive_cpu_ms": 0.017099
+        },
+        "grasp_proposals/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.010944,
+          "per_analyze_exclusive_cpu_ms": 0.010944
+        },
+        "grasp_proposals": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.12199233333333333,
+          "per_analyze_exclusive_cpu_ms": 0.11104833333333333
+        },
+        "pickup_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.5676616666666666,
+          "per_analyze_exclusive_cpu_ms": 0.14184866666666665
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 4.442543666666667,
+          "per_analyze_exclusive_cpu_ms": 0.149824
+        }
+      }
+    },
+    {
+      "name": "distortion-4",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 63,
+      "support_selected": 63,
+      "returned_objects": 1,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 1,
+        "depth_accepted_components": 1,
+        "rejected_components": 0,
+        "silhouette_checks": 1,
+        "silhouette_accepted": 1,
+        "rejection_reasons": {},
+        "rejected_samples": []
+      },
+      "report_sha256": "473484d00fdceb43e0d54d56e147a342828c980589de331969742a7d65062660",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 4.175572,
+        "p95_ms": 4.2861297,
+        "min_ms": 4.116135,
+        "max_ms": 4.429175,
+        "mean_ms": 4.192845
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 4.1526005,
+        "p95_ms": 4.2606077,
+        "min_ms": 4.095061,
+        "max_ms": 4.405173,
+        "mean_ms": 4.1708419
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.052499,
+        "p95_ms": 0.0636138,
+        "min_ms": 0.045896,
+        "max_ms": 0.066315,
+        "mean_ms": 0.0532022
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07733133333333334,
+          "per_analyze_exclusive_cpu_ms": 0.07733133333333334
+        },
+        "projection": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.137277,
+          "per_analyze_exclusive_cpu_ms": 0.137277
+        },
+        "world_transform": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.12492433333333333,
+          "per_analyze_exclusive_cpu_ms": 0.12492433333333333
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.07931966666666668,
+          "per_analyze_exclusive_cpu_ms": 0.07931966666666668
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.2553896666666667,
+          "per_analyze_exclusive_cpu_ms": 0.17607
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.023013333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.023013333333333334
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.08092833333333332,
+          "per_analyze_exclusive_cpu_ms": 0.08092833333333332
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.6986406666666665,
+          "per_analyze_exclusive_cpu_ms": 2.3393093333333335
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.8348226666666667,
+          "per_analyze_exclusive_cpu_ms": 0.07521033333333332
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.09340466666666668,
+          "per_analyze_exclusive_cpu_ms": 0.09340466666666668
+        },
+        "OpenCV/findContours": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.019670666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.019670666666666666
+        },
+        "OpenCV/drawContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.007547,
+          "per_analyze_exclusive_cpu_ms": 0.007547
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.08904033333333333,
+          "per_analyze_exclusive_cpu_ms": 0.075549
+        },
+        "component_validation/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.023868,
+          "per_analyze_exclusive_cpu_ms": 0.023868
+        },
+        "component_validation/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.020268,
+          "per_analyze_exclusive_cpu_ms": 0.020268
+        },
+        "component_validation/linear_percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.05887733333333334,
+          "per_analyze_exclusive_cpu_ms": 0.05887733333333334
+        },
+        "component_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.25536533333333333,
+          "per_analyze_exclusive_cpu_ms": 0.147503
+        },
+        "ROI_predicate": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.009672,
+          "per_analyze_exclusive_cpu_ms": 0.009672
+        },
+        "OpenCV/morphologyEx": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.006001,
+          "per_analyze_exclusive_cpu_ms": 0.006001
+        },
+        "elongated_contour_split": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.0026916666666666664,
+          "per_analyze_exclusive_cpu_ms": 0.0026916666666666664
+        },
+        "silhouette_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.04268366666666666,
+          "per_analyze_exclusive_cpu_ms": 0.040265333333333334
+        },
+        "child_visibility": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.01924266666666667,
+          "per_analyze_exclusive_cpu_ms": 0.01924266666666667
+        },
+        "visible_geometry/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.021410333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.021410333333333333
+        },
+        "visible_geometry/PCA_eigh": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.015001333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.015001333333333334
+        },
+        "visible_geometry/linear_percentile": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.05297333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.05297333333333334
+        },
+        "visible_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.21920433333333333,
+          "per_analyze_exclusive_cpu_ms": 0.08107133333333333
+        },
+        "pickup_geometry/percentile": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.14825533333333335,
+          "per_analyze_exclusive_cpu_ms": 0.14825533333333335
+        },
+        "pickup_geometry/median": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.032388,
+          "per_analyze_exclusive_cpu_ms": 0.032388
+        },
+        "pickup_geometry/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.017239,
+          "per_analyze_exclusive_cpu_ms": 0.017239
+        },
+        "grasp_proposals/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.010479666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.010479666666666667
+        },
+        "grasp_proposals": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.12056633333333333,
+          "per_analyze_exclusive_cpu_ms": 0.11008666666666667
+        },
+        "pickup_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.5648126666666666,
+          "per_analyze_exclusive_cpu_ms": 0.14270333333333335
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 4.418626666666667,
+          "per_analyze_exclusive_cpu_ms": 0.14907433333333334
+        }
+      }
+    },
+    {
+      "name": "distortion-5",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 63,
+      "support_selected": 63,
+      "returned_objects": 1,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 1,
+        "depth_accepted_components": 1,
+        "rejected_components": 0,
+        "silhouette_checks": 1,
+        "silhouette_accepted": 1,
+        "rejection_reasons": {},
+        "rejected_samples": []
+      },
+      "report_sha256": "1831475f240691d7093e828f6d6f3076a990892262252ea814279616363a9947",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 4.171144,
+        "p95_ms": 4.3200012,
+        "min_ms": 4.101558,
+        "max_ms": 4.376967,
+        "mean_ms": 4.1868622
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 4.1478705,
+        "p95_ms": 4.2970501500000005,
+        "min_ms": 4.082838,
+        "max_ms": 4.352837,
+        "mean_ms": 4.1631302
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.047469,
+        "p95_ms": 0.06607659999999999,
+        "min_ms": 0.045516,
+        "max_ms": 0.069461,
+        "mean_ms": 0.052130199999999995
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07511133333333332,
+          "per_analyze_exclusive_cpu_ms": 0.07511133333333332
+        },
+        "projection": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.133929,
+          "per_analyze_exclusive_cpu_ms": 0.133929
+        },
+        "world_transform": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.12021533333333333,
+          "per_analyze_exclusive_cpu_ms": 0.12021533333333333
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.075917,
+          "per_analyze_exclusive_cpu_ms": 0.075917
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.24682533333333334,
+          "per_analyze_exclusive_cpu_ms": 0.17090833333333336
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.019970666666666668,
+          "per_analyze_exclusive_cpu_ms": 0.019970666666666668
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.07483,
+          "per_analyze_exclusive_cpu_ms": 0.07483
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.6625556666666665,
+          "per_analyze_exclusive_cpu_ms": 2.3209296666666663
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.791233,
+          "per_analyze_exclusive_cpu_ms": 0.07001333333333333
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.09089633333333333,
+          "per_analyze_exclusive_cpu_ms": 0.09089633333333333
+        },
+        "OpenCV/findContours": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.01739033333333333,
+          "per_analyze_exclusive_cpu_ms": 0.01739033333333333
+        },
+        "OpenCV/drawContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.006261666666666667,
+          "per_analyze_exclusive_cpu_ms": 0.006261666666666667
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07888133333333333,
+          "per_analyze_exclusive_cpu_ms": 0.068024
+        },
+        "component_validation/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02307333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.02307333333333333
+        },
+        "component_validation/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.017994,
+          "per_analyze_exclusive_cpu_ms": 0.017994
+        },
+        "component_validation/linear_percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.056736666666666664,
+          "per_analyze_exclusive_cpu_ms": 0.056736666666666664
+        },
+        "component_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.239229,
+          "per_analyze_exclusive_cpu_ms": 0.136823
+        },
+        "ROI_predicate": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.009027,
+          "per_analyze_exclusive_cpu_ms": 0.009027
+        },
+        "OpenCV/morphologyEx": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.005597333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.005597333333333333
+        },
+        "elongated_contour_split": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.002308,
+          "per_analyze_exclusive_cpu_ms": 0.002308
+        },
+        "silhouette_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.041291,
+          "per_analyze_exclusive_cpu_ms": 0.038932666666666664
+        },
+        "child_visibility": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.018187333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.018187333333333333
+        },
+        "visible_geometry/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02021166666666667,
+          "per_analyze_exclusive_cpu_ms": 0.02021166666666667
+        },
+        "visible_geometry/PCA_eigh": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.012112666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.012112666666666666
+        },
+        "visible_geometry/linear_percentile": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.052568,
+          "per_analyze_exclusive_cpu_ms": 0.052568
+        },
+        "visible_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.208364,
+          "per_analyze_exclusive_cpu_ms": 0.07669766666666668
+        },
+        "pickup_geometry/percentile": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.14489466666666664,
+          "per_analyze_exclusive_cpu_ms": 0.14489466666666664
+        },
+        "pickup_geometry/median": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.03162333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.03162333333333333
+        },
+        "pickup_geometry/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.016430666666666666,
+          "per_analyze_exclusive_cpu_ms": 0.016430666666666666
+        },
+        "grasp_proposals/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.009975,
+          "per_analyze_exclusive_cpu_ms": 0.009975
+        },
+        "grasp_proposals": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.11702933333333333,
+          "per_analyze_exclusive_cpu_ms": 0.10705433333333333
+        },
+        "pickup_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.5506566666666667,
+          "per_analyze_exclusive_cpu_ms": 0.13952833333333334
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 4.298995666666667,
+          "per_analyze_exclusive_cpu_ms": 0.134823
+        }
+      }
+    },
+    {
+      "name": "distortion-8",
+      "shape": [
+        96,
+        128
+      ],
+      "frame_pixels": 12288,
+      "support_pre_cap": 63,
+      "support_selected": 63,
+      "returned_objects": 1,
+      "diagnostics": {
+        "color_parent_components": 1,
+        "depth_components": 1,
+        "depth_accepted_components": 1,
+        "rejected_components": 0,
+        "silhouette_checks": 1,
+        "silhouette_accepted": 1,
+        "rejection_reasons": {},
+        "rejected_samples": []
+      },
+      "report_sha256": "be50d101d760f4d47aa1bf81b11661985a1e7b0d32dce98106eb00fb8097d501",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 4.1657385,
+        "p95_ms": 4.3520842,
+        "min_ms": 4.116476,
+        "max_ms": 4.369302,
+        "mean_ms": 4.2141233
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 4.143257,
+        "p95_ms": 4.314733599999999,
+        "min_ms": 4.097183,
+        "max_ms": 4.34657,
+        "mean_ms": 4.19180505
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.048181,
+        "p95_ms": 0.0635696,
+        "min_ms": 0.046228,
+        "max_ms": 0.066335,
+        "mean_ms": 0.0522084
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.07584566666666667,
+          "per_analyze_exclusive_cpu_ms": 0.07584566666666667
+        },
+        "projection": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.13773766666666665,
+          "per_analyze_exclusive_cpu_ms": 0.13773766666666665
+        },
+        "world_transform": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.12350033333333332,
+          "per_analyze_exclusive_cpu_ms": 0.12350033333333332
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.07865733333333333,
+          "per_analyze_exclusive_cpu_ms": 0.07865733333333333
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.25419,
+          "per_analyze_exclusive_cpu_ms": 0.17553266666666667
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02022833333333333,
+          "per_analyze_exclusive_cpu_ms": 0.02022833333333333
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.077088,
+          "per_analyze_exclusive_cpu_ms": 0.077088
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.7206463333333333,
+          "per_analyze_exclusive_cpu_ms": 2.36914
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 2.8550293333333334,
+          "per_analyze_exclusive_cpu_ms": 0.07332533333333333
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.09372866666666667,
+          "per_analyze_exclusive_cpu_ms": 0.09372866666666667
+        },
+        "OpenCV/findContours": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 0.017586,
+          "per_analyze_exclusive_cpu_ms": 0.017586
+        },
+        "OpenCV/drawContours": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.006445333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.006445333333333333
+        },
+        "child_depth_preparation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.08012033333333334,
+          "per_analyze_exclusive_cpu_ms": 0.06916666666666667
+        },
+        "component_validation/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02307966666666667,
+          "per_analyze_exclusive_cpu_ms": 0.02307966666666667
+        },
+        "component_validation/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.018932,
+          "per_analyze_exclusive_cpu_ms": 0.018932
+        },
+        "component_validation/linear_percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.058416333333333334,
+          "per_analyze_exclusive_cpu_ms": 0.058416333333333334
+        },
+        "component_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.246539,
+          "per_analyze_exclusive_cpu_ms": 0.141302
+        },
+        "ROI_predicate": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.009261,
+          "per_analyze_exclusive_cpu_ms": 0.009261
+        },
+        "OpenCV/morphologyEx": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.005824,
+          "per_analyze_exclusive_cpu_ms": 0.005824
+        },
+        "elongated_contour_split": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.0023346666666666663,
+          "per_analyze_exclusive_cpu_ms": 0.0023346666666666663
+        },
+        "silhouette_validation": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.04024866666666666,
+          "per_analyze_exclusive_cpu_ms": 0.037851
+        },
+        "child_visibility": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.018381333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.018381333333333333
+        },
+        "visible_geometry/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.02084566666666667,
+          "per_analyze_exclusive_cpu_ms": 0.02084566666666667
+        },
+        "visible_geometry/PCA_eigh": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.012787,
+          "per_analyze_exclusive_cpu_ms": 0.012787
+        },
+        "visible_geometry/linear_percentile": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.05235766666666666,
+          "per_analyze_exclusive_cpu_ms": 0.05235766666666666
+        },
+        "visible_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.211783,
+          "per_analyze_exclusive_cpu_ms": 0.07821066666666668
+        },
+        "pickup_geometry/percentile": {
+          "calls": 15,
+          "per_analyze_inclusive_cpu_ms": 0.14892266666666665,
+          "per_analyze_exclusive_cpu_ms": 0.14892266666666665
+        },
+        "pickup_geometry/median": {
+          "calls": 6,
+          "per_analyze_inclusive_cpu_ms": 0.032517333333333336,
+          "per_analyze_exclusive_cpu_ms": 0.032517333333333336
+        },
+        "pickup_geometry/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.016711,
+          "per_analyze_exclusive_cpu_ms": 0.016711
+        },
+        "grasp_proposals/SVD": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.010229333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.010229333333333333
+        },
+        "grasp_proposals": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.12033266666666667,
+          "per_analyze_exclusive_cpu_ms": 0.11010333333333333
+        },
+        "pickup_geometry": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.5621043333333333,
+          "per_analyze_exclusive_cpu_ms": 0.14012066666666664
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 4.393313666666667,
+          "per_analyze_exclusive_cpu_ms": 0.13714433333333334
+        }
+      }
+    },
+    {
+      "name": "large-gray-support",
+      "shape": [
+        480,
+        640
+      ],
+      "frame_pixels": 307200,
+      "support_pre_cap": 4800,
+      "support_selected": 2000,
+      "returned_objects": 0,
+      "diagnostics": {
+        "color_parent_components": 0,
+        "depth_components": 0,
+        "depth_accepted_components": 0,
+        "rejected_components": 0,
+        "silhouette_checks": 0,
+        "silhouette_accepted": 0,
+        "rejection_reasons": {},
+        "rejected_samples": []
+      },
+      "report_sha256": "cb739af178c599ccc8e808806e53741bf47ee72843d86d68806de23a04af5adf",
+      "uninstrumented_wall": {
+        "n": 20,
+        "p50_ms": 7.8466885,
+        "p95_ms": 8.06948785,
+        "min_ms": 7.731086,
+        "max_ms": 8.087668,
+        "mean_ms": 7.8931365499999995
+      },
+      "uninstrumented_process_CPU": {
+        "n": 20,
+        "p50_ms": 7.8175775,
+        "p95_ms": 8.034908,
+        "min_ms": 7.697107,
+        "max_ms": 8.057727,
+        "mean_ms": 7.8574029
+      },
+      "report_JSON_serialization_wall": {
+        "n": 5,
+        "p50_ms": 0.134804,
+        "p95_ms": 0.14613579999999998,
+        "min_ms": 0.133352,
+        "max_ms": 0.148851,
+        "mean_ms": 0.137277
+      },
+      "stages": {
+        "color_masks": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 1.2333163333333332,
+          "per_analyze_exclusive_cpu_ms": 1.2333163333333332
+        },
+        "projection": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.31901466666666667,
+          "per_analyze_exclusive_cpu_ms": 0.31901466666666667
+        },
+        "world_transform": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.06116166666666666,
+          "per_analyze_exclusive_cpu_ms": 0.06116166666666666
+        },
+        "support_weighted_fit/SVD": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.3160756666666667,
+          "per_analyze_exclusive_cpu_ms": 0.3160756666666667
+        },
+        "support_weighted_fit": {
+          "calls": 27,
+          "per_analyze_inclusive_cpu_ms": 0.837722,
+          "per_analyze_exclusive_cpu_ms": 0.5216463333333333
+        },
+        "support_RANSAC_robust_and_residual_report/median": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 0.025868333333333333,
+          "per_analyze_exclusive_cpu_ms": 0.025868333333333333
+        },
+        "support_RANSAC_robust_and_residual_report/percentile": {
+          "calls": 9,
+          "per_analyze_inclusive_cpu_ms": 0.09383233333333332,
+          "per_analyze_exclusive_cpu_ms": 0.09383233333333332
+        },
+        "support_RANSAC_robust_and_residual_report": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 3.5914653333333333,
+          "per_analyze_exclusive_cpu_ms": 2.6340426666666663
+        },
+        "support_sampling_cap_and_admission": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 4.315099,
+          "per_analyze_exclusive_cpu_ms": 0.34345733333333334
+        },
+        "OpenCV/connectedComponentsWithStatsWithAlgorithm": {
+          "calls": 12,
+          "per_analyze_inclusive_cpu_ms": 1.9887906666666668,
+          "per_analyze_exclusive_cpu_ms": 1.9887906666666668
+        },
+        "analyze_rgbd": {
+          "calls": 3,
+          "per_analyze_inclusive_cpu_ms": 7.802447,
+          "per_analyze_exclusive_cpu_ms": 0.265241
+        }
+      }
+    }
+  ],
+  "remote": {
+    "admitted": false,
+    "reason": "Whole frozen report portability gate failed in2/12 cases even with exact pinned NumPy/OpenCV/SciPy versions. No algorithm/dispatch/tolerance retries.",
+    "system_runtime_failure": "remote-runtime-parity-failure.log",
+    "private_pinned_runtime_failure": "remote-pinned.log",
+    "private_pinned_runtime": {
+      "host": "cps-wkstn-fwmini4",
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "numpy": "2.5.4",
+      "opencv": "4.14.0",
+      "scipy": "1.17.1"
+    },
+    "diagnostic_only_all12_reports": [
+      {
+        "case": "base",
+        "matches_frozen_report": true,
+        "first_difference": null,
+        "actual_report_sha256": "c54324ea315dca5c299b6b61bb795d128876faee841db1374fd0afa6779a19ed",
+        "grasp_axes": [
+          {
+            "__array__": [
+              0.12218326369570447,
+              0.9925075566829031,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ],
+            "bytes_sha256": "e3b5517ba31e81c1ea9001377af4203f61d44088096b6a1830462fbdda5bc48b"
+          }
+        ]
+      },
+      {
+        "case": "invalid-hole",
+        "matches_frozen_report": true,
+        "first_difference": null,
+        "actual_report_sha256": "8e2a3b753eb4a378c2e4c6cd82b43457a8c2cd5a6a503fc314c6d28d8d3123a2",
+        "grasp_axes": []
+      },
+      {
+        "case": "touching-depth-children",
+        "matches_frozen_report": true,
+        "first_difference": null,
+        "actual_report_sha256": "c8e7cca97e3e0efc5b0ed5ae9fba5f46d17565aa5df9b5ee579f7867802030bb",
+        "grasp_axes": []
+      },
+      {
+        "case": "nonplanar-two-face",
+        "matches_frozen_report": false,
+        "first_difference": {
+          "path": "report.objects[0].grasps[0].closing_axis",
+          "shape": [
+            3
+          ],
+          "indices": [
+            [
+              0
+            ],
+            [
+              1
+            ]
+          ],
+          "expected": [
+            0.9732489894677302,
+            -0.2297529205473612
+          ],
+          "actual": [
+            0.7071067811865476,
+            0.7071067811865476
+          ],
+          "max_absolute_error": 0.9368597017339088
+        },
+        "actual_report_sha256": "2244e5256e0942971e2cbfebe39e476ba1156ff4479269f74aa79f0e3ac841b4",
+        "grasp_axes": [
+          {
+            "__array__": [
+              0.7071067811865476,
+              0.7071067811865476,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ],
+            "bytes_sha256": "ee337fa4d4ab0808024f944575c9143d10fb19828f1490cb5820c00adf7369e3"
+          }
+        ]
+      },
+      {
+        "case": "sensor-edge",
+        "matches_frozen_report": false,
+        "first_difference": {
+          "path": "report.objects[0].depth_validation.metrics.visible_extents_m[0]",
+          "expected": 0.028517538080059586,
+          "actual": 0.028462498826432328
+        },
+        "actual_report_sha256": "603e34972754090c4fad1877fcb6f77c9136e93ae60bb0f0e747f691d1b51396",
+        "grasp_axes": []
+      },
+      {
+        "case": "sparse-concave",
+        "matches_frozen_report": true,
+        "first_difference": null,
+        "actual_report_sha256": "fae96e96735b652c1fec425b9a16c03e73ebe537d561470c9045b28544d39104",
+        "grasp_axes": []
+      },
+      {
+        "case": "partial-observation-roi",
+        "matches_frozen_report": true,
+        "first_difference": null,
+        "actual_report_sha256": "c54324ea315dca5c299b6b61bb795d128876faee841db1374fd0afa6779a19ed",
+        "grasp_axes": [
+          {
+            "__array__": [
+              0.12218326369570447,
+              0.9925075566829031,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ],
+            "bytes_sha256": "e3b5517ba31e81c1ea9001377af4203f61d44088096b6a1830462fbdda5bc48b"
+          }
+        ]
+      },
+      {
+        "case": "partial-pickup-roi",
+        "matches_frozen_report": true,
+        "first_difference": null,
+        "actual_report_sha256": "43c118d5f2c82f2f5d498368dac5ea235af260d6c7442c0b93083fb867111bb4",
+        "grasp_axes": [
+          {
+            "__array__": [
+              0.12218326369570447,
+              0.9925075566829031,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ],
+            "bytes_sha256": "e3b5517ba31e81c1ea9001377af4203f61d44088096b6a1830462fbdda5bc48b"
+          }
+        ]
+      },
+      {
+        "case": "distortion-4",
+        "matches_frozen_report": true,
+        "first_difference": null,
+        "actual_report_sha256": "7f3c1f1bf4de836744557ddb7a0269fac022821dbb82a668b97f7d2176691dc9",
+        "grasp_axes": [
+          {
+            "__array__": [
+              0.12218326369570447,
+              0.9925075566829031,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ],
+            "bytes_sha256": "e3b5517ba31e81c1ea9001377af4203f61d44088096b6a1830462fbdda5bc48b"
+          }
+        ]
+      },
+      {
+        "case": "distortion-5",
+        "matches_frozen_report": true,
+        "first_difference": null,
+        "actual_report_sha256": "6e6da6440c092a1a9834309f2cd776b7db451f4e1039995a5475297371c56b90",
+        "grasp_axes": [
+          {
+            "__array__": [
+              0.12218326369570447,
+              0.9925075566829031,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ],
+            "bytes_sha256": "e3b5517ba31e81c1ea9001377af4203f61d44088096b6a1830462fbdda5bc48b"
+          }
+        ]
+      },
+      {
+        "case": "distortion-8",
+        "matches_frozen_report": true,
+        "first_difference": null,
+        "actual_report_sha256": "092e057c4bc5d97701d3167466a00051a4ae34afa20e55facab46affe1c5ba57",
+        "grasp_axes": [
+          {
+            "__array__": [
+              0.12218326369570447,
+              0.9925075566829031,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ],
+            "bytes_sha256": "e3b5517ba31e81c1ea9001377af4203f61d44088096b6a1830462fbdda5bc48b"
+          }
+        ]
+      },
+      {
+        "case": "large-gray-support",
+        "matches_frozen_report": true,
+        "first_difference": null,
+        "actual_report_sha256": "cb739af178c599ccc8e808806e53741bf47ee72843d86d68806de23a04af5adf",
+        "grasp_axes": []
+      }
+    ],
+    "accepted_diagnostic_cases": 10,
+    "failed_diagnostic_cases": 2,
+    "first_differences": [
+      {
+        "case": "nonplanar-two-face",
+        "matches_frozen_report": false,
+        "first_difference": {
+          "path": "report.objects[0].grasps[0].closing_axis",
+          "shape": [
+            3
+          ],
+          "indices": [
+            [
+              0
+            ],
+            [
+              1
+            ]
+          ],
+          "expected": [
+            0.9732489894677302,
+            -0.2297529205473612
+          ],
+          "actual": [
+            0.7071067811865476,
+            0.7071067811865476
+          ],
+          "max_absolute_error": 0.9368597017339088
+        },
+        "actual_report_sha256": "2244e5256e0942971e2cbfebe39e476ba1156ff4479269f74aa79f0e3ac841b4",
+        "grasp_axes": [
+          {
+            "__array__": [
+              0.7071067811865476,
+              0.7071067811865476,
+              0.0
+            ],
+            "dtype": "float64",
+            "shape": [
+              3
+            ],
+            "bytes_sha256": "ee337fa4d4ab0808024f944575c9143d10fb19828f1490cb5820c00adf7369e3"
+          }
+        ]
+      },
+      {
+        "case": "sensor-edge",
+        "matches_frozen_report": false,
+        "first_difference": {
+          "path": "report.objects[0].depth_validation.metrics.visible_extents_m[0]",
+          "expected": 0.028517538080059586,
+          "actual": 0.028462498826432328
+        },
+        "actual_report_sha256": "603e34972754090c4fad1877fcb6f77c9136e93ae60bb0f0e747f691d1b51396",
+        "grasp_axes": []
+      }
+    ],
+    "partial_timing_logs_not_accepted_benchmark": true,
+    "library_and_module_probe": "remote-runtime-proof.json",
+    "owner_observation": {
+      "pid": 181501,
+      "state": "S",
+      "start_ticks": 17719784,
+      "observed_after_CPU_attempts_only": true
+    }
+  },
+  "portability_root_cause": {
+    "evidence": [
+      {
+        "case": "nonplanar-two-face",
+        "call_index": 12,
+        "caller": "footprint_grasps",
+        "kind": "SVD",
+        "input_shape": [
+          4,
+          3
+        ],
+        "differences": {
+          "input": {
+            "bit_exact": true,
+            "max_absolute_error": 0.0,
+            "local_sha256": "3ae040081d2865433e18fcee9a514d23ab7b76ad7784be000f6e4301fb108ff4",
+            "remote_sha256": "3ae040081d2865433e18fcee9a514d23ab7b76ad7784be000f6e4301fb108ff4"
+          },
+          "output0": {
+            "bit_exact": false,
+            "max_absolute_error": 1.078854815646732,
+            "local_sha256": "9a3583a1801ab38827b8127c30932d3bbddde5adc06997c14f078d9d8eafbc9c",
+            "remote_sha256": "7eab311c604b27d840edaef92f8bad40370949cf12423ac78c22f82c6e94405f"
+          },
+          "output1": {
+            "bit_exact": false,
+            "max_absolute_error": 3.469446951953614e-18,
+            "local_sha256": "204c81794e69567b63cc52214e007b84d72aa43f4ff7e400e40464b45f9b874e",
+            "remote_sha256": "d44327afba614c45a02efd62854b44fb830adc0dfbd9257f9ec72ba28897af45"
+          },
+          "output2": {
+            "bit_exact": false,
+            "max_absolute_error": 1.6803557706542775,
+            "local_sha256": "0f1ad88db8b756063ec7f67a091c7d1ece1d2222104c2734f98142ccd978fcca",
+            "remote_sha256": "611820605622470d866d13829d9d52fdc96c3958088a39485378497ecadcfe34"
+          },
+          "local-origin": {
+            "bit_exact": true,
+            "max_absolute_error": 0.0,
+            "local_sha256": "bf2e60ba3532212f9810555e7471efa798aa0c8426ee361af3693e0ae3f05b43",
+            "remote_sha256": "bf2e60ba3532212f9810555e7471efa798aa0c8426ee361af3693e0ae3f05b43"
+          },
+          "local-points": {
+            "bit_exact": true,
+            "max_absolute_error": 0.0,
+            "local_sha256": "8d94d1d7c3b09abed18617163272d33f9af93f5c694883839b892f0e4e0b606b",
+            "remote_sha256": "8d94d1d7c3b09abed18617163272d33f9af93f5c694883839b892f0e4e0b606b"
+          },
+          "local-pixels": {
+            "bit_exact": true,
+            "max_absolute_error": 0.0,
+            "local_sha256": "39a3794d72f8443aacf85b16d8d22261c779712d9c46e214c66f259cb8bca3f5",
+            "remote_sha256": "39a3794d72f8443aacf85b16d8d22261c779712d9c46e214c66f259cb8bca3f5"
+          },
+          "local-n": {
+            "bit_exact": true,
+            "max_absolute_error": 0.0,
+            "local_sha256": "cf639d4868a9dbde979b7c29a0fcf077ac8aabf5daf99e48dcfbcc1faae0cd9e",
+            "remote_sha256": "cf639d4868a9dbde979b7c29a0fcf077ac8aabf5daf99e48dcfbcc1faae0cd9e"
+          }
+        },
+        "scalar_locals_local": {
+          "center": null,
+          "centroid": null,
+          "weights": null,
+          "p": null,
+          "q": null,
+          "base_w": null,
+          "normal": null,
+          "axis_x": null,
+          "axis_y": null,
+          "tangent": null,
+          "centered": null,
+          "height_m": 0.022999989986419722,
+          "contour_height_m": 0.02299898998641972,
+          "projection_height": 0.02299898998641972,
+          "d": 0.8
+        },
+        "scalar_locals_remote": {
+          "center": null,
+          "centroid": null,
+          "weights": null,
+          "p": null,
+          "q": null,
+          "base_w": null,
+          "normal": null,
+          "axis_x": null,
+          "axis_y": null,
+          "tangent": null,
+          "centered": null,
+          "height_m": 0.022999989986419722,
+          "contour_height_m": 0.02299898998641972,
+          "projection_height": 0.02299898998641972,
+          "d": 0.8
+        },
+        "singular_values_local": [
+          0.02849003703383128,
+          0.028490037033831277,
+          0.0
+        ],
+        "singular_values_remote": [
+          0.02849003703383128,
+          0.02849003703383128,
+          0.0
+        ],
+        "relative_leading_singular_gap_local": 1.2177755149400908e-16,
+        "relative_leading_singular_gap_remote": 0.0,
+        "VT_local": [
+          [
+            0.9732489894677301,
+            0.22975292054736118,
+            0.0
+          ],
+          [
+            0.22975292054736118,
+            -0.9732489894677301,
+            -0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "VT_remote": [
+          [
+            0.7071067811865475,
+            -0.7071067811865475,
+            -0.0
+          ],
+          [
+            0.7071067811865475,
+            0.7071067811865475,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "local_relative_reconstruction_error": 3.3071070265881286e-16,
+        "remote_relative_reconstruction_error": 2.1092490640895894e-16
+      },
+      {
+        "case": "sensor-edge",
+        "call_index": 22,
+        "caller": "validate_colored_component",
+        "kind": "SVD",
+        "input_shape": [
+          144,
+          3
+        ],
+        "differences": {
+          "input": {
+            "bit_exact": true,
+            "max_absolute_error": 0.0,
+            "local_sha256": "5d6c2dd4d4b68ca65c465fdcf674a52da3b7b28c4e2c1df6c40122beb9d83883",
+            "remote_sha256": "5d6c2dd4d4b68ca65c465fdcf674a52da3b7b28c4e2c1df6c40122beb9d83883"
+          },
+          "output0": {
+            "bit_exact": false,
+            "max_absolute_error": 0.0008277812017698227,
+            "local_sha256": "94476cb833eadb7ffb3f45591252faae3b45350e9413a054586d4f993ac5c0a5",
+            "remote_sha256": "a3a63cb5d6502416c9e7c3afeab57cfe3dcb52c7aa501db8cfb96d36c2a540b8"
+          },
+          "output1": {
+            "bit_exact": true,
+            "max_absolute_error": 0.0,
+            "local_sha256": "3eed92b5e4c08970ad4ea586fe059a8a53817724edcabff93ecb7ab65b9f69e5",
+            "remote_sha256": "3eed92b5e4c08970ad4ea586fe059a8a53817724edcabff93ecb7ab65b9f69e5"
+          },
+          "output2": {
+            "bit_exact": false,
+            "max_absolute_error": 0.006157417887491417,
+            "local_sha256": "326cf5147c87f58485acd714edb2d90dfda2c18a5ba09b13104966dcd4a9028f",
+            "remote_sha256": "bbd62a4db71df068fa25bf13ce418e7e82b1a83b63eef01eca7b680c942be9fa"
+          },
+          "local-center": {
+            "bit_exact": true,
+            "max_absolute_error": 0.0,
+            "local_sha256": "294d94e52a169ece1a7dc198032a8b035a7b70c95068b9b7513d4ef3138fcae7",
+            "remote_sha256": "294d94e52a169ece1a7dc198032a8b035a7b70c95068b9b7513d4ef3138fcae7"
+          },
+          "local-points": {
+            "bit_exact": true,
+            "max_absolute_error": 0.0,
+            "local_sha256": "20f3ecb8e2d70015b394c10d8db43b681c9175e97514ef694c989481c44cb537",
+            "remote_sha256": "20f3ecb8e2d70015b394c10d8db43b681c9175e97514ef694c989481c44cb537"
+          },
+          "local-d": {
+            "bit_exact": true,
+            "max_absolute_error": 0.0,
+            "local_sha256": "2c34ce1df23b838c5abf2a7f6437cca3d3067ed509ff25f11df6b11b582b51eb",
+            "remote_sha256": "2c34ce1df23b838c5abf2a7f6437cca3d3067ed509ff25f11df6b11b582b51eb"
+          }
+        },
+        "scalar_locals_local": {
+          "centroid": null,
+          "origin": null,
+          "weights": null,
+          "p": null,
+          "q": null,
+          "base_w": null,
+          "normal": null,
+          "axis_x": null,
+          "axis_y": null,
+          "tangent": null,
+          "centered": null,
+          "height_m": null,
+          "contour_height_m": null,
+          "projection_height": null,
+          "pixels": null,
+          "n": null
+        },
+        "scalar_locals_remote": {
+          "centroid": null,
+          "origin": null,
+          "weights": null,
+          "p": null,
+          "q": null,
+          "base_w": null,
+          "normal": null,
+          "axis_x": null,
+          "axis_y": null,
+          "tangent": null,
+          "centered": null,
+          "height_m": null,
+          "contour_height_m": null,
+          "projection_height": null,
+          "pixels": null,
+          "n": null
+        },
+        "singular_values_local": [
+          0.10770404320125554,
+          0.10770404320125548,
+          0.0
+        ],
+        "singular_values_remote": [
+          0.10770404320125554,
+          0.10770404320125548,
+          0.0
+        ],
+        "relative_leading_singular_gap_local": 5.154045250421083e-16,
+        "relative_leading_singular_gap_remote": 5.154045250421083e-16,
+        "VT_local": [
+          [
+            0.999955235565991,
+            0.009461863672829801,
+            0.0
+          ],
+          [
+            -0.009461863672829801,
+            0.999955235565991,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "VT_remote": [
+          [
+            0.9998780115811826,
+            0.015619281560321219,
+            0.0
+          ],
+          [
+            -0.015619281560321219,
+            0.9998780115811826,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "local_relative_reconstruction_error": 3.7734722053224605e-16,
+        "remote_relative_reconstruction_error": 1.8620022082844083e-16
+      }
+    ],
+    "conclusion": "Both failing SVD matrices and recorded centers/points are bit-exact across hosts; leading singular values are equal/nearly equal to machine precision, while chosen bases differ and both decompositions reconstruct input to ~1e-16 relative. This makes reported PCA extents/grasp orientation numerically underdetermined or extremely sensitive. Source/import/ray differences are not observed at these callsites.",
+    "implementation_limit": "Bundled NumPy OpenBLAS64 binary hash is identical across hosts; NumPy linalg extension differs by CPython ABI (3.13 versus3.12). No claim isolates exact CPU kernel or ABI cause; no dispatch forcing attempted.",
+    "base_positive_control": "All base SVD/eigh input matrices are bit-exact; observed VT bases match. Exact centers/U/S/VT in both base-linear-algebra-calls.npz files.",
+    "all_calls_comparison": "linear-algebra-comparison.json",
+    "focused_case_label_note": "Base trace contains13 calls. Focused trace canonical command order: first13 calls nonplanar-two-face, last11 sensor-edge. Raw focused metadata case label was shadowed by array-name variable; numeric arrays/caller order unchanged. This comparison derives case from verified canonical order and caller sequence."
+  },
+  "recommendation": "Correctness prerequisite first: rule on repeated-singular-value PCA/grasp orientation portability before admitting full target geometry. For local CPU cost, support RANSAC/robust/residual routine dominates the9 SVDs; investigate that retained stage rather than assume SVD factorization is the bottleneck. VGA mask/parent CCL cost is also substantial. This recommends a bottleneck, not a new algorithm.",
+  "raw_archive": {
+    "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/geometry-cpu-budget-20261027.tar.gz",
+    "sha256": "46ad6ff008cf7afa41b656c86d8e636e560df6f5793f827be2790b92a6ef22f6",
+    "bytes": 2701038
+  }
+}

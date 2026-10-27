@@ -1,0 +1,506 @@
+{
+  "source_commit": "5d0854a26b02db755ceb3cc157c488237a34a0be",
+  "qualified": false,
+  "arithmetic_diagnostic_validated": true,
+  "scope": "Integer-only fixed round-to-nearest/ties-even value bits; canonical NaN. No flags/payload/rounding-mode, geometry, QR, camera, station, physical or performance adoption.",
+  "helper_sha256": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+  "cpu_semantics": {
+    "random_pairs": 1000000,
+    "official_TestFloat_division": 46464,
+    "official_TestFloat_sqrt": 768,
+    "official_widening": 600,
+    "D001_rows": 1147832,
+    "generated_rows": 1100000,
+    "generated_not_all_random": true,
+    "D001_words_per_row": [
+      "division",
+      "sqrt(a)",
+      "binary32_widen",
+      "comparison_finiteness_flags"
+    ],
+    "D001_total_compared_words": 4591328,
+    "D001_divsqrt_words": 2295664,
+    "P001_rows": 65536,
+    "P001_total_words": 262144,
+    "old_corpus_and_CPU_summary_identical": true
+  },
+  "hardware_results": [
+    {
+      "host": "Intel N100",
+      "device": "Intel(R) Graphics (ADL-N)",
+      "kind": "SF64D001",
+      "rows": 1147832,
+      "compared_words": 4591328,
+      "mismatch_counts_per_word": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "output_sha256": "9a5430ee8a54685c0066ad6977492d3b561bb46d2c3e248dbce5c08342859310",
+      "features": {
+        "physical_shader_float64": 0,
+        "enabled_shader_float64": 0,
+        "physical_shader_int64": 1,
+        "enabled_shader_int64": 1
+      },
+      "wall_seconds": 0.9709715161006898,
+      "process_cpu_seconds": 0.77,
+      "CPU_time_resolution": "GNU time rounded hundredths",
+      "reaped": true
+    },
+    {
+      "host": "Intel N100",
+      "device": "Intel(R) Graphics (ADL-N)",
+      "kind": "SF64P001",
+      "rows": 65536,
+      "compared_words": 262144,
+      "mismatch_counts_per_word": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "output_sha256": "486bf206e27e8ed88ce54e5d7eb5d2b5a2fe8adfcfd5e99c220dbd6ab4328ec5",
+      "features": {
+        "physical_shader_float64": 0,
+        "enabled_shader_float64": 0,
+        "physical_shader_int64": 1,
+        "enabled_shader_int64": 1
+      },
+      "wall_seconds": 0.07542968692723662,
+      "process_cpu_seconds": 0.06,
+      "CPU_time_resolution": "GNU time rounded hundredths",
+      "reaped": true
+    },
+    {
+      "host": "local AMD",
+      "device": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+      "kind": "SF64D001",
+      "rows": 1147832,
+      "compared_words": 4591328,
+      "mismatch_word_count": 0,
+      "output_sha256": "9a5430ee8a54685c0066ad6977492d3b561bb46d2c3e248dbce5c08342859310",
+      "wall_seconds": 1.142719069001032,
+      "process_cpu_seconds": 1.1230200000000001,
+      "features": {
+        "physical_shader_float64": 1,
+        "enabled_shader_float64": 1,
+        "physical_shader_int64": 1,
+        "enabled_shader_int64": 1
+      },
+      "reaped": true
+    },
+    {
+      "host": "local AMD",
+      "device": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+      "kind": "SF64P001",
+      "rows": 65536,
+      "compared_words": 262144,
+      "mismatch_word_count": 0,
+      "output_sha256": "486bf206e27e8ed88ce54e5d7eb5d2b5a2fe8adfcfd5e99c220dbd6ab4328ec5",
+      "wall_seconds": 0.08830768400366651,
+      "process_cpu_seconds": 0.08481099999999994,
+      "features": {
+        "physical_shader_float64": 1,
+        "enabled_shader_float64": 1,
+        "physical_shader_int64": 1,
+        "enabled_shader_int64": 1
+      },
+      "reaped": true
+    }
+  ],
+  "canonical_cpu": {
+    "source_files_unchanged": 927,
+    "junit": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "133",
+        "tests": "4734",
+        "time": "260.150",
+        "timestamp": "2026-10-27T19:12:01.987395+01:00",
+        "hostname": "cps-wkstn-hpz2minig1a-ellensohn"
+      }
+    ],
+    "log_sha256": "aa5413d1d8d49fc4bd72a39647c149b0116372090de9ac8933acdbe2c61f4103",
+    "before_sha256": "456c5615cffe1d55aaced7547e6c7a3bc0d9d9d6942316efd0d42c625f4c44cf",
+    "passed": 4553,
+    "skipped": 133,
+    "subtests": 48,
+    "seconds": 260.18
+  },
+  "resource": {
+    "resource_gate": "PASS for frozen pure integer helper and unchanged geometry hot callsites; GPU execution not performed",
+    "helper_sha256": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+    "source_commit_base": "6f87074e621a8a8aa0c5b9941a1489df39fed65e",
+    "focused_result": "...................                                                      [100%]\n19 passed in 1.39s",
+    "probe_resource_result": "......                                                                   [100%]\n6 passed in 0.03s",
+    "mutants": {
+      "new": 8,
+      "existing_finite_bound_mutants": 7
+    },
+    "review": {
+      "div_loop": "Exactly 62 fractional digits (bit61..0), one subtraction test per digit. Remainder below normalized denominator before doubling.",
+      "sqrt_loop": "Exactly 63 radix4 pairs (pair62..0), fixed one correction; guarded variable shift branch.",
+      "heap": "Hot new/new[] counter unchanged across warmup and all timed loops; helper allocation names and non-helper function calls rejected statically. Does not instrument libc malloc directly; helper whitelist prohibits malloc/calloc/realloc.",
+      "resident_path": "Only offline probe calls added; geometry submit/finish and Context::shared bodies retain historical identity as checked by existing resource tests. No production geometry callsite switch, buffers, readback, dispatch or waits added by these arithmetic helpers."
+    },
+    "measurement_scope": {
+      "samples": 7,
+      "warmup_trials": 2,
+      "operations_per_sample": 32768,
+      "runtime_inputs_per_population": 1024,
+      "method": "Alternating native/software order; volatile function-pointer calls to noinline wrappers; native volatile IEEE division/sqrt and canonical NaNs; FE_TONEAREST and x86 FTZ/DAZ disabled. Checksums and pointwise parity outside timing.",
+      "positive_sqrt": "Ordinary and subnormal square-root inputs are positive, ensuring recurrence rather than negative-domain early return. Special population intentionally mixes special/finite values.",
+      "cost": "Amortized per-call wall/processCPU includes indirect call, load and checksum. Not serial dependency latency or pure instruction cost.",
+      "host_control": "No affinity, power or host workload reservation. No target CPU/GPU, camera, ROS, station throughput or headroom claim."
+    },
+    "development_history": [
+      "Initial harness compilation failed from inconsistent lambda inferred unsigned integer types; explicit uint64_t return fixed it. No helper algorithm changed.",
+      "Preliminary ordinary sqrt population included negative inputs. Final measurement uses positive finite ordinary/subnormal sqrt and supersedes that mixed-domain trial."
+    ]
+  },
+  "CPU_operator_cost": {
+    "scope": "CPU arithmetic only; excludes GPU and station performance",
+    "operations_per_trial": 32768,
+    "warmup_trials": 2,
+    "trials": 7,
+    "rounding": "nearest ties even; FTZ/DAZ disabled",
+    "scenarios": [
+      {
+        "population": "ordinary",
+        "operation": "div",
+        "hot_heap_allocations": 0,
+        "input_bytes": 16384,
+        "checksum": 11715135246229031520,
+        "software_p50_ns": 216.57,
+        "native_p50_ns": 1.70151,
+        "software_cpu_p50_ns": 216.057,
+        "native_cpu_p50_ns": 1.70667,
+        "software_samples_ns": [
+          218.837,
+          217.572,
+          217.265,
+          216.57,
+          201.075,
+          169.633,
+          163.867
+        ],
+        "native_samples_ns": [
+          1.70456,
+          1.70242,
+          1.70303,
+          1.70151,
+          1.31476,
+          1.30801,
+          1.29395
+        ],
+        "software_cpu_samples_ns": [
+          218.358,
+          217.175,
+          216.766,
+          216.057,
+          200.296,
+          169.235,
+          163.661
+        ],
+        "native_cpu_samples_ns": [
+          1.70944,
+          1.70731,
+          1.70853,
+          1.70667,
+          1.32083,
+          1.31165,
+          1.30157
+        ]
+      },
+      {
+        "population": "ordinary",
+        "operation": "sqrt",
+        "hot_heap_allocations": 0,
+        "input_bytes": 16384,
+        "checksum": 13175481513721560064,
+        "software_p50_ns": 179.999,
+        "native_p50_ns": 1.91064,
+        "software_cpu_p50_ns": 179.779,
+        "native_cpu_p50_ns": 1.91431,
+        "software_samples_ns": [
+          179.54,
+          176.02,
+          174.768,
+          179.999,
+          180.049,
+          181.199,
+          183.914
+        ],
+        "native_samples_ns": [
+          1.90881,
+          1.91064,
+          1.91342,
+          1.59543,
+          1.62875,
+          1.95255,
+          2.01031
+        ],
+        "software_cpu_samples_ns": [
+          179.328,
+          175.799,
+          174.597,
+          179.779,
+          179.796,
+          180.947,
+          183.496
+        ],
+        "native_cpu_samples_ns": [
+          1.91275,
+          1.91431,
+          1.91705,
+          1.59909,
+          1.63242,
+          1.95618,
+          2.01398
+        ]
+      },
+      {
+        "population": "subnormal",
+        "operation": "div",
+        "hot_heap_allocations": 0,
+        "input_bytes": 16384,
+        "checksum": 12406130317396410240,
+        "software_p50_ns": 171.856,
+        "native_p50_ns": 2.71692,
+        "software_cpu_p50_ns": 171.6,
+        "native_cpu_p50_ns": 2.72086,
+        "software_samples_ns": [
+          180.739,
+          176.794,
+          173.974,
+          171.856,
+          170.804,
+          167.886,
+          164.717
+        ],
+        "native_samples_ns": [
+          2.75638,
+          2.82791,
+          2.71692,
+          2.71661,
+          2.77472,
+          2.71112,
+          2.54938
+        ],
+        "software_cpu_samples_ns": [
+          180.33,
+          176.52,
+          173.718,
+          171.6,
+          170.626,
+          167.544,
+          164.378
+        ],
+        "native_cpu_samples_ns": [
+          2.76123,
+          2.77988,
+          2.72086,
+          2.72025,
+          2.72852,
+          2.71475,
+          2.55301
+        ]
+      },
+      {
+        "population": "subnormal",
+        "operation": "sqrt",
+        "hot_heap_allocations": 0,
+        "input_bytes": 16384,
+        "checksum": 62526655384867040,
+        "software_p50_ns": 182.499,
+        "native_p50_ns": 3.72867,
+        "software_cpu_p50_ns": 182.09,
+        "native_cpu_p50_ns": 3.7323,
+        "software_samples_ns": [
+          179.018,
+          179.762,
+          185.183,
+          185.411,
+          185.241,
+          182.499,
+          178.533
+        ],
+        "native_samples_ns": [
+          3.55225,
+          3.55164,
+          3.73816,
+          3.8476,
+          3.73203,
+          3.72867,
+          3.61398
+        ],
+        "software_cpu_samples_ns": [
+          178.475,
+          178.869,
+          184.67,
+          184.824,
+          184.667,
+          182.09,
+          178.082
+        ],
+        "native_cpu_samples_ns": [
+          3.55585,
+          3.55524,
+          3.74207,
+          3.76071,
+          3.73566,
+          3.7323,
+          3.61734
+        ]
+      },
+      {
+        "population": "special",
+        "operation": "div",
+        "hot_heap_allocations": 0,
+        "input_bytes": 16384,
+        "checksum": 16465160237666533376,
+        "software_p50_ns": 9.24902,
+        "native_p50_ns": 2.30569,
+        "software_cpu_p50_ns": 9.24924,
+        "native_cpu_p50_ns": 2.31238,
+        "software_samples_ns": [
+          9.22,
+          9.24902,
+          9.31323,
+          9.22183,
+          9.24509,
+          9.46948,
+          9.46643
+        ],
+        "native_samples_ns": [
+          2.30048,
+          2.29929,
+          2.30569,
+          2.30447,
+          2.39069,
+          2.31546,
+          2.31638
+        ],
+        "software_cpu_samples_ns": [
+          9.22354,
+          9.25226,
+          9.24924,
+          9.22507,
+          9.2486,
+          9.47607,
+          9.46997
+        ],
+        "native_cpu_samples_ns": [
+          2.30383,
+          2.30289,
+          2.31238,
+          2.30777,
+          2.33838,
+          2.31912,
+          2.32001
+        ]
+      },
+      {
+        "population": "special",
+        "operation": "sqrt",
+        "hot_heap_allocations": 0,
+        "input_bytes": 16384,
+        "checksum": 7638104968020358336,
+        "software_p50_ns": 19.6991,
+        "native_p50_ns": 3.17404,
+        "software_cpu_p50_ns": 19.6414,
+        "native_cpu_p50_ns": 3.17795,
+        "software_samples_ns": [
+          19.6991,
+          19.5915,
+          19.6352,
+          19.8798,
+          19.9981,
+          19.6129,
+          19.8446
+        ],
+        "native_samples_ns": [
+          3.16516,
+          3.16333,
+          3.17404,
+          3.17249,
+          3.17587,
+          3.18961,
+          3.19696
+        ],
+        "software_cpu_samples_ns": [
+          19.6414,
+          19.5979,
+          19.5884,
+          19.7957,
+          19.9477,
+          19.6162,
+          19.7792
+        ],
+        "native_cpu_samples_ns": [
+          3.17184,
+          3.16696,
+          3.17795,
+          3.17615,
+          3.17978,
+          3.19327,
+          3.20059
+        ]
+      }
+    ],
+    "compile_command": [
+      "g++",
+      "-std=c++17",
+      "-O2",
+      "-ffp-contract=off",
+      "-fno-fast-math",
+      "-frounding-math",
+      "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_perf_benchmark.cpp",
+      "-o",
+      "/tmp/pytest-of-bjoern/pytest-624/test_actual_divsqrt_cpu_cost0/divsqrt_perf"
+    ],
+    "compiler": "g++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+    "platform": "Linux-7.2.8-200.fc44.x86_64-x86_64-with-glibc2.43",
+    "cpu": "\t: AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+    "source_sha256": {
+      "ros2/src/so101_station_vulkan/test/soft_binary64_divsqrt_perf_benchmark.cpp": "b13a276ed6c567993d8b6d501c60905f5497027d5906be39138b8f4856379bac",
+      "ros2/src/so101_station_vulkan/shaders/soft_binary64.slang": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+      "tests/test_soft_binary64_divsqrt_perf.py": "cfd697b191e9c0bf78c390fc883894a6098ae2a08b26dd51751458d5cc67946d"
+    }
+  },
+  "history": {
+    "Intel": [
+      {
+        "stage": "initial-map-sampling",
+        "reason": "last-only mapping snapshot lost already-unloaded Intel driver; initial exact GPU outputs preserved and unchanged inputs repeated with union sampler"
+      },
+      {
+        "stage": "union-map-classification",
+        "reason": "filename substring falsely classified non-ELF /etc/ld.so.cache as shared library; changed actual-code classifier to ELF magic and finalized saved D001 artifacts CPU-only; no extra D001 dispatch"
+      },
+      {
+        "stage": "archive-packaging",
+        "returncode": 1,
+        "reason": "tar reported top directory changed while writing archive inside that directory; complete gzip/tar extracted and every inventoried file hash/size verified; no arithmetic/protocol/native failure and no GPU rerun"
+      }
+    ],
+    "AMD": "Initial both exact successes retained in attempt1-success-incomplete-layer-prepin; repeated unchanged numeric sources/artifacts/environment to add before/after pin for observed implicit Mesa layer.",
+    "compiler_test_delta": {
+      "old_sha256": "b2bcb989975abf3c83916150001715922ada9745a6435b30e546ffc48472e86b",
+      "final_sha256": "5cd745a002f48dfd13e7e6b9ee3ab2a3de2874275afb0af805bd211e9070e7ab",
+      "reason": "Parent authorized portable compiler selection: SF64_UBSAN_CXX override then normal CXX fallback. Numeric helper/harness/SPV/corpus unchanged."
+    }
+  },
+  "timing_scope": "Whole isolated GPU diagnostic process includes CPU corpus validation, context/pipeline creation, dispatch/transfers, exact comparison, hashing and file output. Not GPU kernel timing, frame cost, FPS or station headroom. CPU arithmetic benchmark is separate amortized per-call cost.",
+  "source_pins": "evidence/software-binary64-divsqrt-20261027/source-pins.json",
+  "private_raw_archive": {
+    "path": "/home/bjoern/.local/share/exciting-science/evidence/2026-10-27/software-binary64-divsqrt-20261027.tar.gz",
+    "sha256": "94ee653f59017dba252ccd47cfe79511c427f56a525b7020b7e799757fdc24e4",
+    "bytes": 67491777,
+    "note": "Selected raw evidence, not a verbatim copy of original Intel archive. No ELF, installed shared libraries, caches or owner-command preflight. Byte-identical artifacts deduplicated with tar hardlinks; complete row bytes retained."
+  }
+}

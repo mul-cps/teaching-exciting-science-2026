@@ -1,0 +1,487 @@
+{
+  "history": "Initial both exact successes retained in attempt1-success-incomplete-layer-prepin; repeated unchanged numeric sources/artifacts/environment to add before/after pin for observed implicit Mesa layer.",
+  "trials": [
+    {
+      "kind": "SF64D001",
+      "command": [
+        "/tmp/soft-binary64-divsqrt-20261027/qualify-vulkan-compile-only",
+        "--vulkan",
+        "/tmp/soft-binary64-divsqrt-20261027/divsqrt-1100000.bin",
+        "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_divsqrt_probe.spv",
+        "/tmp/soft-binary64-divsqrt-amd-20261027/SF64D001"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "reaped": true,
+      "wall_seconds": 1.142719069001032,
+      "process_cpu_seconds": 1.1230200000000001,
+      "loaded_files": [
+        {
+          "path": "/etc/ld.so.cache",
+          "sha256": "6a580729cd2c6fb1b2017a07701cc9d5ce863d59e72224e0dbf8beae78aa01f8",
+          "bytes": 167535
+        },
+        {
+          "path": "/home/bjoern/.cache/mesa_shader_cache/index",
+          "sha256": "b4d5f3254c69dcaaa77a8669b5910a8408a315527ee2e5947176723c7bfcb942",
+          "bytes": 2097160
+        },
+        {
+          "path": "/home/bjoern/.cache/radv_builtin_shaders/index",
+          "sha256": "e33aed84c876e17146c31c9e035983814d8f1c8817144ec34630bba6c53991f3",
+          "bytes": 2097160
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libLLVM.so.22.1",
+          "sha256": "2e9c27457d4ecaf51257c8afcc039d661f688133d93694811690b2432a61eefb",
+          "bytes": 195933536
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libSPIRV-Tools.so",
+          "sha256": "0b554745cae9bd85ebc61b8d48627be41e3b66b4fbc414986d04fc66e762c4e3",
+          "bytes": 2383064
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libX11-xcb.so.1.0.0",
+          "sha256": "c89b4356a5ea9832e4e9542e4fab5aa729a81f8cfec36663666d66ba34cdc805",
+          "bytes": 14992
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libXau.so.6.0.0",
+          "sha256": "dcc7de4960c165b97b5faa8b3bdeb4dfc2439b5066f1f9b2f2e3aca9478267ff",
+          "bytes": 17144
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libXdmcp.so.6.0.0",
+          "sha256": "dcdabcb94e17c6b1057a751e43574882ba44bf9b0fa0ff0e75dbf7b30f9e3b63",
+          "bytes": 30144
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libelf-0.194.so",
+          "sha256": "fd027bfab3a91a07fc633ae2fd56ff48891fe3003f0bb11b9236e975910a2b7a",
+          "bytes": 122872
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libexpat.so.1.12.5",
+          "sha256": "8b61b41a8f5bee8d8d336e8bc5318233d6b435d482a7510f4e01788b618a6598",
+          "bytes": 195584
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libffi.so.8.4.0",
+          "sha256": "4d28902e78d7ed5e1d825e0e038286a5e4dc7ef14d789ff4992336bbfc315ca4",
+          "bytes": 59976
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libgcc_s.so.1",
+          "sha256": "5444fbe71e8cfe3bd05cdf2b44bd8c2e553e6e7e276977089b5e4e1a1ceed531",
+          "bytes": 922624
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libiconv.so.2.7.0",
+          "sha256": "59b942b8a9dfabcfec7d65ff2be1de2e59902765837768ca37468cef5dca9571",
+          "bytes": 1182640
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libicudata.so.78.3",
+          "sha256": "6d963e31d9aa02a078854d6352f78625241fa489cdd6a4d308f1cb0d0eafc273",
+          "bytes": 33113032
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libicuuc.so.78.3",
+          "sha256": "b1b20f42ec765c7dc4c75e05cc62cd750d7e92c32f2e0416c450338dac46458b",
+          "bytes": 2706448
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libstdc++.so.6.0.36",
+          "sha256": "10f0d3c46c070acd4abea2ccf2500ff0ec77e9b90154b82ea2720dba05510cb9",
+          "bytes": 23874544
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libudev.so.1.7.15",
+          "sha256": "fba77cb5e6f3a83859f18af8e7c7a65ebb770c9c5fa2cc3b49d20af9e300245c",
+          "bytes": 455368
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libvulkan.so.1.4.357",
+          "sha256": "3e728b0f2535a7dc344c76b166fdf28e2561ce7293c68df775aecac5c8c3f37e",
+          "bytes": 713104
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libwayland-client.so.0.26.0",
+          "sha256": "4e1299fe06af47b94abe7e9af2ca69c94606bf005d584feed41e0269e835fdb3",
+          "bytes": 237624
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-dri3.so.0.1.0",
+          "sha256": "eeae4c0815883ebb451dae3d48dde1ee2cecfa30a187b0a95531f37ad9823f0d",
+          "bytes": 27688
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-present.so.0.0.0",
+          "sha256": "61b9d3c1ffc4929fa1505529d287b9a7d86cdd2b9460eff2e53ed694ffc9801a",
+          "bytes": 21600
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-randr.so.0.1.0",
+          "sha256": "7fbbbc9f5679421e6b185ce8669634b663d53cefeb672e84c668c6fb299fb7a6",
+          "bytes": 95248
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-shm.so.0.0.0",
+          "sha256": "d560624e0f4a720eb68179b90c37bb0d5939cefecd2ef7c1aaaeae38ea3fe890",
+          "bytes": 17096
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-sync.so.1.0.0",
+          "sha256": "202ef4ca6d145173527af10b453df76429a80a45d36d8684a86036149be88fea",
+          "bytes": 42304
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-xfixes.so.0.0.0",
+          "sha256": "f7e7fb8ce09b4c438ae76299dd02694c29c0d2606beb4df09c30ab29a1a65237",
+          "bytes": 49536
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb.so.1.1.0",
+          "sha256": "504faa0ca490d23e89505bb430892f18992979a7856869e776ae711fcaab79d7",
+          "bytes": 228648
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxml2.so.16.1.4",
+          "sha256": "a32f04d52ebb257b28e19e76454914c0e0d4b225dd9203dc69a15466d2950696",
+          "bytes": 1457304
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxshmfence.so.1.0.0",
+          "sha256": "465230077bab283c2725c8ea05b340bd6efb885787e4e31022ba9e4c004e789e",
+          "bytes": 16064
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libz.so.1.3.2",
+          "sha256": "3c6fd78e248a60e45081bcc77031204a7cb64a88ff2e27fc786ef12ae7e91fca",
+          "bytes": 117168
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libzstd.so.1.5.7",
+          "sha256": "b0e2bad8c117a3ad7d344d7924272d12b8e363956efb91b5074e43d4e201a08d",
+          "bytes": 1198840
+        },
+        {
+          "path": "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/libresident_rgbd.so",
+          "sha256": "33a2deeff920bb3934b81e907beeb375d5b8546da6ae6058f3c41087418e4dd1",
+          "bytes": 113008
+        },
+        {
+          "path": "/tmp/soft-binary64-divsqrt-20261027/qualify-vulkan-compile-only",
+          "sha256": "e4fbeb67f9007ca4b4707858c8fc604a295c09aa88c3a8639080683ef6e82b9f",
+          "bytes": 98560
+        },
+        {
+          "path": "/usr/lib64/dri-freeworld/libVkLayer_MESA_device_select.so",
+          "sha256": "83128aaf34e9a5ef595d7e047c93f5efb1683dc1cf41c1e78e7e255667419bf1",
+          "bytes": 100680
+        },
+        {
+          "path": "/usr/lib64/dri-freeworld/libvulkan_radeon.so",
+          "sha256": "ecd0604a8f167fe0445715fb7eecc8b81ec0d9513f722a4f846b4a137852b507",
+          "bytes": 19378064
+        },
+        {
+          "path": "/usr/lib64/ld-linux-x86-64.so.2",
+          "sha256": "4e5d39355699e90fa29313d3100e82af4a23290028c58c364d6a249ef6a78e5e",
+          "bytes": 1002600
+        },
+        {
+          "path": "/usr/lib64/libc.so.6",
+          "sha256": "a5c5ad9d59d3c69eda93aa8f82930ba06cc4e893a113e66c85ad6e96243d53c8",
+          "bytes": 2482096
+        },
+        {
+          "path": "/usr/lib64/libdisplay-info.so.0.3.0",
+          "sha256": "2744bd4b6f456e67f24a37f79c43ed2d3fd73b87802ab677dd3a5ad4c5ad5a7d",
+          "bytes": 224808
+        },
+        {
+          "path": "/usr/lib64/libdl.so.2",
+          "sha256": "54d56c0f10466a05cc92685f8062ee6a2eaf59c62fb6f724217e984fcfbb5031",
+          "bytes": 11256
+        },
+        {
+          "path": "/usr/lib64/libdrm.so.2.134.0",
+          "sha256": "e2a416f7b7c9e9e46b5f96bf20be71f146426daa6e1e8438adce2ab8e4c0fc0e",
+          "bytes": 91056
+        },
+        {
+          "path": "/usr/lib64/libdrm_amdgpu.so.1.134.0",
+          "sha256": "a28f07a5f69cd85d5a55b18f436cff5e0e33087181bdc3b8061ac2dec99d1322",
+          "bytes": 52696
+        },
+        {
+          "path": "/usr/lib64/libm.so.6",
+          "sha256": "16a03ce6d24c8a46742206d4a9c1d35bb6577ae2384f153dc6ef4a4b62b5357f",
+          "bytes": 1153848
+        },
+        {
+          "path": "/usr/lib64/libpthread.so.0",
+          "sha256": "41cad1a2bda56ff226e0b08db7edfaf4ec47d876ab1414a979fd157467b6c39d",
+          "bytes": 11272
+        },
+        {
+          "path": "/usr/lib64/librt.so.1",
+          "sha256": "3a23e51370381b0ab993932341fd69643ade24869936e471e1dde2e62398d9f7",
+          "bytes": 11416
+        }
+      ],
+      "expected_rows": 1147832,
+      "byte_exact_output": true,
+      "compared_words": 4591328,
+      "output_sha256": "9a5430ee8a54685c0066ad6977492d3b561bb46d2c3e248dbce5c08342859310"
+    },
+    {
+      "kind": "SF64P001",
+      "command": [
+        "/tmp/soft-binary64-divsqrt-20261027/qualify-vulkan-compile-only",
+        "--vulkan",
+        "/tmp/soft-binary64-divsqrt-20261027/old-current.bin",
+        "/tmp/soft-binary64-divsqrt-20261027/soft_binary64_probe.spv",
+        "/tmp/soft-binary64-divsqrt-amd-20261027/SF64P001"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "reaped": true,
+      "wall_seconds": 0.08830768400366651,
+      "process_cpu_seconds": 0.08481099999999994,
+      "loaded_files": [
+        {
+          "path": "/etc/ld.so.cache",
+          "sha256": "6a580729cd2c6fb1b2017a07701cc9d5ce863d59e72224e0dbf8beae78aa01f8",
+          "bytes": 167535
+        },
+        {
+          "path": "/home/bjoern/.cache/mesa_shader_cache/index",
+          "sha256": "b4d5f3254c69dcaaa77a8669b5910a8408a315527ee2e5947176723c7bfcb942",
+          "bytes": 2097160
+        },
+        {
+          "path": "/home/bjoern/.cache/radv_builtin_shaders/index",
+          "sha256": "e33aed84c876e17146c31c9e035983814d8f1c8817144ec34630bba6c53991f3",
+          "bytes": 2097160
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libLLVM.so.22.1",
+          "sha256": "2e9c27457d4ecaf51257c8afcc039d661f688133d93694811690b2432a61eefb",
+          "bytes": 195933536
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libSPIRV-Tools.so",
+          "sha256": "0b554745cae9bd85ebc61b8d48627be41e3b66b4fbc414986d04fc66e762c4e3",
+          "bytes": 2383064
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libX11-xcb.so.1.0.0",
+          "sha256": "c89b4356a5ea9832e4e9542e4fab5aa729a81f8cfec36663666d66ba34cdc805",
+          "bytes": 14992
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libXau.so.6.0.0",
+          "sha256": "dcc7de4960c165b97b5faa8b3bdeb4dfc2439b5066f1f9b2f2e3aca9478267ff",
+          "bytes": 17144
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libXdmcp.so.6.0.0",
+          "sha256": "dcdabcb94e17c6b1057a751e43574882ba44bf9b0fa0ff0e75dbf7b30f9e3b63",
+          "bytes": 30144
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libelf-0.194.so",
+          "sha256": "fd027bfab3a91a07fc633ae2fd56ff48891fe3003f0bb11b9236e975910a2b7a",
+          "bytes": 122872
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libexpat.so.1.12.5",
+          "sha256": "8b61b41a8f5bee8d8d336e8bc5318233d6b435d482a7510f4e01788b618a6598",
+          "bytes": 195584
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libffi.so.8.4.0",
+          "sha256": "4d28902e78d7ed5e1d825e0e038286a5e4dc7ef14d789ff4992336bbfc315ca4",
+          "bytes": 59976
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libgcc_s.so.1",
+          "sha256": "5444fbe71e8cfe3bd05cdf2b44bd8c2e553e6e7e276977089b5e4e1a1ceed531",
+          "bytes": 922624
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libiconv.so.2.7.0",
+          "sha256": "59b942b8a9dfabcfec7d65ff2be1de2e59902765837768ca37468cef5dca9571",
+          "bytes": 1182640
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libicudata.so.78.3",
+          "sha256": "6d963e31d9aa02a078854d6352f78625241fa489cdd6a4d308f1cb0d0eafc273",
+          "bytes": 33113032
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libicuuc.so.78.3",
+          "sha256": "b1b20f42ec765c7dc4c75e05cc62cd750d7e92c32f2e0416c450338dac46458b",
+          "bytes": 2706448
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libstdc++.so.6.0.36",
+          "sha256": "10f0d3c46c070acd4abea2ccf2500ff0ec77e9b90154b82ea2720dba05510cb9",
+          "bytes": 23874544
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libudev.so.1.7.15",
+          "sha256": "fba77cb5e6f3a83859f18af8e7c7a65ebb770c9c5fa2cc3b49d20af9e300245c",
+          "bytes": 455368
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libvulkan.so.1.4.357",
+          "sha256": "3e728b0f2535a7dc344c76b166fdf28e2561ce7293c68df775aecac5c8c3f37e",
+          "bytes": 713104
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libwayland-client.so.0.26.0",
+          "sha256": "4e1299fe06af47b94abe7e9af2ca69c94606bf005d584feed41e0269e835fdb3",
+          "bytes": 237624
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-dri3.so.0.1.0",
+          "sha256": "eeae4c0815883ebb451dae3d48dde1ee2cecfa30a187b0a95531f37ad9823f0d",
+          "bytes": 27688
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-present.so.0.0.0",
+          "sha256": "61b9d3c1ffc4929fa1505529d287b9a7d86cdd2b9460eff2e53ed694ffc9801a",
+          "bytes": 21600
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-randr.so.0.1.0",
+          "sha256": "7fbbbc9f5679421e6b185ce8669634b663d53cefeb672e84c668c6fb299fb7a6",
+          "bytes": 95248
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-shm.so.0.0.0",
+          "sha256": "d560624e0f4a720eb68179b90c37bb0d5939cefecd2ef7c1aaaeae38ea3fe890",
+          "bytes": 17096
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-sync.so.1.0.0",
+          "sha256": "202ef4ca6d145173527af10b453df76429a80a45d36d8684a86036149be88fea",
+          "bytes": 42304
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb-xfixes.so.0.0.0",
+          "sha256": "f7e7fb8ce09b4c438ae76299dd02694c29c0d2606beb4df09c30ab29a1a65237",
+          "bytes": 49536
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxcb.so.1.1.0",
+          "sha256": "504faa0ca490d23e89505bb430892f18992979a7856869e776ae711fcaab79d7",
+          "bytes": 228648
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxml2.so.16.1.4",
+          "sha256": "a32f04d52ebb257b28e19e76454914c0e0d4b225dd9203dc69a15466d2950696",
+          "bytes": 1457304
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libxshmfence.so.1.0.0",
+          "sha256": "465230077bab283c2725c8ea05b340bd6efb885787e4e31022ba9e4c004e789e",
+          "bytes": 16064
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libz.so.1.3.2",
+          "sha256": "3c6fd78e248a60e45081bcc77031204a7cb64a88ff2e27fc786ef12ae7e91fca",
+          "bytes": 117168
+        },
+        {
+          "path": "/home/bjoern/miniforge3/envs/so101-jazzy/lib/libzstd.so.1.5.7",
+          "sha256": "b0e2bad8c117a3ad7d344d7924272d12b8e363956efb91b5074e43d4e201a08d",
+          "bytes": 1198840
+        },
+        {
+          "path": "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/libresident_rgbd.so",
+          "sha256": "33a2deeff920bb3934b81e907beeb375d5b8546da6ae6058f3c41087418e4dd1",
+          "bytes": 113008
+        },
+        {
+          "path": "/tmp/soft-binary64-divsqrt-20261027/qualify-vulkan-compile-only",
+          "sha256": "e4fbeb67f9007ca4b4707858c8fc604a295c09aa88c3a8639080683ef6e82b9f",
+          "bytes": 98560
+        },
+        {
+          "path": "/usr/lib64/dri-freeworld/libVkLayer_MESA_device_select.so",
+          "sha256": "83128aaf34e9a5ef595d7e047c93f5efb1683dc1cf41c1e78e7e255667419bf1",
+          "bytes": 100680
+        },
+        {
+          "path": "/usr/lib64/dri-freeworld/libvulkan_radeon.so",
+          "sha256": "ecd0604a8f167fe0445715fb7eecc8b81ec0d9513f722a4f846b4a137852b507",
+          "bytes": 19378064
+        },
+        {
+          "path": "/usr/lib64/ld-linux-x86-64.so.2",
+          "sha256": "4e5d39355699e90fa29313d3100e82af4a23290028c58c364d6a249ef6a78e5e",
+          "bytes": 1002600
+        },
+        {
+          "path": "/usr/lib64/libc.so.6",
+          "sha256": "a5c5ad9d59d3c69eda93aa8f82930ba06cc4e893a113e66c85ad6e96243d53c8",
+          "bytes": 2482096
+        },
+        {
+          "path": "/usr/lib64/libdisplay-info.so.0.3.0",
+          "sha256": "2744bd4b6f456e67f24a37f79c43ed2d3fd73b87802ab677dd3a5ad4c5ad5a7d",
+          "bytes": 224808
+        },
+        {
+          "path": "/usr/lib64/libdl.so.2",
+          "sha256": "54d56c0f10466a05cc92685f8062ee6a2eaf59c62fb6f724217e984fcfbb5031",
+          "bytes": 11256
+        },
+        {
+          "path": "/usr/lib64/libdrm.so.2.134.0",
+          "sha256": "e2a416f7b7c9e9e46b5f96bf20be71f146426daa6e1e8438adce2ab8e4c0fc0e",
+          "bytes": 91056
+        },
+        {
+          "path": "/usr/lib64/libdrm_amdgpu.so.1.134.0",
+          "sha256": "a28f07a5f69cd85d5a55b18f436cff5e0e33087181bdc3b8061ac2dec99d1322",
+          "bytes": 52696
+        },
+        {
+          "path": "/usr/lib64/libm.so.6",
+          "sha256": "16a03ce6d24c8a46742206d4a9c1d35bb6577ae2384f153dc6ef4a4b62b5357f",
+          "bytes": 1153848
+        },
+        {
+          "path": "/usr/lib64/libpthread.so.0",
+          "sha256": "41cad1a2bda56ff226e0b08db7edfaf4ec47d876ab1414a979fd157467b6c39d",
+          "bytes": 11272
+        },
+        {
+          "path": "/usr/lib64/librt.so.1",
+          "sha256": "3a23e51370381b0ab993932341fd69643ade24869936e471e1dde2e62398d9f7",
+          "bytes": 11416
+        }
+      ],
+      "expected_rows": 65536,
+      "byte_exact_output": true,
+      "compared_words": 262144,
+      "output_sha256": "486bf206e27e8ed88ce54e5d7eb5d2b5a2fe8adfcfd5e99c220dbd6ab4328ec5"
+    }
+  ],
+  "runtime_pins_unchanged": true,
+  "scope": "Isolated GPU arithmetic diagnostic only; not frame budget, station, geometry or physical qualification",
+  "GPU_executed": true,
+  "postflight": {
+    "all_preflight_source_artifact_runtime_pins_unchanged": true,
+    "preflight_pin_count": 50,
+    "every_observed_loaded_shared_library_was_prepinned": true,
+    "source_test_only_delta": "Parent allowed tests/test_soft_binary64_divsqrt.py compiler portability edit during runs; helper/probes/qualifier/SPVs/corpora unchanged.",
+    "packaging_history": "First finalizer classified ld.so.cache as a shared library; corrected filename classification only, without another GPU run."
+  }
+}

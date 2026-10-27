@@ -1,0 +1,62 @@
+{
+  "docs/performance/evidence/geometry-cpu-budget-20261027/compare_traces.py": {
+    "sha256": "9854a796d33161e86d34a59506626ff24093eab7995dc81c8b891c38c317a9dd",
+    "bytes": 3326
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/diagnose_portability.py": {
+    "sha256": "383ad85ae2a30417f7a28b658a450b11c887ff5953f005078d93817c78758807",
+    "bytes": 5423
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/diagnose_portability_failures.py": {
+    "sha256": "675a25816792ada09ac95155c79cc31802c2dfe2b5913566a9489cbef03ee132",
+    "bytes": 5642
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/initial-manifest-check-failure.log": {
+    "sha256": "1b78b48de69bd11f5d480462557cd4e66d18b75397956a30cf52b11596c979bd",
+    "bytes": 184
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/local-final.log": {
+    "sha256": "3a7049e49f0a3386140ac17f4ef5caa2dd5202abfd81e130cb74759807b70854",
+    "bytes": 1126
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/private-archive.json": {
+    "sha256": "ecebfe05c6438eada37e06af8ec7ded9ff86a79c55bf4d6477208b8f9884bf4e",
+    "bytes": 17988
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/profile_geometry.py": {
+    "sha256": "77015be5e1979c299a09fd50e0396ed11c8a22e613c1ad84f358b8df5bed7b36",
+    "bytes": 10378
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/remote-import-failure.log": {
+    "sha256": "334e3b7b383caa253404e5a59171d8fa7e15cb74726f7c84aff0a6d637db3289",
+    "bytes": 1134
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/remote-pinned.log": {
+    "sha256": "377f750beff07b2d7380886ee6265eaa2e91b3891a23408ee06c6147546a7694",
+    "bytes": 2763
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/remote-runtime-parity-failure.log": {
+    "sha256": "690543cf1d0109d3a23f645f652916c91693feb5c365a7626b546564d461e9fa",
+    "bytes": 2484
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/selfcheck-result.json": {
+    "sha256": "c2bd847575c21feaa1f4547a63748bf0a80a6635005178fd36bd3d347e8b9b29",
+    "bytes": 183
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/selfcheck.py": {
+    "sha256": "3e0992ab2cdfe823294df46d7b881e7f52b807ff88da524c0ee131824da6f3d5",
+    "bytes": 1477
+  },
+  "docs/performance/evidence/geometry-cpu-budget-20261027/source-pins.json": {
+    "sha256": "c73c12158301e41b2056d586e72e985a0f45f084dff1b2cc47da0e41390eb304",
+    "bytes": 902
+  },
+  "docs/performance/geometry-cpu-budget-20261027.json": {
+    "sha256": "b77e6d2f6601e2654e362969fa3aa268db9eee6009af0789b38bf3d00652f38e",
+    "bytes": 103559
+  },
+  "docs/performance/geometry-cpu-budget-20261027.md": {
+    "sha256": "58ab5bd9079cefb302b88843844fa7fe73d6b1020407c229fbf5404b81231106",
+    "bytes": 4408
+  }
+}

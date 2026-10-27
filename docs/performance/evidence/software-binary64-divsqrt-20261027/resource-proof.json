@@ -1,0 +1,31 @@
+{
+  "resource_gate": "PASS for frozen pure integer helper and unchanged geometry hot callsites; GPU execution not performed",
+  "helper_sha256": "24356f6968636fab64ec55e311119b26d39f4485c809a6da8557b85933be8e6d",
+  "source_commit_base": "6f87074e621a8a8aa0c5b9941a1489df39fed65e",
+  "focused_result": "...................                                                      [100%]\n19 passed in 1.39s",
+  "probe_resource_result": "......                                                                   [100%]\n6 passed in 0.03s",
+  "mutants": {
+    "new": 8,
+    "existing_finite_bound_mutants": 7
+  },
+  "review": {
+    "div_loop": "Exactly 62 fractional digits (bit61..0), one subtraction test per digit. Remainder below normalized denominator before doubling.",
+    "sqrt_loop": "Exactly 63 radix4 pairs (pair62..0), fixed one correction; guarded variable shift branch.",
+    "heap": "Hot new/new[] counter unchanged across warmup and all timed loops; helper allocation names and non-helper function calls rejected statically. Does not instrument libc malloc directly; helper whitelist prohibits malloc/calloc/realloc.",
+    "resident_path": "Only offline probe calls added; geometry submit/finish and Context::shared bodies retain historical identity as checked by existing resource tests. No production geometry callsite switch, buffers, readback, dispatch or waits added by these arithmetic helpers."
+  },
+  "measurement_scope": {
+    "samples": 7,
+    "warmup_trials": 2,
+    "operations_per_sample": 32768,
+    "runtime_inputs_per_population": 1024,
+    "method": "Alternating native/software order; volatile function-pointer calls to noinline wrappers; native volatile IEEE division/sqrt and canonical NaNs; FE_TONEAREST and x86 FTZ/DAZ disabled. Checksums and pointwise parity outside timing.",
+    "positive_sqrt": "Ordinary and subnormal square-root inputs are positive, ensuring recurrence rather than negative-domain early return. Special population intentionally mixes special/finite values.",
+    "cost": "Amortized per-call wall/processCPU includes indirect call, load and checksum. Not serial dependency latency or pure instruction cost.",
+    "host_control": "No affinity, power or host workload reservation. No target CPU/GPU, camera, ROS, station throughput or headroom claim."
+  },
+  "development_history": [
+    "Initial harness compilation failed from inconsistent lambda inferred unsigned integer types; explicit uint64_t return fixed it. No helper algorithm changed.",
+    "Preliminary ordinary sqrt population included negative inputs. Final measurement uses positive finite ordinary/subnormal sqrt and supersedes that mixed-domain trial."
+  ]
+}

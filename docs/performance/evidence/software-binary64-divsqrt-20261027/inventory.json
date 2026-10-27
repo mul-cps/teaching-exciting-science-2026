@@ -1,0 +1,102 @@
+{
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/amd-SF64D001.json": {
+    "sha256": "c162d076ccbc521f4b9b8c04f1527f73f51740313919f61106e0c24cdaa1b5e0",
+    "bytes": 1279
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/amd-SF64P001.json": {
+    "sha256": "e9dc8bceecac7188e34ffaa549cf0cdde74050fe99815b86a0a2b4a65eb57871",
+    "bytes": 1243
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/amd-build-receipt.json": {
+    "sha256": "41203c35734f82b963d329d2cd99d34b0c85578ce13aa76ea5201c05248c97bd",
+    "bytes": 2488
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/amd-proof.json": {
+    "sha256": "e4013248ea171f35b1f60c6861c90adafe2aa5dd20b612baf479b416c3a76410",
+    "bytes": 20511
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/canonical-cpu.json": {
+    "sha256": "462c69949e9e627495911ed5b8492e37247d4ae685ccc260e3ecb85787a53f50",
+    "bytes": 559
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/compiler-portability-delta.json": {
+    "sha256": "de19f69dca01fec433d4e41819678d3a1926fce7896ba89cd9ebb3f20f728a18",
+    "bytes": 2171
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/cpu-focused.log": {
+    "sha256": "72a2c4702abf1b602bf8b58d22ee8e165fe09beba36290746afc6e4b79812511",
+    "bytes": 99
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/cpu-offline-proof.json": {
+    "sha256": "a798ddb62dbe81d36c6f55d5c3e88b4563a0ddbbfa77e5c635cc34ed41148c14",
+    "bytes": 20778
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/cpu-operator-benchmark.json": {
+    "sha256": "4e772ff339f397aa03efaea5c5d78ac6e53911974eab0c5b7b2727a4aa1657be",
+    "bytes": 6889
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/hardware-independent-review.json": {
+    "sha256": "45f7065e6f61b1fb3e2b5ee329c0732b5bfd611fc5d8d02e0593b903ace9545d",
+    "bytes": 6442
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/initial-environment-mutant-failure.log": {
+    "sha256": "b2112ab5f7c758a409f7564234854c558a53753c13bda00dbfefbc01b5b05a67",
+    "bytes": 3875
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/intel-comparison.log": {
+    "sha256": "6a597b42a80c38c9fcca978f7da4f144f6e2c833b25a22b19119193dad881a0b",
+    "bytes": 514
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/intel-proof.json": {
+    "sha256": "a847239f25bf95db82157564b6c15d5ab29623317974fd9863b262af638a339e",
+    "bytes": 14545
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/private-archive.json": {
+    "sha256": "132cc2109b821bc64b2ac511e6ecff2c68cc6c6ec0f47b63d9524f2cfafcc077",
+    "bytes": 43620
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/probe-resource.log": {
+    "sha256": "a4ce3c4d2d126cf54794b588fe0568dcf174b80e68913316f73e0da7b9f1c64b",
+    "bytes": 98
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/resource-focused.log": {
+    "sha256": "c7be5fcc867f6f63ef645d3eccb4028ff5cfa5b5005fadccfad2b0d49a030abe",
+    "bytes": 99
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/resource-proof.json": {
+    "sha256": "39a53d9974c1f3ec7e91d4980bdf3d9977add22dd4b41461da4c9a9c960e08f8",
+    "bytes": 2676
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/selfcheck-result.json": {
+    "sha256": "190c900fff04c4f9993f7e063dadf98c7315f09cd5732044efdb9dfba1fdee87",
+    "bytes": 184
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/selfcheck.py": {
+    "sha256": "b9db4fc4c3ef365271d8b8bdd5cb1373c8488671739c8a4bb3d03af0fc5fccbf",
+    "bytes": 1483
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/semantic-independent-review.json": {
+    "sha256": "caec45ef93306ab1aa6707653d90d7367c041769366b7b48ecd7f3afa3b77b70",
+    "bytes": 4152
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/source-pins.json": {
+    "sha256": "45b03a02a2b8e6b9fe9fb409524818b56a72f410ea3dbfd99447b646c849d5d5",
+    "bytes": 1355
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/task1-red.log": {
+    "sha256": "7daa14bfbc0bfa41c438328abc44fdfa3b452f6649151dfed297ec12ad521420",
+    "bytes": 5094
+  },
+  "docs/performance/evidence/software-binary64-divsqrt-20261027/task2-red.log": {
+    "sha256": "02bc7dfd9b287d3cf62a83771ef78ef8e4ed786e03c5a874130fd16b0927e7c0",
+    "bytes": 3557
+  },
+  "docs/performance/software-binary64-divsqrt-20261027.json": {
+    "sha256": "5fcfc32d981064b7d24b5e8b4f9e5fd96a19eb7f131e0c38febc552741b5784a",
+    "bytes": 16764
+  },
+  "docs/performance/software-binary64-divsqrt-20261027.md": {
+    "sha256": "d4a9f9131f21366511f65f37fcc307fbe29077dac6dceed37546442edd11b5dc",
+    "bytes": 5268
+  }
+}

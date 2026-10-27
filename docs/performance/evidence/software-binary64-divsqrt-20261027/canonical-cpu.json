@@ -1,0 +1,21 @@
+{
+  "source_files_unchanged": 927,
+  "junit": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "133",
+      "tests": "4734",
+      "time": "260.150",
+      "timestamp": "2026-10-27T19:12:01.987395+01:00",
+      "hostname": "cps-wkstn-hpz2minig1a-ellensohn"
+    }
+  ],
+  "log_sha256": "aa5413d1d8d49fc4bd72a39647c149b0116372090de9ac8933acdbe2c61f4103",
+  "before_sha256": "456c5615cffe1d55aaced7547e6c7a3bc0d9d9d6942316efd0d42c625f4c44cf",
+  "passed": 4553,
+  "skipped": 133,
+  "subtests": 48,
+  "seconds": 260.18
+}

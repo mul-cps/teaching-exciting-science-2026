@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "/tmp/full-geometry-cpu-budget-20261027/profile_geometry.py", line 6, in <module>
+    sys.path.insert(0,str(a.root));from tools import native_geometry_oracle as oracle
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/full-geometry-cpu-budget-20261027/source/tools/native_geometry_oracle.py", line 21, in <module>
+    from so101_station_objects import objects
+  File "/tmp/full-geometry-cpu-budget-20261027/source/ros2/src/so101_station_objects/so101_station_objects/objects.py", line 36, in <module>
+    from tools.propose_rgbd_grasp import color_masks  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/full-geometry-cpu-budget-20261027/source/tools/propose_rgbd_grasp.py", line 23, in <module>
+    from workshop.digital_twin.grasp_geometry import fit_support_plane, footprint_grasps, fuse_depth
+  File "/tmp/full-geometry-cpu-budget-20261027/source/workshop/__init__.py", line 2, in <module>
+    from .factory import Factory, SimBelt, SimCamera, SimRobot
+ModuleNotFoundError: No module named 'workshop.factory'
