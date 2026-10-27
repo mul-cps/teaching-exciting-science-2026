@@ -55,7 +55,9 @@ The policy has declared numerical boundaries and does not promise universal cros
 
 - [x] A separate worker reviews the data-path diff, measures actual CPU cost for distinct/tied 2D and 3D inputs and frozen complete reports, and adds static guards against new solvers, frame-sized allocation, per-point loops, host/GPU synchronization or added readbacks. Loops are bounded by dimension at most three; this does not authorize another GPU execution.
 - [x] Independently review the final code, analytic assertions and allowed report changes; fix concrete findings without weakening existing safety checks.
-- [ ] Run the canonical pinned CPU suite after source/reference freeze. Verify shared main is unchanged, commit/push the coherent fix and evidence, and independently verify remote SHA.
+- [x] Run the canonical pinned CPU suite after source/reference freeze and verify shared main is unchanged: 4616 passed, 133 skipped and 48 subtests passed; all 934 frozen files were unchanged during the run.
+
+The reviewed source is committed as `47002d05`; the audited regression-epoch migration is `8744239c`. Publish the coherent checkpoint and evidence on the feature branch and independently verify its remote SHA. The dated performance readout retains the final suite receipt and durable private archive hash.
 
 Complete resident report integration, deployment, full-stack qualification, physical commissioning/cycles and workshop release remain required after this checkpoint.
 
