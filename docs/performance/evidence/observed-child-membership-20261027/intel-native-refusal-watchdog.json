@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+    "--vulkan",
+    "/tmp/observed-real-qualifier-corpus-20261027/scoped-640x480.childq",
+    "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+    "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+    "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders",
+    "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/native",
+    "/tmp/observed-children-native-20261027/intel-native-refusal/00-scoped-640x480/result",
+    "native",
+    "0",
+    "--external-watchdog-ack"
+  ],
+  "returncode": 1,
+  "timed_out": false,
+  "interrupted": false,
+  "reaped": true,
+  "signals": [
+    "KILL-before-reap"
+  ],
+  "elapsed_wall_seconds": 0.10182215494569391,
+  "watchdog_host": "cps-wkstn-fwmini4",
+  "pid_pinned_until_final_group_signal": true
+}

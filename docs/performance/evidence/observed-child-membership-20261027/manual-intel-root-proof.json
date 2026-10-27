@@ -1,0 +1,33 @@
+{
+  "scope": "observed_preparation_only",
+  "expected_executable_and_five_library_values_matched": true,
+  "device": "Intel(R) Graphics (ADL-N)",
+  "source_archive_sha256": "7da3bf0621541e263bd69ceabc810e4a824d5ce0156b07e96b5a3dc5834d2642",
+  "gnu_timeout_remote": {
+    "version": "9.4",
+    "term_after_seconds": 120,
+    "kill_after_term_seconds": 5,
+    "acknowledged": true,
+    "exit_code": 0
+  },
+  "retained_oracle_comparison": {
+    "matched": true,
+    "case": "scoped-640x480",
+    "precision": "software",
+    "mutation": 0
+  },
+  "files": {
+    "result.child_roots.bin": "729dcdc9c3a7c6462174a5588e5355896b2d9fc11e7c9986b450fc5582c91f8b",
+    "result.counts.bin": "ec4ab14c2f85b7d30ae087c6bb2e7a41db65d02590c9948085fc0a285f8a1c33",
+    "result.json": "db89627bbead470af3f6efea682ea8a80fef0ae5631cfc36487e0b00d73a8e13",
+    "result.observed.bin": "9672b83ded9b313d7e938b06de6994dc48f31a49b2c4b0bc1afe3ec52a53ae47",
+    "result.records.bin": "784fa5acba7bf2ef69822191f5b6f3e1615be3199222297994d6318a673cab79",
+    "result.running": "f222bb4c19ce704e3a86ae99402e4a83d35ce2a011c6f7d1bb364891ab22a882",
+    "result.world.bin": "cecde25a904ccbaed5c830d16ecaf4ae6257a0cdb9dfa81da29adaa75ded8b9e",
+    "scoped-640x480.childq": "275db172df431f333b72e6f86b7af05dd08bbab7f56f4de98f259d4586ca21de",
+    "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "full_pipeline_qualified": false,
+  "physical_qualified": false
+}

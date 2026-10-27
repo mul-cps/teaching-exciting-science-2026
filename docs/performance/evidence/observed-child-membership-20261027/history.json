@@ -1,0 +1,54 @@
+{
+  "canonical_final": {
+    "raw_log_sha256": "5fe4f698359d8281cbc72e1f81d604e8cf3a642d6aefce7a40707d53bde1532f",
+    "terminal": "4511 passed, 133 skipped, 48 subtests passed in 232.63s (0:03:52)"
+  },
+  "canonical_initial": {
+    "raw_log_sha256": "85f3c8c7cf16abbc129207da870ff20ec6c1e2939915add88950c76892caf80b",
+    "result": "4495 passed, 133 skipped,48 subtests; one stale source guard after header extraction, corrected guard only"
+  },
+  "local_configure_initial": {
+    "sha256": "b4f1b4185b15a0c59ed95a2e17dcaab8c7e0e1aef6b86a86d9d1ffc053d208a7",
+    "reason": "Optional FFmpeg target required build-time offline Slang compiler; temporary build script corrected; no production change"
+  },
+  "base_python_comparisons": {
+    "intel-software": "838bb72f8f9371d518e4e4d6af84f0653ed573ac5313c248eb07bda59ce596a9",
+    "amd-native": "2bea2646c2ee05f36b1603e4ca6ea02ef34ae0ce30ac31e9e43552be127c842e"
+  },
+  "base_python_comparisons_superseded": "Same GPU raw outputs recomputed in pinned Python3.13.12/NumPy2.5.4/OpenCV4.14.0; no GPU rerun",
+  "expected_intel_native_refusal": {
+    "watchdog": {
+      "command": [
+        "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+        "--vulkan",
+        "/tmp/observed-real-qualifier-corpus-20261027/scoped-640x480.childq",
+        "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+        "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+        "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders",
+        "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/native",
+        "/tmp/observed-children-native-20261027/intel-native-refusal/00-scoped-640x480/result",
+        "native",
+        "0",
+        "--external-watchdog-ack"
+      ],
+      "returncode": 1,
+      "timed_out": false,
+      "interrupted": false,
+      "reaped": true,
+      "signals": [
+        "KILL-before-reap"
+      ],
+      "elapsed_wall_seconds": 0.10182215494569391,
+      "watchdog_host": "cps-wkstn-fwmini4",
+      "pid_pinned_until_final_group_signal": true
+    },
+    "reason": "shaderFloat64 was not enabled on shared device",
+    "qualified": false
+  },
+  "cpu_roi_candidate_red": "Retained roi-qualification-cpu-red in private archive; rejected CPU corpus attempt, not GPU execution",
+  "unexpected_gpu_matrix_failures": 0,
+  "original_intel_raw_archive": {
+    "path": "/tmp/observed-children-native-20261027/intel-matrix-results.tar.gz",
+    "sha256": "44acc1b87d69ac23d41d46478822ea8c08bef8297407490e47d545fd3c11baeb"
+  }
+}

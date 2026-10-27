@@ -1,0 +1,35 @@
+{
+  "executable": {
+    "path": "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+    "sha256": "21f5754071751b27d898504c42a11dd8a5be366d148a55487c6bacaf059e752b"
+  },
+  "libraries": [
+    {
+      "name": "libresident_rgbd.so",
+      "path": "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/libresident_rgbd.so",
+      "sha256": "7a745d7a44bcad485cf72fed12488dd6a17ebc479088333bb941f12c69621818"
+    },
+    {
+      "name": "libresident_parents.so",
+      "path": "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/libresident_parents.so",
+      "sha256": "eb830e67e3bca611a1a8f372fc18c4e90f8eeddb34da4c1b850b11e05020f5fd"
+    },
+    {
+      "name": "libresident_children.so",
+      "path": "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/libresident_children.so",
+      "sha256": "b2d6a9e3b59af82e9c59319a2d253f44fb4b3e7bb091e9c20721e2e54fd591f1"
+    },
+    {
+      "name": "libresident_geometry.so",
+      "path": "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/libresident_geometry.so",
+      "sha256": "f536e0643ff6531914767666753e7e55b6046b1e2ac4e6d7c87bc5fe88a11d74"
+    },
+    {
+      "name": "libresident_observed_children.so",
+      "path": "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/libresident_observed_children.so",
+      "sha256": "26199218739e58b2a8053f40790d4e70b71931b4e782ce670d8227ff053a7463"
+    }
+  ],
+  "source_archive_sha256": "7da3bf0621541e263bd69ceabc810e4a824d5ce0156b07e96b5a3dc5834d2642",
+  "GPU_execution": false
+}

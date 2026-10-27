@@ -1,0 +1,201 @@
+{
+  "scope": "This dated readout and selected evidence only; inventory excludes itself and mutable general guides",
+  "source_commit": "ccbf7a72809f9b00c182d05ac02152e0f88f734f",
+  "files": [
+    {
+      "path": "docs/performance/observed-child-membership-20261027.md",
+      "bytes": 5026,
+      "sha256": "56a1d97e3c6e74a5af57aba3585fccc7dd0e823f15c8c5b5c5ddad5dd2ef5765"
+    },
+    {
+      "path": "docs/performance/observed-child-membership-20261027.json",
+      "bytes": 9391,
+      "sha256": "5215b0eae1d52a4bb545c042d9eacb664ee418fe7db5a538652f38c626ed8258"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/RUN_QUALIFICATION_README.md",
+      "bytes": 7322,
+      "sha256": "644172b3801c1987f1ddee0764d6979963b551c1c57951508b86c685b3cd53ae"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/actual-evidence-review.json",
+      "bytes": 7084,
+      "sha256": "6d12fe9ca6f6ec695a608b002bdf20fe36bfbe3625e7a458c3b0c72cc1eabdc5"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/amd-comparison.json",
+      "bytes": 11369,
+      "sha256": "1ea82105858f413b3b2acfe53005f86998fa68c45fa35d5cec50956827508343"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/build-proof.json",
+      "bytes": 2733,
+      "sha256": "5c73966c9640dd5bd821aaa92d4d715acfaa840525ed4c91d0fdce49bf319b02"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/cold-delta-proof.json",
+      "bytes": 566,
+      "sha256": "937324bbd3695b4b60a15d52649bb1dc5a3abefeeff0a4d2ad386fa824428823"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/corpus-manifest.json",
+      "bytes": 11571,
+      "sha256": "d6dbe369b21ea658be5556195ec3efea2c33033c4a7d4c017c42893903d17207"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/history.json",
+      "bytes": 3008,
+      "sha256": "ee8614bbdf90cfe627ec295319a4623be02a41cce6fdb6564636adeb0e6e2b79"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/host-640x480-C4096.json",
+      "bytes": 1098,
+      "sha256": "86c364a0ac00c88b9980742481df9c291527b41a52ab286f4180c94435875ebe"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/host-64x48-C32.json",
+      "bytes": 1094,
+      "sha256": "6a47a68d7de158585a35c8dec63370b06460d5c0107f181e860803c62517c6b2"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/independent-verification.json",
+      "bytes": 125000,
+      "sha256": "519d5b2c30b60e9fafd9e3536b4086b81eee94b703aa40bed1f0ba3a2aab513d"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/intel-comparison.json",
+      "bytes": 11455,
+      "sha256": "4ecc07baa94b740af1abccd556c9839a4ad35580ec47dcd1aea2197e560d3582"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/intel-native-refusal-stderr.log",
+      "bytes": 144,
+      "sha256": "886f6f0bde161b6b663564de527135c9c28de9e940338f5774ae71bda04a350f"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/intel-native-refusal-watchdog.json",
+      "bytes": 1341,
+      "sha256": "67b960cf49ef422cc60fef297a7db8e1eabaea80df6e43fe5b4c808d946ce289"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/inventory.json",
+      "bytes": 5369,
+      "sha256": "3c916c244a92d389f910425fa8b683b59d666f470ec99140226d75ab19bb0ae9"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/local-binary-pins.json",
+      "bytes": 1677,
+      "sha256": "d5397546474de4bfd14fabd38cdf5944203a6e8aa2c5bc42403608d6fecc3ce0"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/local-cpu-ctest.log",
+      "bytes": 2062,
+      "sha256": "ee40c2b63c4e76d97bdf4d3dc3feef20782d1fc8a461fff9e3745fe4129b0bdc"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/manual-intel-result.json",
+      "bytes": 8485,
+      "sha256": "db89627bbead470af3f6efea682ea8a80fef0ae5631cfc36487e0b00d73a8e13"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/manual-intel-root-proof.json",
+      "bytes": 1544,
+      "sha256": "87f4cc7075f620a980eabb30eaddf2614b7abc1420996bf73063f5f5ef18e563"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/observed-cache-pins.json",
+      "bytes": 5339,
+      "sha256": "108e59c3c4f8e99cd6fafbe79bf3c40f19133f1b9f24e338e2c70df821dd690a"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/pinned-acceptance-runtime.json",
+      "bytes": 198,
+      "sha256": "dbe68ccfc2c189774cc5f0dcac7c6504c848f35de3fd03af2b5448cce669f200"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/private-archive-inventory.json",
+      "bytes": 364314,
+      "sha256": "9191dc75d5f03962a8d92b2743e54584faf4e7d1f67f1d15d21532b6362705c6"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/publication-selfcheck.json",
+      "bytes": 591,
+      "sha256": "28220f3e38a24dc5e3531e2992eab6e8041549c238ebcc5cdd17b41c55cdc3b8"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/publication-selfcheck.py",
+      "bytes": 2693,
+      "sha256": "fedf28fb3578cc90e8e682e3ad0b9a4dc8a2dfc86622422f79dda43614fa7ff8"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/remote-binary-pins.json",
+      "bytes": 1893,
+      "sha256": "5e7a5bde3dc34897bdadc6825e8b87e8444a9bcc0f5840a0ee8854b2196ef340"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/remote-cpu-ctest.log",
+      "bytes": 2262,
+      "sha256": "e624339c50d3aa2e52033d48f5f428180a3d1502233846d90f905085a0855142"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/resource-initial-proof.json",
+      "bytes": 6461,
+      "sha256": "106c60d85fc336a3a0b1d7bbc670496eccf6dde112e5abb85969af2f8bea278c"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/roi-cpu-proof.json",
+      "bytes": 8358,
+      "sha256": "c5cfd4431db11cc39270feabd63a2c2a4f9a59ea7b8b056744324c43206c869f"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/roi-final-proof.json",
+      "bytes": 39510,
+      "sha256": "c7575747f2bc03a12560caa060f93da9f06b747d27027fb71c3469fa6ba05b70"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/run_qualification.py",
+      "bytes": 17207,
+      "sha256": "ae7b05d62a05e9ec8ea3ed8471c67a12334767f9e7634d3858ebe464c1dd2d1c"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/runner-gate-proof.json",
+      "bytes": 2373,
+      "sha256": "8ebe28260fd8bf48f36803ccb3e1811dc4f85b137b2b01f7d74e474053e5db12"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/semantic-gate-proof.json",
+      "bytes": 5747,
+      "sha256": "3a9adb1deb4a98f939e250f4ff4b1377f0d0385bcad10d44a61ab8d4eee582c3"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/snapshot.json",
+      "bytes": 1149,
+      "sha256": "60061ff91786aa560be59107680e555e42662595c7ac34d3cda2d5b5a9e9ec51"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/source-pins.json",
+      "bytes": 15633,
+      "sha256": "032382ac6b9ae0366f9d05f115038833e8f62a126d0aadd80b0768ef3bdb5968"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/spirv-proof.json",
+      "bytes": 6784,
+      "sha256": "5a58776a78c9719e7ce4043e379ee43367cc982bb64ae650f179527172a73102"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/supplemental-test-freeze.json",
+      "bytes": 371,
+      "sha256": "fcbdae930ecbac07f6a2eda148159d427b4d600e719bf40fad5c2c106744f946"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/verify_inputs.py",
+      "bytes": 4551,
+      "sha256": "74c7d07c25d7ba6ecbbb4997c0719c4baa32195a188f74ced3c970bfdfa81ccc"
+    },
+    {
+      "path": "docs/performance/evidence/observed-child-membership-20261027/verify_roi.py",
+      "bytes": 3091,
+      "sha256": "31985dc52c62d34e6711ba9adf46a8ffb3288cf415eb41dd1556661eb8799dfa"
+    }
+  ]
+}

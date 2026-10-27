@@ -1,0 +1,969 @@
+{
+  "scope": "observed-preparation-procedural-roi-only",
+  "cpu_proof_sha256": "c5cfd4431db11cc39270feabd63a2c2a4f9a59ea7b8b056744324c43206c869f",
+  "source_archive_sha256": "7da3bf0621541e263bd69ceabc810e4a824d5ce0156b07e96b5a3dc5834d2642",
+  "acceptance_runtime": {
+    "executable": "/tmp/workshop-test-pinned313-20261027/bin/python",
+    "version": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+    "numpy": "2.5.4",
+    "opencv": "4.14.0"
+  },
+  "hosts": {
+    "intel": {
+      "inclusive-eight": {
+        "comparison_path": "/tmp/observed-children-native-20261027/intel-roi-results/inclusive-eight/comparison.json",
+        "comparison_sha256": "4e22f853f27d51872d9b2975874e697d69e88bef5c45fc08676c92ac27a91866",
+        "report_sha256": "bde47218b52a463bc05f035a9b118179f8d2f8effbbc352ea91f5042d1551186",
+        "device": "Intel(R) Graphics (ADL-N)",
+        "roi": [
+          60.0,
+          63.5,
+          50.0,
+          50.0,
+          0.5,
+          0.5
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fc00000000000",
+          "0x4049000000000000",
+          "0x4049000000000000",
+          "0x3fe0000000000000",
+          "0x3fe0000000000000"
+        ],
+        "roi_pixels": [
+          8,
+          0
+        ],
+        "closed_pixels": [
+          1600,
+          0
+        ],
+        "flags": [
+          3,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/inclusive-eight/scoped-640x480.childq",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/software-geometry-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/software",
+            "/tmp/observed-children-native-20261027/intel-roi-results/inclusive-eight/00-scoped-640x480/result",
+            "software",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.5",
+            "50.0",
+            "50.0",
+            "0.5",
+            "0.5"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.2230601479532197,
+          "watchdog_host": "cps-wkstn-fwmini4",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "x-lower-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/intel-roi-results/x-lower-outside/comparison.json",
+        "comparison_sha256": "d58866957579d03395d306eb7f257ffa5597e61a7d050b0d0f82be8aaf6b4a5e",
+        "report_sha256": "ef5da1ca493dc12ac7b534e9219f16e92043676c481873bfdefa2f46eee5fd08",
+        "device": "Intel(R) Graphics (ADL-N)",
+        "roi": [
+          60.00000000000001,
+          63.5,
+          50.0,
+          50.0,
+          0.5,
+          0.5
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000001",
+          "0x404fc00000000000",
+          "0x4049000000000000",
+          "0x4049000000000000",
+          "0x3fe0000000000000",
+          "0x3fe0000000000000"
+        ],
+        "roi_pixels": [
+          7,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/x-lower-outside/scoped-640x480.childq",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/software-geometry-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/software",
+            "/tmp/observed-children-native-20261027/intel-roi-results/x-lower-outside/00-scoped-640x480/result",
+            "software",
+            "0",
+            "--external-watchdog-ack",
+            "60.00000000000001",
+            "63.5",
+            "50.0",
+            "50.0",
+            "0.5",
+            "0.5"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.19316484895534813,
+          "watchdog_host": "cps-wkstn-fwmini4",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "x-upper-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/intel-roi-results/x-upper-outside/comparison.json",
+        "comparison_sha256": "2ae6223da7fbbf35692f03e4f4e74bafb2c4b7af137303a16fd0a9195ecfb2c0",
+        "report_sha256": "4b34ed42ad7fed569cc528546cee0ac0380297fe6d61c6105b870b55d1261ca2",
+        "device": "Intel(R) Graphics (ADL-N)",
+        "roi": [
+          60.0,
+          63.49999999999999,
+          50.0,
+          50.0,
+          0.5,
+          0.5
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fbfffffffffff",
+          "0x4049000000000000",
+          "0x4049000000000000",
+          "0x3fe0000000000000",
+          "0x3fe0000000000000"
+        ],
+        "roi_pixels": [
+          7,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/x-upper-outside/scoped-640x480.childq",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/software-geometry-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/software",
+            "/tmp/observed-children-native-20261027/intel-roi-results/x-upper-outside/00-scoped-640x480/result",
+            "software",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.49999999999999",
+            "50.0",
+            "50.0",
+            "0.5",
+            "0.5"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.19316928298212588,
+          "watchdog_host": "cps-wkstn-fwmini4",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "y-lower-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/intel-roi-results/y-lower-outside/comparison.json",
+        "comparison_sha256": "7f9d073935ba69db4163a91e04849ab389eda46fe8492377caad0b73e6b2ad49",
+        "report_sha256": "b583c1303d5c2f418da9fc041b8de3a4b2bd6aa4d5132dcb12173434782db383",
+        "device": "Intel(R) Graphics (ADL-N)",
+        "roi": [
+          60.0,
+          63.5,
+          50.00000000000001,
+          50.25,
+          0.5,
+          0.5
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fc00000000000",
+          "0x4049000000000001",
+          "0x4049200000000000",
+          "0x3fe0000000000000",
+          "0x3fe0000000000000"
+        ],
+        "roi_pixels": [
+          0,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/y-lower-outside/scoped-640x480.childq",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/software-geometry-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/software",
+            "/tmp/observed-children-native-20261027/intel-roi-results/y-lower-outside/00-scoped-640x480/result",
+            "software",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.5",
+            "50.00000000000001",
+            "50.25",
+            "0.5",
+            "0.5"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.19260974007193,
+          "watchdog_host": "cps-wkstn-fwmini4",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "y-upper-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/intel-roi-results/y-upper-outside/comparison.json",
+        "comparison_sha256": "4a2be35687ddc639bdc98dee9c3f125330aedfb7d4dbf06e059ef038195e9809",
+        "report_sha256": "4f0eabfb5067a5c4c50011a8e1fe05f1af78fc7d6def516f9e4ac0c384955791",
+        "device": "Intel(R) Graphics (ADL-N)",
+        "roi": [
+          60.0,
+          63.5,
+          49.0,
+          49.99999999999999,
+          0.5,
+          0.5
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fc00000000000",
+          "0x4048800000000000",
+          "0x4048ffffffffffff",
+          "0x3fe0000000000000",
+          "0x3fe0000000000000"
+        ],
+        "roi_pixels": [
+          0,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/y-upper-outside/scoped-640x480.childq",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/software-geometry-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/software",
+            "/tmp/observed-children-native-20261027/intel-roi-results/y-upper-outside/00-scoped-640x480/result",
+            "software",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.5",
+            "49.0",
+            "49.99999999999999",
+            "0.5",
+            "0.5"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.20259985607117414,
+          "watchdog_host": "cps-wkstn-fwmini4",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "z-lower-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/intel-roi-results/z-lower-outside/comparison.json",
+        "comparison_sha256": "993823be213ecc7f8e1b6f448c85df9f135881a1a137130fe1d35ee714902d6b",
+        "report_sha256": "da2064ea65cade4da5e29fe81d945d53a68c863aa1993a5432098d2b2b5d6b7a",
+        "device": "Intel(R) Graphics (ADL-N)",
+        "roi": [
+          60.0,
+          63.5,
+          50.0,
+          50.0,
+          0.5000000000000001,
+          1.0
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fc00000000000",
+          "0x4049000000000000",
+          "0x4049000000000000",
+          "0x3fe0000000000001",
+          "0x3ff0000000000000"
+        ],
+        "roi_pixels": [
+          0,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/z-lower-outside/scoped-640x480.childq",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/software-geometry-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/software",
+            "/tmp/observed-children-native-20261027/intel-roi-results/z-lower-outside/00-scoped-640x480/result",
+            "software",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.5",
+            "50.0",
+            "50.0",
+            "0.5000000000000001",
+            "1.0"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.20314526406582445,
+          "watchdog_host": "cps-wkstn-fwmini4",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "z-upper-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/intel-roi-results/z-upper-outside/comparison.json",
+        "comparison_sha256": "06f02443140ff4437815ad9c18afcf4d2021730eb043a77eeb0bbfb9c7f930a9",
+        "report_sha256": "7f4fd6e124ae06b0008dba7337a03478a92e9b77698bf8182ebb5a3404a86a2b",
+        "device": "Intel(R) Graphics (ADL-N)",
+        "roi": [
+          60.0,
+          63.5,
+          50.0,
+          50.0,
+          0.0,
+          0.49999999999999994
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fc00000000000",
+          "0x4049000000000000",
+          "0x4049000000000000",
+          "0x0",
+          "0x3fdfffffffffffff"
+        ],
+        "roi_pixels": [
+          0,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/z-upper-outside/scoped-640x480.childq",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/software-geometry-shaders",
+            "/home/bjoern/.local/share/exciting-science/validation/observed-children-20261027/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/software",
+            "/tmp/observed-children-native-20261027/intel-roi-results/z-upper-outside/00-scoped-640x480/result",
+            "software",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.5",
+            "50.0",
+            "50.0",
+            "0.0",
+            "0.49999999999999994"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.2082703170599416,
+          "watchdog_host": "cps-wkstn-fwmini4",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      }
+    },
+    "amd": {
+      "inclusive-eight": {
+        "comparison_path": "/tmp/observed-children-native-20261027/amd-roi-results/inclusive-eight/comparison.json",
+        "comparison_sha256": "60e2b5d6fed5c67f5d71696603a4fba54a0c5a793e737b0fbf71336720f81918",
+        "report_sha256": "9a27d525fa986fc5f859069347739d344ba84e94091d3ba9175011a40c792fed",
+        "device": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+        "roi": [
+          60.0,
+          63.5,
+          50.0,
+          50.0,
+          0.5,
+          0.5
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fc00000000000",
+          "0x4049000000000000",
+          "0x4049000000000000",
+          "0x3fe0000000000000",
+          "0x3fe0000000000000"
+        ],
+        "roi_pixels": [
+          8,
+          0
+        ],
+        "closed_pixels": [
+          1600,
+          0
+        ],
+        "flags": [
+          3,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/inclusive-eight/scoped-640x480.childq",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/native",
+            "/tmp/observed-children-native-20261027/amd-roi-results/inclusive-eight/00-scoped-640x480/result",
+            "native",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.5",
+            "50.0",
+            "50.0",
+            "0.5",
+            "0.5"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.1317248279992782,
+          "watchdog_host": "cps-wkstn-hpz2minig1a-ellensohn",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "x-lower-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/amd-roi-results/x-lower-outside/comparison.json",
+        "comparison_sha256": "536824ffaf07d088e1e68ef478b4d7aebb477f4ab2538eda4c3301379d70d52b",
+        "report_sha256": "47d35fb753f6451b235ab0515b2e0f68570ca32921bde58b88ac24509cc3ca69",
+        "device": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+        "roi": [
+          60.00000000000001,
+          63.5,
+          50.0,
+          50.0,
+          0.5,
+          0.5
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000001",
+          "0x404fc00000000000",
+          "0x4049000000000000",
+          "0x4049000000000000",
+          "0x3fe0000000000000",
+          "0x3fe0000000000000"
+        ],
+        "roi_pixels": [
+          7,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/x-lower-outside/scoped-640x480.childq",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/native",
+            "/tmp/observed-children-native-20261027/amd-roi-results/x-lower-outside/00-scoped-640x480/result",
+            "native",
+            "0",
+            "--external-watchdog-ack",
+            "60.00000000000001",
+            "63.5",
+            "50.0",
+            "50.0",
+            "0.5",
+            "0.5"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.12119016699944041,
+          "watchdog_host": "cps-wkstn-hpz2minig1a-ellensohn",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "x-upper-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/amd-roi-results/x-upper-outside/comparison.json",
+        "comparison_sha256": "9ae2928acfe812601c6ea83e487074e3def567e3ca6d61a8e76342a1e9d746b7",
+        "report_sha256": "20872e5a29faa25907f9ebacf11e0ec5634071cfd55e374e2d69f65d0eaf1137",
+        "device": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+        "roi": [
+          60.0,
+          63.49999999999999,
+          50.0,
+          50.0,
+          0.5,
+          0.5
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fbfffffffffff",
+          "0x4049000000000000",
+          "0x4049000000000000",
+          "0x3fe0000000000000",
+          "0x3fe0000000000000"
+        ],
+        "roi_pixels": [
+          7,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/x-upper-outside/scoped-640x480.childq",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/native",
+            "/tmp/observed-children-native-20261027/amd-roi-results/x-upper-outside/00-scoped-640x480/result",
+            "native",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.49999999999999",
+            "50.0",
+            "50.0",
+            "0.5",
+            "0.5"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.11120930900142412,
+          "watchdog_host": "cps-wkstn-hpz2minig1a-ellensohn",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "y-lower-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/amd-roi-results/y-lower-outside/comparison.json",
+        "comparison_sha256": "03fc0765ea8539c0ec3936a816efedcf6245cd15bf3ea6c1137adba774dcde56",
+        "report_sha256": "643fd954d099f4290a6734f847fd2b1a6750f9ab8d64204818ae620062947b3a",
+        "device": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+        "roi": [
+          60.0,
+          63.5,
+          50.00000000000001,
+          50.25,
+          0.5,
+          0.5
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fc00000000000",
+          "0x4049000000000001",
+          "0x4049200000000000",
+          "0x3fe0000000000000",
+          "0x3fe0000000000000"
+        ],
+        "roi_pixels": [
+          0,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/y-lower-outside/scoped-640x480.childq",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/native",
+            "/tmp/observed-children-native-20261027/amd-roi-results/y-lower-outside/00-scoped-640x480/result",
+            "native",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.5",
+            "50.00000000000001",
+            "50.25",
+            "0.5",
+            "0.5"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.12132034200112685,
+          "watchdog_host": "cps-wkstn-hpz2minig1a-ellensohn",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "y-upper-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/amd-roi-results/y-upper-outside/comparison.json",
+        "comparison_sha256": "3786d6f4fd0a8794e91fc66967f1f6721a1e534a0aa1f42682fe9075b715b736",
+        "report_sha256": "d73398ab62b2162743320f15a85fb950782a89151edf2fdc4511996c84ed5308",
+        "device": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+        "roi": [
+          60.0,
+          63.5,
+          49.0,
+          49.99999999999999,
+          0.5,
+          0.5
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fc00000000000",
+          "0x4048800000000000",
+          "0x4048ffffffffffff",
+          "0x3fe0000000000000",
+          "0x3fe0000000000000"
+        ],
+        "roi_pixels": [
+          0,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/y-upper-outside/scoped-640x480.childq",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/native",
+            "/tmp/observed-children-native-20261027/amd-roi-results/y-upper-outside/00-scoped-640x480/result",
+            "native",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.5",
+            "49.0",
+            "49.99999999999999",
+            "0.5",
+            "0.5"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.13129065099928994,
+          "watchdog_host": "cps-wkstn-hpz2minig1a-ellensohn",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "z-lower-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/amd-roi-results/z-lower-outside/comparison.json",
+        "comparison_sha256": "86a338d6e2a42e68234ee71901f6d325c432be756dc1a8c7237cd43454b48286",
+        "report_sha256": "648fdf0d38586597bc35f8779296b14f087ccc24971fcf1c045907955200e012",
+        "device": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+        "roi": [
+          60.0,
+          63.5,
+          50.0,
+          50.0,
+          0.5000000000000001,
+          1.0
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fc00000000000",
+          "0x4049000000000000",
+          "0x4049000000000000",
+          "0x3fe0000000000001",
+          "0x3ff0000000000000"
+        ],
+        "roi_pixels": [
+          0,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/z-lower-outside/scoped-640x480.childq",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/native",
+            "/tmp/observed-children-native-20261027/amd-roi-results/z-lower-outside/00-scoped-640x480/result",
+            "native",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.5",
+            "50.0",
+            "50.0",
+            "0.5000000000000001",
+            "1.0"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.11105363699971349,
+          "watchdog_host": "cps-wkstn-hpz2minig1a-ellensohn",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      },
+      "z-upper-outside": {
+        "comparison_path": "/tmp/observed-children-native-20261027/amd-roi-results/z-upper-outside/comparison.json",
+        "comparison_sha256": "f674603772d23dfd4468165d9713a4b28d497e81a0a61ce2fc5067e59d8c88bd",
+        "report_sha256": "649fa248a388b49051c379238c744a04652f260409015f43b8a8d2f9d953b55f",
+        "device": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+        "roi": [
+          60.0,
+          63.5,
+          50.0,
+          50.0,
+          0.0,
+          0.49999999999999994
+        ],
+        "roi_ieee754_u64": [
+          "0x404e000000000000",
+          "0x404fc00000000000",
+          "0x4049000000000000",
+          "0x4049000000000000",
+          "0x0",
+          "0x3fdfffffffffffff"
+        ],
+        "roi_pixels": [
+          0,
+          0
+        ],
+        "closed_pixels": [
+          0,
+          0
+        ],
+        "flags": [
+          0,
+          0
+        ],
+        "unchanged_original_and_order": true,
+        "original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0",
+        "watchdog": {
+          "command": [
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+            "--vulkan",
+            "/tmp/observed-children-native-20261027/roi-qualification/z-upper-outside/scoped-640x480.childq",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders",
+            "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/share/so101_station_vulkan/observed-children-shaders/native",
+            "/tmp/observed-children-native-20261027/amd-roi-results/z-upper-outside/00-scoped-640x480/result",
+            "native",
+            "0",
+            "--external-watchdog-ack",
+            "60.0",
+            "63.5",
+            "50.0",
+            "50.0",
+            "0.0",
+            "0.49999999999999994"
+          ],
+          "returncode": 0,
+          "timed_out": false,
+          "interrupted": false,
+          "reaped": true,
+          "signals": [
+            "KILL-before-reap"
+          ],
+          "elapsed_wall_seconds": 0.11123487800068688,
+          "watchdog_host": "cps-wkstn-hpz2minig1a-ellensohn",
+          "pid_pinned_until_final_group_signal": true
+        },
+        "runtime_identities_verified": true
+      }
+    }
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "schema": "observed-child-independent-resource-review-v1",
+  "scoped_resource_gate_pass": true,
+  "production_gpu_qualification": false,
+  "station_qualification": false,
+  "gpu_executed": false,
+  "source_pins": {
+    "include/so101_station_vulkan/observed_children.hpp": "5a6e904fe006103dc08b6189eff31130a91172b786acb9c16b836a0d60673520",
+    "src/observed_children.cpp": "17fb88a4e69261beefcf9ca27b43a682d50299e854d2b30170f10fe08e93cd06",
+    "shaders/observed_children.slang": "161a4406cc49bdcf0a1b16d7f904256627aad472c1a475539decf97bd3534d81",
+    "include/so101_station_vulkan/geometry.hpp": "ad025af8e59ae44c68d6933c3a4a79349ce32196132a56844f2ead0eaf3ee704",
+    "src/geometry.cpp": "5e05013dc1db2d660aa3b909625e3b68bac653f391e374f6ec19a83f5aedfb1f",
+    "include/so101_station_vulkan/children.hpp": "f6ab103ee2f9b342c8f671c31663d43d18c8192ef4e2ebf00f82b0ba4523dc20",
+    "src/children.cpp": "f014c9b49df20b9bf51fc1a8017123639a310a7a00c961b9a9d9d94c708bf2ec",
+    "src/parents.cpp": "518d37d10ec7e788bf3b21c75de775d409fc78df49d687837c956e9152227a3d",
+    "src/frame_pool.cpp": "6f0afbb259e3733495b1c479f8659bac2c9930f97d1f9d44d12ef08735101011",
+    "test/observed_children_host_contract.cpp": "2dee522ab5591ee0a4c502b8755585bbd40d1ccb796809478988931f44720835",
+    "shaders/soft_binary64.slang": "2cb3eae2dd92ca8a69234af8787e2c3a9ac28726fa440b11e6f6a4041cb96901"
+  },
+  "own_test_sha256": "c7b61e60356e5bff31884661ba4cccc31888cd6eea6947518a39c7b903faa876",
+  "focused_resource_tests": 28,
+  "negative_mutants": {
+    "cpp": 9,
+    "shader": 14
+  },
+  "combined_tests": {
+    "passed": 137,
+    "elapsed_seconds": 16.99,
+    "log": "combined-tests.log"
+  },
+  "source_pins_unchanged_after_combined_tests": true,
+  "host_benchmarks": [
+    {
+      "iterations": 100000,
+      "ns_submit_ready_finish_release": 169.61373,
+      "hot_heap": 0,
+      "hot_buffer_allocations": 0,
+      "hot_waits": 0,
+      "dispatches": 600000,
+      "compact_copies": 100000,
+      "compact_fills": 100000,
+      "width": 64,
+      "height": 48,
+      "capacity": 32,
+      "fixture_sha256": "2dee522ab5591ee0a4c502b8755585bbd40d1ccb796809478988931f44720835",
+      "instrumented_fixture_sha256": "08d42fca622689bf866a5f2b9fb80d2a89916f51bf486371dcb4b56665e86d12",
+      "source_sha256": {
+        "src/observed_children.cpp": "17fb88a4e69261beefcf9ca27b43a682d50299e854d2b30170f10fe08e93cd06",
+        "src/children.cpp": "f014c9b49df20b9bf51fc1a8017123639a310a7a00c961b9a9d9d94c708bf2ec",
+        "src/parents.cpp": "518d37d10ec7e788bf3b21c75de775d409fc78df49d687837c956e9152227a3d",
+        "src/geometry.cpp": "5e05013dc1db2d660aa3b909625e3b68bac653f391e374f6ec19a83f5aedfb1f",
+        "src/frame_pool.cpp": "6f0afbb259e3733495b1c479f8659bac2c9930f97d1f9d44d12ef08735101011"
+      },
+      "scope": "actual modules; synthetic empty GPU results; counter commands and 64B synthetic header copy only; no driver/GPU/transfer timing"
+    },
+    {
+      "iterations": 100000,
+      "ns_submit_ready_finish_release": 145.99303,
+      "hot_heap": 0,
+      "hot_buffer_allocations": 0,
+      "hot_waits": 0,
+      "dispatches": 600000,
+      "compact_copies": 100000,
+      "compact_fills": 100000,
+      "width": 640,
+      "height": 480,
+      "capacity": 4096,
+      "fixture_sha256": "2dee522ab5591ee0a4c502b8755585bbd40d1ccb796809478988931f44720835",
+      "instrumented_fixture_sha256": "252709f5ab412153492ce730075d0b0efd1e5f7d657844074409e5aa89bc63a5",
+      "source_sha256": {
+        "src/observed_children.cpp": "17fb88a4e69261beefcf9ca27b43a682d50299e854d2b30170f10fe08e93cd06",
+        "src/children.cpp": "f014c9b49df20b9bf51fc1a8017123639a310a7a00c961b9a9d9d94c708bf2ec",
+        "src/parents.cpp": "518d37d10ec7e788bf3b21c75de775d409fc78df49d687837c956e9152227a3d",
+        "src/geometry.cpp": "5e05013dc1db2d660aa3b909625e3b68bac653f391e374f6ec19a83f5aedfb1f",
+        "src/frame_pool.cpp": "6f0afbb259e3733495b1c479f8659bac2c9930f97d1f9d44d12ef08735101011"
+      },
+      "scope": "actual modules; synthetic empty GPU results; counter commands and 64B synthetic header copy only; no driver/GPU/transfer timing"
+    }
+  ],
+  "encoder_benchmark": {
+    "iterations_per_variant": 100000,
+    "warmup": 1000,
+    "encoder_ns_64x48_C32": 21.46664,
+    "encoder_ns_640x480_C4096": 26.4897,
+    "hot_new_calls": 0,
+    "dispatches_per_frame": 6,
+    "barriers_per_frame": 8,
+    "compact_copy_bytes_C4096": 327744,
+    "three_slot_own_payload_bytes": 46203312,
+    "source_sha256": "17fb88a4e69261beefcf9ca27b43a682d50299e854d2b30170f10fe08e93cd06",
+    "benchmark_sha256": "a11944d614819f0189f25279862269070f7c1e9df810a033df01a23d328d9c16",
+    "scope": "actual encoder body; counter-only Vulkan stubs, no GPU/driver cost"
+  },
+  "spirv_variants_validated": 12,
+  "memory": {
+    "own_new_payload": 46203312,
+    "retained_Child_payload": 73615344,
+    "retained_Parent_payload_including_CPU_cache": 41759232,
+    "retained_Geometry_payload_including_cold_calibration_buffer": 31181456,
+    "retained_FramePool_GPU_non_diagnostic_payload_including_CPU_cache": 102850656,
+    "combined_payload": 295610000,
+    "excludes": "Vulkan allocation alignment and driver/context overhead; external GeometryCalibration camera_rays input vector; diagnostics mode"
+  },
+  "findings_resolved": [
+    "Unvalidated copied child record fields now checked on GPU once before indexed use; internal validated bit avoids full per-pixel record validation.",
+    "Required per-parent/status/global packed/job checks implemented with monotonic cursor, O(P+R), unchanged six dispatches and storage.",
+    "Author synthetic host fixture retained explicit foreign Geometry counts handle so its corruption targets its expected producer."
+  ],
+  "limitations": [
+    "Host measurements use synthetic empty results and counter-only Vulkan commands, with64B synthetic header copies during timed submit loops; not Vulkan driver, transfer or GPU timing.",
+    "Producer Parent records are already decoded/cached by Child submit; Observed parent buffer borrow uses that cache. Existing earlier-stage CPU decode has not been removed.",
+    "Normal hot measurement keeps producer facades alive. Last shared-storage teardown retains existing cold fence waits.",
+    "Three-slot payload arithmetic excludes Vulkan allocation alignment/driver/context/RSS overhead and external calibration input vectors.",
+    "No SSH/USB/camera/SDK operations or physical/control/geometry adoption performed."
+  ]
+}

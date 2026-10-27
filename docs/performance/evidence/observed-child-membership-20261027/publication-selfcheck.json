@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "source_commit": "ccbf7a72809f9b00c182d05ac02152e0f88f734f",
+  "immutable_git_blobs_verified": 119,
+  "cache_archive_pins_verified": 46,
+  "raw_archive_members_verified": 1823,
+  "raw_archive_sha256": "a312c093017cbb41796393e4d3d37e34ad489e64e82f379408749960ac877c9e",
+  "planned_trials_numerically_recomputed_and_identity_checked": 100,
+  "actual_evidence_review_sha256": "6d12fe9ca6f6ec695a608b002bdf20fe36bfbe3625e7a458c3b0c72cc1eabdc5",
+  "selected_inventory_hashes_verified": true,
+  "diff_check_passed": true,
+  "no_GPU_SSH_USB": true,
+  "qualification": false
+}

@@ -1,0 +1,23 @@
+{
+  "iterations": 100000,
+  "ns_submit_ready_finish_release": 190.86183,
+  "hot_heap": 0,
+  "hot_buffer_allocations": 0,
+  "hot_waits": 0,
+  "dispatches": 600000,
+  "compact_copies": 100000,
+  "compact_fills": 100000,
+  "width": 64,
+  "height": 48,
+  "capacity": 32,
+  "fixture_sha256": "9dcfc991f0fcc5a690d4bb63e7d9ea73a08b86b295ffd3cb3ab12146a0b167b8",
+  "instrumented_fixture_sha256": "08d42fca622689bf866a5f2b9fb80d2a89916f51bf486371dcb4b56665e86d12",
+  "source_sha256": {
+    "src/observed_children.cpp": "9359b7741d75188816c38e852ec7e49e233a29905530290dd5e076f7fd33e5ed",
+    "src/children.cpp": "f014c9b49df20b9bf51fc1a8017123639a310a7a00c961b9a9d9d94c708bf2ec",
+    "src/parents.cpp": "518d37d10ec7e788bf3b21c75de775d409fc78df49d687837c956e9152227a3d",
+    "src/geometry.cpp": "06cb2a97f49d79bd568d1a8237feda91b9f56b8cf16c46b9cb30697fee9500e5",
+    "src/frame_pool.cpp": "6f0afbb259e3733495b1c479f8659bac2c9930f97d1f9d44d12ef08735101011"
+  },
+  "scope": "actual modules; synthetic empty GPU results; counter commands and 64B synthetic header copy only; no driver/GPU/transfer timing"
+}

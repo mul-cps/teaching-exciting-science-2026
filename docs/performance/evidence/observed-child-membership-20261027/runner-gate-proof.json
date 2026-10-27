@@ -1,0 +1,32 @@
+{
+  "approved": true,
+  "scope": "private on-target procedural GPU qualification supervisor and transferred-evidence validator; no GPU execution by reviewer",
+  "runner": "/tmp/observed-children-native-20261027/run_qualification.py",
+  "runner_sha256": "ae7b05d62a05e9ec8ea3ed8471c67a12334767f9e7634d3858ebe464c1dd2d1c",
+  "readme_sha256": "644172b3801c1987f1ddee0764d6979963b551c1c57951508b86c685b3cd53ae",
+  "host_self_test": "PASS normal, TERM-ignoring timeout/KILL, interrupted supervisor, repeated HUP at postspawn-preassignment and cleanup boundaries",
+  "transferred_contract_test": "PASS synthetic full43 with oracle explicitly stubbed; rejects missing/duplicate coverage, wrong corpus, substituted original receipt, resealed fifth-library digest",
+  "original_empty_plan_red": "b46f3671 admitted zero trials as all_matched; independently reproduced",
+  "empty_plan_green": "exact1smoke/43full coverage/order required",
+  "no_empty_comparison_written": true,
+  "review": [
+    "on-target monotonic timeout<=120s, TERM grace<=5s, KILL and reap<=5s",
+    "WNOWAIT retains leader PID until final owned-group KILL; no PGID recycling",
+    "signal handlers defer abort; do not throw across spawn or cleanup",
+    "native stdout/stderr regular files, launch supervisor with detached on-host streams as README",
+    "stop first native/status/identity/watchdog failure; failed artifacts preserved",
+    "exact initial executable and five loaded library path/hash VALUES, all four source/SPV/provenance sets",
+    "fixed initial corpus/receipt digest and identity rechecked; transferred receipt required for offline validation",
+    "exact one smoke or43 full coverage; no omissions/duplicates",
+    "remote numerical acceptance intentionally post-hoc, explicitly accepted by root; no numeric pass from execution_complete"
+  ],
+  "limits": [
+    "external SIGKILL of supervisor cannot be contained",
+    "unkillable driver task is recorded unreaped and matrix stops; no unbounded wait",
+    "requires root checked ICD and isolated library prefix",
+    "numerical comparison required before qualification; camera/ROS/services/USB unchanged"
+  ],
+  "gpu_ssh_usb_by_reviewer": false,
+  "repository_edits": false,
+  "discarded_non_evidence": "spawn-boundary-red forced exception test hit concurrently changed deferred-signal source; explicitly invalid, not used for approval"
+}

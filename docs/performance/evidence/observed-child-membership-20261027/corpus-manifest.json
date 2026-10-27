@@ -1,0 +1,243 @@
+{
+  "schema": "native-observed-diagnostic-v1",
+  "scope": "observed_preparation_only",
+  "roi": null,
+  "sources": {
+    "tools/qualify_native_observed_children.py": "d01f0b031617063d02ecb106026e971c5a5fa352c200a77dad395df9a7b4587f",
+    "tools/qualify_native_children.py": "d5cd5f2bf961403ca945b5f0eb5e2856b6de89545cfda052b03d002612d49ddb",
+    "tools/native_geometry_child_evidence.py": "03f2bfe98a0c0c23f298d8f43a01f7a850a66b53dc47b162def78e84311e7be2",
+    "tools/performance/qualify_children.cpp": "01e45df35f5e32f2310884de61a0e566cdd2b4a85fcc31f82be65fd57bb5999e",
+    "ros2/src/so101_station_vulkan/test/qualify_observed_children.cpp": "dd831694605d97c76e37e8c3e24db65038ea42c46c6457de5e1baefdc598625c",
+    "ros2/src/so101_station_objects/so101_station_objects/objects.py": "4f11ebcd55bb801f9a9e425a1a6a7aa373152c3d1ed738469b4662519c04b5f9",
+    "ros2/src/so101_station_objects/so101_station_objects/colored_object_validation.py": "32df75dbc4bd21b99949cd8683fc6dc0300b91818330110c38ef709db52a6a1e",
+    "ros2/src/so101_station_vulkan/shaders/geometry.slang": "2c8e3f34a07e3efedca035a62fb5ccb97331b28d8c302d788de569625a6694b1",
+    "ros2/src/so101_station_vulkan/shaders/geometry_soft.slang": "5fd59968529786399cdddebfcf35f1a91c9348992ea084256b482376d06e5b20",
+    "ros2/src/so101_station_vulkan/shaders/observed_children.slang": "161a4406cc49bdcf0a1b16d7f904256627aad472c1a475539decf97bd3534d81"
+  },
+  "cases": {
+    "typed-origin-parity-0-0": {
+      "fixture": "typed-origin-parity-0-0.childq",
+      "fixture_sha256": "77cd8dbc2c618c27cb580fbb08e19a22fa86f643e0d0c5f9b6a45d4154505f2b",
+      "expected": "typed-origin-parity-0-0.npz",
+      "expected_sha256": "2039536b50f523609cb3a076966662bf5f691a03f1c08a9d8a44cbc9cb3935a1",
+      "width": 4,
+      "height": 3
+    },
+    "typed-origin-parity-0-1": {
+      "fixture": "typed-origin-parity-0-1.childq",
+      "fixture_sha256": "b7a4031eb56083ce4247e1e51112e83f8feebe8fd74129f7843b6c79c618d837",
+      "expected": "typed-origin-parity-0-1.npz",
+      "expected_sha256": "8448def3f697db798f5c955f5f9d10e87d34829fa4c38a1d9f8fcf8eba8869f2",
+      "width": 4,
+      "height": 4
+    },
+    "typed-origin-parity-1-0": {
+      "fixture": "typed-origin-parity-1-0.childq",
+      "fixture_sha256": "f456d0fdff7ca65bd8c8be4f3d859971455420448cb6ee0ee8c2181f59503c8e",
+      "expected": "typed-origin-parity-1-0.npz",
+      "expected_sha256": "3787f67e6f43a523bc14bac69e9bffeb2e54e9d077ad06a5fdcba6544a130aa5",
+      "width": 5,
+      "height": 3
+    },
+    "typed-origin-parity-1-1": {
+      "fixture": "typed-origin-parity-1-1.childq",
+      "fixture_sha256": "f822a3f1b87e2a8e1205b944d320393227a5a500df69f7551e0a5b225a8aed44",
+      "expected": "typed-origin-parity-1-1.npz",
+      "expected_sha256": "d9be6a5fa18e2fede4bcb703f802270ed4e50a72ddc395326c3df329449b58d9",
+      "width": 5,
+      "height": 4
+    },
+    "typed-u-membership": {
+      "fixture": "typed-u-membership.childq",
+      "fixture_sha256": "54a5db3b5c4bd26ca324193c12d7c710562c59a76be7cdcb97107e0701012ac1",
+      "expected": "typed-u-membership.npz",
+      "expected_sha256": "c2ec05655023d276a2c7c89a6e4209257ccb03b619987200aa6fb6b6de911bcd",
+      "width": 9,
+      "height": 5
+    },
+    "typed-tiny-before-kept-8": {
+      "fixture": "typed-tiny-before-kept-8.childq",
+      "fixture_sha256": "268f8264a294b5e42dc9391bf8e6eaef45c79089daa707bf4b174862b2c898a0",
+      "expected": "typed-tiny-before-kept-8.npz",
+      "expected_sha256": "09028f9310f82830054b0d52aefe66017c2050a2ae44b47a063976e31ca92bc1",
+      "width": 12,
+      "height": 6
+    },
+    "typed-tiny-before-kept-24": {
+      "fixture": "typed-tiny-before-kept-24.childq",
+      "fixture_sha256": "268f8264a294b5e42dc9391bf8e6eaef45c79089daa707bf4b174862b2c898a0",
+      "expected": "typed-tiny-before-kept-24.npz",
+      "expected_sha256": "09028f9310f82830054b0d52aefe66017c2050a2ae44b47a063976e31ca92bc1",
+      "width": 12,
+      "height": 6
+    },
+    "typed-configured-parent-min-8": {
+      "fixture": "typed-configured-parent-min-8.childq",
+      "fixture_sha256": "268f8264a294b5e42dc9391bf8e6eaef45c79089daa707bf4b174862b2c898a0",
+      "expected": "typed-configured-parent-min-8.npz",
+      "expected_sha256": "09028f9310f82830054b0d52aefe66017c2050a2ae44b47a063976e31ca92bc1",
+      "width": 12,
+      "height": 6
+    },
+    "typed-configured-parent-min-32": {
+      "fixture": "typed-configured-parent-min-32.childq",
+      "fixture_sha256": "268f8264a294b5e42dc9391bf8e6eaef45c79089daa707bf4b174862b2c898a0",
+      "expected": "typed-configured-parent-min-32.npz",
+      "expected_sha256": "09028f9310f82830054b0d52aefe66017c2050a2ae44b47a063976e31ca92bc1",
+      "width": 12,
+      "height": 6
+    },
+    "typed-configured-min-reject24": {
+      "fixture": "typed-configured-min-reject24.childq",
+      "fixture_sha256": "720917a7ea69c7919bcc0931c456ca63c326cc96c1a379f145e26d8a8878fa16",
+      "expected": "typed-configured-min-reject24.npz",
+      "expected_sha256": "00d24304a4b9efa50d864a56690d1fe195691e30b72d3245895ceff9a2bccbb9",
+      "width": 7,
+      "height": 5
+    },
+    "typed-two-kept": {
+      "fixture": "typed-two-kept.childq",
+      "fixture_sha256": "5eb4f5ceb344c395bf78bf0b976f42a8683b633216c6cfc37280e69d99bb2400",
+      "expected": "typed-two-kept.npz",
+      "expected_sha256": "b0135a8f311ae8a6eeb8c1b073a8a1f1ed1f252d38dbcbf9b9f3ff65bd104178",
+      "width": 16,
+      "height": 8
+    },
+    "typed-odd-partial-blocks-5x7": {
+      "fixture": "typed-odd-partial-blocks-5x7.childq",
+      "fixture_sha256": "e3f978eb7d7f1ae9237efd8b875a354bebb0daddf97945b62a21ca03cf6da411",
+      "expected": "typed-odd-partial-blocks-5x7.npz",
+      "expected_sha256": "fd0fed02de67f6f6bcb1ea10e66b76a257bf38fd281c74327ca6807dfe0ffb93",
+      "width": 8,
+      "height": 6
+    },
+    "typed-row-1x19": {
+      "fixture": "typed-row-1x19.childq",
+      "fixture_sha256": "bf1eed63dba98a9f5f1483695f776399d86d38c3f6edffd1be80acfca863e75f",
+      "expected": "typed-row-1x19.npz",
+      "expected_sha256": "d1de0216bfe01e8f918c82daf9bd14385be06ad393652dc51b08dca956d8a2b7",
+      "width": 20,
+      "height": 2
+    },
+    "typed-column-19x1": {
+      "fixture": "typed-column-19x1.childq",
+      "fixture_sha256": "f776c35d34a957bbbaf6da2014048ec78e72018c999289f92b1e8d02329f6343",
+      "expected": "typed-column-19x1.npz",
+      "expected_sha256": "12509e4c89e48188e1279eead4e27f0515496aed69440c706a0eaa8231c95ed3",
+      "width": 2,
+      "height": 20
+    },
+    "typed-depth-endpoints": {
+      "fixture": "typed-depth-endpoints.childq",
+      "fixture_sha256": "2209f43e4db58f294d8f3a566a0f37cb6d6b8b1b7a87358cb3d872eced0210c8",
+      "expected": "typed-depth-endpoints.npz",
+      "expected_sha256": "6fef26e4ca1833fda49d0f09c33b5008ed9bb22518070854877ecc2d06d1dd02",
+      "width": 9,
+      "height": 2
+    },
+    "typed-depth-inclusive-kept": {
+      "fixture": "typed-depth-inclusive-kept.childq",
+      "fixture_sha256": "38a0d97f94c68d5a68a30478c97f727621a24bc543732abdb07a136b61522fc6",
+      "expected": "typed-depth-inclusive-kept.npz",
+      "expected_sha256": "f0fc94280831a8c0accca76a3a18e3fd6890079fb7c872bf9803eb7b3f568b0a",
+      "width": 18,
+      "height": 4
+    },
+    "typed-configured-max-depth": {
+      "fixture": "typed-configured-max-depth.childq",
+      "fixture_sha256": "30eca60857a85c0295d1bae7aba7e6fbd4b2baefaeb9b36a13ec5c5e3116ec12",
+      "expected": "typed-configured-max-depth.npz",
+      "expected_sha256": "057a09a5c06b7aa0dad32efdda59d12a8efae4cecc86c65801f89c79cbd40e8f",
+      "width": 18,
+      "height": 2
+    },
+    "typed-strict-jump-f32-edges": {
+      "fixture": "typed-strict-jump-f32-edges.childq",
+      "fixture_sha256": "77dd2d1e33e220f08e166c4cad82a6908350415deb7fa3a49a8ddb2320a4d324",
+      "expected": "typed-strict-jump-f32-edges.npz",
+      "expected_sha256": "b90789c60bd18377998a5fac09bf22fdd59a19ee5be51b229ea0d57f70c3ca7a",
+      "width": 3,
+      "height": 6
+    },
+    "typed-configured-strict-equality": {
+      "fixture": "typed-configured-strict-equality.childq",
+      "fixture_sha256": "7d608a492f8c82594e6c3e3c2c27bacc54035cb4421356cedb840534285a0ae7",
+      "expected": "typed-configured-strict-equality.npz",
+      "expected_sha256": "e85cd04910a03571136712d48f61e151fe5b06d9820e3899c97469308b3e14be",
+      "width": 3,
+      "height": 4
+    },
+    "typed-all-cut-empty": {
+      "fixture": "typed-all-cut-empty.childq",
+      "fixture_sha256": "2863ed770dc8dce2c454e0f28ecb183a086d55be57a6fe65b273cec81c0c638e",
+      "expected": "typed-all-cut-empty.npz",
+      "expected_sha256": "3cb211901d49a4129704abf9f7f73250edff8ec53ae48729e7742bd04f7a74d7",
+      "width": 5,
+      "height": 4
+    },
+    "typed-invalid-interior-hole": {
+      "fixture": "typed-invalid-interior-hole.childq",
+      "fixture_sha256": "80bfea8521ac8e18b451770982f0512befa6704d97fc5bafeca3110e0c6ae570",
+      "expected": "typed-invalid-interior-hole.npz",
+      "expected_sha256": "d107a8cb3ddb062c7b96ac77c3cfd92d0fee8f14670e38550096dfbdf41727af",
+      "width": 14,
+      "height": 14
+    },
+    "typed-boundary-and-clipped-halo": {
+      "fixture": "typed-boundary-and-clipped-halo.childq",
+      "fixture_sha256": "d01d51d049e23849789a1430ca9115a6238ebc0d2c9aa19a73e769035bec23bc",
+      "expected": "typed-boundary-and-clipped-halo.npz",
+      "expected_sha256": "31312f4208f3a8ac68ba3be4cb3481655a8aaecaf651c07636a5331b59d702ea",
+      "width": 23,
+      "height": 26
+    },
+    "typed-cut-nearby-halo": {
+      "fixture": "typed-cut-nearby-halo.childq",
+      "fixture_sha256": "72687863871f992007f8314980fc518a22118f9d7d731b3b5cf7da6e679ace76",
+      "expected": "typed-cut-nearby-halo.npz",
+      "expected_sha256": "d65567afccda86632a3460c2bd5027cd9a8c119a9c06f3429638ec6a5d0c45dc",
+      "width": 21,
+      "height": 13
+    },
+    "two-parents-P2C1-empty": {
+      "fixture": "two-parents-P2C1-empty.childq",
+      "fixture_sha256": "48889af3dd7e964921a1736f869fb6cf12715a258d97bd897ffd6ea832bfb3fb",
+      "expected": "two-parents-P2C1-empty.npz",
+      "expected_sha256": "cb8ef95021930debdf76db8234470fca3e4a49f863a6dbaf836048c4a4ef286b",
+      "width": 20,
+      "height": 8
+    },
+    "two-colors-boundary": {
+      "fixture": "two-colors-boundary.childq",
+      "fixture_sha256": "98ee0944017361cf5e5deee55467af6d8672d428a23daea2ec298b5260ad1a45",
+      "expected": "two-colors-boundary.npz",
+      "expected_sha256": "5335e677fa5ee1423cf2ab995a280cab0660ebfe5a12b9dd91cc67642f940ef2",
+      "width": 20,
+      "height": 8
+    },
+    "one-parent-P1C2": {
+      "fixture": "one-parent-P1C2.childq",
+      "fixture_sha256": "26e38f89d0dc1fdd7ba76dcf539a1669f847447b1b41442894ffb60863258e28",
+      "expected": "one-parent-P1C2.npz",
+      "expected_sha256": "419c6f19c7084f79a1bd162874b18c9f9d2fed0db1b2f0a6e42fa3c5b022d9a0",
+      "width": 20,
+      "height": 8
+    },
+    "overlapping-parent-cut-halos": {
+      "fixture": "overlapping-parent-cut-halos.childq",
+      "fixture_sha256": "fc18f71034c61416ffcd9bc548d29afa68696d12b5fa3de2132ad66d0fc58e18",
+      "expected": "overlapping-parent-cut-halos.npz",
+      "expected_sha256": "8f02267e2b96eb34baaef32039851954e32fe58f6fc67b35bdaa6a404119271c",
+      "width": 20,
+      "height": 12
+    },
+    "scoped-640x480": {
+      "fixture": "scoped-640x480.childq",
+      "fixture_sha256": "275db172df431f333b72e6f86b7af05dd08bbab7f56f4de98f259d4586ca21de",
+      "expected": "scoped-640x480.npz",
+      "expected_sha256": "a19b7fb5ac808775a7678b032b68c3a0860766dfee767cbb1e0aecb4d70c6645",
+      "width": 640,
+      "height": 480
+    }
+  }
+}

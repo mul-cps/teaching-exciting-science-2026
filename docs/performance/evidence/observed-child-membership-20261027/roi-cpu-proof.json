@@ -1,0 +1,399 @@
+{
+  "scope": "procedural_observed_roi_only",
+  "source": "retained CPU splitter plus exact f32(.5) depth/global pixel rays/identity transform; no GPU expectations",
+  "python": "/tmp/workshop-test-pinned313-20261027/bin/python",
+  "cases": {
+    "inclusive-eight": {
+      "roi": [
+        60.0,
+        63.5,
+        50.0,
+        50.0,
+        0.5,
+        0.5
+      ],
+      "roi_ieee754_u64": [
+        "0x404e000000000000",
+        "0x404fc00000000000",
+        "0x4049000000000000",
+        "0x4049000000000000",
+        "0x3fe0000000000000",
+        "0x3fe0000000000000"
+      ],
+      "manifest_sha256": "fa35233be27de0d7ba60fac2ea65e28632cf4b07e3ddbe5594397a0cc229ddc8",
+      "fixture_sha256": "275db172df431f333b72e6f86b7af05dd08bbab7f56f4de98f259d4586ca21de",
+      "expected_sha256": "430dc780e26fa72dd99077cba6034d175cd3e770facea604047dc967541d4b8c",
+      "record_original_areas": [
+        1600,
+        750
+      ],
+      "roi_pixels": [
+        8,
+        0
+      ],
+      "closed_pixels": [
+        1600,
+        0
+      ],
+      "flags": [
+        3,
+        0
+      ],
+      "counts": [
+        2,
+        1,
+        2350,
+        1600
+      ],
+      "original_and_order_unchanged": true,
+      "world_boundary_coordinates": [
+        [
+          60.0,
+          50.0,
+          0.5
+        ],
+        [
+          63.5,
+          50.0,
+          0.5
+        ]
+      ]
+    },
+    "x-lower-outside": {
+      "roi": [
+        60.00000000000001,
+        63.5,
+        50.0,
+        50.0,
+        0.5,
+        0.5
+      ],
+      "roi_ieee754_u64": [
+        "0x404e000000000001",
+        "0x404fc00000000000",
+        "0x4049000000000000",
+        "0x4049000000000000",
+        "0x3fe0000000000000",
+        "0x3fe0000000000000"
+      ],
+      "manifest_sha256": "b63c98adb34b5ca821a5b63347dec4620f00c7926eda628fa0c8ac6b900cabeb",
+      "fixture_sha256": "275db172df431f333b72e6f86b7af05dd08bbab7f56f4de98f259d4586ca21de",
+      "expected_sha256": "401f075581383fe2b4d576e090a83e32e2a572c5b3c06c9e7af4e154c7c169ab",
+      "record_original_areas": [
+        1600,
+        750
+      ],
+      "roi_pixels": [
+        7,
+        0
+      ],
+      "closed_pixels": [
+        0,
+        0
+      ],
+      "flags": [
+        0,
+        0
+      ],
+      "counts": [
+        2,
+        0,
+        2350,
+        0
+      ],
+      "original_and_order_unchanged": true,
+      "world_boundary_coordinates": [
+        [
+          60.0,
+          50.0,
+          0.5
+        ],
+        [
+          63.5,
+          50.0,
+          0.5
+        ]
+      ]
+    },
+    "x-upper-outside": {
+      "roi": [
+        60.0,
+        63.49999999999999,
+        50.0,
+        50.0,
+        0.5,
+        0.5
+      ],
+      "roi_ieee754_u64": [
+        "0x404e000000000000",
+        "0x404fbfffffffffff",
+        "0x4049000000000000",
+        "0x4049000000000000",
+        "0x3fe0000000000000",
+        "0x3fe0000000000000"
+      ],
+      "manifest_sha256": "83c07b981c2346192d6d61c9d3b5860ad552cd42d10705e632c5df230b4250bd",
+      "fixture_sha256": "275db172df431f333b72e6f86b7af05dd08bbab7f56f4de98f259d4586ca21de",
+      "expected_sha256": "401f075581383fe2b4d576e090a83e32e2a572c5b3c06c9e7af4e154c7c169ab",
+      "record_original_areas": [
+        1600,
+        750
+      ],
+      "roi_pixels": [
+        7,
+        0
+      ],
+      "closed_pixels": [
+        0,
+        0
+      ],
+      "flags": [
+        0,
+        0
+      ],
+      "counts": [
+        2,
+        0,
+        2350,
+        0
+      ],
+      "original_and_order_unchanged": true,
+      "world_boundary_coordinates": [
+        [
+          60.0,
+          50.0,
+          0.5
+        ],
+        [
+          63.5,
+          50.0,
+          0.5
+        ]
+      ]
+    },
+    "y-lower-outside": {
+      "roi": [
+        60.0,
+        63.5,
+        50.00000000000001,
+        50.25,
+        0.5,
+        0.5
+      ],
+      "roi_ieee754_u64": [
+        "0x404e000000000000",
+        "0x404fc00000000000",
+        "0x4049000000000001",
+        "0x4049200000000000",
+        "0x3fe0000000000000",
+        "0x3fe0000000000000"
+      ],
+      "manifest_sha256": "7d333d33ed0afec53db8b55d86aacbac2f0e17a1204b5c2b50521a45eb9c6f56",
+      "fixture_sha256": "275db172df431f333b72e6f86b7af05dd08bbab7f56f4de98f259d4586ca21de",
+      "expected_sha256": "f56c1af52ae8d8a6f5a23edfd99de7dac6f8685c34bb46debc4f256d7d98e94b",
+      "record_original_areas": [
+        1600,
+        750
+      ],
+      "roi_pixels": [
+        0,
+        0
+      ],
+      "closed_pixels": [
+        0,
+        0
+      ],
+      "flags": [
+        0,
+        0
+      ],
+      "counts": [
+        2,
+        0,
+        2350,
+        0
+      ],
+      "original_and_order_unchanged": true,
+      "world_boundary_coordinates": [
+        [
+          60.0,
+          50.0,
+          0.5
+        ],
+        [
+          63.5,
+          50.0,
+          0.5
+        ]
+      ]
+    },
+    "y-upper-outside": {
+      "roi": [
+        60.0,
+        63.5,
+        49.0,
+        49.99999999999999,
+        0.5,
+        0.5
+      ],
+      "roi_ieee754_u64": [
+        "0x404e000000000000",
+        "0x404fc00000000000",
+        "0x4048800000000000",
+        "0x4048ffffffffffff",
+        "0x3fe0000000000000",
+        "0x3fe0000000000000"
+      ],
+      "manifest_sha256": "897a4c935a11504837c2ce24fb0a69e22dd0240dfb0cbe74fbcf9e805186b246",
+      "fixture_sha256": "275db172df431f333b72e6f86b7af05dd08bbab7f56f4de98f259d4586ca21de",
+      "expected_sha256": "f56c1af52ae8d8a6f5a23edfd99de7dac6f8685c34bb46debc4f256d7d98e94b",
+      "record_original_areas": [
+        1600,
+        750
+      ],
+      "roi_pixels": [
+        0,
+        0
+      ],
+      "closed_pixels": [
+        0,
+        0
+      ],
+      "flags": [
+        0,
+        0
+      ],
+      "counts": [
+        2,
+        0,
+        2350,
+        0
+      ],
+      "original_and_order_unchanged": true,
+      "world_boundary_coordinates": [
+        [
+          60.0,
+          50.0,
+          0.5
+        ],
+        [
+          63.5,
+          50.0,
+          0.5
+        ]
+      ]
+    },
+    "z-lower-outside": {
+      "roi": [
+        60.0,
+        63.5,
+        50.0,
+        50.0,
+        0.5000000000000001,
+        1.0
+      ],
+      "roi_ieee754_u64": [
+        "0x404e000000000000",
+        "0x404fc00000000000",
+        "0x4049000000000000",
+        "0x4049000000000000",
+        "0x3fe0000000000001",
+        "0x3ff0000000000000"
+      ],
+      "manifest_sha256": "c9a1663ec450716450eeb20fb83312176c1225c696d6455baebaf4615cdb80da",
+      "fixture_sha256": "275db172df431f333b72e6f86b7af05dd08bbab7f56f4de98f259d4586ca21de",
+      "expected_sha256": "f56c1af52ae8d8a6f5a23edfd99de7dac6f8685c34bb46debc4f256d7d98e94b",
+      "record_original_areas": [
+        1600,
+        750
+      ],
+      "roi_pixels": [
+        0,
+        0
+      ],
+      "closed_pixels": [
+        0,
+        0
+      ],
+      "flags": [
+        0,
+        0
+      ],
+      "counts": [
+        2,
+        0,
+        2350,
+        0
+      ],
+      "original_and_order_unchanged": true,
+      "world_boundary_coordinates": [
+        [
+          60.0,
+          50.0,
+          0.5
+        ],
+        [
+          63.5,
+          50.0,
+          0.5
+        ]
+      ]
+    },
+    "z-upper-outside": {
+      "roi": [
+        60.0,
+        63.5,
+        50.0,
+        50.0,
+        0.0,
+        0.49999999999999994
+      ],
+      "roi_ieee754_u64": [
+        "0x404e000000000000",
+        "0x404fc00000000000",
+        "0x4049000000000000",
+        "0x4049000000000000",
+        "0x0",
+        "0x3fdfffffffffffff"
+      ],
+      "manifest_sha256": "f792202f4ce225d2ae6306fce0acc87582c602260b494c05649d7e1987330bac",
+      "fixture_sha256": "275db172df431f333b72e6f86b7af05dd08bbab7f56f4de98f259d4586ca21de",
+      "expected_sha256": "f56c1af52ae8d8a6f5a23edfd99de7dac6f8685c34bb46debc4f256d7d98e94b",
+      "record_original_areas": [
+        1600,
+        750
+      ],
+      "roi_pixels": [
+        0,
+        0
+      ],
+      "closed_pixels": [
+        0,
+        0
+      ],
+      "flags": [
+        0,
+        0
+      ],
+      "counts": [
+        2,
+        0,
+        2350,
+        0
+      ],
+      "original_and_order_unchanged": true,
+      "world_boundary_coordinates": [
+        [
+          60.0,
+          50.0,
+          0.5
+        ],
+        [
+          63.5,
+          50.0,
+          0.5
+        ]
+      ]
+    }
+  }
+}

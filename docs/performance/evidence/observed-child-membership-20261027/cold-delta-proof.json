@@ -1,0 +1,12 @@
+{
+  "src/observed_children.cpp": {
+    "current_sha256": "9359b7741d75188816c38e852ec7e49e233a29905530290dd5e076f7fd33e5ed",
+    "inverse_cold_Int64_guard_sha256": "17fb88a4e69261beefcf9ca27b43a682d50299e854d2b30170f10fe08e93cd06",
+    "matches_prior_resource_approved_source": true
+  },
+  "src/geometry.cpp": {
+    "current_sha256": "06cb2a97f49d79bd568d1a8237feda91b9f56b8cf16c46b9cb30697fee9500e5",
+    "inverse_cold_Int64_guard_sha256": "5e05013dc1db2d660aa3b909625e3b68bac653f391e374f6ec19a83f5aedfb1f",
+    "matches_prior_resource_approved_source": true
+  }
+}

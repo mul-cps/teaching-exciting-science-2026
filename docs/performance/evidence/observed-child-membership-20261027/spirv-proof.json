@@ -1,0 +1,269 @@
+{
+  "compiler": "/home/bjoern/.local/opt/slang-2026.19/bin/slangc",
+  "compiler_sha256": "19c0217f848537db2a87120eb1b3f882ab2e3eb54fdec4cf5300035943704145",
+  "validator": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/spirv-val",
+  "validator_sha256": "075f8f6a15c15dc13ec6632ad8c054a9bb14e522a68b17a28402a6462d5057a7",
+  "source_sha256": "161a4406cc49bdcf0a1b16d7f904256627aad472c1a475539decf97bd3534d81",
+  "helper_sha256": "2cb3eae2dd92ca8a69234af8787e2c3a9ac28726fa440b11e6f6a4041cb96901",
+  "entries": [
+    {
+      "mode": "native",
+      "entry": "observed_clear",
+      "flags": [
+        "-entry",
+        "observed_clear",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 6544,
+      "sha256": "9bf54572d8b92c3975dac406b2b6138092078c4b3715660f9ad7140147cfa748",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "native",
+      "entry": "observed_records",
+      "flags": [
+        "-entry",
+        "observed_records",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 14404,
+      "sha256": "6a6c2e9345a779c8e7665428b202972260f7103030dcf0d701f502440b763719",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "native",
+      "entry": "observed_observe",
+      "flags": [
+        "-entry",
+        "observed_observe",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 6956,
+      "sha256": "b678bb1bfb8cd216e120dcb4eca549dc6d584b1710bb018ad8069c8207206458",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "native",
+      "entry": "observed_eligible",
+      "flags": [
+        "-entry",
+        "observed_eligible",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 3256,
+      "sha256": "e965ea6d3f684f26524de925efb4d8060c74d4f47f735fee1dae745f0106913f",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "native",
+      "entry": "observed_close",
+      "flags": [
+        "-entry",
+        "observed_close",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 10960,
+      "sha256": "2e0f3dc43da0330de183ce625b0c1035978ce8539be67cf4c98025a1fa25d4a2",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "native",
+      "entry": "observed_finalize",
+      "flags": [
+        "-entry",
+        "observed_finalize",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 28736,
+      "sha256": "13fa6fae041c92b18bc2280b4770c700ab8abab35b4896d8b93d5d79f75b08bf",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "software",
+      "entry": "observed_clear",
+      "flags": [
+        "-DOBSERVED_SOFTWARE64=1",
+        "-entry",
+        "observed_clear",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 6544,
+      "sha256": "9bf54572d8b92c3975dac406b2b6138092078c4b3715660f9ad7140147cfa748",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "software",
+      "entry": "observed_records",
+      "flags": [
+        "-DOBSERVED_SOFTWARE64=1",
+        "-entry",
+        "observed_records",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 14404,
+      "sha256": "6a6c2e9345a779c8e7665428b202972260f7103030dcf0d701f502440b763719",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "software",
+      "entry": "observed_observe",
+      "flags": [
+        "-DOBSERVED_SOFTWARE64=1",
+        "-entry",
+        "observed_observe",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 8508,
+      "sha256": "50941ee59ca3c71914c9a68c68b45779f843e722b15cd4bf08584bcffc948ef3",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "software",
+      "entry": "observed_eligible",
+      "flags": [
+        "-DOBSERVED_SOFTWARE64=1",
+        "-entry",
+        "observed_eligible",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 3256,
+      "sha256": "e965ea6d3f684f26524de925efb4d8060c74d4f47f735fee1dae745f0106913f",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "software",
+      "entry": "observed_close",
+      "flags": [
+        "-DOBSERVED_SOFTWARE64=1",
+        "-entry",
+        "observed_close",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 10960,
+      "sha256": "2e0f3dc43da0330de183ce625b0c1035978ce8539be67cf4c98025a1fa25d4a2",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    },
+    {
+      "mode": "software",
+      "entry": "observed_finalize",
+      "flags": [
+        "-DOBSERVED_SOFTWARE64=1",
+        "-entry",
+        "observed_finalize",
+        "-stage",
+        "compute",
+        "-target",
+        "spirv",
+        "-profile",
+        "sm_6_0",
+        "-fp-mode",
+        "precise",
+        "-O2"
+      ],
+      "bytes": 28736,
+      "sha256": "13fa6fae041c92b18bc2280b4770c700ab8abab35b4896d8b93d5d79f75b08bf",
+      "validation": "spirv-val --target-env vulkan1.1 PASS",
+      "control_barriers": 0
+    }
+  ],
+  "gpu_execution": false
+}

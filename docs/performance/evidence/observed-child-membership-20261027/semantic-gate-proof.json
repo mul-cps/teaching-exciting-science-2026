@@ -1,0 +1,75 @@
+{
+  "review": "independent final semantic, qualification-harness and retained-oracle gate",
+  "root": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022",
+  "branch": "feat/beginner-vulkan-20261022",
+  "head": "9bfbee4f01aeb49795f0f729eb948bfaded523d2",
+  "approved": true,
+  "scope": "resident post-child observation and closed-membership PREPARATION only; initial bounded <=640x480 qualification harness, not full geometry/camera/world/execution qualification",
+  "source_sha256": {
+    "ros2/src/so101_station_vulkan/include/so101_station_vulkan/observed_children.hpp": "5a6e904fe006103dc08b6189eff31130a91172b786acb9c16b836a0d60673520",
+    "ros2/src/so101_station_vulkan/include/so101_station_vulkan/geometry.hpp": "ad025af8e59ae44c68d6933c3a4a79349ce32196132a56844f2ead0eaf3ee704",
+    "ros2/src/so101_station_vulkan/include/so101_station_vulkan/children.hpp": "f6ab103ee2f9b342c8f671c31663d43d18c8192ef4e2ebf00f82b0ba4523dc20",
+    "ros2/src/so101_station_vulkan/src/observed_children.cpp": "9359b7741d75188816c38e852ec7e49e233a29905530290dd5e076f7fd33e5ed",
+    "ros2/src/so101_station_vulkan/src/geometry.cpp": "06cb2a97f49d79bd568d1a8237feda91b9f56b8cf16c46b9cb30697fee9500e5",
+    "ros2/src/so101_station_vulkan/src/children.cpp": "f014c9b49df20b9bf51fc1a8017123639a310a7a00c961b9a9d9d94c708bf2ec",
+    "ros2/src/so101_station_vulkan/shaders/observed_children.slang": "161a4406cc49bdcf0a1b16d7f904256627aad472c1a475539decf97bd3534d81",
+    "ros2/src/so101_station_vulkan/test/qualify_observed_children.cpp": "dd831694605d97c76e37e8c3e24db65038ea42c46c6457de5e1baefdc598625c",
+    "ros2/src/so101_station_vulkan/cmake/observed_children.cmake": "4dbc3ed10cc1f100c8390fccdc6e827244d2752b992548f76dd97485298998ec",
+    "ros2/src/so101_station_vulkan/test/observed_children_host_contract.cpp": "9dcfc991f0fcc5a690d4bb63e7d9ea73a08b86b295ffd3cb3ab12146a0b167b8",
+    "ros2/src/so101_station_vulkan/test/preparation_host_benchmark.cpp": "6f7840576e927eddef20f0c66f9823a6979e32e419ac796afa21e204b9d2916b",
+    "ros2/src/so101_station_vulkan/test/observed_children_reference.cpp": "0f94fcd615c9d445f2bd9921079746f78f1d5edca2f7deb010f551d7503a98f1",
+    "ros2/src/so101_station_vulkan/test/observed_children_witness.cpp": "0d8d4a24a2dd6533b3f94c3f9055b8cd164397318c24188b69ce1263e111fe90",
+    "tools/qualify_native_observed_children.py": "d01f0b031617063d02ecb106026e971c5a5fa352c200a77dad395df9a7b4587f",
+    "tests/test_observed_children.py": "3ad3f6828859d17e48dff7d819a32291c481fac587388432d686bef8b484b6a4",
+    "tests/test_observed_children_qualifier.py": "5f82dc946e66fbaa5e83b46b2bc12aa8cc885bced834ac7f9b3400d38c31a1b6",
+    "tests/fixtures/native_geometry/observed-children-v1.json": "4e6d34310c69c29c11db6d8f5d743867d6622d9f982e967cb12e74f1c38b3fea",
+    "tools/performance/qualify_children.cpp": "01e45df35f5e32f2310884de61a0e566cdd2b4a85fcc31f82be65fd57bb5999e"
+  },
+  "verification": {
+    "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /tmp/workshop-test-pinned313-20261027/bin/python -m pytest -q -rs tests/test_observed_children.py tests/test_observed_children_qualifier.py tests/test_native_geometry_preparation_contract.py",
+    "passed": 123,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 14.48,
+    "git_diff_check": "PASS",
+    "cold_guard_delta_only_files": [
+      "ros2/src/so101_station_vulkan/src/observed_children.cpp",
+      "ros2/src/so101_station_vulkan/src/geometry.cpp"
+    ],
+    "actual_shader_AOT_modes": [
+      "native binary64",
+      "explicit software binary64"
+    ],
+    "combined_retained_child_geometry_observed_cases_per_mode": 23,
+    "malformed_inputs_per_mode": 15,
+    "all_six_inclusive_roi_faces_and_nextafter": true,
+    "direct_AOT_whole_result_membership_overflow": true,
+    "actual_module_source_pool_slot_epoch_calibration_scale_config_rejections": true,
+    "late_and_dropped_consumer_fence_lifetime": true,
+    "native_Float64_true_Int64_false_rejected_before_Buffer_and_fake_handles_in_both_constructors": true,
+    "actual_offline_SPIRV_validated": "Vulkan1.1; correct mode accepted; swapped/missing/extra capability, broken instruction and digest mismatches rejected before Context",
+    "qualifier_inherited_Child_Shader_only_seal_preserved": true,
+    "qualifier_provenance": "own+helper source hashes, executable hash, five loaded native library paths/hashes, precision source and SPV hashes; actual ELF/hash-value crosscheck remains runner/build responsibility",
+    "qualifier_timing": "single procedural input compact submit/finish and separate dense diagnostic CPU/wall costs; explicitly scoped fence polls/lifetime checks; not hardware performance evidence"
+  },
+  "corpus": {
+    "manifest": "/tmp/observed-real-qualifier-corpus-20261027/manifest.json",
+    "manifest_sha256": "d6dbe369b21ea658be5556195ec3efea2c33033c4a7d4c017c42893903d17207",
+    "cases_verified": 28,
+    "source_pins_verified": 10,
+    "all_fixture_and_expected_hashes_verified": true,
+    "includes_scoped_640x480": true
+  },
+  "resolved_findings": [
+    "GPU P+R compact status/record/packed/job validation preserves old Child finish invariants",
+    "mode-specific Float64/Int64 SPIRV seal separate from inherited Shader-only Child seal",
+    "immutable Geometry producer/source identity and separate observation ROI",
+    "both native constructors pre-admit actually required Int64+Float64",
+    "independent retained-reference comparator and explicit synthetic test labels"
+  ],
+  "gpu_executed_by_reviewer": false,
+  "ssh_usb_or_physical_devices": false,
+  "actual_Intel_AMD_Vulkan_parity": "PENDING external execution after independent resource gate",
+  "full_geometry_camera_world_station_release_qualified": false,
+  "production_edits_by_reviewer": false
+}

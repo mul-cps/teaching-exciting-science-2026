@@ -1,0 +1,66 @@
+{
+  "schema": "observed-children-dual-native-cpu-build-v1",
+  "source": {
+    "worktree": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022",
+    "branch": "feat/beginner-vulkan-20261022",
+    "HEAD_context_not_all_source_committed": "9bfbee4f01aeb49795f0f729eb948bfaded523d2",
+    "source_files": 119,
+    "source_archive_sha256": "7da3bf0621541e263bd69ceabc810e4a824d5ce0156b07e96b5a3dc5834d2642",
+    "source_pins_sha256": "032382ac6b9ae0366f9d05f115038833e8f62a126d0aadd80b0768ef3bdb5968",
+    "cache_files": 46,
+    "cache_archive_sha256": "1b4e65ea1558846ecd427b3afcab241b5dacd10a34fb962480f2d91413cd683d",
+    "final_expected_sources": {
+      "ros2/src/so101_station_vulkan/src/observed_children.cpp": "9359b7741d75188816c38e852ec7e49e233a29905530290dd5e076f7fd33e5ed",
+      "ros2/src/so101_station_vulkan/src/geometry.cpp": "06cb2a97f49d79bd568d1a8237feda91b9f56b8cf16c46b9cb30697fee9500e5",
+      "ros2/src/so101_station_vulkan/test/qualify_observed_children.cpp": "dd831694605d97c76e37e8c3e24db65038ea42c46c6457de5e1baefdc598625c",
+      "ros2/src/so101_station_vulkan/cmake/observed_children.cmake": "4dbc3ed10cc1f100c8390fccdc6e827244d2752b992548f76dd97485298998ec"
+    },
+    "GPU_execution": false
+  },
+  "source_pins_after_build": {
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022": {
+      "count": 119,
+      "all_match": true
+    },
+    "/tmp/observed-children-native-20261027/local/source": {
+      "count": 119,
+      "all_match": true
+    }
+  },
+  "builds": {
+    "local": {
+      "passed": true,
+      "build_seconds": 16.8,
+      "CPU_CTests_passed": 15,
+      "CPU_CTest_seconds": 23.06,
+      "registered_CTests": 18,
+      "not_selected": [
+        "resident_video_policy",
+        "resident_video_cpu_roundtrip",
+        "alignment_divide_probe_cpu_contract"
+      ],
+      "binary_pins": "local-binary-pins.json",
+      "initial_failure": "Optional FFmpeg detected; provided build-time offline Slang compiler for video target; first configure log preserved"
+    },
+    "fwmini4": {
+      "passed": true,
+      "build_seconds": 43.8,
+      "CPU_CTests_passed": 15,
+      "CPU_CTest_seconds": 22.92,
+      "registered_CTests": 15,
+      "binary_pins": "remote-binary-pins.json"
+    }
+  },
+  "cold_resource_delta": {
+    "approved": true,
+    "focused_passed": 31,
+    "elapsed_seconds": 11.58,
+    "inverse_source_proof": "cold-delta-proof.json",
+    "test_freeze": "supplemental-test-freeze.json"
+  },
+  "owner_and_canonical_state_unchanged": true,
+  "SDK_both_hosts_sha256": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+  "GPU_execution": false,
+  "station_qualification": false,
+  "deployment": false
+}

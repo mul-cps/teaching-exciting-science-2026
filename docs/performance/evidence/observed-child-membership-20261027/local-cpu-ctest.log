@@ -1,0 +1,35 @@
+Test project /tmp/observed-children-native-20261027/local/build/so101_station_vulkan
+      Start  1: resident_cpu_slang_contract
+ 1/15 Test  #1: resident_cpu_slang_contract ................   Passed    0.00 sec
+      Start  4: resident_frame_leases
+ 2/15 Test  #4: resident_frame_leases ......................   Passed    0.01 sec
+      Start  5: resident_cpu_reference
+ 3/15 Test  #5: resident_cpu_reference .....................   Passed    0.00 sec
+      Start  6: resident_alignment_sdk_oracle
+ 4/15 Test  #6: resident_alignment_sdk_oracle ..............   Passed   16.55 sec
+      Start  8: raw_capture_bridge_host
+ 5/15 Test  #8: raw_capture_bridge_host ....................   Passed    0.05 sec
+      Start  9: resident_raw_camera_admission
+ 6/15 Test  #9: resident_raw_camera_admission ..............   Passed    6.32 sec
+      Start 10: resident_camera_startup_gate
+ 7/15 Test #10: resident_camera_startup_gate ...............   Passed    0.00 sec
+      Start 11: resident_geometry_host_contract
+ 8/15 Test #11: resident_geometry_host_contract ............   Passed    0.00 sec
+      Start 12: resident_preparation_host_paths
+ 9/15 Test #12: resident_preparation_host_paths ............   Passed    0.04 sec
+      Start 13: resident_parent_host_contract
+10/15 Test #13: resident_parent_host_contract ..............   Passed    0.00 sec
+      Start 14: resident_child_host_contract
+11/15 Test #14: resident_child_host_contract ...............   Passed    0.00 sec
+      Start 15: resident_observed_children_host_contract
+12/15 Test #15: resident_observed_children_host_contract ...   Passed    0.00 sec
+      Start 16: resident_cc_copyback_host_paths
+13/15 Test #16: resident_cc_copyback_host_paths ............   Passed    0.05 sec
+      Start 17: resident_context_features_host
+14/15 Test #17: resident_context_features_host .............   Passed    0.00 sec
+      Start 18: resident_latest_frame_queue
+15/15 Test #18: resident_latest_frame_queue ................   Passed    0.02 sec
+
+100% tests passed out of 15
+
+Total Test time (real) =  23.06 sec

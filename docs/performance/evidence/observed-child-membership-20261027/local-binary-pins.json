@@ -1,0 +1,35 @@
+{
+  "executable": {
+    "path": "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_observed_children",
+    "sha256": "d09b8dfed7ccb280347df751d157b6e9e8415870c5f742ce23c4928ed8a6c6b3"
+  },
+  "libraries": [
+    {
+      "name": "libresident_rgbd.so",
+      "path": "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/libresident_rgbd.so",
+      "sha256": "33a2deeff920bb3934b81e907beeb375d5b8546da6ae6058f3c41087418e4dd1"
+    },
+    {
+      "name": "libresident_parents.so",
+      "path": "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/libresident_parents.so",
+      "sha256": "5ed71d3896ffd3b6568059dd726e99723e62fd829f3550fcabf4e6883d027333"
+    },
+    {
+      "name": "libresident_children.so",
+      "path": "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/libresident_children.so",
+      "sha256": "44bdfddbece517a81b5330674eae37f7690bcee839a6a539f01587287551a5e9"
+    },
+    {
+      "name": "libresident_geometry.so",
+      "path": "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/libresident_geometry.so",
+      "sha256": "045fe68a088c1d83bfcd62a614249834a5758a2defd2fc6ac10bbae7338bb051"
+    },
+    {
+      "name": "libresident_observed_children.so",
+      "path": "/tmp/observed-children-native-20261027/local/install/so101_station_vulkan/lib/libresident_observed_children.so",
+      "sha256": "522e06792d08259f7677ec86d7ab1d967eed4f37f5adc9314aeaa81bab877546"
+    }
+  ],
+  "source_archive_sha256": "7da3bf0621541e263bd69ceabc810e4a824d5ce0156b07e96b5a3dc5834d2642",
+  "GPU_execution": false
+}

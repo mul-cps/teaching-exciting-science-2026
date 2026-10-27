@@ -1,0 +1,275 @@
+{
+  "source_revision": "ccbf7a72809f9b00c182d05ac02152e0f88f734f",
+  "source_pins_verified": 119,
+  "source_archive_sha256": "7da3bf0621541e263bd69ceabc810e4a824d5ce0156b07e96b5a3dc5834d2642",
+  "python": "/tmp/workshop-test-pinned313-20261027/bin/python",
+  "hosts": {
+    "intel": {
+      "normal_no_roi": 28,
+      "expected_malformed": 15,
+      "roi_cases": {
+        "inclusive-eight": {
+          "roi_pixels": [
+            8,
+            0
+          ],
+          "closed_pixels": [
+            1600,
+            0
+          ],
+          "flags": [
+            3,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "x-lower-outside": {
+          "roi_pixels": [
+            7,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "x-upper-outside": {
+          "roi_pixels": [
+            7,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "y-lower-outside": {
+          "roi_pixels": [
+            0,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "y-upper-outside": {
+          "roi_pixels": [
+            0,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "z-lower-outside": {
+          "roi_pixels": [
+            0,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "z-upper-outside": {
+          "roi_pixels": [
+            0,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        }
+      },
+      "devices": [
+        "Intel(R) Graphics (ADL-N)"
+      ],
+      "integer_arrays_exact": 140,
+      "world_coordinates_max_absolute_error": 0.0,
+      "trials": 50,
+      "comparison_hashes": {
+        "intel-software-matrix": "4ecc07baa94b740af1abccd556c9839a4ad35580ec47dcd1aea2197e560d3582",
+        "intel-roi-results/inclusive-eight": "4e22f853f27d51872d9b2975874e697d69e88bef5c45fc08676c92ac27a91866",
+        "intel-roi-results/x-lower-outside": "d58866957579d03395d306eb7f257ffa5597e61a7d050b0d0f82be8aaf6b4a5e",
+        "intel-roi-results/x-upper-outside": "2ae6223da7fbbf35692f03e4f4e74bafb2c4b7af137303a16fd0a9195ecfb2c0",
+        "intel-roi-results/y-lower-outside": "7f9d073935ba69db4163a91e04849ab389eda46fe8492377caad0b73e6b2ad49",
+        "intel-roi-results/y-upper-outside": "4a2be35687ddc639bdc98dee9c3f125330aedfb7d4dbf06e059ef038195e9809",
+        "intel-roi-results/z-lower-outside": "993823be213ecc7f8e1b6f448c85df9f135881a1a137130fe1d35ee714902d6b",
+        "intel-roi-results/z-upper-outside": "06f02443140ff4437815ad9c18afcf4d2021730eb043a77eeb0bbfb9c7f930a9"
+      },
+      "roi_original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0"
+    },
+    "amd": {
+      "normal_no_roi": 28,
+      "expected_malformed": 15,
+      "roi_cases": {
+        "inclusive-eight": {
+          "roi_pixels": [
+            8,
+            0
+          ],
+          "closed_pixels": [
+            1600,
+            0
+          ],
+          "flags": [
+            3,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "x-lower-outside": {
+          "roi_pixels": [
+            7,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "x-upper-outside": {
+          "roi_pixels": [
+            7,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "y-lower-outside": {
+          "roi_pixels": [
+            0,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "y-upper-outside": {
+          "roi_pixels": [
+            0,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "z-lower-outside": {
+          "roi_pixels": [
+            0,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        },
+        "z-upper-outside": {
+          "roi_pixels": [
+            0,
+            0
+          ],
+          "closed_pixels": [
+            0,
+            0
+          ],
+          "flags": [
+            0,
+            0
+          ],
+          "original_pixels": 2350
+        }
+      },
+      "devices": [
+        "AMD Radeon 8060S Graphics (RADV STRIX_HALO)"
+      ],
+      "integer_arrays_exact": 140,
+      "world_coordinates_max_absolute_error": 0.0,
+      "trials": 50,
+      "comparison_hashes": {
+        "amd-native-matrix": "1ea82105858f413b3b2acfe53005f86998fa68c45fa35d5cec50956827508343",
+        "amd-roi-results/inclusive-eight": "60e2b5d6fed5c67f5d71696603a4fba54a0c5a793e737b0fbf71336720f81918",
+        "amd-roi-results/x-lower-outside": "536824ffaf07d088e1e68ef478b4d7aebb477f4ab2538eda4c3301379d70d52b",
+        "amd-roi-results/x-upper-outside": "9ae2928acfe812601c6ea83e487074e3def567e3ca6d61a8e76342a1e9d746b7",
+        "amd-roi-results/y-lower-outside": "03fc0765ea8539c0ec3936a816efedcf6245cd15bf3ea6c1137adba774dcde56",
+        "amd-roi-results/y-upper-outside": "3786d6f4fd0a8794e91fc66967f1f6721a1e534a0aa1f42682fe9075b715b736",
+        "amd-roi-results/z-lower-outside": "86a338d6e2a42e68234ee71901f6d325c432be756dc1a8c7237cd43454b48286",
+        "amd-roi-results/z-upper-outside": "f674603772d23dfd4468165d9713a4b28d497e81a0a61ce2fc5067e59d8c88bd"
+      },
+      "roi_original_membership_sha256": "085dfedb34cf1f5050393f6576c9c88cf808e5ac56e3fdd80c30c2cb7a7181d0"
+    }
+  },
+  "reviewer_gpu_ssh_usb": false,
+  "intel_native_refusal": {
+    "returncode": 1,
+    "timed_out": false,
+    "reaped": true,
+    "elapsed_wall_seconds": 0.10182215494569391
+  },
+  "planned_total": 100,
+  "manual_smokes_excluded": true,
+  "all_matched": true,
+  "full_geometry_camera_world_qualified": false
+}

@@ -1,0 +1,236 @@
+{
+  "schema": "observed-child-membership-checkpoint-v1",
+  "date": "2026-10-27",
+  "source_commit": "ccbf7a72809f9b00c182d05ac02152e0f88f734f",
+  "qualified": false,
+  "scope": "Observed preparation and immutable original-child membership on procedural fixtures; not full geometry/camera/station acceptance",
+  "source": {
+    "committed_blob_pins_verified": 119,
+    "cache_files": 46,
+    "source_archive_sha256": "7da3bf0621541e263bd69ceabc810e4a824d5ce0156b07e96b5a3dc5834d2642",
+    "cache_archive_sha256": "1b4e65ea1558846ecd427b3afcab241b5dacd10a34fb962480f2d91413cd683d",
+    "source_binding": "Build receipts predate source commit; all119 exact frozen bytes independently matched immutable Git blobs at this commit"
+  },
+  "actual_gpu_matrix": {
+    "validated": true,
+    "total_planned_cases": 100,
+    "per_host": {
+      "intel-software": {
+        "device": "Intel(R) Graphics (ADL-N)",
+        "precision": "software",
+        "required_features": [
+          "Int64"
+        ],
+        "normal_no_roi_matched": 28,
+        "malformed_expected_unusable": 15,
+        "roi_boundary_matched": 7,
+        "planned_matched": 50,
+        "comparison_sha256": "4ecc07baa94b740af1abccd556c9839a4ad35580ec47dcd1aea2197e560d3582",
+        "build_manifest": "remote-binary-pins.json"
+      },
+      "amd-native": {
+        "device": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+        "precision": "native",
+        "required_features": [
+          "Float64",
+          "Int64"
+        ],
+        "normal_no_roi_matched": 28,
+        "malformed_expected_unusable": 15,
+        "roi_boundary_matched": 7,
+        "planned_matched": 50,
+        "comparison_sha256": "1ea82105858f413b3b2acfe53005f86998fa68c45fa35d5cec50956827508343",
+        "build_manifest": "local-binary-pins.json"
+      }
+    },
+    "comparison_contract": {
+      "integer_arrays": [
+        "observed",
+        "records",
+        "counts",
+        "child_roots"
+      ],
+      "integer_rule": "byte exact",
+      "world_rule": {
+        "rtol": 0,
+        "atol": 1e-12,
+        "equal_nan": true
+      }
+    },
+    "observed_world_max_abs_error": 0,
+    "pinned_acceptance_runtime": {
+      "executable": "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "version": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+      "numpy": "2.5.4",
+      "opencv": "4.14.0"
+    },
+    "roi": {
+      "separate_from_initial_no_roi_matrix": true,
+      "inclusive_roi": [
+        60,
+        63.5,
+        50,
+        50,
+        0.5,
+        0.5
+      ],
+      "inclusive_pixels": [
+        8,
+        0
+      ],
+      "inclusive_closed_pixels": [
+        1600,
+        0
+      ],
+      "inclusive_flags": [
+        3,
+        0
+      ],
+      "x_inward_nextafter_pixels": [
+        7,
+        0
+      ],
+      "y_or_z_inward_nextafter_pixels": [
+        0,
+        0
+      ],
+      "boundary_probe_note": "Opposite y/z face widened where needed to retain finite ordered intervals; restoring active face admits8, nextafter excludes it. See exact binary64 values in CPU/actual proof.",
+      "original_record_areas": [
+        1600,
+        750
+      ],
+      "original_pixels": 2350,
+      "original_order_and_membership_unchanged": true,
+      "proof_sha256": "c7575747f2bc03a12560caa060f93da9f06b747d27027fb71c3469fa6ba05b70"
+    },
+    "watchdogs": "All 100 test processes reaped, no timeout/interruption, PID pinned until final process-group signal. Executable,five loaded library hash values,and artifact hashes verified.",
+    "unexpected_gpu_matrix_failures": 0
+  },
+  "cpu_validation": {
+    "canonical_passed": 4511,
+    "canonical_skipped": 133,
+    "canonical_subtests_passed": 48,
+    "canonical_seconds": 232.63,
+    "native_cpu_ctests": {
+      "local_amd": {
+        "passed": 15,
+        "seconds": 23.06
+      },
+      "fwmini4": {
+        "passed": 15,
+        "seconds": 22.92
+      }
+    },
+    "unselected_local_ctests": [
+      "resident_video_policy",
+      "resident_video_cpu_roundtrip",
+      "alignment_divide_probe_cpu_contract"
+    ],
+    "skips_and_unselected_are_not_passes": true
+  },
+  "resource_gate": {
+    "approved": true,
+    "semantic_gate_passed": 123,
+    "final_cold_resource_focused_passed": 31,
+    "negative_mutants": 25,
+    "dispatches": 6,
+    "per_slot_arena_bytes": "48*N",
+    "compact_buffer_bytes": "64+80*C",
+    "observed_three_slot_payload_bytes": "3*(48*N+2*(64+80*C))+48",
+    "vga_C4096_observed_payload_bytes": 46203312,
+    "vga_retained_chain_payload_bytes": 295610000,
+    "payload_excludes": "Vulkan alignment/driver/context/RSS, diagnostics,external calibration input vectors",
+    "normal_hot_path": "Preallocated submit/ready/finish; compact-only readback, no CPU per-record decode/new buffers/waits in instrumented hot loops; borrowed producer leases retained through own fence",
+    "lifetime_limit": "Earlier Child submit still decodes/caches Parent records. Last shared-storage cold teardown retains fence waits.",
+    "host_stub_benchmarks": [
+      {
+        "iterations": 100000,
+        "ns_submit_ready_finish_release": 190.86183,
+        "hot_heap": 0,
+        "hot_buffer_allocations": 0,
+        "hot_waits": 0,
+        "dispatches": 600000,
+        "compact_copies": 100000,
+        "compact_fills": 100000,
+        "width": 64,
+        "height": 48,
+        "capacity": 32,
+        "fixture_sha256": "9dcfc991f0fcc5a690d4bb63e7d9ea73a08b86b295ffd3cb3ab12146a0b167b8",
+        "instrumented_fixture_sha256": "08d42fca622689bf866a5f2b9fb80d2a89916f51bf486371dcb4b56665e86d12",
+        "source_sha256": {
+          "src/observed_children.cpp": "9359b7741d75188816c38e852ec7e49e233a29905530290dd5e076f7fd33e5ed",
+          "src/children.cpp": "f014c9b49df20b9bf51fc1a8017123639a310a7a00c961b9a9d9d94c708bf2ec",
+          "src/parents.cpp": "518d37d10ec7e788bf3b21c75de775d409fc78df49d687837c956e9152227a3d",
+          "src/geometry.cpp": "06cb2a97f49d79bd568d1a8237feda91b9f56b8cf16c46b9cb30697fee9500e5",
+          "src/frame_pool.cpp": "6f0afbb259e3733495b1c479f8659bac2c9930f97d1f9d44d12ef08735101011"
+        },
+        "scope": "actual modules; synthetic empty GPU results; counter commands and 64B synthetic header copy only; no driver/GPU/transfer timing"
+      },
+      {
+        "iterations": 100000,
+        "ns_submit_ready_finish_release": 157.57484,
+        "hot_heap": 0,
+        "hot_buffer_allocations": 0,
+        "hot_waits": 0,
+        "dispatches": 600000,
+        "compact_copies": 100000,
+        "compact_fills": 100000,
+        "width": 640,
+        "height": 480,
+        "capacity": 4096,
+        "fixture_sha256": "9dcfc991f0fcc5a690d4bb63e7d9ea73a08b86b295ffd3cb3ab12146a0b167b8",
+        "instrumented_fixture_sha256": "252709f5ab412153492ce730075d0b0efd1e5f7d657844074409e5aa89bc63a5",
+        "source_sha256": {
+          "src/observed_children.cpp": "9359b7741d75188816c38e852ec7e49e233a29905530290dd5e076f7fd33e5ed",
+          "src/children.cpp": "f014c9b49df20b9bf51fc1a8017123639a310a7a00c961b9a9d9d94c708bf2ec",
+          "src/parents.cpp": "518d37d10ec7e788bf3b21c75de775d409fc78df49d687837c956e9152227a3d",
+          "src/geometry.cpp": "06cb2a97f49d79bd568d1a8237feda91b9f56b8cf16c46b9cb30697fee9500e5",
+          "src/frame_pool.cpp": "6f0afbb259e3733495b1c479f8659bac2c9930f97d1f9d44d12ef08735101011"
+        },
+        "scope": "actual modules; synthetic empty GPU results; counter commands and 64B synthetic header copy only; no driver/GPU/transfer timing"
+      }
+    ],
+    "timing_scope": "1000warmup/100000 actual-module cycles; empty synthetic results, counter-only Vulkan commands and64B synthetic header copy; local uncontrolled host cost, not driver/GPU/transfer performance",
+    "recorded_barriers": 8,
+    "interdispatch_barriers": 5
+  },
+  "single_frame_manual_smoke": {
+    "host": "Intel ADL-N",
+    "wall_ms": 3.45561,
+    "process_cpu_ms": 0.216,
+    "scope": "Observed submit/finish only after producer preparation; one procedural input. Not FPS,percentile,full pipeline latency or optimization evidence.",
+    "proof": "evidence/observed-child-membership-20261027/manual-intel-root-proof.json"
+  },
+  "expected_native_intel_refusal": {
+    "expected": true,
+    "exit_code": 1,
+    "elapsed_seconds": 0.10182215494569391,
+    "timed_out": false,
+    "reaped": true,
+    "reason": "shaderFloat64 was not enabled on shared device"
+  },
+  "history": "evidence/observed-child-membership-20261027/history.json",
+  "not_qualified": [
+    "full geometry",
+    "live camera integration",
+    "physical observations or objects",
+    "world/station acceptance",
+    "steady throughput or performance benefit",
+    "control",
+    "soak",
+    "deployment"
+  ],
+  "deployment": false,
+  "evidence": {
+    "directory": "evidence/observed-child-membership-20261027",
+    "selected_inventory_sha256": "3c916c244a92d389f910425fa8b683b59d666f470ec99140226d75ab19bb0ae9",
+    "private_raw_archive": {
+      "archive_path": "/tmp/observed-child-membership-raw-evidence-20261027.tar.gz",
+      "archive_sha256": "a312c093017cbb41796393e4d3d37e34ad489e64e82f379408749960ac877c9e",
+      "archive_bytes": 12417710
+    },
+    "raw_archive_checked_in": false,
+    "archive_inventory": "evidence/observed-child-membership-20261027/private-archive-inventory.json",
+    "final_readout_inventory": "evidence/observed-child-membership-20261027/readout-inventory.json"
+  }
+}
