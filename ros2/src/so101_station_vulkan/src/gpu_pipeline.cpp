@@ -8,16 +8,30 @@ namespace so101_station_vulkan {
 namespace {
 void check(VkResult r,const char* op){if(r!=VK_SUCCESS)throw std::runtime_error(std::string(op)+": "+std::to_string(r));}
 struct Parameters{uint32_t width,height,count,capacity;float scale,fx,fy,cx,cy,maxDepth,jump;uint32_t round;};
+static_assert(sizeof(Parameters)==48);
+void validate_gpu_resources(const Context& c,unsigned w,unsigned h,size_t n,bool debug){
+ const auto& limits=c.properties.limits;
+ const auto storage=[&](size_t bytes,const char* name){if(bytes>limits.maxStorageBufferRange)throw std::runtime_error(std::string("Vulkan ")+name+" storage bytes "+std::to_string(bytes)+" exceed maxStorageBufferRange "+std::to_string(limits.maxStorageBufferRange));};
+ storage(input_bytes(w,h),"input");
+ storage(scratch_bytes(w,h)+(debug?morphology_bytes(w,h):0),"scratch");
+ storage(compact_bytes(),"compact");
+ storage(512*4,"divisions");
+ if((n+255)/256>limits.maxComputeWorkGroupCount[0]||(size_t(w)+15)/16>limits.maxComputeWorkGroupCount[0]||(size_t(h)+15)/16>limits.maxComputeWorkGroupCount[1])throw std::runtime_error("Vulkan frame dispatch exceeds maxComputeWorkGroupCount");
+ if(limits.maxComputeWorkGroupInvocations<256||limits.maxComputeWorkGroupSize[0]<256||limits.maxComputeWorkGroupSize[1]<16||limits.maxComputeSharedMemorySize<3076)throw std::runtime_error("Vulkan device lacks bounded 16x16 tiled CC workgroup/shared-memory capabilities");
+ if(limits.maxPushConstantsSize<sizeof(Parameters))throw std::runtime_error("Vulkan Core requires 48 push-constant bytes");
+}
 void barrier(VkCommandBuffer cmd,VkPipelineStageFlags src,VkPipelineStageFlags dst,VkAccessFlags sa,VkAccessFlags da){VkMemoryBarrier b{VK_STRUCTURE_TYPE_MEMORY_BARRIER};b.srcAccessMask=sa;b.dstAccessMask=da;vkCmdPipelineBarrier(cmd,src,dst,0,1,&b,0,nullptr,0,nullptr);}
 }
 Pipeline::Pipeline(unsigned w,unsigned h,const std::string& mode,const std::string& shader_dir,bool debug,bool profile):shader_dir_(shader_dir){
+ const size_t n=size_t(w)*h;
+ if(!w||!h||n>kMaxFramePixels)throw std::invalid_argument("resident frame dimensions must be nonzero and fit 1920x1080 pixels");
  if(mode!="auto"&&mode!="vulkan"&&mode!="cpu"&&mode!="cpu-slang")throw std::invalid_argument("backend must be auto, vulkan, cpu or cpu-slang");
 #ifndef RESIDENT_SLANG_CPU
  if(mode=="cpu-slang")throw std::invalid_argument("cpu-slang backend not built; enable RESIDENT_SLANG_CPU");
 #endif
  backend_=mode=="cpu-slang"?"cpu-slang":"cpu";
  if(mode=="auto"||mode=="vulkan"){
-  try{context_=Context::shared();pool_=std::make_shared<FramePool>(w,h,context_,debug,profile);create_gpu();backend_="vulkan";}
+  try{context_=Context::shared();validate_gpu_resources(*context_,w,h,n,debug);pool_=std::make_shared<FramePool>(w,h,context_,debug,profile);create_gpu();backend_="vulkan";}
   catch(const std::exception& e){destroy_gpu();pool_.reset();divisions_.reset();context_.reset();if(mode=="vulkan")throw;reason_=e.what();}
  }
  if(!pool_)pool_=std::make_shared<FramePool>(w,h,nullptr,debug);
@@ -34,7 +48,6 @@ void Pipeline::destroy_gpu() noexcept{
 }
 void Pipeline::create_gpu(){
  auto& c=*context_;
- if(c.properties.limits.maxComputeWorkGroupInvocations<256||c.properties.limits.maxComputeWorkGroupSize[0]<256||c.properties.limits.maxComputeWorkGroupSize[1]<16||c.properties.limits.maxComputeSharedMemorySize<3076)throw std::runtime_error("Vulkan device lacks bounded 16x16 tiled CC workgroup/shared-memory capabilities");
  std::array<VkDescriptorSetLayoutBinding,4> bs{};for(unsigned i=0;i<4;i++){bs[i].binding=i;bs[i].descriptorType=VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;bs[i].descriptorCount=1;bs[i].stageFlags=VK_SHADER_STAGE_COMPUTE_BIT;}
  VkDescriptorSetLayoutCreateInfo dl{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};dl.bindingCount=bs.size();dl.pBindings=bs.data();check(vkCreateDescriptorSetLayout(c.device,&dl,nullptr,&descriptors_),"descriptor layout");
  VkPushConstantRange push{};push.stageFlags=VK_SHADER_STAGE_COMPUTE_BIT;push.size=sizeof(Parameters);
@@ -58,12 +71,13 @@ void Pipeline::submit(const FrameLease& f){submit_impl(f,nullptr);}
 void Pipeline::submit_device_depth(const FrameLease& f,const Buffer& packed_z16){submit_impl(f,&packed_z16);}
 void Pipeline::submit_impl(const FrameLease& f,const Buffer* packed_z16){
  if(!pool_->owns(f))throw std::invalid_argument("foreign or empty frame lease");auto& s=f.slot();if(s.submitted)throw std::logic_error("frame already submitted");
+ const size_t n=size_t(width())*height(); // Pool construction validated this bounded pixel count.
  const auto& calibration=s.calibration;
  if(!std::isfinite(calibration.fx)||!std::isfinite(calibration.fy)||!std::isfinite(calibration.depth_scale)||calibration.fx<=0||calibration.fy<=0||calibration.depth_scale<=0||!std::isfinite(calibration.cx)||!std::isfinite(calibration.cy))throw std::invalid_argument("invalid frame calibration");
  if(s.metadata.calibration_generation!=calibration.generation)throw std::invalid_argument("frame calibration generation mismatch");
  if(packed_z16){
   if(backend_!="vulkan")throw std::invalid_argument("device depth requires Vulkan backend");
-  const size_t n=size_t(width())*height(),rgb_bytes=3*n,depth_bytes=2*n;
+  const size_t rgb_bytes=3*n,depth_bytes=2*n;
   if(n%4)throw std::invalid_argument("device depth copies require a four-byte aligned pixel count");
   if(s.metadata.width!=width()||s.metadata.height!=height())throw std::invalid_argument("device depth frame dimensions mismatch");
   if(packed_z16->owner!=context_.get()||packed_z16->buffer==VK_NULL_HANDLE||packed_z16->size!=depth_bytes)throw std::invalid_argument("invalid device depth source");
@@ -81,11 +95,11 @@ void Pipeline::submit_impl(const FrameLease& f,const Buffer* packed_z16){
  VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;check(vkBeginCommandBuffer(s.command,&begin),"begin frame");
  if(s.timestamps)vkCmdResetQueryPool(s.command,s.timestamps,0,9);
  auto stamp=[&](unsigned i){if(s.timestamps)vkCmdWriteTimestamp(s.command,VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,s.timestamps,i);};stamp(0);
- VkBufferCopy copy{0,0,packed_z16?size_t(width())*height()*3:s.input.size};vkCmdCopyBuffer(s.command,s.upload.buffer,s.input.buffer,1,&copy);
- if(packed_z16){VkBufferCopy depth_copy{0,size_t(width())*height()*3,packed_z16->size};vkCmdCopyBuffer(s.command,packed_z16->buffer,s.input.buffer,1,&depth_copy);}
+ VkBufferCopy copy{0,0,packed_z16?n*3:s.input.size};vkCmdCopyBuffer(s.command,s.upload.buffer,s.input.buffer,1,&copy);
+ if(packed_z16){VkBufferCopy depth_copy{0,n*3,packed_z16->size};vkCmdCopyBuffer(s.command,packed_z16->buffer,s.input.buffer,1,&depth_copy);}
  vkCmdFillBuffer(s.command,s.compact.buffer,0,s.compact.size,0);
  barrier(s.command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT);
- Parameters p{width(),height(),width()*height(),kMaxComponents,s.calibration.depth_scale,s.calibration.fx,s.calibration.fy,s.calibration.cx,s.calibration.cy,1.2f,.012f,pool_->diagnostics?1u:0u};
+ Parameters p{width(),height(),static_cast<uint32_t>(n),kMaxComponents,s.calibration.depth_scale,s.calibration.fx,s.calibration.fy,s.calibration.cx,s.calibration.cy,1.2f,.012f,pool_->diagnostics?1u:0u};
  vkCmdBindDescriptorSets(s.command,VK_PIPELINE_BIND_POINT_COMPUTE,layout_,0,1,&s.descriptors,0,nullptr);vkCmdPushConstants(s.command,layout_,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof(p),&p);
  auto dispatch=[&](unsigned i){vkCmdBindPipeline(s.command,VK_PIPELINE_BIND_POINT_COMPUTE,kernels_[i]);if(i==7)vkCmdDispatch(s.command,(p.width+15)/16,(p.height+15)/16,1);else vkCmdDispatch(s.command,(p.count+255)/256,1,1);barrier(s.command,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_ACCESS_SHADER_WRITE_BIT,VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT);};
  // Compress reads immutable A and writes B. Connect reads frozen B and performs

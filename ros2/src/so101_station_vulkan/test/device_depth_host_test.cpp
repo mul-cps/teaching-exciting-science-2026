@@ -13,8 +13,9 @@ namespace {
 uint64_t heap_allocations=0,buffer_allocations=0,wait_calls=0,submits=0,next_handle=1;
 VkResult submit_result=VK_SUCCESS,fence_result=VK_SUCCESS;
 unsigned live_command_pools=0;
-struct Event {unsigned kind=0,pipeline=0;VkBuffer src{},dst{};VkBufferCopy copy{};VkPipelineStageFlags source_stage=0,dest_stage=0;VkAccessFlags source_access=0,dest_access=0;};
-Event events[1024];unsigned event_count=0,created_pipelines=0,current_pipeline=0;bool trace=false;VkPipeline pipeline_handles[16]{};
+uint32_t storage_limit=256*1024*1024,dispatch_x=65535,dispatch_y=65535,push_limit=128;
+struct Event {unsigned kind=0,pipeline=0,x=0,y=0,z=0;VkBuffer src{},dst{};VkBufferCopy copy{};VkPipelineStageFlags source_stage=0,dest_stage=0;VkAccessFlags source_access=0,dest_access=0;};
+Event events[1024];unsigned event_count=0,created_pipelines=0,current_pipeline=0;bool trace=false;VkPipeline pipeline_handles[1024]{};
 Event& event(unsigned kind){if(event_count>=1024)std::abort();auto& e=events[event_count++];e={};e.kind=kind;return e;}
 bool hold=false;bool complete[4096]{};
 template<class T>T handle(){return (T)(uintptr_t(next_handle++));}
@@ -25,7 +26,7 @@ void* operator new[](size_t n){return ::operator new(n);}
 void operator delete(void* p)noexcept{std::free(p);}void operator delete[](void* p)noexcept{std::free(p);}
 void operator delete(void* p,size_t)noexcept{std::free(p);}void operator delete[](void* p,size_t)noexcept{std::free(p);}
 namespace so101_station_vulkan {
-Context::Context(){properties.limits.maxPushConstantsSize=128;properties.limits.maxComputeWorkGroupCount[0]=65535;properties.limits.maxComputeWorkGroupInvocations=256;properties.limits.maxComputeWorkGroupSize[0]=256;properties.limits.maxComputeWorkGroupSize[1]=16;properties.limits.maxComputeSharedMemorySize=32768;properties.limits.maxStorageBufferRange=128*1024*1024;enabled_features.features.shaderFloat64=VK_TRUE;}
+Context::Context(){properties.limits.maxPushConstantsSize=push_limit;properties.limits.maxComputeWorkGroupCount[0]=dispatch_x;properties.limits.maxComputeWorkGroupCount[1]=dispatch_y;properties.limits.maxComputeWorkGroupCount[2]=65535;properties.limits.maxComputeWorkGroupInvocations=256;properties.limits.maxComputeWorkGroupSize[0]=256;properties.limits.maxComputeWorkGroupSize[1]=16;properties.limits.maxComputeSharedMemorySize=32768;properties.limits.maxStorageBufferRange=storage_limit;enabled_features.features.shaderFloat64=VK_TRUE;}
 Context::~Context()=default;
 std::shared_ptr<Context> Context::shared(){return std::make_shared<Context>();}
 Buffer::~Buffer(){reset();}
@@ -63,7 +64,7 @@ void vkCmdPipelineBarrier(VkCommandBuffer,VkPipelineStageFlags src,VkPipelineSta
 void vkCmdBindDescriptorSets(VkCommandBuffer,VkPipelineBindPoint,VkPipelineLayout,uint32_t,uint32_t,const VkDescriptorSet*,uint32_t,const uint32_t*){}
 void vkCmdPushConstants(VkCommandBuffer,VkPipelineLayout,VkShaderStageFlags,uint32_t,uint32_t,const void*){}
 void vkCmdBindPipeline(VkCommandBuffer,VkPipelineBindPoint,VkPipeline pipeline){for(unsigned i=0;i<created_pipelines;i++)if(pipeline==pipeline_handles[i])current_pipeline=i%8;}
-void vkCmdDispatch(VkCommandBuffer,uint32_t,uint32_t,uint32_t){if(trace)event(3).pipeline=current_pipeline;}
+void vkCmdDispatch(VkCommandBuffer,uint32_t x,uint32_t y,uint32_t z){if(trace){auto& e=event(3);e.pipeline=current_pipeline;e.x=x;e.y=y;e.z=z;}}
 VkResult vkQueueSubmit(VkQueue,uint32_t,const VkSubmitInfo*,VkFence f){if(trace)event(5);++submits;if(submit_result!=VK_SUCCESS)return submit_result;complete[uintptr_t(f)]=!hold;return VK_SUCCESS;}
 }
 
@@ -74,8 +75,62 @@ VkResult vkGetQueryPoolResults(VkDevice,VkQueryPool,uint32_t,uint32_t,size_t,voi
 }
 
 template<class F>void rejected(F fn){event_count=0;trace=true;bool failed=false;try{fn();}catch(const std::exception&){failed=true;}trace=false;require(failed&&event_count==0);}
+template<class F>void rejected_before_buffers(F fn,const char* reason){
+ auto before=buffer_allocations;bool failed=false;
+ try{fn();}catch(const std::exception& e){failed=std::string(e.what()).find(reason)!=std::string::npos;if(!failed)std::cerr<<"expected rejection: "<<reason<<" actual: "<<e.what()<<"\n";}
+ require(failed&&buffer_allocations==before);
+}
+void resource_contracts(const char* shaders){
+ // Real constructors and resource accounting: rejection cannot allocate even one Vulkan buffer.
+ for(auto wh:{std::pair<unsigned,unsigned>{0,480},{640,0},{1921,1080},{UINT32_MAX,UINT32_MAX}}){
+  rejected_before_buffers([&]{Pipeline p(wh.first,wh.second,"vulkan",shaders);},"dimensions");
+  rejected_before_buffers([&]{FramePool p(wh.first,wh.second,nullptr,false);},"dimensions");
+ }
+ storage_limit=128*1024*1024;
+ rejected_before_buffers([&]{Pipeline p(1920,1080,"vulkan",shaders);},"scratch");
+ {auto before=buffer_allocations;Pipeline p(1920,1080,"auto",shaders);require(p.backend()=="cpu"&&p.fallback_reason().find("scratch")!=std::string::npos&&buffer_allocations==before);}
+ storage_limit=256*1024*1024;
+ dispatch_y=65535;
+ rejected_before_buffers([&]{Pipeline p(1,1048561,"vulkan",shaders);},"dispatch");
+ dispatch_x=8099;
+ rejected_before_buffers([&]{Pipeline p(1920,1080,"vulkan",shaders);},"dispatch");
+ dispatch_x=65535;
+ rejected_before_buffers([&]{Pipeline p(1048561,1,"vulkan",shaders);},"dispatch");
+ dispatch_y=67;
+ rejected_before_buffers([&]{Pipeline p(1920,1080,"vulkan",shaders);},"dispatch");
+ dispatch_y=65535;push_limit=47;
+ rejected_before_buffers([&]{Pipeline p(640,480,"vulkan",shaders);},"push");
+ push_limit=128;
+ // Exercise every bound storage binding independently, including diagnostic scratch.
+ storage_limit=1000;
+ rejected_before_buffers([&]{Pipeline p(640,480,"vulkan",shaders);},"input");
+ storage_limit=2047;
+ rejected_before_buffers([&]{Pipeline p(1,1,"vulkan",shaders);},"compact");
+ storage_limit=150000000;
+ rejected_before_buffers([&]{Pipeline p(1920,1080,"vulkan",shaders,true);},"scratch");
+ storage_limit=256*1024*1024;
+ for(auto wh:{std::pair<unsigned,unsigned>{1280,720},{1920,1080}}){
+  const size_t n=size_t(wh.first)*wh.second,rgb=3*n,depth=2*n;
+  storage_limit=wh.first==1280?128*1024*1024:static_cast<uint32_t>(72*n); // 1080p exact range boundary.
+  Pipeline p(wh.first,wh.second,"vulkan",shaders);require(p.backend()=="vulkan");auto f=p.acquire();auto& s=f.slot();
+  require(s.cpu_masks.size()==n&&s.cpu_xyz.size()==4*n&&s.input.size==((5*n+3)&~size_t(3))&&s.scratch.size==72*n&&s.compact.size==compact_bytes());
+  Buffer source;source.create(*p.context(),depth,VK_BUFFER_USAGE_TRANSFER_SRC_BIT,VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  auto allocs=heap_allocations,buffers=buffer_allocations,waits=wait_calls;
+  event_count=0;trace=true;p.submit_device_depth(f,source);trace=false;
+  require(heap_allocations==allocs&&buffer_allocations==buffers&&wait_calls==waits);
+  unsigned copies=0,dispatches=0;
+  for(unsigned i=0;i<event_count;i++){const auto& e=events[i];if(e.kind==1){
+   if(copies==0)require(e.src==s.upload.buffer&&e.dst==s.input.buffer&&e.copy.dstOffset==0&&e.copy.size==rgb);
+   if(copies==1)require(e.src==source.buffer&&e.dst==s.input.buffer&&e.copy.dstOffset==rgb&&e.copy.size==depth);
+   if(copies==2)require(e.src==s.compact.buffer&&e.dst==s.readback.buffer&&e.copy.size==compact_bytes());++copies;
+  }if(e.kind==3){++dispatches;require(e.z==1);if(e.pipeline==7)require(e.x==(wh.first+15)/16&&e.y==(wh.second+15)/16);else require(e.x==(n+255)/256&&e.y==1);}}
+  require(copies==3&&dispatches==71);
+ }
+ storage_limit=256*1024*1024;
+ std::cout<<"high-resolution resource/admission and derived copy contracts passed\n";
+}
 int main(int argc,char** argv){
- require(argc==2);Pipeline pipeline(640,480,"vulkan",argv[1]);auto f=pipeline.acquire();auto& s=f.slot();
+ require(argc==2);resource_contracts(argv[1]);Pipeline pipeline(640,480,"vulkan",argv[1]);auto f=pipeline.acquire();auto& s=f.slot();
  Buffer source;source.create(*pipeline.context(),640*480*2,VK_BUFFER_USAGE_TRANSFER_SRC_BIT,VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
  rejected([&]{pipeline.submit_device_depth({},source);});
  auto foreign_pool=std::make_shared<FramePool>(640,480,pipeline.context(),false);auto foreign=foreign_pool->acquire();

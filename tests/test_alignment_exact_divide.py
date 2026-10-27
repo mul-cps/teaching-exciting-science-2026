@@ -31,8 +31,8 @@ class ExactAlignmentDivideTest(unittest.TestCase):
         ])
         self.assertIn('alignment_divide(tx,tz)', source)
         self.assertIn('alignment_divide(ty,tz)', source)
-        self.assertIn('alignment_divide((float(i%640)-p.cx),p.fx)', source)
-        self.assertIn('alignment_divide((float(i/640)-p.cy),p.fy)', source)
+        self.assertIn('alignment_divide((float(i%p.color_width)-p.cx),p.fx)', source)
+        self.assertIn('alignment_divide((float(i/p.color_width)-p.cy),p.fy)', source)
         compiler = shutil.which('c++')
         self.assertIsNotNone(compiler, 'CPU-only oracle requires a C++17 compiler')
         with tempfile.TemporaryDirectory(prefix='alignment-divide-') as directory:

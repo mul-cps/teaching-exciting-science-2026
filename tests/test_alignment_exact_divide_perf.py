@@ -38,12 +38,12 @@ def test_exact_helper_bounded_cost_and_callsite_association():
     project = body(source, 'int2 project(')
     point = body(source, 'float4 point(')
     project = project.replace('alignment_divide(tx,tz)', 'tx/tz').replace('alignment_divide(ty,tz)', 'ty/tz')
-    point = point.replace('alignment_divide((float(i%640)-p.cx),p.fx)', '(float(i%640)-p.cx)/p.fx')
-    point = point.replace('alignment_divide((float(i/640)-p.cy),p.fy)', '(float(i/640)-p.cy)/p.fy')
+    point = point.replace('alignment_divide((float(i%p.color_width)-p.cx),p.fx)', '(float(i%p.color_width)-p.cx)/p.fx')
+    point = point.replace('alignment_divide((float(i/p.color_width)-p.cy),p.fy)', '(float(i/p.color_width)-p.cy)/p.fy')
     assert 'tx=p.r0*x+(p.r3*y+(p.r6*z+p.t0));ty=p.r1*x+(p.r4*y+(p.r7*z+p.t1));tz=p.r2*x+(p.r5*y+(p.r8*z+p.t2));' in project
     assert 'tx=((p.r0*x+p.r3*y)+p.r6*z)+p.t0;ty=((p.r1*x+p.r4*y)+p.r7*z)+p.t1;tz=((p.r2*x+p.r5*y)+p.r8*z)+p.t2;' in project
     assert 'u=((tx/tz)*p.fx+p.cx)+0.5,v=((ty/tz)*p.fy+p.cy)+0.5' in project
-    assert 'x=z*((float(i%640)-p.cx)/p.fx),y=z*((float(i/640)-p.cy)/p.fy)' in point
+    assert 'x=z*((float(i%p.color_width)-p.cx)/p.fx),y=z*((float(i/p.color_width)-p.cy)/p.fy)' in point
     assert helper.count('float alignment_divide(') == 1
     assert source.count('alignment_divide(') == 4
     core = (PACKAGE / 'shaders/resident.slang').read_text()
@@ -75,8 +75,8 @@ def test_normal_host_path_no_new_wait_allocation_or_readback():
     diagnostics = body(submit, 'if(state_->diagnostics)')
     normal = submit.replace(diagnostics, '')
     assert normal.count('vkCmdCopyBuffer(') == 2  # fixed upload and 4-byte fault only
-    assert 'copy{0,0,N*2}' in normal
-    assert 'status_copy{N*4,0,4}' in normal
+    assert 'copy{0,0,depth_n*2}' in normal
+    assert 'status_copy{color_n*4,0,4}' in normal
     assert '.diagnostic.buffer' not in normal
     assert 'for(' not in submit and 'while(' not in submit
 
@@ -119,6 +119,15 @@ def test_offline_alignment_has_only_32bit_capabilities():
                            capture_output=True, text=True)
             subprocess.run([str(tools / 'spirv-val'), '--target-env', 'vulkan1.1', str(output)], check=True)
             assembly = subprocess.check_output([str(tools / 'spirv-dis'), str(output)], text=True)
+            if parent == 'alignment.slang':
+                # The four extent words are appended to the shared 92-byte
+                # host/kernel push ABI; do not silently slide a named field.
+                extents = {'depth_width': (19,76), 'depth_height': (20,80),
+                           'color_width': (21,84), 'color_height': (22,88)}
+                for field, (index, offset) in extents.items():
+                    member = re.search(r'OpMemberName\s+(%\w+)\s+'+str(index)+r'\s+"'+field+r'"', assembly)
+                    assert member is not None, field
+                    assert re.search(r'OpMemberDecorate\s+'+re.escape(member[1])+r'\s+'+str(index)+r'\s+Offset\s+'+str(offset)+r'\b', assembly), field
             capabilities = re.findall(r'OpCapability (\w+)', assembly)
             assert set(capabilities) == {'Shader'}
             assert not re.search(r'OpType(?:Int|Float) 64\b', assembly)

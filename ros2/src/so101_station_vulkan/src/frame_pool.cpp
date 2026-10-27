@@ -11,8 +11,9 @@ void FrameLease::swap(FrameLease& f)noexcept{pool_.swap(f.pool_);std::swap(index
 Slot& FrameLease::slot()const{if(!pool_)throw std::logic_error("empty frame lease");return pool_->slots[index_];}
 std::shared_ptr<Context> FrameLease::context()const{return pool_?pool_->context:nullptr;}
 FramePool::FramePool(unsigned w,unsigned h,std::shared_ptr<Context> c,bool debug,bool profile):context(std::move(c)),width(w),height(h),diagnostics(debug){
-  if(!w||!h||size_t(w)*h>640*480)throw std::invalid_argument("resident frame dimensions must fit 640x480");
-  try{for(auto& s:slots){s.metadata.width=w;s.metadata.height=h;size_t n=size_t(w)*h;s.cpu_masks.resize(n);s.cpu_parents.resize(n);s.cpu_depth.resize(n);s.cpu_xyz.resize(n*4);s.cpu_work.resize(n);s.cpu_dilated.resize(n);s.cpu_morph_counts.resize(n);if(!context)s.cpu_morph_roots.resize(n*9);
+  const size_t n=size_t(w)*h;
+  if(!w||!h||n>kMaxFramePixels)throw std::invalid_argument("resident frame dimensions must be nonzero and fit 1920x1080 pixels");
+  try{for(auto& s:slots){s.metadata.width=w;s.metadata.height=h;s.cpu_masks.resize(n);s.cpu_parents.resize(n);s.cpu_depth.resize(n);s.cpu_xyz.resize(n*4);s.cpu_work.resize(n);s.cpu_dilated.resize(n);s.cpu_morph_counts.resize(n);if(!context)s.cpu_morph_roots.resize(n*9);
     if(context){
       auto host=VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
       s.upload.create(*context,input_bytes(w,h),VK_BUFFER_USAGE_TRANSFER_SRC_BIT,host);

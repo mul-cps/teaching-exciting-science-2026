@@ -1,6 +1,6 @@
 // RealSense zero-distortion scalar/SSE conventions. Offline precise FP32 only.
 #include "exact_divide.slang"
-struct Parameters { float r0,r1,r2,r3,r4,r5,r6,r7,r8,t0,t1,t2,fx,fy,cx,cy,scale; uint corners,convention; };
+struct Parameters { float r0,r1,r2,r3,r4,r5,r6,r7,r8,t0,t1,t2,fx,fy,cx,cy,scale; uint corners,convention,depth_width,depth_height,color_width,color_height; };
 [[vk::push_constant]] ConstantBuffer<Parameters> p;
 [[vk::binding(0)]] ByteAddressBuffer raw;
 [[vk::binding(1)]] StructuredBuffer<float4> rays;
@@ -20,13 +20,13 @@ int2 project(float2 ray,float z){
 }
 [shader("compute")][numthreads(256,1,1)]
 void splat(uint3 id:SV_DispatchThreadID){
- uint i=id.x;if(i>=307200)return;uint word=raw.Load((i/2)*4);uint d=(word>>((i&1)*16))&65535;if(d==0)return;
+ uint i=id.x;if(i>=p.depth_width*p.depth_height)return;uint word=raw.Load((i/2)*4);uint d=(word>>((i&1)*16))&65535;if(d==0)return;
  precise float z=float(d)*p.scale;float4 ray=rays[i];int2 lo=project(ray.xy,z),hi=p.corners!=0?project(ray.zw,z):lo;
- if(p.convention==0&&(lo.x<0||lo.y<0||hi.x>=640||hi.y>=480))return;
- lo=max(lo,int2(0,0));hi=min(hi,int2(639,479));
- if(hi.x>=lo.x&&hi.y>=lo.y&&(hi.x-lo.x+1)*(hi.y-lo.y+1)>4096){InterlockedOr(scratch[307200],1);return;}
- for(int y=lo.y;y<=hi.y;y++)for(int x=lo.x;x<=hi.x;x++)InterlockedMin(scratch[y*640+x],d);
+ if(p.convention==0&&(lo.x<0||lo.y<0||hi.x>=int(p.color_width)||hi.y>=int(p.color_height)))return;
+ lo=max(lo,int2(0,0));hi=min(hi,int2(p.color_width-1,p.color_height-1));
+ if(hi.x>=lo.x&&hi.y>=lo.y&&(hi.x-lo.x+1)*(hi.y-lo.y+1)>4096){InterlockedOr(scratch[p.color_width*p.color_height],1);return;}
+ for(int y=lo.y;y<=hi.y;y++)for(int x=lo.x;x<=hi.x;x++)InterlockedMin(scratch[y*p.color_width+x],d);
 }
-float4 point(uint i,uint d){precise float z=float(d)*p.scale;precise float x=z*(alignment_divide((float(i%640)-p.cx),p.fx)),y=z*(alignment_divide((float(i/640)-p.cy),p.fy));return float4(x,y,z,0);}
+float4 point(uint i,uint d){precise float z=float(d)*p.scale;precise float x=z*(alignment_divide((float(i%p.color_width)-p.cx),p.fx)),y=z*(alignment_divide((float(i/p.color_width)-p.cy),p.fy));return float4(x,y,z,0);}
 [shader("compute")][numthreads(256,1,1)]
-void finalize(uint3 id:SV_DispatchThreadID){uint i=id.x*2;if(i>=307200)return;uint a=scratch[i],b=scratch[i+1];a=a==0xffffffff?0:a;b=b==0xffffffff?0:b;packed.Store(i*2,a|(b<<16));xyz[i]=point(i,a);xyz[i+1]=point(i+1,b);}
+void finalize(uint3 id:SV_DispatchThreadID){uint i=id.x*2;if(i>=p.color_width*p.color_height)return;uint a=scratch[i],b=scratch[i+1];a=a==0xffffffff?0:a;b=b==0xffffffff?0:b;packed.Store(i*2,a|(b<<16));xyz[i]=point(i,a);xyz[i+1]=point(i+1,b);}

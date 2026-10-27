@@ -82,7 +82,8 @@ class RawCameraAdmission(unittest.TestCase):
         self.assertEqual(copy.count('source.get_data()'), 1)
         self.assertEqual(copy.count('source.get_stride_in_bytes()'), 1)
         self.assertIn('if(stride==int(row_bytes))', copy)
-        self.assertIn('size_t(row_bytes)*kHeight', copy)
+        self.assertIn('size_t(row_bytes)*unsigned(height)', copy)
+        self.assertIn('capacity%row_bytes||size_t(height)!=capacity/row_bytes', copy)
         status = body('report_status')
         self.assertIn('char text[4096]', status)
         self.assertIn('std::snprintf(text,sizeof(text)', status)
@@ -100,7 +101,7 @@ class RawCameraAdmission(unittest.TestCase):
         self.assertIn('cpu.metadata=metadata;cpu.calibration=core_calibration()', cold)
         self.assertIn('diagnostic_depth()', cold)
         self.assertIn('diagnostic_xyz()', cold)
-        self.assertIn('gate.verify(metadata,raw_reference,bytes+kPixels*3,completed.depth.diagnostic_depth()', cold)
+        self.assertIn('gate.verify(metadata,raw_reference,bytes+color_pixels()*3,completed.depth.diagnostic_depth()', cold)
         self.assertIn('aligned[i]!=vendor||reference[i]!=vendor', ADMISSION)
         self.assertIn('>1e-7f', ADMISSION)
         self.assertIn('std::isfinite(actual_xyz[4*i+a])', ADMISSION)
@@ -161,7 +162,7 @@ class RawCameraAdmission(unittest.TestCase):
         self.assertIn('only identified scalar convention is qualified', ADMISSION)
         self.assertNotIn('Context::', ADMISSION)
         self.assertNotIn('rs2::pipeline', ADMISSION)
-        self.assertEqual(CAMERA.count('declare_parameter<'), 2)
+        self.assertEqual(CAMERA.count('declare_parameter<'), 3)
         self.assertNotIn('set_option(', CAMERA)
 
 

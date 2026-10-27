@@ -2,6 +2,8 @@
 #include "so101_station_vulkan/alignment.hpp"
 #include <string>
 namespace so101_station_vulkan {
+struct CameraCaptureProfile {unsigned color_width,color_height,depth_width,depth_height,fps;};
+CameraCaptureProfile camera_capture_profile(const std::string& name);
 // Bounded immutable source description, compared by value without padding bytes.
 struct CameraProfileIdentity {
  int unique_id=0, stream_index=0, width=0, height=0, fps=0, format=0, stream=0;
@@ -28,11 +30,12 @@ std::string raw_admission_failure(const SdkAlignmentProbe&,const CameraSourceCal
 // this startup gate; only three distinct, completely verified originals admit.
 class ColdCameraSelfcheck {
  uint64_t generation_,color_=0,depth_=0;
+ unsigned color_width_,color_height_;size_t color_pixels_,depth_pixels_;
  unsigned passes_=0;
  bool failed_=false;
  std::string serial_;
 public:
- ColdCameraSelfcheck(uint64_t generation,const std::string& serial);
+ ColdCameraSelfcheck(uint64_t generation,const std::string& serial,unsigned color_width=640,unsigned color_height=480,unsigned depth_width=640,unsigned depth_height=480);
  void verify(const FrameMetadata&,const uint16_t* native_z16,const uint8_t* sdk_z16,const uint16_t* aligned,
              const uint32_t* reference,const float* reference_xyz,const float* actual_xyz,
              const Slot& cpu,const Slot& gpu);

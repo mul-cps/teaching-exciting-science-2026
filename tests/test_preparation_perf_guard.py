@@ -84,8 +84,15 @@ def test_geometry_guard_rejects_hot_helper_and_delegation_mutants(monkeypatch, l
 def test_normal_readback_capacities_and_private_pool_serialization():
     alignment = (PACKAGE/'src/alignment.cpp').read_text()
     hot = body(alignment, 'Alignment::submit(')
-    assert 'status_copy{N*4,0,4}' in hot
+    assert 'color_n=state_->color_n' in hot
+    assert 'status_copy{color_n*4,0,4}' in hot
+    assert hot.index('color_n=state_->color_n') < hot.index('status_copy{color_n*4,0,4}')
+    assert 'vkCmdCopyBuffer(s.command,s.scratch.buffer,s.status.buffer,1,&status_copy)' in hot
     assert 'if(state_->diagnostics)' in hot
+    diagnostics = body(hot, 'if(state_->diagnostics)')
+    normal = hot.replace(diagnostics, '')
+    assert normal.count('vkCmdCopyBuffer(') == 2  # native upload + four-byte color-grid fault
+    assert '.diagnostic.buffer' not in normal
     assert 'lock(state_->mutex)' in hot
     geometry = (PACKAGE/'src/geometry.cpp').read_text()
     assert 'e.counts.create(c,16,' in geometry

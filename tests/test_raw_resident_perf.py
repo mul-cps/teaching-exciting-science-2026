@@ -20,7 +20,12 @@ def body(source, signature):
     raise AssertionError('unbalanced body')
 
 
-def test_actual_combined_modules_with_synthetic_vulkan(tmp_path):
+@pytest.mark.parametrize('profile,color_n,depth_n', [
+    ('vga', 640*480, 640*480),
+    ('720p', 1280*720, 1280*720),
+    ('1080p', 1920*1080, 1280*720),
+])
+def test_actual_combined_modules_with_synthetic_vulkan(tmp_path, profile, color_n, depth_n):
     sdk = os.environ.get('RAW_BRIDGE_SDK_PREFIX')
     vulkan = os.environ.get('RAW_BRIDGE_VULKAN_INCLUDE')
     if not sdk or not vulkan:
@@ -36,17 +41,26 @@ def test_actual_combined_modules_with_synthetic_vulkan(tmp_path):
     (tmp_path / 'camera_metadata_shared.h').write_text('{' + body(camera, 'void original_metadata(') + '}')
     sources = ['test/raw_resident_perf_benchmark.cpp', *['src/' + name + '.cpp' for name in ('gpu_pipeline', 'cpu_pipeline', 'frame_pool', 'alignment', 'alignment_reference', 'raw_capture_bridge', 'raw_camera_admission')]]
     subprocess.run([compiler, '-O2', '-std=c++17', '-pthread', '-ffp-contract=off', '-I', str(tmp_path), '-I', str(P / 'include'), '-I', vulkan, '-I', sdk + '/include', *[str(P / source) for source in sources], '-L', sdk + '/lib', '-Wl,-rpath,' + sdk + '/lib', '-lrealsense2', '-o', str(binary)], check=True, capture_output=True, text=True)
-    report = json.loads(subprocess.check_output([str(binary), str(shaders), str(shaders)], text=True))
+    # Omit the optional argument for VGA to retain the original CLI contract.
+    arguments = [str(binary), str(shaders), str(shaders)] + ([] if profile == 'vga' else [profile])
+    report = json.loads(subprocess.check_output(arguments, text=True))
     if destination := os.environ.get('RAW_RESIDENT_PERF_ARTIFACTS'):
-        destination = Path(destination)
+        destination = Path(destination) / profile
         destination.mkdir(parents=True, exist_ok=True)
         shutil.copy2(binary, destination / binary.name)
         shutil.copy2(tmp_path / 'camera_metadata_shared.h', destination / 'camera_metadata_shared.h')
         shutil.copytree(shaders, destination / 'synthetic-shaders', dirs_exist_ok=True)
         (destination / 'microbenchmark.json').write_text(json.dumps(report, indent=2) + '\n')
     assert report['hot_heap_allocations'] == report['hot_buffer_allocations'] == report['hot_wait_calls'] == 0
-    assert report['rgb_upload_bytes'] == 921600 and report['raw_upload_bytes'] == 614400
-    assert report['aligned_d2d_bytes'] == 614400
+    assert report['profile'] == profile
+    assert report['color_pixels'] == color_n and report['depth_pixels'] == depth_n
+    assert report['iterations'] == 100000 and report['warmup_iterations'] >= 1000
+    assert report['host_ns_per_cycle'] > 0
+    assert report['rgb_upload_bytes'] == 3*color_n and report['raw_upload_bytes'] == 2*depth_n
+    assert report['aligned_d2d_bytes'] == 2*color_n
+    if profile == 'vga':
+        assert report['rgb_upload_bytes'] == 921600 and report['raw_upload_bytes'] == 614400
+        assert report['aligned_d2d_bytes'] == 614400
     assert report['alignment_readback_bytes'] == 4 and report['core_readback_bytes'] == 163856
     assert report['ordered_submissions'] == 2 and report['distinct_command_pools']
     assert report['source_retained_through_consumer_fence']
@@ -69,14 +83,14 @@ def test_combined_normal_path_has_no_new_wait_allocation_mapping_or_dense_downlo
 
 def test_camera_normal_raw_path_uses_batched_copies_and_reserved_status():
     camera = (P / 'src/camera_component.cpp').read_text()
-    for name in ('tick', 'capture_pending', 'copy_raw_planes', 'verify_original', 'original_metadata', 'report_status'):
+    for name in ('tick', 'capture_pending', 'copy_raw_planes', 'copy_rows', 'inspect_original', 'verify_original', 'original_metadata', 'report_status'):
         hot = body(camera, name + '(')
         assert not re.search(r'\b(?:new|malloc|calloc|realloc)\b|make_shared|make_unique|std::vector|std::to_string|\.(?:resize|reserve)\(|vk(?:Wait|Map|Allocate|Create)|diagnostic_|camera_generation\(|probe_loaded_sdk_alignment\(|vendor_alignment_\.process', hot), name
     copied = body(camera, 'copy_rows(')
     assert copied.count('source.get_data()') == copied.count('source.get_stride_in_bytes()') == 1
     assert 'if(stride==int(row_bytes))' in copied
-    assert 'size_t(row_bytes)*kHeight' in copied
-    assert 'y<kHeight' in copied
+    assert 'size_t(row_bytes)*unsigned(height)' in copied
+    assert 'y<unsigned(height)' in copied
     report = body(camera, 'report_status(')
     assert 'char text[4096]' in report and 'std::snprintf' in report
     assert 'status_message_.data.assign' in report and 'static_cast<const std_msgs::msg::String&>' in report

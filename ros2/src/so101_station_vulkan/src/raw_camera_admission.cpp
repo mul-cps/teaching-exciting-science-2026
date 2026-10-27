@@ -6,10 +6,19 @@
 #include <stdexcept>
 #include <vector>
 namespace so101_station_vulkan {
+CameraCaptureProfile camera_capture_profile(const std::string& name){
+ if(name=="vga")return {640,480,640,480,30};
+ if(name=="720p")return {1280,720,1280,720,30};
+ if(name=="1080p")return {1920,1080,1280,720,30};
+ throw std::invalid_argument("camera profile must be vga, 720p or 1080p");
+}
 bool CameraProfileIdentity::operator==(const CameraProfileIdentity& b)const {
  return unique_id==b.unique_id&&stream_index==b.stream_index&&width==b.width&&height==b.height&&fps==b.fps&&format==b.format&&stream==b.stream;
 }
 namespace {
+bool qualified_camera_pair(unsigned cw,unsigned ch,unsigned dw,unsigned dh){
+ return (cw==640&&ch==480&&dw==640&&dh==480)||(cw==1280&&ch==720&&dw==1280&&dh==720)||(cw==1920&&ch==1080&&dw==1280&&dh==720);
+}
 bool intrinsic_equal(const rs2_intrinsics& a,const rs2_intrinsics& b){
  if(a.width!=b.width||a.height!=b.height||a.ppx!=b.ppx||a.ppy!=b.ppy||a.fx!=b.fx||a.fy!=b.fy||a.model!=b.model)return false;
  for(unsigned i=0;i<5;i++)if(a.coeffs[i]!=b.coeffs[i])return false;
@@ -53,7 +62,9 @@ bool same_camera_source(const CameraSourceCalibration& a,const CameraSourceCalib
  return true;
 }
 void validate_camera_profiles(const CameraSourceCalibration& source){
- for(const auto* p:{&source.color,&source.depth})if(p->width!=640||p->height!=480||p->fps!=30||p->unique_id<=0)throw std::invalid_argument("active camera profile is not exact 640x480x30");
+ if(!qualified_camera_pair(source.color.width,source.color.height,source.depth.width,source.depth.height))throw std::invalid_argument("active camera profile pair is not exact vga, 720p or 1080p");
+ for(const auto* p:{&source.color,&source.depth})if(p->fps!=30||p->unique_id<=0)throw std::invalid_argument("active camera profile requires exact 30 Hz and valid unique IDs");
+ if(source.alignment.color.width!=source.color.width||source.alignment.color.height!=source.color.height||source.alignment.depth.width!=source.depth.width||source.alignment.depth.height!=source.depth.height)throw std::invalid_argument("camera profile and calibration extents differ");
  if(source.color.format!=RS2_FORMAT_RGB8||source.color.stream!=RS2_STREAM_COLOR||source.depth.format!=RS2_FORMAT_Z16||source.depth.stream!=RS2_STREAM_DEPTH)throw std::invalid_argument("active camera formats are not RGB8/Z16");
 }
 uint64_t camera_generation(const CameraSourceCalibration& s,const std::string& serial,uint64_t nonce){
@@ -96,17 +107,18 @@ std::string raw_admission_failure(const SdkAlignmentProbe& probe,const CameraSou
  catch(const std::exception& e){return e.what();}
  return {};
 }
-ColdCameraSelfcheck::ColdCameraSelfcheck(uint64_t generation,const std::string& serial):generation_(generation),serial_(serial){
+ColdCameraSelfcheck::ColdCameraSelfcheck(uint64_t generation,const std::string& serial,unsigned cw,unsigned ch,unsigned dw,unsigned dh):generation_(generation),color_width_(cw),color_height_(ch),color_pixels_(size_t(cw)*ch),depth_pixels_(size_t(dw)*dh),serial_(serial){
+ if(!qualified_camera_pair(cw,ch,dw,dh))throw std::invalid_argument("cold selfcheck requires an exact camera profile pair");
  if(!generation||serial.empty())throw std::invalid_argument("cold selfcheck source identity is missing");
 }
 void ColdCameraSelfcheck::verify(const FrameMetadata& m,const uint16_t* native,const uint8_t* sdk,const uint16_t* aligned,const uint32_t* reference,const float* expected_xyz,const float* actual_xyz,const Slot& cpu,const Slot& gpu){
  if(failed_)throw std::runtime_error("cold selfcheck failed; restart required");
  try {
-  if(passes_>=3||m.width!=640||m.height!=480||m.calibration_generation!=generation_||m.serial!=serial_||m.frame_number<=color_||m.depth_frame_number<=depth_||!std::isfinite(m.hardware_timestamp_ms)||!std::isfinite(m.depth_hardware_timestamp_ms))throw std::runtime_error("cold selfcheck original source cohort mismatch");
+  if(passes_>=3||m.width!=color_width_||m.height!=color_height_||m.calibration_generation!=generation_||m.serial!=serial_||m.frame_number<=color_||m.depth_frame_number<=depth_||!std::isfinite(m.hardware_timestamp_ms)||!std::isfinite(m.depth_hardware_timestamp_ms))throw std::runtime_error("cold selfcheck original source cohort mismatch");
   if(!native||!sdk||!aligned||!reference||!expected_xyz||!actual_xyz)throw std::invalid_argument("cold selfcheck buffers missing");
   unsigned native_nonzero=0,aligned_nonzero=0;
-  for(unsigned i=0;i<640*480;i++){
-   native_nonzero+=native[i]!=0;
+  for(size_t i=0;i<depth_pixels_;i++)native_nonzero+=native[i]!=0;
+  for(size_t i=0;i<color_pixels_;i++){
    const auto vendor=uint16_t(sdk[2*i]|unsigned(sdk[2*i+1])<<8);
    aligned_nonzero+=vendor!=0;
    if(aligned[i]!=vendor||reference[i]!=vendor)throw std::runtime_error("cold GPU/SDK exact Z16 selfcheck mismatch");

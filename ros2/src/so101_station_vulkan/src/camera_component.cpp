@@ -18,7 +18,6 @@
 namespace so101_station_vulkan {
 using namespace std::chrono_literals;
 namespace {
-constexpr unsigned kWidth=640,kHeight=480,kPixels=kWidth*kHeight;
 ResidentPublicationGate& publication_gate(){static ResidentPublicationGate gate;return gate;}
 // Access only under publication_gate: every current-owner measurement uses one
 // DDS writer, so success and UNKNOWN share both host and per-writer ordering.
@@ -38,11 +37,13 @@ uint64_t session_nonce(){
  static std::atomic<uint64_t> sessions{0};
  return uint64_t(std::chrono::steady_clock::now().time_since_epoch().count())^(++sessions);
 }
-void copy_rows(uint8_t* destination,const rs2::video_frame& source,unsigned row_bytes){
+void copy_rows(uint8_t* destination,size_t capacity,const rs2::video_frame& source,unsigned row_bytes){
  const auto* data=static_cast<const uint8_t*>(source.get_data());
- const auto stride=source.get_stride_in_bytes();
- if(stride==int(row_bytes)){std::memcpy(destination,data,size_t(row_bytes)*kHeight);return;}
- for(unsigned y=0;y<kHeight;y++)std::memcpy(destination+y*row_bytes,data+y*stride,row_bytes);
+ const auto stride=source.get_stride_in_bytes(),height=source.get_height(),width=source.get_width(),bpp=source.get_bytes_per_pixel();
+ const int64_t available=source.get_data_size();
+ if(!destination||!data||!row_bytes||width<=0||height<=0||bpp<=0||size_t(width)*unsigned(bpp)!=row_bytes||stride<0||size_t(stride)<row_bytes||capacity%row_bytes||size_t(height)!=capacity/row_bytes||available<0||size_t(available)<row_bytes||(height>1&&size_t(stride)>(size_t(available)-row_bytes)/size_t(height-1)))throw std::runtime_error("invalid camera plane extent/stride/byte bounds");
+ if(stride==int(row_bytes)){std::memcpy(destination,data,size_t(row_bytes)*unsigned(height));return;}
+ for(unsigned y=0;y<unsigned(height);y++)std::memcpy(destination+size_t(y)*row_bytes,data+size_t(y)*unsigned(stride),row_bytes);
 }
 }
 // Experimental raw acquisition only. Every result remains geometry-unqualified.
@@ -53,6 +54,7 @@ class CameraComponent : public rclcpp::Node {
  rs2::align vendor_alignment_{RS2_STREAM_COLOR};
  std::unique_ptr<RawCaptureBridge> bridge_;
  CameraSourceCalibration source_;
+ CameraCaptureProfile selected_profile_{};std::string profile_name_;
  rclcpp::Publisher<FrameLease>::SharedPtr frames_;
  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr status_,failures_;
  rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr info_;
@@ -69,6 +71,12 @@ class CameraComponent : public rclcpp::Node {
   running_=false;try{camera_.stop();}catch(...){}
  }
  void publish_status(const std::string& message){std_msgs::msg::String s;s.data=message;status_->publish(s);}
+ size_t color_pixels()const{return size_t(source_.alignment.color.width)*unsigned(source_.alignment.color.height);}
+ size_t depth_pixels()const{return size_t(source_.alignment.depth.width)*unsigned(source_.alignment.depth.height);}
+ void validate_selected_profiles(const CameraSourceCalibration& s)const {
+  validate_camera_profiles(s);
+  if(s.color.width!=int(selected_profile_.color_width)||s.color.height!=int(selected_profile_.color_height)||s.depth.width!=int(selected_profile_.depth_width)||s.depth.height!=int(selected_profile_.depth_height))throw std::runtime_error("resolved/active camera extents differ from selected profile");
+ }
  Calibration core_calibration()const {
   const auto& k=source_.alignment;return {k.color.fx,k.color.fy,k.color.ppx,k.color.ppy,k.depth_units,k.generation};
  }
@@ -80,8 +88,9 @@ class CameraComponent : public rclcpp::Node {
   const CameraSourceObservation observed{color.get_frame_number(),depth.get_frame_number(),color.get_timestamp(),depth.get_timestamp(),int(color.get_frame_timestamp_domain()),int(depth.get_frame_timestamp_domain())};
   if(!std::isfinite(observed.color_time_ms)||!std::isfinite(observed.depth_time_ms))throw std::runtime_error("invalid original frame extent/stride/provenance");
   for(const auto& frame:{rs2::video_frame(color),rs2::video_frame(depth)}){
-   const unsigned row=frame.get_profile().stream_type()==RS2_STREAM_COLOR?kWidth*3:kWidth*2;
-   if(frame.get_width()!=int(kWidth)||frame.get_height()!=int(kHeight)||frame.get_stride_in_bytes()<int(row)||frame.get_data_size()<size_t(frame.get_stride_in_bytes())*(kHeight-1)+row)throw std::runtime_error("invalid original frame extent/stride/provenance");
+   const bool is_color=frame.get_profile().stream_type()==RS2_STREAM_COLOR;
+   const auto& expected=is_color?source_.color:source_.depth;const unsigned bpp=is_color?3:2,row=unsigned(expected.width)*bpp;
+   if(frame.get_width()!=expected.width||frame.get_height()!=expected.height||frame.get_bytes_per_pixel()!=int(bpp)||frame.get_stride_in_bytes()<int(row)||frame.get_data_size()<0||size_t(frame.get_data_size())<size_t(frame.get_stride_in_bytes())*unsigned(expected.height-1)+row)throw std::runtime_error("invalid original frame extent/stride/provenance");
   }
   return observed;
  }
@@ -119,7 +128,7 @@ class CameraComponent : public rclcpp::Node {
  }
  void original_metadata(FrameMetadata& m,const rs2::frameset& native,uint64_t receipt){
   auto color=native.get_color_frame();auto depth=native.get_depth_frame();
-  m.width=kWidth;m.height=kHeight;m.frame_number=color.get_frame_number();m.depth_frame_number=depth.get_frame_number();
+  m.width=source_.alignment.color.width;m.height=source_.alignment.color.height;m.frame_number=color.get_frame_number();m.depth_frame_number=depth.get_frame_number();
   m.timestamp_ns=receipt;m.hardware_timestamp_ms=color.get_timestamp();m.depth_hardware_timestamp_ms=depth.get_timestamp();
   m.timestamp_domain=int(color.get_frame_timestamp_domain());m.depth_timestamp_domain=int(depth.get_frame_timestamp_domain());
   m.calibration_generation=source_.alignment.generation;m.serial=serial_;
@@ -129,19 +138,19 @@ class CameraComponent : public rclcpp::Node {
  void copy_raw_planes(RawFrame& frame,const rs2::frameset& native,const FrameMetadata& metadata){
   auto& slot=frame.core.slot();slot.metadata=metadata;slot.calibration=core_calibration();
   frame.depth.metadata()=metadata;
-  copy_rows(static_cast<uint8_t*>(slot.upload.mapped),native.get_color_frame(),kWidth*3);
-  copy_rows(reinterpret_cast<uint8_t*>(frame.depth.upload()),native.get_depth_frame(),kWidth*2);
+  copy_rows(static_cast<uint8_t*>(slot.upload.mapped),color_pixels()*3,native.get_color_frame(),unsigned(source_.alignment.color.width)*3);
+  copy_rows(reinterpret_cast<uint8_t*>(frame.depth.upload()),depth_pixels()*2,native.get_depth_frame(),unsigned(source_.alignment.depth.width)*2);
  }
  // Vendor CPU alignment is used only by the explicitly selected CPU path.
  void copy_vendor_planes(RawFrame& frame,const rs2::frameset& native,const FrameMetadata& metadata){
   auto aligned=vendor_alignment_.process(native).as<rs2::frameset>();
   auto& slot=frame.core.slot();slot.metadata=metadata;slot.calibration=core_calibration();
   auto* bytes=static_cast<uint8_t*>(slot.upload.mapped);
-  copy_rows(bytes,aligned.get_color_frame(),kWidth*3);
-  copy_rows(bytes+kPixels*3,aligned.get_depth_frame(),kWidth*2);
+  copy_rows(bytes,color_pixels()*3,aligned.get_color_frame(),unsigned(source_.alignment.color.width)*3);
+  copy_rows(bytes+color_pixels()*3,color_pixels()*2,aligned.get_depth_frame(),unsigned(source_.alignment.color.width)*2);
  }
  std::unique_ptr<RawCaptureBridge> make_bridge(bool raw,bool diagnostics=false){
-  auto core=std::make_unique<Pipeline>(kWidth,kHeight,raw?"vulkan":"cpu",shaders_);
+  auto core=std::make_unique<Pipeline>(source_.alignment.color.width,source_.alignment.color.height,raw?"vulkan":"cpu",shaders_);
   std::unique_ptr<Alignment> depth;
   if(raw)depth=std::make_unique<Alignment>(core->context(),source_.alignment,alignment_shaders_,diagnostics);
   auto bridge=std::make_unique<RawCaptureBridge>(std::move(core),std::move(depth));
@@ -159,10 +168,10 @@ class CameraComponent : public rclcpp::Node {
  // after this function returns. Original frames are retained through comparison.
  void cold_live_selfcheck(std::unique_ptr<RawCaptureBridge> cold){
   try {
-  Pipeline independent(kWidth,kHeight,"cpu",shaders_);
-  std::vector<uint32_t> reference_depth(kPixels);
-  std::vector<float> reference_xyz(kPixels*4);
-  ColdCameraSelfcheck gate(source_.alignment.generation,serial_);
+  Pipeline independent(source_.alignment.color.width,source_.alignment.color.height,"cpu",shaders_);
+  std::vector<uint32_t> reference_depth(color_pixels());
+  std::vector<float> reference_xyz(color_pixels()*4);
+  ColdCameraSelfcheck gate(source_.alignment.generation,serial_,source_.alignment.color.width,source_.alignment.color.height,source_.alignment.depth.width,source_.alignment.depth.height);
   if(!cold->accept_source(previous_color_,previous_depth_))throw std::runtime_error("cold source startup baseline rejected");
   for(unsigned pass=0;pass<3;pass++){
    const auto original=wait_original();const auto receipt=uint64_t(now().nanoseconds());
@@ -187,11 +196,11 @@ class CameraComponent : public rclcpp::Node {
    auto expected=independent.acquire();if(!expected)throw std::runtime_error("cold CPU reference pool unavailable");
    auto& cpu=expected.slot();cpu.metadata=metadata;cpu.calibration=core_calibration();
    auto* bytes=static_cast<uint8_t*>(cpu.upload.mapped);
-   copy_rows(bytes,original.get_color_frame(),kWidth*3);copy_rows(bytes+kPixels*3,sdk,kWidth*2);
+   copy_rows(bytes,color_pixels()*3,original.get_color_frame(),unsigned(source_.alignment.color.width)*3);copy_rows(bytes+color_pixels()*3,color_pixels()*2,sdk,unsigned(source_.alignment.color.width)*2);
    alignment_reference(source_.alignment,raw_reference,reference_depth.data(),reference_xyz.data());
    // Independent CPU reference consumes the SDK-aligned original cohort.
    independent.submit(expected);independent.finish(expected);
-   gate.verify(metadata,raw_reference,bytes+kPixels*3,completed.depth.diagnostic_depth(),reference_depth.data(),reference_xyz.data(),completed.depth.diagnostic_xyz(),cpu,completed.core.slot());
+   gate.verify(metadata,raw_reference,bytes+color_pixels()*3,completed.depth.diagnostic_depth(),reference_depth.data(),reference_xyz.data(),completed.depth.diagnostic_xyz(),cpu,completed.core.slot());
    remember_source(metadata);
   }
   gate.require_complete();
@@ -228,13 +237,14 @@ class CameraComponent : public rclcpp::Node {
   if(have_completed&&bridge_->counters().completed%30==0)report_status();
  }
  void report_status(){
-  const auto& counts=bridge_->counters();
+  const auto& counts=bridge_->counters();const auto context=bridge_->pipeline().context();
+  const auto& profile=selected_profile_;const size_t native_bytes=3*color_pixels()+2*depth_pixels();
   char text[4096];
   const int length=std::snprintf(text,sizeof(text),
-   "experimental; backend=%s; alignment=%s; fallback_reason=%.1024s; geometry_admission=unqualified; execution_eligible=false; full_station_qualified=false; recording=disabled; received=%llu; completed=%llu; dropped=%llu; replaced=%llu; duplicate_or_regressed=%llu; host_plane_copy_bytes=%u; native_upload_bytes=%u; aligned_d2d_bytes=%u; alignment_fault_readback_bytes=%u; core_compact_readback_bytes=%zu",
-   bridge_->pipeline().backend().c_str(),bridge_->gpu_alignment()?"raw_vulkan":"vendor_cpu",fallback_reason_.c_str(),
+   "experimental; backend=%s; alignment=%s; profile=%s; color_width=%u; color_height=%u; depth_width=%u; depth_height=%u; fps=%u; vulkan_allocation_count=%llu; fallback_reason=%.1024s; geometry_admission=unqualified; execution_eligible=false; full_station_qualified=false; recording=disabled; received=%llu; completed=%llu; dropped=%llu; replaced=%llu; duplicate_or_regressed=%llu; host_plane_copy_bytes=%zu; native_upload_bytes=%zu; aligned_d2d_bytes=%zu; alignment_fault_readback_bytes=%u; core_compact_readback_bytes=%zu",
+   bridge_->pipeline().backend().c_str(),bridge_->gpu_alignment()?"raw_vulkan":"vendor_cpu",profile_name_.c_str(),profile.color_width,profile.color_height,profile.depth_width,profile.depth_height,profile.fps,static_cast<unsigned long long>(context?context->allocation_count.load():0),fallback_reason_.c_str(),
    static_cast<unsigned long long>(counts.received),static_cast<unsigned long long>(counts.completed),static_cast<unsigned long long>(counts.no_slot),static_cast<unsigned long long>(counts.replaced),static_cast<unsigned long long>(counts.duplicate_or_regressed),
-   kPixels*5,bridge_->gpu_alignment()?kPixels*5:0,bridge_->gpu_alignment()?kPixels*2:0,bridge_->gpu_alignment()?4u:0u,bridge_->gpu_alignment()?compact_bytes():size_t(0));
+   bridge_->gpu_alignment()?native_bytes:color_pixels()*5,bridge_->gpu_alignment()?native_bytes:size_t(0),bridge_->gpu_alignment()?color_pixels()*2:size_t(0),bridge_->gpu_alignment()?4u:0u,bridge_->gpu_alignment()?compact_bytes():size_t(0));
   if(length<0)throw std::runtime_error("resident status formatting failed");
   status_message_.data.assign(text,size_t(length)<sizeof(text)?size_t(length):sizeof(text)-1);
   status_->publish(static_cast<const std_msgs::msg::String&>(status_message_));
@@ -251,6 +261,7 @@ class CameraComponent : public rclcpp::Node {
 public:
  explicit CameraComponent(const rclcpp::NodeOptions& options):Node("resident_camera",options),ownership_(publication_gate(),this),camera_(cameras_){
   const auto mode=declare_parameter<std::string>("backend","auto");serial_=declare_parameter<std::string>("serial","");
+  profile_name_=declare_parameter<std::string>("profile","720p");selected_profile_=camera_capture_profile(profile_name_);
   require_raw_or_cpu_fallback(mode,{});status_message_.data.reserve(4096);
   status_=create_publisher<std_msgs::msg::String>("/station/resident/status",rclcpp::QoS(1).transient_local());
   failures_=create_publisher<std_msgs::msg::String>("/station/resident/measurements",rclcpp::QoS(1).transient_local());
@@ -266,16 +277,16 @@ public:
    serial_=selected.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
    bool rgb=false,z16=false;
    for(auto sensor:selected.query_sensors())for(auto profile:sensor.get_stream_profiles()){
-    auto video=profile.as<rs2::video_stream_profile>();if(!video||video.width()!=640||video.height()!=480||video.fps()!=30)continue;
-    rgb|=video.stream_type()==RS2_STREAM_COLOR&&video.format()==RS2_FORMAT_RGB8;
-    z16|=video.stream_type()==RS2_STREAM_DEPTH&&video.format()==RS2_FORMAT_Z16;
+    auto video=profile.as<rs2::video_stream_profile>();if(!video||video.fps()!=int(selected_profile_.fps))continue;
+    rgb|=video.stream_type()==RS2_STREAM_COLOR&&video.format()==RS2_FORMAT_RGB8&&video.width()==int(selected_profile_.color_width)&&video.height()==int(selected_profile_.color_height);
+    z16|=video.stream_type()==RS2_STREAM_DEPTH&&video.format()==RS2_FORMAT_Z16&&video.width()==int(selected_profile_.depth_width)&&video.height()==int(selected_profile_.depth_height);
    }
-   if(!rgb||!z16)throw std::runtime_error("resident camera: enumerated exact 640x480x30 RGB8/Z16 unavailable");
-   rs2::config config;config.enable_device(serial_);config.enable_stream(RS2_STREAM_COLOR,640,480,RS2_FORMAT_RGB8,30);config.enable_stream(RS2_STREAM_DEPTH,640,480,RS2_FORMAT_Z16,30);
+   if(!rgb||!z16)throw std::runtime_error("resident camera: enumerated selected exact 30 Hz RGB8/Z16 profiles unavailable");
+   rs2::config config;config.enable_device(serial_);config.enable_stream(RS2_STREAM_COLOR,selected_profile_.color_width,selected_profile_.color_height,RS2_FORMAT_RGB8,selected_profile_.fps);config.enable_stream(RS2_STREAM_DEPTH,selected_profile_.depth_width,selected_profile_.depth_height,RS2_FORMAT_Z16,selected_profile_.fps);
    // Resolve selected exact profiles before this component starts its own owner.
    auto resolved=config.resolve(camera_);
    auto resolved_source=source_calibration(resolved.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>(),resolved.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>(),resolved.get_device().first<rs2::depth_sensor>().get_depth_scale());
-   validate_camera_profiles(resolved_source);
+   validate_selected_profiles(resolved_source);
    source_=resolved_source;source_.alignment.generation=camera_generation(source_,serial_,session_nonce());
    last_input_.serial.reserve(serial_.size());failure_input_.serial.reserve(serial_.size());
    const auto share=ament_index_cpp::get_package_share_directory("so101_station_vulkan");shaders_=share+"/shaders";alignment_shaders_=share+"/alignment-shaders";
@@ -287,7 +298,7 @@ public:
    running_=true;auto profile=camera_.start(config);
    if(serial_!=profile.get_device().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER))throw std::runtime_error("active camera serial changed");
    const auto active_source=source_calibration(profile.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>(),profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>(),profile.get_device().first<rs2::depth_sensor>().get_depth_scale());
-   validate_camera_profiles(active_source);if(!same_camera_source(source_,active_source))throw std::runtime_error("resolved and active camera calibration differ");
+   validate_selected_profiles(active_source);if(!same_camera_source(source_,active_source))throw std::runtime_error("resolved and active camera calibration differ");
    wait_startup_stable();
    if(raw){try{cold_live_selfcheck(std::move(cold));bridge_=make_bridge(true);}catch(const std::exception& error){fallback_reason_=std::string("cold raw GPU selfcheck failed: ")+error.what();require_raw_or_cpu_fallback(mode,fallback_reason_);raw=false;}}
    if(!raw&&!running_){
@@ -295,18 +306,18 @@ public:
     // resources. Auto may restart this selected configuration once for CPU.
     auto restart_expected=config.resolve(camera_);
     const auto expected_source=source_calibration(restart_expected.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>(),restart_expected.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>(),restart_expected.get_device().first<rs2::depth_sensor>().get_depth_scale());
-    validate_camera_profiles(expected_source);
+    validate_selected_profiles(expected_source);
     running_=true;auto restarted=camera_.start(config);
     if(serial_!=restarted.get_device().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER))throw std::runtime_error("CPU fallback restart camera serial changed");
     source_=source_calibration(restarted.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>(),restarted.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>(),restarted.get_device().first<rs2::depth_sensor>().get_depth_scale());
-    validate_camera_profiles(source_);if(!same_camera_source(expected_source,source_))throw std::runtime_error("CPU fallback restart source calibration differs from resolved profiles");
+    validate_selected_profiles(source_);if(!same_camera_source(expected_source,source_))throw std::runtime_error("CPU fallback restart source calibration differs from resolved profiles");
     source_.alignment.generation=camera_generation(source_,serial_,session_nonce());domains_known_=false;
     wait_startup_stable();
    }
    if(!raw)bridge_=make_bridge(false);
    frames_=create_publisher<FrameLease>("/station/resident/frame",rclcpp::QoS(1));
    info_=create_publisher<sensor_msgs::msg::CameraInfo>("/station/resident/color/camera_info",rclcpp::QoS(1).transient_local());
-   const auto& k=source_.alignment.color;sensor_msgs::msg::CameraInfo ci;ci.width=640;ci.height=480;ci.header.frame_id="camera_color_optical_frame";ci.distortion_model="plumb_bob";ci.k={k.fx,0,k.ppx,0,k.fy,k.ppy,0,0,1};ci.d.assign(k.coeffs,k.coeffs+5);info_->publish(ci);
+   const auto& k=source_.alignment.color;sensor_msgs::msg::CameraInfo ci;ci.width=k.width;ci.height=k.height;ci.header.frame_id="camera_color_optical_frame";ci.distortion_model="plumb_bob";ci.k={k.fx,0,k.ppx,0,k.fy,k.ppy,0,0,1};ci.d.assign(k.coeffs,k.coeffs+5);info_->publish(ci);
    if(!bridge_->accept_source(previous_color_,previous_depth_))throw std::runtime_error("normal source startup baseline rejected");
    publication_gate().admit(this,source_.alignment.generation);
    report_status();timer_=create_wall_timer(2ms,[this]{try{tick();}catch(const std::exception& error){latch_failure(error);}});

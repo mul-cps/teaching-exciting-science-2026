@@ -21,7 +21,7 @@ def body(source, name):
     raise AssertionError('unbalanced body')
 
 
-def test_shared_helper_is_prior_exact_bytes_and_only_six_quotients_change():
+def test_shared_helper_retains_exact_bytes_and_six_quotients_with_reviewed_extents():
     helper = (P / 'shaders/exact_divide.slang').read_bytes()
     assert hashlib.sha256(helper).hexdigest() == HELPER_SHA
     alignment = (P / 'shaders/alignment.slang').read_text()
@@ -29,7 +29,10 @@ def test_shared_helper_is_prior_exact_bytes_and_only_six_quotients_change():
     include = '#include "exact_divide.slang"\n'
     assert alignment.count(include) == resident.count(include) == 1
     expanded = alignment.replace(include, helper.decode())
-    assert hashlib.sha256(expanded.encode()).hexdigest() == '00437cde16a72965cb7bb01f338b1b84968655337e58e657b9b74ce2e03a6061'
+    # The prior expanded VGA shader identity was 00437cde16a72965cb7bb01f338b1b84968655337e58e657b9b74ce2e03a6061.
+    # This reviewed identity adds independent depth/color extents and bounds;
+    # the canonical helper bytes and projection arithmetic remain unchanged.
+    assert hashlib.sha256(expanded.encode()).hexdigest() == 'c6bf1e52bcecd5e52ad61f1d1f138bfc0d20b56f96140a6155ff820c7d608535'
     assert alignment.count('alignment_divide(') == 4
     assert resident.count('alignment_divide(') == 2
     assert helper.decode().count('float alignment_divide(') == 1

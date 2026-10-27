@@ -8,7 +8,21 @@
 #include <thread>
 #include <atomic>
 #include <condition_variable>
+#include <sys/mman.h>
+#include <unistd.h>
 using namespace so101_station_vulkan;
+// Every qualified depth plane is page-sized. A protected following page makes
+// any cold-verifier read beyond native depth deterministic, including 1080p RGB.
+class GuardedNativeDepth {
+ uint16_t* data_;size_t bytes_,page_;
+public:
+ explicit GuardedNativeDepth(size_t n):bytes_(2*n),page_(size_t(sysconf(_SC_PAGESIZE))){
+  assert(bytes_%page_==0);void* mapped=mmap(nullptr,bytes_+page_,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);assert(mapped!=MAP_FAILED);data_=static_cast<uint16_t*>(mapped);
+  assert(mprotect(reinterpret_cast<uint8_t*>(data_)+bytes_,page_,PROT_NONE)==0);
+ }
+ ~GuardedNativeDepth(){munmap(data_,bytes_+page_);}
+ uint16_t* data(){return data_;}uint16_t& operator[](size_t i){return data_[i];}
+};
 int main(){
  CameraSourceCalibration s;s.color={2,0,640,480,30,RS2_FORMAT_RGB8,RS2_STREAM_COLOR};s.depth={1,0,640,480,30,RS2_FORMAT_Z16,RS2_STREAM_DEPTH};
  s.alignment.depth={640,480,319.5f,239.5f,600,600,RS2_DISTORTION_NONE,{0,0,0,0,0}};s.alignment.color=s.alignment.depth;
@@ -78,6 +92,38 @@ int main(){
  assert(!publication.publish(17,[]{assert(false);}));assert(publication.publish(18,[]{}));publication.release(&owner2);
  {ResidentCameraOwner ownership(publication,&owner1);} // Constructor unwinding cleanup is RAII.
  publication.reserve(&owner2);publication.release(&owner2);
+ // Admit exactly the selected native pairs, retaining stream identity and rates.
+ for(auto dimensions:{std::array<int,4>{640,480,640,480},{1280,720,1280,720},{1920,1080,1280,720}}){
+  auto high=s;high.color.width=dimensions[0];high.color.height=dimensions[1];high.depth.width=dimensions[2];high.depth.height=dimensions[3];
+  high.alignment.color.width=high.color.width;high.alignment.color.height=high.color.height;
+  high.alignment.depth.width=high.depth.width;high.alignment.depth.height=high.depth.height;
+  validate_camera_profiles(high);assert(raw_admission_failure(good,high).empty());
+  auto invalid=[&](auto change){auto bad=high;change(bad);bool threw=false;try{validate_camera_profiles(bad);}catch(const std::invalid_argument&){threw=true;}assert(threw);};
+  invalid([](auto& x){x.color.fps=15;});invalid([](auto& x){x.depth.fps=15;});
+  invalid([](auto& x){x.color.unique_id=0;});invalid([](auto& x){x.depth.format=RS2_FORMAT_RGB8;});
+  invalid([](auto& x){x.color.stream=RS2_STREAM_DEPTH;});
+  invalid([](auto& x){x.depth.width=640;x.depth.height=720;});
+  const unsigned color_n=unsigned(high.color.width)*high.color.height,depth_n=unsigned(high.depth.width)*high.depth.height;
+  GuardedNativeDepth raw(depth_n);std::vector<uint16_t> aligned(color_n);std::vector<uint8_t> vendor(2*color_n);
+  std::vector<uint32_t> reference(color_n);std::vector<float> xyz(4*color_n);
+  // The native coverage and aligned coverage are deliberately at opposite tails.
+  for(unsigned i=0;i<24;i++){raw[depth_n-1-i]=1000;aligned[color_n-1-i]=reference[color_n-1-i]=1000;vendor[2*(color_n-1-i)]=0xe8;vendor[2*(color_n-1-i)+1]=3;}
+  FrameMetadata m;m.width=high.color.width;m.height=high.color.height;m.serial="fake";m.calibration_generation=generation;
+  ColdCameraSelfcheck gate(generation,"fake",m.width,m.height,high.depth.width,high.depth.height);
+  auto verify=[&](ColdCameraSelfcheck& g){g.verify(m,raw.data(),vendor.data(),aligned.data(),reference.data(),xyz.data(),xyz.data(),cpu,gpu);};
+  for(unsigned pass=1;pass<=3;pass++){m.frame_number=pass;m.depth_frame_number=pass+9;verify(gate);}gate.require_complete();
+  auto rejected=[&](auto mutation){ColdCameraSelfcheck g(generation,"fake",m.width,m.height,high.depth.width,high.depth.height);mutation();bool threw=false;try{verify(g);}catch(const std::exception&){threw=true;}assert(threw);};
+  rejected([&]{m.calibration_generation++;});m.calibration_generation=generation;
+  rejected([&]{aligned.back()=1;});aligned.back()=1000;
+  rejected([&]{raw[depth_n-24]=0;});raw[depth_n-24]=1000;
+  rejected([&]{m.width--;});m.width=high.color.width;
+  auto decoded=camera_capture_profile(high.color.width==640?"vga":high.color.width==1280?"720p":"1080p");
+  assert(decoded.color_width==unsigned(high.color.width)&&decoded.color_height==unsigned(high.color.height)&&decoded.depth_width==unsigned(high.depth.width)&&decoded.depth_height==unsigned(high.depth.height)&&decoded.fps==30);
+  assert(camera_generation(high,"fake",1)!=camera_generation(high,"fake",2));
+ }
+ for(auto pair:{std::array<int,4>{1920,1080,640,480},{1280,720,640,480},{640,480,1280,720}}){auto bad=s;bad.color.width=pair[0];bad.color.height=pair[1];bad.depth.width=pair[2];bad.depth.height=pair[3];bool rejected=false;try{validate_camera_profiles(bad);}catch(const std::exception&){rejected=true;}assert(rejected);}
+ bool invalid_name=false;try{camera_capture_profile("custom");}catch(const std::invalid_argument&){invalid_name=true;}assert(invalid_name);
+ std::cout<<"PASS high_resolution_profiles cold_native_depth_coverage\n";
  // Actual loaded SDK software frames: no Context, no USB, no physical PASS.
  auto actual=probe_loaded_sdk_alignment();assert(actual.fixtures==3);assert(actual.admitted());
  std::cout<<"PASS source_identity profile_calibration generation SDK_scalar_probe fallback strict physical=false\n";

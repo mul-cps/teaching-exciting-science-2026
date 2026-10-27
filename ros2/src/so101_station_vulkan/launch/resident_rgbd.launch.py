@@ -11,6 +11,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('backend', default_value='auto', choices=['auto', 'vulkan', 'cpu']),
         DeclareLaunchArgument('serial', default_value=''),
+        DeclareLaunchArgument('profile', default_value='720p', choices=['vga', '720p', '1080p']),
         ComposableNodeContainer(
             name='resident_rgbd_container', namespace='',
             package='rclcpp_components', executable='component_container',
@@ -20,6 +21,7 @@ def generate_launch_description():
                     plugin='so101_station_vulkan::CameraComponent',
                     name='resident_camera',
                     parameters=[{'backend': LaunchConfiguration('backend'),
+                                 'profile': ParameterValue(LaunchConfiguration('profile'), value_type=str),
                                  'serial': ParameterValue(LaunchConfiguration('serial'), value_type=str)}],
                     extra_arguments=[{'use_intra_process_comms': True}]),
                 ComposableNode(
