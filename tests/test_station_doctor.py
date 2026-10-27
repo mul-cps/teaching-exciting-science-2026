@@ -165,3 +165,129 @@ def test_invalid_manifest_never_launches_status_child(monkeypatch):
     monkeypatch.setattr(doctor.subprocess,'run',lambda *a,**k: pytest.fail('invalid manifest launched child'))
     with pytest.raises(ValueError,match='manifest mismatch'):
         doctor.live_status(SimpleNamespace(profile='fwmini4'),entry)
+
+
+def prepared_identity_fixture(tmp_path):
+    """Real config/calibration bytes; lifecycle preserves the root ownership gate."""
+    entry = fixture_entry(tmp_path)
+    manifest = tmp_path / 'units.json'
+    manifest.write_text(json.dumps({'root': str(tmp_path)}))
+    args = SimpleNamespace(profile='fwmini4', manifest=manifest)
+    def identity(args):
+        value = json.loads(args.manifest.read_text())
+        if value['root'] != str(entry.ROOT):
+            raise RuntimeError('Unit manifest belongs to another checkout.')
+        return value
+    entry.manifest = identity
+    command = entry.lifecycle_command
+    def lifecycle(args, action):
+        identity(args)
+        return command(args, action)
+    entry.lifecycle_command = lifecycle
+    return args, entry
+
+
+def test_foreign_manifest_reports_ownership_first_not_missing_calibration(tmp_path):
+    from tools import station_doctor as doctor
+    args, entry = prepared_identity_fixture(tmp_path)
+    foreign = tmp_path / 'other-checkout'
+    args.manifest.write_text(json.dumps({'root': str(foreign)}))
+    # Calibration exists and is valid; the ownership refusal occurs before parsing it.
+    assert (tmp_path / 'calibration.json').exists()
+    def forbidden(*args): pytest.fail('foreign checkout must not be evaluated/contacted')
+    entry.preflight = forbidden
+    entry.process.parse_arguments = forbidden
+    report = doctor.collect(args, entry, run_probe=lambda a: '', usb_root=tmp_path,
+                            status_provider=forbidden)
+    first = report['checks'][0]
+    assert first['component'] == 'manifest_identity' and first['state'] == 'blocked'
+    assert str(tmp_path) in first['reason'] and str(foreign) in first['reason']
+    assert 'ownership mismatch' in first['reason']
+    rows = {r['component']: r for r in report['checks']}
+    for component in ('preflight', 'runtime_paths', 'follower_calibration', 'serial_ports',
+                      'live_api', 'ev3_reference', 'jaw_calibration', 'tcp_calibration',
+                      'recordings', 'taught_skills'):
+        assert rows[component]['state'] == 'unknown'
+        assert 'Not evaluated' in rows[component]['reason']
+        assert 'manifest_identity' in rows[component]['reason']
+    assert report['prerequisites_ready'] is False
+    assert report['qualified_for_motion'] is False
+    with pytest.raises(RuntimeError, match='another checkout'):
+        entry.lifecycle_command(args, 'start')
+
+
+@pytest.mark.parametrize('calibration_state', ['valid', 'missing', 'hash_mismatch'])
+def test_matching_manifest_keeps_real_calibration_result(tmp_path, calibration_state):
+    from tools import station_doctor as doctor
+    args, entry = prepared_identity_fixture(tmp_path)
+    if calibration_state == 'missing':
+        (tmp_path / 'calibration.json').unlink()
+    elif calibration_state == 'hash_mismatch':
+        (tmp_path / 'calibration.json').write_text('{"changed":true}')
+    report = doctor.collect(args, entry, run_probe=lambda a: '', usb_root=tmp_path,
+                            status_provider=lambda: {})
+    rows = {r['component']: r for r in report['checks']}
+    assert rows['manifest_identity']['state'] == 'available'
+    assert rows['follower_calibration']['state'] == ('available' if calibration_state == 'valid' else 'blocked')
+    if calibration_state == 'missing':
+        assert 'missing' in rows['follower_calibration']['reason']
+    elif calibration_state == 'hash_mismatch':
+        assert 'hash mismatch' in rows['follower_calibration']['reason']
+
+
+@pytest.mark.parametrize('contents', ['{', '{}', '{"root":4}'])
+def test_malformed_manifest_is_explicit_and_dependent_checks_not_evaluated(tmp_path, contents):
+    from tools import station_doctor as doctor
+    args, entry = prepared_identity_fixture(tmp_path)
+    args.manifest.write_text(contents)
+    report = doctor.collect(args, entry, run_probe=lambda a: '', usb_root=tmp_path,
+                            status_provider=lambda: pytest.fail('invalid manifest contacted API'))
+    rows = {r['component']: r for r in report['checks']}
+    assert report['checks'][0]['component'] == 'manifest_identity'
+    assert rows['manifest_identity']['state'] == 'blocked'
+    assert 'malformed' in rows['manifest_identity']['reason']
+    assert rows['follower_calibration']['state'] == 'unknown'
+    assert rows['recordings']['state'] == 'unknown'
+
+
+def test_matching_root_still_requires_authoritative_source_validation(tmp_path):
+    from tools import station_doctor as doctor
+    args, entry = prepared_identity_fixture(tmp_path)
+    def invalid_sources(args): raise ValueError('native unit source cohort changed; render/review again')
+    entry.manifest = invalid_sources
+    report = doctor.collect(args, entry, run_probe=lambda a: '', usb_root=tmp_path,
+                            status_provider=lambda: pytest.fail('unverified source contacted API'))
+    rows = {r['component']: r for r in report['checks']}
+    assert rows['manifest_identity']['state'] == 'blocked'
+    assert 'source' in rows['manifest_identity']['reason']
+    assert rows['follower_calibration']['state'] == 'unknown'
+
+
+@pytest.mark.parametrize('reported_size', [0, 131072], ids=['stale-stat', 'oversized'])
+def test_manifest_read_is_bounded_even_when_stat_size_is_stale(tmp_path, reported_size):
+    from io import BytesIO
+    from tools import station_doctor as doctor
+    args, entry = prepared_identity_fixture(tmp_path)
+    payload = json.dumps({'root': str(tmp_path)}).encode() + b' ' * 131072
+    read_sizes = []
+    class Reader(BytesIO):
+        def read(self, size=-1):
+            read_sizes.append(size)
+            return super().read(size)
+    class Manifest:
+        def stat(self): return SimpleNamespace(st_size=reported_size)
+        def read_text(self): return payload.decode()
+        def open(self, mode):
+            assert mode == 'rb'
+            return Reader(payload)
+    args.manifest = Manifest()
+    def forbidden(*args): pytest.fail('oversized manifest evaluated dependent checkout')
+    entry.manifest = entry.preflight = entry.process.parse_arguments = forbidden
+    report = doctor.collect(args, entry, run_probe=lambda a: '', usb_root=tmp_path,
+                            status_provider=forbidden)
+    rows = {r['component']: r for r in report['checks']}
+    assert read_sizes == [65537]
+    assert rows['manifest_identity']['state'] == 'blocked'
+    assert rows['preflight']['state'] == 'unknown'
+    assert rows['follower_calibration']['state'] == 'unknown'
+    assert rows['live_api']['state'] == 'unknown'
