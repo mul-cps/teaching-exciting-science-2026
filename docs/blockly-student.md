@@ -36,13 +36,15 @@ Mission `blocks` · 25 minutes · Put instructions in order and repeat a small s
 
 Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
 
-**Worked example** An actual blue brick can have a missing report. An actual red brick can be reported blue. Both need inspection.
+**Worked example** Use the human-labelled real photo collage notebooks/assets/photo-examples.jpg (also printed in the Student handbook under Separate the object from its report). Human labels describe visible objects. These reports are deliberately invented, not camera measurements. Row 1: actual red, report red. Row 2: actual blue, report None (missing). Row 3: actual red, report blue.
+
+![Human-labelled real photo crops; reports are deliberately invented](../notebooks/assets/photo-examples.jpg)
 
 **Predict** Which of the three reports is missing? Which disagrees with the labelled object?
 
 **Change** Change one report to None; then change one known report to a wrong known color.
 
-**Run** Run the short Python example or trace its three rows on paper. Compare the real labelled photo with a deliberately changed report.
+**Run** Run the short Python example or trace these three rows on paper. Compare the human-labelled red/blue crops in notebooks/assets/photo-examples.jpg, also printed in the Student handbook under Separate the object from its report, with the invented reports.
 
 **Observe** Record actual object, reported label and your decision separately. None means missing, never zero or proof of empty space.
 
@@ -52,7 +54,7 @@ Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
 
 **Optional challenge** Test unfamiliar green without adding a rule.
 
-**Offline route** Use the supplied real photo and handwritten report cards; no camera or website is needed.
+**Offline route** Paper pair: use the Student handbook's printed collage under Separate the object from its report, or open notebooks/assets/photo-examples.jpg from the learner ZIP. Use the three actual/report rows above and on your worksheet. These are human-visible labels with deliberately invented reports, not camera measurements.
 
 **Hint 1** Compare actual and reported columns one row at a time.
 

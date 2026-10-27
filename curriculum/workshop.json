@@ -199,10 +199,10 @@
       "minutes": 20,
       "goal": "Recognise missing and incorrect observations.",
       "example_id": "observation",
-      "worked_example": "An actual blue brick can have a missing report. An actual red brick can be reported blue. Both need inspection.",
+      "worked_example": "Use the human-labelled real photo collage notebooks/assets/photo-examples.jpg (also printed in the Student handbook under Separate the object from its report). Human labels describe visible objects. These reports are deliberately invented, not camera measurements. Row 1: actual red, report red. Row 2: actual blue, report None (missing). Row 3: actual red, report blue.\n\n![Human-labelled real photo crops; reports are deliberately invented](../notebooks/assets/photo-examples.jpg)",
       "predict": "Which of the three reports is missing? Which disagrees with the labelled object?",
       "change": "Change one report to None; then change one known report to a wrong known color.",
-      "run": "Run the short Python example or trace its three rows on paper. Compare the real labelled photo with a deliberately changed report.",
+      "run": "Run the short Python example or trace these three rows on paper. Compare the human-labelled red/blue crops in notebooks/assets/photo-examples.jpg, also printed in the Student handbook under Separate the object from its report, with the invented reports.",
       "observe": "Record actual object, reported label and your decision separately. None means missing, never zero or proof of empty space.",
       "explain": "Why can a fresh color label still be wrong? What evidence would justify continuing?",
       "success": "You identify one missing and one wrong report and choose pause/inspect for uncertainty.",
@@ -211,8 +211,12 @@
         "A known word is still only a report."
       ],
       "extension": "Test unfamiliar green without adding a rule.",
-      "offline_route": "Use the supplied real photo and handwritten report cards; no camera or website is needed.",
+      "offline_route": "Paper pair: use the Student handbook's printed collage under Separate the object from its report, or open notebooks/assets/photo-examples.jpg from the learner ZIP. Use the three actual/report rows above and on your worksheet. These are human-visible labels with deliberately invented reports, not camera measurements.",
       "worksheet_prompts": [
+        "Photo input: Student handbook, Separate the object from its report; learner ZIP notebooks/assets/photo-examples.jpg. Human-visible labels; deliberately invented reports, not camera measurements.",
+        "Row 1: actual red, report red. Our decision ...",
+        "Row 2: actual blue, report None (missing). Our decision ...",
+        "Row 3: actual red, report blue. Our decision ...",
         "Our prediction was ...",
         "We changed ...",
         "Our evidence was ...",
@@ -242,10 +246,10 @@
         "Decisions"
       ],
       "slide_card": {
-        "worked_example": "Actual blue + missing report: pause. Actual red + blue report: inspect.",
+        "worked_example": "Actual/report (invented reports): 1 red/red; 2 blue/None; 3 red/blue.",
         "predict": "Which report is missing? Which disagrees with the actual object?",
         "change": "Change one report to None; then change a known report to a wrong color.",
-        "run": "Run or trace the three rows. Use the supplied labelled photograph.",
+        "run": "Human-labelled photo: handbook, observation mission; ZIP notebooks/assets/photo-examples.jpg. Reports invented.",
         "observe": "Record actual object and reported label in separate columns.",
         "explain": "Why can a fresh, familiar label still be wrong?",
         "success": "Identify one missing and one wrong report; choose pause and inspect.",
@@ -266,8 +270,8 @@
       "worked_example": "TEAM stores text in quotes. REPEATS stores a number. print shows text. The indented line runs once for each number.",
       "predict": "What greeting and how many object lines will appear?",
       "change": "Change TEAM, predict, run. Then change REPEATS to 2, predict, run. Keep indentation.",
-      "run": "Open the Student notebook, save a pair copy and run cells from the top with Shift+Enter. Run the shared Program example in simulation.",
-      "observe": "Count output lines. Open **View executable Python** in Blockly and compare the command rows in its `program` list with `program.program` in the shared Python example. JSON is text that stores the instruction list. **Save blocks** saves the workspace to reopen the editor; it is a different file.",
+      "run": "Open the Student notebook, save a pair copy and run from the top with Shift+Enter. Run the shared Program example in simulation. In Blockly choose \"Change a name and a number\" before View executable Python.",
+      "observe": "Count output lines. In Blockly choose \"Change a name and a number\", then **View executable Python**. Compare the command rows in its `program` list with `program.program` in the shared Python example: Ready, eject, left_end. JSON is text that stores the instruction list. **Save blocks** saves the workspace to reopen the editor; it is a different file. Simulation only.",
       "explain": "Which edit changed text? Which changed how often a line ran? What stayed in the same order?",
       "success": "Both partners make one edit and explain it; shared commands are validated before execution.",
       "hints": [
@@ -286,11 +290,20 @@
       "starter": [
         {
           "op": "log",
-          "message": "Change a name and a number"
+          "message": "Ready"
+        },
+        {
+          "op": "ev3",
+          "command": "eject"
+        },
+        {
+          "op": "ev3",
+          "command": "left_end"
         }
       ],
       "toolbox": [
         "Messages",
+        "Conveyor",
         "Timing",
         "Loops"
       ],
@@ -298,8 +311,8 @@
         "worked_example": "TEAM stores text; REPEATS stores a number. Indentation defines the loop.",
         "predict": "What greeting and how many object lines will appear?",
         "change": "Change TEAM. Run. Then predict and change REPEATS to 2.",
-        "run": "Save a pair notebook copy; run from the top with Shift+Enter.",
-        "observe": "Count lines. Compare program.program command rows with the program list in View executable Python.",
+        "run": "Run notebook from the top. In Blockly choose \"Change a name and a number\", then View executable Python. Simulation only.",
+        "observe": "In \"Change a name and a number\", use View executable Python. Compare its rows with program.program.",
         "explain": "Which edit changed text? Which changed the number of repetitions?",
         "success": "Both partners make and explain one edit; share the same validated commands.",
         "hints": [
@@ -314,12 +327,12 @@
       "title": "Watch teach inspect return replay",
       "session_id": "teach",
       "minutes": 15,
-      "goal": "Understand that a recorded stroke needs validated start/end poses and explicit jaw state.",
+      "goal": "Understand one saved movement (a stroke) and its required start/end arm arrangement (pose), gripper opening (jaw state) and measured references (calibration).",
       "example_id": "joint",
-      "worked_example": "Leader 10\u00b0, follower 30\u00b0, leader now 15\u00b0 gives relative request 35\u00b0. A request and a measured result are different.",
+      "worked_example": "A stroke is one saved movement. A pose is the arm arrangement at start/end. Jaw state means gripper opening. Calibration means the measured references a recording assumes. Metadata means recording details. Relative follows the change from each arm's starting angle: leader starts at 10\u00b0, follower at 30\u00b0, leader now 15\u00b0, so follower requests 30 + (15 - 10) = 35\u00b0. Absolute uses the leader's calibrated angle, 15\u00b0. These are invented DEMO angles. A request and a measured result are different.",
       "predict": "Will a replay start safely from any pose? What if the jaw state changed?",
       "change": "Ask the instructor to change one invented angle; predict before rerunning. Learners do not change physical modes.",
-      "run": "Watch instructor: teach a short empty stroke, stop recording, inspect metadata and path, return safely to its validated start, then replay separately.",
+      "run": "Watch instructor: teach a short empty stroke, stop recording, inspect recording details and path, return safely to its validated start, then replay separately.",
       "observe": "Name start pose, endpoint, jaw state, identity/calibration and validity evidence. An invented demo recording is never a student-taught physical skill.",
       "explain": "Why must teaching and playback be separate runs? Why does a changed robot or calibration require reteaching?",
       "success": "You can say teach \u2192 inspect/validate \u2192 return to start \u2192 replay, and point to STOP.",
@@ -335,7 +348,7 @@
         "Our evidence was ...",
         "This does not prove ..."
       ],
-      "instructor_notes": "Relative is 35 and absolute 15. Demonstrate only with prepared supervised hardware; if validation fails use paper and report physical gate incomplete.",
+      "instructor_notes": "Before the demonstration define stroke, pose, jaw state and calibration as above. Relative follows each arm's starting angle plus the leader's change; absolute uses the leader's calibrated angle. Demonstrate only with prepared supervised hardware; if validation fails use paper and report physical gate incomplete.",
       "starter": [
         {
           "op": "log",
@@ -347,10 +360,10 @@
         "Recordings"
       ],
       "slide_card": {
-        "worked_example": "Leader 10\u00b0, follower 30\u00b0, leader now 15\u00b0: relative request 35\u00b0.",
-        "predict": "Can replay begin from any pose? What if the jaw state changed?",
+        "worked_example": "Stroke: one saved movement. Pose: start/end arrangement. Jaw state: gripper opening. Calibration: measured references.",
+        "predict": "Will a replay start safely from any pose? What if the jaw state changed?",
         "change": "Change one invented angle after predicting. Instructor owns physical modes.",
-        "run": "Watch: teach, stop recording, inspect, return to validated start, replay.",
+        "run": "Instructor: teach, stop recording, inspect recording details/path, return to validated start, then replay separately. Locate STOP.",
         "observe": "Identify start, endpoint, jaw state and validation evidence.",
         "explain": "Why separate teaching from replay? Why reteach after calibration changes?",
         "success": "Explain teach \u2192 inspect \u2192 return \u2192 replay, and locate STOP.",
@@ -704,12 +717,12 @@
       "minutes": 2,
       "asset": "leader-current.png",
       "lines": [
-        "Teach a short stroke",
-        "Inspect and validate",
-        "Return to the validated start",
-        "Replay separately"
+        "Stroke: one saved movement",
+        "Pose: arm arrangement at start/end",
+        "Jaw state: gripper opening",
+        "Calibration: measured references"
       ],
-      "notes": "Swap pair driver/observer. Point to STOP. Physical execution requires the instructor and prepared verified recordings. Begin the first local mission."
+      "notes": "A stroke is one saved movement. A pose is the arm arrangement at start/end. Jaw state means gripper opening. Calibration means the measured references a recording assumes. Metadata means recording details. First define these terms, then demonstrate teach, stop recording, inspect/validate, return to the validated start, and replay separately. A recording does not plan a safe approach from any pose. Swap pair driver/observer. Point to STOP. Physical execution requires the instructor and prepared verified recordings. Begin the first local mission."
     }
   ],
   "rotations": [

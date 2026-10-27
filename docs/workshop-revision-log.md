@@ -16,7 +16,7 @@ The essential Blockly, Python, notebook and paper routes work offline.
 | Pacing | Validator checks the approved ten durations, eight intro slides totaling 20 minutes, three pairs and two circuits of three stations. Rotation cards allocate transitions. | This is a desk check, not an elapsed 240-minute classroom rehearsal. |
 | Consistency | Primary lesson plan, instructor guide, worksheet, practical cards, browser curriculum, scripts and three notebooks are generated from the one JSON source; source and artifact checks detect drift. Fresh-kernel execution checks the simulated examples and altered routing inputs. | Hardware commissioning cannot be established by generators or software tests. |
 | Presentation | Actual editable PPTX/PDF and five DOCX/PDF handouts are built. Full slide/page renders are reviewed; photographs retain actual station provenance and altered reports are labelled. | Classroom projector and actual-size printer review remain to be performed. |
-| Full physical rehearsal | No new physical acceptance claimed. Paper and simulation explicitly identify their evidence source. | Full physical rehearsal remains pending: fwmini4 has no attached devices; taught fixed-fixture payload grasp/lift/place/release and three consecutive complete EV3-to-return cycles are unverified. |
+| Full physical rehearsal | No new physical acceptance claimed. Paper and simulation explicitly identify their evidence source. | Full physical rehearsal remains pending: the 27 October USB inventory finds the D435i on fwmini4 and EV3/arm USB adapters on the workstation; taught fixed-fixture payload grasp/lift/place/release and three consecutive complete EV3-to-return cycles are unverified. |
 
 ## Evidence update — 23 October 2026
 
@@ -68,3 +68,39 @@ The current deliverable is an 18-slide whole-class deck: ten introductory slides
 | **R5 — Rehearsal and release** | On fwmini4, executed Student, Instructor and DEMO live notebooks in fresh kernels, checked the 18-page PDF and exact PPTX hash, and ran all six extracted ZIP entry points without installed packages. The ZIP includes all nine local classifier training pictures. Authenticated Jupyter and fresh/stale/fresh fake ROS observation checks passed. Local hardware passed full reset, saved home, MoveIt Plan then Execute, and both EV3 endpoint operations. | Remote software rehearsal at `f253460` is recorded in the prepared-PC runbook; subsequent code updates receive incremental checks there. No physical devices were attached to fwmini4 during rehearsal. Browser Teachable Machine training/inference was not qualified: its prepared-photo upload was rejected by the automation extension. The complete 20-minute local notebook photo activity remains the alternative. No autonomous physical pick/place success is claimed. |
 
 Visual provenance, generated-hero prompt, and Blockly attribution/license are committed in `docs/assets/lecture/`. The build uses only committed assets. The private lecture evidence includes individual `class-slide-01.png`–`class-slide-18.png`, the montage, package/layout reports, a media-source audit, and the exact extracted-code results.
+
+## Evidence update — 27 October 2026
+
+The current clarity desk review inspected the canonical curriculum, actual text
+in all three notebooks, 24 slides and notes, 36 handout pages, and the browser
+projection. Three gaps were repaired in the canonical source: the Python mission
+now loads the same Ready/eject/left_end instructions as its shared Program example;
+teach/replay terms are defined before use; and the paper observation activity
+provides its three invented report rows and the existing human-labelled photo
+collage. The browser copy omits document image markup, and the teaching slide
+retains a real replay/jaw prediction prompt. The full relative/absolute example
+remains in the activity and speaker notes.
+
+Independent scoped review passed after both follow-up defects were corrected.
+The supervisor's focused curriculum/client/offline run passed 65 tests. All three
+final notebooks executed in fresh kernels using the existing system Python and a
+private kernelspec. All 116 material-manifest hashes and 89 comparable files in
+the 90-entry learner ZIP match. Changed slides and paper pages were rendered and
+inspected; the final follow-up changes only slide 15 visually, with the other 23
+slides and all 36 handout pages pixel-identical to the preceding reviewed build.
+These are text clarity, consistency and changed-render checks, not a timed
+240-minute rehearsal, first-time learner trial or full physical acceptance.
+
+Canonical source SHA256:
+`edb483460e6f49d06d2b8fc0a1e4c53b27b3ce2116494ba325fcb071bc5ec141`.
+Durable evidence archive `workshop-clarity-repair-20261027.tar.gz` in the station's
+local evidence directory has SHA256
+`198c3720b34a45ec8260f6c39bac3786cbaf9d9c79a26f7295df44b4e8cfabf9`;
+its receipt binds the 26 reviewed source/output files and preserved render hashes,
+notebook outputs, failures and commands. Scoped review SHA256:
+`a8f0396ce67fc244076e1b0705e370ded5a9011735b14045516eeccfe321021b`.
+
+The D435i is enumerated on fwmini4 at USB 5000 Mb/s. EV3 and the two arm USB
+adapters remain on the workstation. Commissioning, complete taught pick/place,
+STOP/recovery, three consecutive physical cycles and the final main release
+remain open.

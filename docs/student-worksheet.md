@@ -39,6 +39,14 @@ Success check: Your pair can trace the order, predict a repeat count and explain
 
 Recognise missing and incorrect observations.
 
+Photo input: Student handbook, Separate the object from its report; learner ZIP notebooks/assets/photo-examples.jpg. Human-visible labels; deliberately invented reports, not camera measurements.: ______________________________
+
+Row 1: actual red, report red. Our decision ...: ______________________________
+
+Row 2: actual blue, report None (missing). Our decision ...: ______________________________
+
+Row 3: actual red, report blue. Our decision ...: ______________________________
+
 Our prediction was ...: ______________________________
 
 We changed ...: ______________________________
@@ -69,7 +77,7 @@ Success check: Both partners make one edit and explain it; shared commands are v
 
 ## Watch teach inspect return replay
 
-Understand that a recorded stroke needs validated start/end poses and explicit jaw state.
+Understand one saved movement (a stroke) and its required start/end arm arrangement (pose), gripper opening (jaw state) and measured references (calibration).
 
 Our prediction was ...: ______________________________
 

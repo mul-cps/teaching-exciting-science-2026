@@ -50,7 +50,7 @@ Read four lines aloud. Quotes store text; REPEATS stores a number. Ask what chan
 
 2 minutes
 
-Swap pair driver/observer. Point to STOP. Physical execution requires the instructor and prepared verified recordings. Begin the first local mission.
+A stroke is one saved movement. A pose is the arm arrangement at start/end. Jaw state means gripper opening. Calibration means the measured references a recording assumes. Metadata means recording details. First define these terms, then demonstrate teach, stop recording, inspect/validate, return to the validated start, and replay separately. A recording does not plan a safe approach from any pose. Swap pair driver/observer. Point to STOP. Physical execution requires the instructor and prepared verified recordings. Begin the first local mission.
 
 ## Slide 9: Make a short conveyor story card 1
 
@@ -124,13 +124,15 @@ Mission `blocks` · 25 minutes · Put instructions in order and repeat a small s
 
 Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
 
-**Worked example** An actual blue brick can have a missing report. An actual red brick can be reported blue. Both need inspection.
+**Worked example** Use the human-labelled real photo collage notebooks/assets/photo-examples.jpg (also printed in the Student handbook under Separate the object from its report). Human labels describe visible objects. These reports are deliberately invented, not camera measurements. Row 1: actual red, report red. Row 2: actual blue, report None (missing). Row 3: actual red, report blue.
+
+![Human-labelled real photo crops; reports are deliberately invented](../notebooks/assets/photo-examples.jpg)
 
 **Predict** Which of the three reports is missing? Which disagrees with the labelled object?
 
 **Change** Change one report to None; then change one known report to a wrong known color.
 
-**Run** Run the short Python example or trace its three rows on paper. Compare the real labelled photo with a deliberately changed report.
+**Run** Run the short Python example or trace these three rows on paper. Compare the human-labelled red/blue crops in notebooks/assets/photo-examples.jpg, also printed in the Student handbook under Separate the object from its report, with the invented reports.
 
 **Observe** Record actual object, reported label and your decision separately. None means missing, never zero or proof of empty space.
 
@@ -140,7 +142,7 @@ Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
 
 **Optional challenge** Test unfamiliar green without adding a rule.
 
-**Offline route** Use the supplied real photo and handwritten report cards; no camera or website is needed.
+**Offline route** Paper pair: use the Student handbook's printed collage under Separate the object from its report, or open notebooks/assets/photo-examples.jpg from the learner ZIP. Use the three actual/report rows above and on your worksheet. These are human-visible labels with deliberately invented reports, not camera measurements.
 
 **Hint 1** Compare actual and reported columns one row at a time.
 
@@ -156,13 +158,15 @@ Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
 
 Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
 
-**Worked example** An actual blue brick can have a missing report. An actual red brick can be reported blue. Both need inspection.
+**Worked example** Use the human-labelled real photo collage notebooks/assets/photo-examples.jpg (also printed in the Student handbook under Separate the object from its report). Human labels describe visible objects. These reports are deliberately invented, not camera measurements. Row 1: actual red, report red. Row 2: actual blue, report None (missing). Row 3: actual red, report blue.
+
+![Human-labelled real photo crops; reports are deliberately invented](../notebooks/assets/photo-examples.jpg)
 
 **Predict** Which of the three reports is missing? Which disagrees with the labelled object?
 
 **Change** Change one report to None; then change one known report to a wrong known color.
 
-**Run** Run the short Python example or trace its three rows on paper. Compare the real labelled photo with a deliberately changed report.
+**Run** Run the short Python example or trace these three rows on paper. Compare the human-labelled red/blue crops in notebooks/assets/photo-examples.jpg, also printed in the Student handbook under Separate the object from its report, with the invented reports.
 
 **Observe** Record actual object, reported label and your decision separately. None means missing, never zero or proof of empty space.
 
@@ -172,7 +176,7 @@ Mission `observe` · 20 minutes · Recognise missing and incorrect observations.
 
 **Optional challenge** Test unfamiliar green without adding a rule.
 
-**Offline route** Use the supplied real photo and handwritten report cards; no camera or website is needed.
+**Offline route** Paper pair: use the Student handbook's printed collage under Separate the object from its report, or open notebooks/assets/photo-examples.jpg from the learner ZIP. Use the three actual/report rows above and on your worksheet. These are human-visible labels with deliberately invented reports, not camera measurements.
 
 **Hint 1** Compare actual and reported columns one row at a time.
 
@@ -194,9 +198,9 @@ Mission `python` · 30 minutes · Read and edit a short Python program before sh
 
 **Change** Change TEAM, predict, run. Then change REPEATS to 2, predict, run. Keep indentation.
 
-**Run** Open the Student notebook, save a pair copy and run cells from the top with Shift+Enter. Run the shared Program example in simulation.
+**Run** Open the Student notebook, save a pair copy and run from the top with Shift+Enter. Run the shared Program example in simulation. In Blockly choose "Change a name and a number" before View executable Python.
 
-**Observe** Count output lines. Open **View executable Python** in Blockly and compare the command rows in its `program` list with `program.program` in the shared Python example. JSON is text that stores the instruction list. **Save blocks** saves the workspace to reopen the editor; it is a different file.
+**Observe** Count output lines. In Blockly choose "Change a name and a number", then **View executable Python**. Compare the command rows in its `program` list with `program.program` in the shared Python example: Ready, eject, left_end. JSON is text that stores the instruction list. **Save blocks** saves the workspace to reopen the editor; it is a different file. Simulation only.
 
 **Explain** Which edit changed text? Which changed how often a line ran? What stayed in the same order?
 
@@ -226,9 +230,9 @@ Mission `python` · 30 minutes · Read and edit a short Python program before sh
 
 **Change** Change TEAM, predict, run. Then change REPEATS to 2, predict, run. Keep indentation.
 
-**Run** Open the Student notebook, save a pair copy and run cells from the top with Shift+Enter. Run the shared Program example in simulation.
+**Run** Open the Student notebook, save a pair copy and run from the top with Shift+Enter. Run the shared Program example in simulation. In Blockly choose "Change a name and a number" before View executable Python.
 
-**Observe** Count output lines. Open **View executable Python** in Blockly and compare the command rows in its `program` list with `program.program` in the shared Python example. JSON is text that stores the instruction list. **Save blocks** saves the workspace to reopen the editor; it is a different file.
+**Observe** Count output lines. In Blockly choose "Change a name and a number", then **View executable Python**. Compare the command rows in its `program` list with `program.program` in the shared Python example: Ready, eject, left_end. JSON is text that stores the instruction list. **Save blocks** saves the workspace to reopen the editor; it is a different file. Simulation only.
 
 **Explain** Which edit changed text? Which changed how often a line ran? What stayed in the same order?
 
@@ -250,15 +254,15 @@ Mission `python` · 30 minutes · Read and edit a short Python program before sh
 
 ## Watch teach inspect return replay
 
-Mission `teach-demo` · 15 minutes · Understand that a recorded stroke needs validated start/end poses and explicit jaw state.
+Mission `teach-demo` · 15 minutes · Understand one saved movement (a stroke) and its required start/end arm arrangement (pose), gripper opening (jaw state) and measured references (calibration).
 
-**Worked example** Leader 10°, follower 30°, leader now 15° gives relative request 35°. A request and a measured result are different.
+**Worked example** A stroke is one saved movement. A pose is the arm arrangement at start/end. Jaw state means gripper opening. Calibration means the measured references a recording assumes. Metadata means recording details. Relative follows the change from each arm's starting angle: leader starts at 10°, follower at 30°, leader now 15°, so follower requests 30 + (15 - 10) = 35°. Absolute uses the leader's calibrated angle, 15°. These are invented DEMO angles. A request and a measured result are different.
 
 **Predict** Will a replay start safely from any pose? What if the jaw state changed?
 
 **Change** Ask the instructor to change one invented angle; predict before rerunning. Learners do not change physical modes.
 
-**Run** Watch instructor: teach a short empty stroke, stop recording, inspect metadata and path, return safely to its validated start, then replay separately.
+**Run** Watch instructor: teach a short empty stroke, stop recording, inspect recording details and path, return safely to its validated start, then replay separately.
 
 **Observe** Name start pose, endpoint, jaw state, identity/calibration and validity evidence. An invented demo recording is never a student-taught physical skill.
 
@@ -274,7 +278,7 @@ Mission `teach-demo` · 15 minutes · Understand that a recorded stroke needs va
 
 **Hint 2** A screen model can match commands while a physical object slips.
 
-**Instructor guidance** Relative is 35 and absolute 15. Demonstrate only with prepared supervised hardware; if validation fails use paper and report physical gate incomplete.
+**Instructor guidance** Before the demonstration define stroke, pose, jaw state and calibration as above. Relative follows each arm's starting angle plus the leader's change; absolute uses the leader's calibrated angle. Demonstrate only with prepared supervised hardware; if validation fails use paper and report physical gate incomplete.
 
 ## Slide 16: Watch teach inspect return replay card 2
 
@@ -282,15 +286,15 @@ Mission `teach-demo` · 15 minutes · Understand that a recorded stroke needs va
 
 ## Watch teach inspect return replay
 
-Mission `teach-demo` · 15 minutes · Understand that a recorded stroke needs validated start/end poses and explicit jaw state.
+Mission `teach-demo` · 15 minutes · Understand one saved movement (a stroke) and its required start/end arm arrangement (pose), gripper opening (jaw state) and measured references (calibration).
 
-**Worked example** Leader 10°, follower 30°, leader now 15° gives relative request 35°. A request and a measured result are different.
+**Worked example** A stroke is one saved movement. A pose is the arm arrangement at start/end. Jaw state means gripper opening. Calibration means the measured references a recording assumes. Metadata means recording details. Relative follows the change from each arm's starting angle: leader starts at 10°, follower at 30°, leader now 15°, so follower requests 30 + (15 - 10) = 35°. Absolute uses the leader's calibrated angle, 15°. These are invented DEMO angles. A request and a measured result are different.
 
 **Predict** Will a replay start safely from any pose? What if the jaw state changed?
 
 **Change** Ask the instructor to change one invented angle; predict before rerunning. Learners do not change physical modes.
 
-**Run** Watch instructor: teach a short empty stroke, stop recording, inspect metadata and path, return safely to its validated start, then replay separately.
+**Run** Watch instructor: teach a short empty stroke, stop recording, inspect recording details and path, return safely to its validated start, then replay separately.
 
 **Observe** Name start pose, endpoint, jaw state, identity/calibration and validity evidence. An invented demo recording is never a student-taught physical skill.
 
@@ -306,7 +310,7 @@ Mission `teach-demo` · 15 minutes · Understand that a recorded stroke needs va
 
 **Hint 2** A screen model can match commands while a physical object slips.
 
-**Instructor guidance** Relative is 35 and absolute 15. Demonstrate only with prepared supervised hardware; if validation fails use paper and report physical gate incomplete.
+**Instructor guidance** Before the demonstration define stroke, pose, jaw state and calibration as above. Relative follows each arm's starting angle plus the leader's change; absolute uses the leader's calibrated angle. Demonstrate only with prepared supervised hardware; if validation fails use paper and report physical gate incomplete.
 
 ## Slide 17: Explore three stations card 1
 

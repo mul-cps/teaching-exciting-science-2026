@@ -1,6 +1,7 @@
 """Load and validate the single authored workshop curriculum (standard library)."""
 import copy
 import json
+import re
 from pathlib import Path
 from .blockly_program import validate_program
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,7 +53,12 @@ def load_curriculum(path=SOURCE):
 def learner_projection(c):
     """Allowlist the browser projection: instructor notes never leave this layer."""
     fields = ('id','title','session_id','minutes','goal','example_id','starter','toolbox','hints','worksheet_prompts') + STAGES
+    missions = [{k:copy.deepcopy(m[k]) for k in fields} for m in c['missions']]
+    for mission in missions:
+        # The browser uses textContent; keep document images in print/notebooks.
+        mission['worked_example'] = re.sub(
+            r'(?m)^!\[[^\]\n]*\]\([^\)\n]+\)[ \t]*$', '', mission['worked_example'])
     return {'schema_version':c['schema_version'], 'title':c['title'], 'intro':c['intro'],
             'evidence_rule':c['evidence_rule'], 'sessions':copy.deepcopy(c['sessions']),
-            'missions':[{k:copy.deepcopy(m[k]) for k in fields} for m in c['missions']],
+            'missions':missions,
             'examples':copy.deepcopy(c['examples']), 'rotations':copy.deepcopy(c['rotations'])}
