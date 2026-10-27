@@ -216,30 +216,38 @@ def shader_predicate_contract(shader, header):
     assert 'if(par!=0&&valid){' in init
     for neighbor, boundary in [('i-1', 'x>0'), ('i+1', 'x+1<p.width'),
                                ('i-p.width', 'y>0'), ('i+p.width', 'y+1<p.height')]:
-        assert f'if({boundary}&&selectedParent({neighbor})==par&&validDepth({neighbor})&&badEdge(i,{neighbor}))cut=true;' in init
+        assert f'if({boundary}&&sourceSelectedParent({neighbor})==par&&validDepth({neighbor})&&badEdge(i,{neighbor}))cut=true;' in init
     assert 'ps(p.count+i,uint(valid)|(uint(cut)<<1));uintroot=par!=0&&valid&&!cut?i+1:0;' in init
     assert 'if(par!=0&&valid){uintslot=hashSlot(par);' in init
     assert 'if(!cut)InterlockedAdd(sums2[slot],1,ignored);' in init
     edge = body('childEdge')
-    assert 'uintother=wl(p.count+j);if(other==0||selectedParent(j)!=par)return;' in edge
+    assert 'uintother=wl(p.count+j);if(other==0||graphParent(j)!=par)return;' in edge
     assert 'work.InterlockedMin(4*(max(root,other)-1),min(root,other),ignored);' in edge
     hook, jump = body('child_hook'), body('child_jump')
     assert 'uintroot=wl(p.count+i);' in hook
+    assert 'uintpar=graphParent(i),x=i%p.width,y=i/p.width;' in hook
     assert 'work.InterlockedMin(4*i,root,ignored);' in hook
     for neighbor in ['i-1', 'i-p.width', 'i-p.width-1', 'i-p.width+1']:
         assert f'childEdge(i,{neighbor},par,root);' in hook
     assert 'uinta=wl(i);' in jump and 'uintnext=wl(a-1);' in jump
     assert 'ws(p.count+i,next);' in jump
-    assert 'a>i+1||selectedParent(a-1)!=selectedParent(i)' in jump
-    assert 'next==0||next>a||selectedParent(next-1)!=selectedParent(i)' in jump
+    assert 'a>i+1||graphParent(a-1)!=graphParent(i)' in jump
+    assert 'next==0||next>a||graphParent(next-1)!=graphParent(i)' in jump
     for name in ['child_hook', 'childEdge', 'child_jump', 'child_fill_hook', 'fillEdge', 'child_fill_jump']:
         assert not re.search(r'\b(for|while|do)\b', function_body(shader, name)), name
     reduction = body('child_reduce')
-    assert 'uintroot=pl(i);if(root!=0){uintpar=selectedParent(i),x=i%p.width,y=i/p.width;' in reduction
+    assert 'uintroot=pl(i);if(root!=0){uintpar=graphParent(i),x=i%p.width,y=i/p.width;' in reduction
     assert 'uintkey=localKey(x,y,px,py,pw),slot=hashSlot(root);' in reduction
     assert 'InterlockedMin(keys[slot],key,ignored);' in reduction
     assert 'work.InterlockedMin(4*(7*p.count+j),keys[k],ignored);' in reduction
-    assert reduction.index('uintkey=localKey') < reduction.index('if(root==i+1)')
+    assert body('graphParent') == 'returnwl(8*p.count+i);'
+    assert 'ws(8*p.count+i,par);' in init
+    assert '8*p.count' not in reduction  # The init parent map stays immutable.
+    gather = body('child_gather')
+    assert 'uintpar=graphParent(i),area=' in gather
+    parent_guard = 'if(par==0||par>hl(3)||area==0){fault(64);return;}'
+    assert parent_guard in gather
+    assert gather.index(parent_guard) < gather.index('uintparent=par-1;')
     validate = body('child_validate')
     assert 'wl(p.count+root-1)!=root' in validate
     for neighbor in ['i-1', 'i-p.width', 'i-p.width-1', 'i-p.width+1']:
@@ -258,11 +266,13 @@ def test_actual_shader_and_shared_helper_predicates_stay_linked():
 
 
 @pytest.mark.parametrize('old,new', [
+    ('ws(8*p.count+i,par);', 'ws(8*p.count+i,0);'),
+    ('if(par==0||par>hl(3)||area==0)', 'if(par>hl(3)||area==0)'),
     ('isfinite(z)&&', ''),
     ('z<=asfloat(p.maxBits)', 'z<asfloat(p.maxBits)'),
     ('>asfloat(p.jumpBits)', '>=asfloat(p.jumpBits)'),
-    ('selectedParent(j)!=par', 'false'),
-    ('if(x>0&&selectedParent(i-1)==par', 'if(false&&selectedParent(i-1)==par'),
+    ('graphParent(j)!=par', 'false'),
+    ('if(x>0&&sourceSelectedParent(i-1)==par', 'if(false&&sourceSelectedParent(i-1)==par'),
     ('((y-py)/2)*((width+1)/2)+(x-px)/2', '(y/2)*((p.width+1)/2)+x/2'),
     ('uint key=localKey(x,y,px,py,pw)', 'uint key=localKey((root-1)%p.width,(root-1)/p.width,px,py,pw)'),
     ('uint next=wl(a-1);', 'uint next=a;'),

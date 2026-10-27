@@ -101,10 +101,21 @@ native contracts on fwmini4. Three CMake CPU CTests passed. The broader root CPU
 run before final batching refinement exited 1: **4299 passed, 9 failed,
 136 skipped, 48 subtests passed in 211.03 s**. One extraction-sensitive capacity
 source guard was subsequently corrected, with covering tests passing. Eight
-separate failures remain open: three immutable Python geometry axis/sign/hash
+separate failures were isolated: three immutable Python geometry axis/sign/hash
 mismatches and five ROCm CPU test-child failures caused by resolving a symlinked
-venv interpreter to base Python without NumPy. No thresholds or goldens changed;
-the broader suite is not reported as passing.
+venv interpreter to base Python without NumPy.
+
+A later clean, copy-based Python 3.13.12 environment with NumPy 2.5.4,
+opencv-python-headless 4.14.0.94 and SciPy 1.17.1 passed all eight failure cases
+and the canonical CPU launcher: **4309 passed, 136 skipped, 48 subtests passed
+in 180.48 s**, exit 0. No thresholds or goldens changed. This combined
+environment change does not isolate the numerical dependency responsible for
+the geometry differences; it does not establish that the earlier Python 3.11
+environment passes. The CPU run precedes the subsequent child-parent cache
+candidate and does not qualify that candidate or hardware operation. Its log,
+JUnit and focused invocation records are retained under
+`/tmp/workshop-cpu-pinned313-full-20261027.{log,xml}` and
+`/tmp/workshop-pinned313-focused-20261027-invocation.json`.
 
 This evidence covers only the prealigned RGB8/Z16 core. Capture, depth alignment,
 full geometry, tracking, ROS deployment, physical calibration, station operation

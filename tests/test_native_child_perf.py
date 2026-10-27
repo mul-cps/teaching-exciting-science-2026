@@ -70,7 +70,7 @@ def shader_resource_guard(shader):
         assert 'for(' not in code and 'while(' not in code
     child_edge = body(shader,'void childEdge(')
     fill_edge = body(shader,'void fillEdge(')
-    for edge,checks in ((child_edge,('root>i+1','other>j+1','selectedParent(other-1)')),
+    for edge,checks in ((child_edge,('root>i+1','other>j+1','graphParent(other-1)')),
                         (fill_edge,('root<=begin','root>end','other<=begin','other>end','other>j+1'))):
         assert 'if(other==root)return' in edge
         for check in checks:
@@ -82,7 +82,7 @@ def shader_resource_guard(shader):
     assert init.count('compact.InterlockedAdd') == 2
     reduce = body(shader,'void child_reduce(')
     assert reduce.count('work.Interlocked') == 6
-    assert 'if(root==i+1)ws(8*p.count+i,par-1)' in reduce
+    parent_cache_resource_guard(shader)
     packed = body(shader,'void child_packed_init(')
     assert 'cut=ownParent&&' in packed
     support = body(shader,'void child_support(')
@@ -91,6 +91,37 @@ def shader_resource_guard(shader):
     assert 'recordBase(uint r){return 32+4*p.parentCapacity+16*r;}' in shader
     assert 'count<=p.parentCapacity' in body(shader,'void child_lookup(')
     assert not re.search(r'\b(?:double|uint64_t|int64_t)\b',shader)
+
+
+
+def parent_cache_resource_guard(shader):
+    import re
+    assert body(shader, 'uint graphParent(').strip() == 'return wl(8*p.count+i);'
+    init = body(shader, 'void child_init(')
+    assert 'uint par=sourceSelectedParent(i);' in init
+    assert 'graphParent(' not in init
+    assert init.count('sourceSelectedParent(') == 5
+    assert 'ws(8*p.count+i,par);' in init
+    assert shader.count('ws(8*p.count+i,') == 1
+    # Map publication is at the same scope as own-parent resolution: every
+    # in-range pixel, including background, invalid-depth and cut pixels.
+    before = init[init.index('uint par=sourceSelectedParent(i);'):init.index('ws(8*p.count+i,par);')]
+    assert before.count('{') == before.count('}')
+    for name, kind in (('candidate','bool'), ('childEdge','void'), ('child_hook','void'),
+                       ('child_jump','void'), ('validateChildEdge','void'),
+                       ('child_validate','void'), ('child_reduce','void'), ('child_gather','void')):
+        code = body(shader, kind+' '+name+'(')
+        assert 'graphParent(' in code and 'sourceSelectedParent(' not in code
+    gather = body(shader, 'void child_gather(')
+    guard = 'if(par==0||par>hl(3)||area==0){fault(64);return;}'
+    assert guard in gather
+    assert gather.index(guard) < gather.index('uint parent=par-1;')
+    late = shader[shader.index('groupshared uint digits'):]
+    assert 'graphParent(' not in late
+    assert 'sourceSelectedParent(global)' in body(shader, 'void child_packed_init(')
+    assert len(re.findall(r'vk::binding\(', shader)) == 11
+    assert shader.count('[numthreads(') == 21
+    assert shader.count('GroupMemoryBarrierWithGroupSync()') == 14
 
 
 def test_child_shader_resource_race_and_bounded_work():
@@ -107,19 +138,28 @@ SHADER_MUTANTS = [
     ('unbounded_shared_probe','probe<256','probe<p.count'),
     ('per_pixel_status_global','if(par!=0&&valid){uint slot=hashSlot(par);',
      'if(par!=0&&valid){uint ignored;compact.InterlockedAdd(128,1,ignored);uint slot=hashSlot(par);'),
-    ('racy_same_value_parent_index','if(root==i+1)ws(8*p.count+i,par-1)',
-     'ws(8*p.count+i,par-1)'),
+    ('late_parent_map_overwrite','else if(par>hl(3)){fault(64);}else{',
+     'else if(par>hl(3)){fault(64);}else{ws(8*p.count+i,par-1);'),
     ('cross_parent_cut_count','cut=ownParent&&','cut='),
     ('wrong_reduction_bound','step=128;step>0;step/=2','step=256;step>0;step/=2'),
     ('status_sized_by_child_capacity','recordBase(uint r){return 32+4*p.parentCapacity+16*r;}',
      'recordBase(uint r){return 32+4*p.capacity+16*r;}'),
     ('parent_count_child_bound','count<=p.parentCapacity','count<=p.capacity'),
-    ('lost_child_equal_skip','selectedParent(other-1)!=par){fault(4);return;}if(other==root)return;',
-     'selectedParent(other-1)!=par){fault(4);return;}'),
+    ('lost_child_equal_skip','graphParent(other-1)!=par){fault(4);return;}if(other==root)return;',
+     'graphParent(other-1)!=par){fault(4);return;}'),
     ('lost_fill_equal_skip','other>j+1){fault(32);return;}if(other==root)return;',
      'other>j+1){fault(32);return;}'),
     ('root_walk_in_jump','ws(p.count+i,next);',
      'while(next!=wl(next-1))next=wl(next-1);ws(p.count+i,next);'),
+]
+
+SHADER_MUTANTS += [
+    ('background_cache_lost','ws(8*p.count+i,par);','if(root!=0){ws(8*p.count+i,par);}'),
+    ('cache_neighbor_before_publication','sourceSelectedParent(i-1)','graphParent(i-1)'),
+    ('gather_zero_parent_underflow','if(par==0||par>hl(3)||area==0)','if(par>hl(3)||area==0)'),
+    ('packed_cache_after_alias','sourceSelectedParent(global)','graphParent(global)'),
+    ('repeated_resolver_in_hook','if(root==0)return;uint par=graphParent(i),x=i%p.width','if(root==0)return;uint par=sourceSelectedParent(i),x=i%p.width'),
+    ('added_shader_barrier','ws(8*p.count+i,par);','ws(8*p.count+i,par);GroupMemoryBarrierWithGroupSync();'),
 ]
 
 
@@ -404,3 +444,91 @@ bool rightHandSide(uint i){uint old;state.InterlockedAdd(4,1,old);return state.L
     # first conditional branch, rather than eagerly before the OR condition.
     assert 'OpAtomicIAdd' in disassembly and 'OpBranchConditional' in disassembly
     assert disassembly.index('OpBranchConditional') < disassembly.index('OpAtomicIAdd')
+
+
+def test_actual_parent_resolver_cache_witness_and_bounded_CPU_cost(tmp_path):
+    """Run extracted shader resolver/map access and publication on host arrays.
+
+    This proves cache bytes/load counts only, not shader execution or GPU time.
+    """
+    import json
+    shader = (PACKAGE/'shaders/children.slang').read_text()
+    parent_cache_resource_guard(shader)
+    init = body(shader, 'void child_init(')
+    resolve = 'uint par=sourceSelectedParent(i);'
+    publish = 'ws(8*p.count+i,par);'
+    assert resolve in init and publish in init
+    code = r'''
+#include <vector>
+#include <cstdint>
+#include <chrono>
+#include <cstdio>
+#include <stdexcept>
+using uint=uint32_t;
+uint faults=0;void fault(uint bit){faults|=bit;}
+struct Buffer{std::vector<uint> a;size_t loads=0;uint Load(uint at){++loads;return a.at(at/4);}};
+Buffer source,parentLabels,lookup;std::vector<uint> work;
+struct Parameters{uint count,blocks,parentLabelWords;}p;
+size_t workLoads=0;
+uint wl(uint i){++workLoads;return work.at(i);}void ws(uint i,uint v){work.at(i)=v;}
+__attribute__((noinline)) uint sourceSelectedParent(uint i){RESOLVER}
+__attribute__((noinline)) uint graphParent(uint i){ACCESSOR}
+void materialize(uint i){if(i<p.count){RESOLVE PUBLISH}}
+void require(bool b){if(!b)throw std::runtime_error("source cache witness failure");}
+volatile uint64_t sink=0;
+int main(){
+ for(uint n:{1u,35u,307200u}){
+  p={n,16,3};source.a.assign(2*n,0);parentLabels.a.assign(n+3,0);lookup.a.assign(4*17,0);work.assign(9*n,0xdeadbeef);
+  for(uint color=0;color<4;color++)for(uint label=1;label<=16;label++)lookup.a[color*17+label]=(color+label)%5==0?0:100*color+label;
+  lookup.a[3*17+16]=4096;
+  const uint masks[]={0,1,2,4,8,3,8};
+  std::vector<uint> expected(n);
+  for(uint i=0;i<n;i++){
+   uint mask=masks[i%7],label=i%13==0?0:(i%13==1?17:1+i%16);if(i==0){mask=8;label=16;}
+   source.a[i]=mask;source.a[n+i]=i%2?0:0x3f000000;parentLabels.a[3+i]=label;
+   uint color=mask==1?0:mask==2?1:mask==4?2:3;
+   expected[i]=(mask==1||mask==2||mask==4||mask==8)&&label>0&&label<=16?lookup.a[color*17+label]:0;
+  }
+  faults=0;for(uint i=0;i<n;i++)materialize(i);materialize(n); // out of range does not touch memory
+  require(work[8*n]==4096); // upper one-based parent capacity, never zero based
+  for(uint i=0;i<8*n;i++)require(work[i]==0xdeadbeef);
+  for(uint i=0;i<n;i++)require(graphParent(i)==expected[i]);
+  require(n<35||faults==1); // invalid labels retain the source resolver fault
+  // Reusing the cache after gather cannot affect late source membership.
+  for(uint i=0;i<n;i++)work[8*n+i]=0xabcdef;
+  for(uint i=0;i<n;i++)require(sourceSelectedParent(i)==expected[i]);
+  for(uint i=0;i<n;i++)materialize(i);
+  if(n!=307200)continue;
+  source.loads=parentLabels.loads=lookup.loads=workLoads=0;
+  for(uint i=0;i<n;i++)sink+=sourceSelectedParent(i);
+  size_t oldLoads=source.loads+parentLabels.loads+lookup.loads;
+  for(uint i=0;i<n;i++)sink+=graphParent(i);
+  require(source.loads==n&&workLoads==n&&oldLoads>workLoads);
+  std::printf("{\"pixels\":%u,\"old_source_loads\":%zu,\"old_label_loads\":%zu,\"old_lookup_loads\":%zu,\"cache_loads\":%zu,\"rounds\":32,\"GPU_executed\":false,\"qualified\":false,\"samples\":[",n,source.loads,parentLabels.loads,lookup.loads,workLoads);
+  for(uint trial=0;trial<3;trial++){
+   auto start=std::chrono::steady_clock::now();uint64_t sum=0;
+   for(uint round=0;round<32;round++)for(uint i=0;i<n;i++)sum+=sourceSelectedParent(i);
+   auto middle=std::chrono::steady_clock::now();
+   for(uint round=0;round<32;round++)for(uint i=0;i<n;i++)sum+=graphParent(i);
+   auto end=std::chrono::steady_clock::now();sink+=sum;
+   std::printf("%s{\"source_ns\":%lld,\"cache_ns\":%lld}",trial?",":"",(long long)std::chrono::duration_cast<std::chrono::nanoseconds>(middle-start).count(),(long long)std::chrono::duration_cast<std::chrono::nanoseconds>(end-middle).count());
+  }std::puts("]}");
+ }
+}
+'''
+    code = code.replace('RESOLVER', body(shader, 'uint sourceSelectedParent(')).replace('ACCESSOR', body(shader, 'uint graphParent(')).replace('RESOLVE', resolve).replace('PUBLISH', publish)
+    unit, binary = tmp_path/'cache-cost.cpp', tmp_path/'cache-cost'
+    unit.write_text(code)
+    compile_command = [os.environ.get('CXX','g++'), '-std=c++17', '-O2', str(unit), '-o', str(binary)]
+    compiled = subprocess.run(compile_command, capture_output=True, text=True, timeout=30)
+    assert compiled.returncode == 0, compiled.stderr
+    result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload['cache_loads'] == payload['pixels'] == 307200
+    assert payload['old_source_loads']+payload['old_label_loads']+payload['old_lookup_loads'] > payload['cache_loads']
+    assert payload['GPU_executed'] is payload['qualified'] is False
+    assert len(payload['samples']) == 3
+    assert all(s['source_ns'] > 0 and s['cache_ns'] > 0 for s in payload['samples'])
+    (tmp_path/'compile-command.json').write_text(json.dumps(compile_command)+'\n')
+    (tmp_path/'cache-cost.json').write_text(json.dumps(payload,indent=2)+'\n')

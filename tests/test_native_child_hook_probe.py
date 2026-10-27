@@ -8,7 +8,8 @@ import re
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'ros2/src/so101_station_vulkan/shaders/children.slang'
+SOURCE = ROOT / 'tests/fixtures/child_hook_probe/children-8412aec1.slang'
+CURRENT_SOURCE = ROOT / 'ros2/src/so101_station_vulkan/shaders/children.slang'
 SOURCE_SHA256 = '8412aec1442aed563f99581a11bd3105db60b60947b5909ccf4e2e57ec0fe0ec'
 
 
@@ -89,6 +90,17 @@ def test_prepare_rejects_modified_source(probe, tmp_path):
     with pytest.raises(ValueError):
         probe.prepare(source, destination)
     assert source.read_bytes() == modified
+    assert not destination.exists()
+
+
+def test_prepare_rejects_current_production_source(probe, tmp_path):
+    before = CURRENT_SOURCE.read_bytes()
+    assert digest(SOURCE.read_bytes()) == SOURCE_SHA256
+    assert digest(before) != SOURCE_SHA256
+    destination = tmp_path / 'current-production-rejected'
+    with pytest.raises(ValueError, match='pinned children.slang SHA256'):
+        probe.prepare(CURRENT_SOURCE, destination)
+    assert CURRENT_SOURCE.read_bytes() == before
     assert not destination.exists()
 
 

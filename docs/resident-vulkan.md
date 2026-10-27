@@ -13,6 +13,12 @@ Automatic selection retains hardware Vulkan first and the existing C++ CPU
 fallback. Camera admission does not yet accept `cpu-slang`. See the
 [build instructions and measured comparison](performance/native-slang-cpu-20261027.md).
 
+Separate child preparation now keeps one-based parent membership immutable in
+existing workspace through gather and preserves uniform reducer barrier flow.
+The [Intel parent-map experiment](performance/intel-child-parent-cache-20261027.md)
+records the original failure and exact frozen-case matches on Intel and AMD.
+Its full geometry and performance qualification remains open.
+
 | Stage | Implemented boundary | Qualification limitation |
 |---|---|---|
 | Native RGB/Z16 upload | Padded native rows copied once; GPU byte extraction/conversion | USB import/DMA-BUF unavailable; upload cost must be measured |

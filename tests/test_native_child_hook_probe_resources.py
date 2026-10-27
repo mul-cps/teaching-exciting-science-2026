@@ -15,7 +15,7 @@ import tempfile
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'ros2/src/so101_station_vulkan/shaders/children.slang'
+SOURCE = ROOT / 'tests/fixtures/child_hook_probe/children-8412aec1.slang'
 OUTPUT = Path('/tmp/workshop-hook-probe-resource-20261027')
 SOURCE_SHA = '8412aec1442aed563f99581a11bd3105db60b60947b5909ccf4e2e57ec0fe0ec'
 PREFIX = '[numthreads(256,1,1)]\nvoid child_hook('

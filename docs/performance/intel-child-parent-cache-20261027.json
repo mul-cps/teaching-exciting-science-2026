@@ -1,0 +1,341 @@
+{
+  "scope": "one immutable literal Intel child-preparation case; no full geometry, performance or physical qualification",
+  "qualified": false,
+  "performance_measured": false,
+  "original_shader_sha256": "8412aec1442aed563f99581a11bd3105db60b60947b5909ccf4e2e57ec0fe0ec",
+  "sample_fault": {
+    "word": 2147516420,
+    "hex": "0x80008004",
+    "i": 0,
+    "root": 1,
+    "parent": 0,
+    "overflow": false,
+    "low_fault_bits": 4,
+    "expected_parent": 1,
+    "driver_or_compiler_cause_established": false
+  },
+  "cache_only_comparison": {
+    "scope": "one frozen literal positive Intel child-preparation case only",
+    "qualified": false,
+    "shader_sha256": "8dcc34ae97b575d811123e3c4e359047cd22bde40c8cd3fd543b890b5f56e8af",
+    "fixture_sha256": "e85eb99b89f9173a5ffd50f85638d8b5542dd482f90100d116012da9c368c3dd",
+    "frozen_expected_sha256": "7188a6b5c8fcc2cb23ac0851607480f29fe970520eb8c75af8527fb813ab329d",
+    "fault": 0,
+    "status": "valid",
+    "outputs": {
+      "roots": {
+        "exact_bytes": true,
+        "bytes": 140,
+        "sha256": "3adadc63311963c5470cd543286c7e72bc3ca1a7e85a4c0b281073fc5d26ba06"
+      },
+      "flags": {
+        "exact_bytes": true,
+        "bytes": 140,
+        "sha256": "fda9d347a4d74fa7a8022ef62080cae87145c9802877b1801f4d978c0aa35075"
+      },
+      "records": {
+        "exact_bytes": true,
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "statuses": {
+        "exact_bytes": true,
+        "bytes": 16,
+        "sha256": "903815a2c5bc1fe1d808c083de051ebd81f35731622da9845bec29b03891f164"
+      },
+      "packed": {
+        "exact_bytes": true,
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "counts": {
+        "exact_bytes": true,
+        "bytes": 16,
+        "sha256": "4cbbd8ca5215b8d161aec181a74b694f4e24b001d5b081dc0030ed797a8973e0"
+      }
+    },
+    "post_pins_all_match": true,
+    "known_reducer_issue_open": true,
+    "performance_measured": false
+  },
+  "final_cache_and_reducer_comparison": {
+    "scope": "one frozen literal positive Intel child-preparation case only",
+    "qualified": false,
+    "shader_sha256": "dc0b1aa16967479cd85fcfeaad86e00ed193ef03017d009769732416ddb607c5",
+    "fixture_sha256": "e85eb99b89f9173a5ffd50f85638d8b5542dd482f90100d116012da9c368c3dd",
+    "frozen_expected_sha256": "7188a6b5c8fcc2cb23ac0851607480f29fe970520eb8c75af8527fb813ab329d",
+    "fault": 0,
+    "status": "valid",
+    "outputs": {
+      "roots": {
+        "exact_bytes": true,
+        "bytes": 140,
+        "sha256": "3adadc63311963c5470cd543286c7e72bc3ca1a7e85a4c0b281073fc5d26ba06"
+      },
+      "flags": {
+        "exact_bytes": true,
+        "bytes": 140,
+        "sha256": "fda9d347a4d74fa7a8022ef62080cae87145c9802877b1801f4d978c0aa35075"
+      },
+      "records": {
+        "exact_bytes": true,
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "statuses": {
+        "exact_bytes": true,
+        "bytes": 16,
+        "sha256": "903815a2c5bc1fe1d808c083de051ebd81f35731622da9845bec29b03891f164"
+      },
+      "packed": {
+        "exact_bytes": true,
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "counts": {
+        "exact_bytes": true,
+        "bytes": 16,
+        "sha256": "4cbbd8ca5215b8d161aec181a74b694f4e24b001d5b081dc0030ed797a8973e0"
+      }
+    },
+    "post_pins_all_match": true,
+    "performance_measured": false
+  },
+  "final_device": {
+    "name": "Intel(R) Graphics (ADL-N)",
+    "vendor_id": 32902,
+    "device_id": 18129,
+    "driver_version": 104865800,
+    "api_version": 4211006,
+    "float64_supported": false,
+    "int64_supported": true,
+    "float64_enabled": false,
+    "int64_enabled": true
+  },
+  "frozen_fixture": {
+    "sha256": "e85eb99b89f9173a5ffd50f85638d8b5542dd482f90100d116012da9c368c3dd",
+    "base64": "Q0hJTERRdjEAAAAABwAAAAUAAAACAAAAAAAAAAAQAAAAEAAAjAAAACAAAAABAAAAEQAAAAAAAAAXAAAAAAAAAB0AAAAAAAAAMzMzMzMz8z/6fmq8dJOIPwEAAAAjAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAAAAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAAAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAAAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAA/AQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAAAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAAAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAAAAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAYAAAAAAAAAAAAAAAGAAAABAAAAA=="
+  },
+  "frozen_expected_npz": {
+    "sha256": "7188a6b5c8fcc2cb23ac0851607480f29fe970520eb8c75af8527fb813ab329d",
+    "base64": "UEsDBC0AAAAIAAAAIQCxLfnR//////////8JABQAcm9vdHMubnB5AQAQAAwBAAAAAAAAUwAAAAAAAACb7BfqGxDJyFDGUK2eklqcXKRupaBuU2qirqOgnpZfVFKUmBefX5SSChJ3S8wpTgWKF2ckFqQC+RqmOgrmmjoKtQpkAy5GBgYGbJgBhzilcvgAAFBLAwQtAAAACAAAACEAHJGBGP//////////CQAUAGZsYWdzLm5weQEAEAAMAQAAAAAAAEwAAAAAAAAAm+wX6hsQychQxlCtnpJanFykbqWgblNqoq6joJ6WX1RSlJgXn1+UkgoSd0vMKU4FihdnJBakAvkapjoK5po6CrUKZAMuRgYGhsGCAVBLAwQtAAAACAAAACEArCvrOf//////////CwAUAHJlY29yZHMubnB5AQAQAIAAAAAAAAAARwAAAAAAAACb7BfqGxDJyFDGUK2eklqcXKRupaBuU2qirqOgnpZfVFKUmBefX5SSChJ3S8wpTgWKF2ckFqQC+RoGOgqGZpo6CrUK5AIuAFBLAwQtAAAACAAAACEAUdEVhP//////////DAAUAHN0YXR1c2VzLm5weQEAEACQAAAAAAAAAE8AAAAAAAAAm+wX6hsQychQxlCtnpJanFykbqWgblNqoq6joJ6WX1RSlJgXn1+UkgoSd0vMKU4FihdnJBakAvkahjoKJpo6CrUKZAMuCQYGBhBmZIAAAFBLAwQtAAAACAAAACEAyDw1C///////////CgAUAHBhY2tlZC5ucHkBABAAgAAAAAAAAABEAAAAAAAAAJvsF+obEMnIUMZQrZ6SWpxcpG6loG5TaqKuo6Cell9UUpSYF59flJIKEndLzClOBYoXZyQWpAL5GgY6mjoKtQoUAC4AUEsDBC0AAAAIAAAAIQAykFIb//////////8KABQAY291bnRzLm5weQEAEACQAAAAAAAAAEgAAAAAAAAAm+wX6hsQychQxlCtnpJanFykbqWgblNqoq6joJ6WX1RSlJgXn1+UkgoSd0vMKU4FihdnJBakAvkaJjqaOgq1ChQALkYGVAAAUEsDBC0AAAAIAAAAIQAQ0Oy8//////////8PABQAZW1wdHlfcm9vdHMubnB5AQAQAAwBAAAAAAAASQAAAAAAAACb7BfqGxDJyFDGUK2eklqcXKRupaBuU2qi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"
+  },
+  "final_raw_u32_outputs": {
+    "roots": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "flags": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "records": [],
+    "statuses": [
+      24,
+      24,
+      1,
+      0
+    ],
+    "packed": [],
+    "counts": [
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  "archives": {
+    "sample": {
+      "sha256": "07d25197ae1b0a8e0261290bb98e10b4acc4327956d62e3d7a88e698c6222753"
+    },
+    "cache_only": {
+      "sha256": "a24a6cffa0e5eb2b106859da93a4bd5ae72566ad9275f2e39e100c6b6ee5e858"
+    },
+    "final": {
+      "sha256": "a476ac83be9ad07752753c7a7153a4f7576312de56beddd33210572bca5d8943"
+    },
+    "final_amd": {
+      "sha256": "316e7682f47ba8e96dc2d880c5050fd12965ebd0740322ab05716148bfaedde5"
+    }
+  },
+  "resource_invariants": {
+    "bindings": 11,
+    "entries": 21,
+    "source_group_barriers": 14,
+    "new_buffers": 0,
+    "new_passes": 0,
+    "new_copies": 0,
+    "new_barriers": 0,
+    "compiled_and_validated_final_spirv": 21,
+    "unchanged_spirv_after_reducer_repair": 20
+  },
+  "independent_reviews": {
+    "source": {
+      "path": "/tmp/workshop-child-parent-final-review-20261027.md",
+      "sha256": "c251917520c7f3d4624df8cb8a28cc362702114774ae1a8d04e42851a1f19e3c"
+    },
+    "cache_resources": {
+      "path": "/tmp/workshop-child-cache-resource-20261027/REVIEW.md",
+      "sha256": "61920304045b36fd0cc80843046d20e010ee5e19e7b5e4d3bf4b2b770cbea128"
+    },
+    "reducer_resources": {
+      "path": "/tmp/workshop-child-reducer-resource-20261027/REVIEW.md",
+      "sha256": "a77c69479f0cc9c6dcc43a600752a5d7360c25f1460886ff071d9c7c1417a0c4"
+    }
+  },
+  "canonical_cpu_validation": {
+    "status": "passed",
+    "exit_code": 0,
+    "passed": 4323,
+    "skipped": 136,
+    "subtests_passed": 48,
+    "elapsed_seconds": 180.08,
+    "scope": "isolated CPU launcher only",
+    "python": "3.13.12",
+    "numpy": "2.5.4",
+    "opencv_python_headless": "4.14.0.94",
+    "scipy": "1.17.1",
+    "command": [
+      "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "tools/test_cpu.py",
+      "--basetemp",
+      "/tmp/workshop-cpu-parent-final-20261027-pytest",
+      "--junitxml",
+      "/tmp/workshop-cpu-parent-final-20261027.xml"
+    ],
+    "testfloat_gen": "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen",
+    "source_test_pins_before_after_identical": true,
+    "source_test_pins": {
+      "ros2/src/so101_station_vulkan/shaders/children.slang": "dc0b1aa16967479cd85fcfeaad86e00ed193ef03017d009769732416ddb607c5",
+      "tests/test_native_child_graph_model.py": "0fd00341fc658896ef170f9ae24433dfb9dd5b679d40105af6e3e95a4daec23c",
+      "tests/test_native_child_perf.py": "21eb3c2d21ba5355c9f2cc537f1cb240a46824f0d8a681b591dfca8898ca499a",
+      "tests/test_native_child_hook_probe.py": "9ce8fdcada949d4eae7bf0b8610b8ef6c6de73403773cf720cd0c13079b6dccf",
+      "tests/test_native_child_hook_probe_resources.py": "a626ee0399a2284b9f522dc225e91713e1dac02e8f990ebf2b3eef5bc00b7293",
+      "tests/test_child_parent_cache.py": "9a1b3fbcd2448f32b9cbf48311a66900b4a63cf415fa096919482b5165a2891a",
+      "tests/test_child_reduce_barrier.py": "b88b7cfd53d6931184e2a200742b10878ada8dbc322d3c7e542748d2754bacc1",
+      "tests/fixtures/child_hook_probe/children-8412aec1.slang": "8412aec1442aed563f99581a11bd3105db60b60947b5909ccf4e2e57ec0fe0ec"
+    },
+    "log_sha256": "d64d0198e502f4654db3ade7bfdc81dc5c35021734048af20060b0200ceb0034",
+    "junit_sha256": "512de8b87aa97303759e62d6e9f6928c7fd478c10cf76421d15ee9b43a52c8b0"
+  },
+  "final_amd_comparison": {
+    "scope": "one frozen literal positive AMD child-preparation case only",
+    "qualified": false,
+    "shader_sha256": "dc0b1aa16967479cd85fcfeaad86e00ed193ef03017d009769732416ddb607c5",
+    "fixture_sha256": "e85eb99b89f9173a5ffd50f85638d8b5542dd482f90100d116012da9c368c3dd",
+    "fault": 0,
+    "status": "valid",
+    "outputs": {
+      "roots": {
+        "bytes": 140,
+        "sha256": "3adadc63311963c5470cd543286c7e72bc3ca1a7e85a4c0b281073fc5d26ba06",
+        "exact_bytes": true
+      },
+      "flags": {
+        "bytes": 140,
+        "sha256": "fda9d347a4d74fa7a8022ef62080cae87145c9802877b1801f4d978c0aa35075",
+        "exact_bytes": true
+      },
+      "records": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "exact_bytes": true
+      },
+      "statuses": {
+        "bytes": 16,
+        "sha256": "903815a2c5bc1fe1d808c083de051ebd81f35731622da9845bec29b03891f164",
+        "exact_bytes": true
+      },
+      "packed": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "exact_bytes": true
+      },
+      "counts": {
+        "bytes": 16,
+        "sha256": "4cbbd8ca5215b8d161aec181a74b694f4e24b001d5b081dc0030ed797a8973e0",
+        "exact_bytes": true
+      }
+    },
+    "device": {
+      "name": "AMD Radeon 8060S Graphics (RADV STRIX_HALO)",
+      "vendor_id": 4098,
+      "device_id": 5510,
+      "driver_version": 109060099,
+      "api_version": 4211042,
+      "float64_supported": true,
+      "int64_supported": true,
+      "float64_enabled": true,
+      "int64_enabled": true
+    },
+    "process_local_system_drm_profile": true,
+    "post_pins_all_match": true,
+    "performance_measured": false
+  }
+}
