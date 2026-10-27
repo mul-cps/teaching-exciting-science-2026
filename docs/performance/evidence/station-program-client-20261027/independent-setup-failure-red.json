@@ -1,0 +1,10 @@
+{
+  "source_sha256": "cc882c7461bd3fbabd06197a8134119ccfca4ae8db7afde64e3ee1e97ee243fa",
+  "case": "post-Popen selector setup failure",
+  "hardware": false,
+  "DDS": false,
+  "error": "OSError('injected selector allocation failure')",
+  "child_spawned": true,
+  "child_left_running": true,
+  "independent_cleanup_reaped": true
+}

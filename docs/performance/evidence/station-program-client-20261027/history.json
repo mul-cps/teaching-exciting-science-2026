@@ -1,0 +1,25 @@
+{
+  "first_native_wrapper_RED": {
+    "receipt_sha256": "0cba7bef776549ed632db4ad6bd1c53155d533271871eabc03cd41a343b15023",
+    "log_sha256": "86558312782137d9775076e60f08abb7319601fc67a84e483e455c35af4dd216",
+    "test_source_sha256": "c42e1bb38ed88e13a6123a8b15016bd66ff77a9acb5b7f2f3a9b2d4d3bdc064c",
+    "observed": "After a distinct NEW admitted wait job, outer InterruptedError returned but server completed and executed forbidden tail; no new STOP.",
+    "exit": 1,
+    "timeout": false
+  },
+  "intermediate_attempt2": {
+    "receipt_sha256": "bc725697822f52b35ab6cd5c64b626a07b48acbd9f96875bf00eb1d65c610ca6",
+    "scope": "Group signal fixed native case, but generic positive STOP receipt absent; incomplete contract, superseded"
+  },
+  "intermediate_attempt3": {
+    "receipt_sha256": "7463239e085ba883f19197e0a503b45d4c51c0f7378115f7f32f3736ab03b8ff",
+    "scope": "Positive receipt candidate; superseded by final cleanup/finally hardening"
+  },
+  "test_supervisor_cleanup_hardening": {
+    "previous_final_receipt_sha256": "18b14cf039896ae9fc4f3a1266cff86c0f07ba5e87dae30a61852bfa9cde8955",
+    "final_fixture_sha256": "dc46063863bbf324e4afd73e4ea311e6fa0d79047712013132bba274b4afb217",
+    "reason": "Never signal a possibly recycled group after leader reaped; final actual native rerun passed."
+  },
+  "runtime_prerequisite": "Conda had rclpy but no workflow interfaces; generated ONLY workflow interfaces in isolated temporary prefix. Pinned CPU env lacked notebook packages, so documented notebook gate ran in private no-ROS notebook runtime.",
+  "deprecation_warnings": "ROS_LOCALHOST_ONLY honored with deprecation notice; simultaneous fixture clients share node name and produced a rosout duplicate-name warning in the direct external-control script. No failures/skips were hidden."
+}

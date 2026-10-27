@@ -1,0 +1,10 @@
+{
+  "case": "cancel child exits7 without STOP acknowledgement",
+  "source_sha256": "cc882c7461bd3fbabd06197a8134119ccfca4ae8db7afde64e3ee1e97ee243fa",
+  "hardware": false,
+  "DDS": false,
+  "error_type": "InterruptedError",
+  "error": "ROS bridge cancelled",
+  "child_exit": 7,
+  "stop_unverified_reported": false
+}

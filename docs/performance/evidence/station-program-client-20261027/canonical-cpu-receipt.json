@@ -1,0 +1,32 @@
+{
+  "passed": 4527,
+  "skipped": 133,
+  "subtests_passed": 48,
+  "seconds": 248.35,
+  "terminal": "4527 passed, 133 skipped, 48 subtests passed in 248.35s (0:04:08)",
+  "raw_log_path": "/tmp/station-wrapper-canonical-final-20261027.log",
+  "raw_log_sha256": "ba7d96eaeb9b084f1fdf4aadf0308b042bdb689010ed127e53338e004d37302f",
+  "raw_junit_path": "/tmp/station-wrapper-canonical-final-20261027.xml",
+  "raw_junit_sha256": "53e6ea34cc5e37ef3880ffda443fe292ccf7a118d9226aa34b6eebce9eddc738",
+  "preflight": {
+    "packages_discoverable": {
+      "rclpy": false,
+      "torch": false,
+      "slangpy": false,
+      "pyrealsense2": false,
+      "scservo_sdk": false,
+      "lerobot": false,
+      "ev3dev2": false
+    },
+    "environment": {
+      "ROS_DOMAIN_ID": "177",
+      "ROS_LOCALHOST_ONLY": "1",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1"
+    },
+    "python": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+    "executable": "/tmp/workshop-test-pinned313-20261027/bin/python"
+  },
+  "skips_not_passes": true
+}

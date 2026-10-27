@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/conda/so101-conda.sh",
+    "run",
+    "colcon",
+    "--log-base",
+    "/tmp/station-client-native177-20261027/log",
+    "build",
+    "--base-paths",
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/src/so101_station_workflow",
+    "--build-base",
+    "/tmp/station-client-native177-20261027/build",
+    "--install-base",
+    "/tmp/station-client-native177-20261027/install",
+    "--cmake-args",
+    "-DBUILD_TESTING=OFF"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "reaped": true,
+  "signals": [],
+  "elapsed_seconds": 5.918181168999581,
+  "log_sha256": "1b7fb0124fd9cdcd37cea0671922c8ba77fea71865f539ecdf588f68d8eed553"
+}

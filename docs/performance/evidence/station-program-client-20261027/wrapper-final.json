@@ -1,0 +1,33 @@
+{
+  "command": [
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/conda/so101-conda.sh",
+    "run",
+    "bash",
+    "--noprofile",
+    "--norc",
+    "-c",
+    "source \"$1/local_setup.bash\";exec python \"$2\" --wrapper-overlay \"$1\"",
+    "isolated-wrapper",
+    "/tmp/station-client-native177-20261027/install",
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/blockly_client_native.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "reaped": true,
+  "signals": [],
+  "elapsed_seconds": 6.085254371999326,
+  "test_source_sha256": "dc46063863bbf324e4afd73e4ea311e6fa0d79047712013132bba274b4afb217",
+  "log_sha256": "e7ad2b043e6efbaf1dff1c8ae1420a73533834c9345520aec31d46f3e018dd63",
+  "source_before": {
+    "workshop/blockly_client.py": "60992721dcd0c4d5bb70f944870b435cb1f96e2fca01d0c8b94877de9324dfdb",
+    "tools/run_station_program.py": "4a825c2b4555e5c4fe432c2749d6a23a6e4365ff75ebe9d70f841519281568c5",
+    "tests/blockly_client_native.py": "dc46063863bbf324e4afd73e4ea311e6fa0d79047712013132bba274b4afb217",
+    "tests/test_blockly_client.py": "af889082e229752b2a42ecb7e39af448f2448a7b5d54c712238f28eda93274f7"
+  },
+  "source_after": {
+    "workshop/blockly_client.py": "60992721dcd0c4d5bb70f944870b435cb1f96e2fca01d0c8b94877de9324dfdb",
+    "tools/run_station_program.py": "4a825c2b4555e5c4fe432c2749d6a23a6e4365ff75ebe9d70f841519281568c5",
+    "tests/blockly_client_native.py": "dc46063863bbf324e4afd73e4ea311e6fa0d79047712013132bba274b4afb217",
+    "tests/test_blockly_client.py": "af889082e229752b2a42ecb7e39af448f2448a7b5d54c712238f28eda93274f7"
+  }
+}

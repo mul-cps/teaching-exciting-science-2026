@@ -1,0 +1,161 @@
+{
+  "scope": "Dated readout and selected receipts only; excludes itself and mutable general guides",
+  "source_commit": "a16aa86c48f3af72b5459353a48d110ded3537c7",
+  "files": [
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/archival-regression-proof.json",
+      "bytes": 1066,
+      "sha256": "2f365530f1237a8c81e574d288e251d77efbb834913884f17425574351589479"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/blockly_client_native.json",
+      "bytes": 661,
+      "sha256": "da147322d7b6d01b5535883b197460470c79a128071677ac09e1d0cbffe5f4bb"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/blockly_external_control_native.json",
+      "bytes": 673,
+      "sha256": "5c3c1b01211ee669245dee7f8ffea94ec922f8e26b4855fa0cae2e248028f178"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/canonical-cpu-receipt.json",
+      "bytes": 1115,
+      "sha256": "7f1ed918f11b78fb42536d33a74f6bdb33c999fae241a64c13458c00854c29d5"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/final-proof.json",
+      "bytes": 7207,
+      "sha256": "47426d38e391320e8850d29b777a9147693588f8884e15b9c35c47991cde261d"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/focused-final-cpu.log",
+      "bytes": 180,
+      "sha256": "6c42ced8f0e3e8d5731ee97e217e327ed3bddcc3086fa975813b70915c8f089f"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/generated-materials-proof.json",
+      "bytes": 900,
+      "sha256": "8ad8ae1ad1052c56429ec479f43181b98ecda0d2836fcb7ad1f13db09402bfac"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/history.json",
+      "bytes": 1803,
+      "sha256": "8fbfc8d2dfc61844b6467b0c02af152f135a51a28730130225f485e3427ee849"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/independent-ambiguous-cancel-red.json",
+      "bytes": 316,
+      "sha256": "c60a6a51072ee44e46645092d0fd761d89e60628007f86ecae30c4c69d58cec3"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/independent-forked-descendant-green.json",
+      "bytes": 396,
+      "sha256": "dbdfd082a593c27738bfb9943d30a0dcf81a41b0c33b6b085334661a2fe1780f"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/independent-review-proof.json",
+      "bytes": 6000,
+      "sha256": "35a7a43db1b0542e80c6c26aca65a1c9449738ae6514bb78a9178866a091eaf9"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/independent-setup-failure-green.json",
+      "bytes": 355,
+      "sha256": "84f36b6577bec40d9d475af009456e35167d584747a1bd63da3714fa05b289e7"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/independent-setup-failure-red.json",
+      "bytes": 329,
+      "sha256": "9ad629923ff4ab9f278fb046e4f1dc26401cb4b901c09229b77f37a909dfb231"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/interface-build.json",
+      "bytes": 783,
+      "sha256": "23507fae2986f2fa99bfc6e5326076a055628376fc31aff8cda5b19378dcb1dd"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/materials-build.json",
+      "bytes": 12628,
+      "sha256": "572bc76dc59e86a8a6547a77e98a2561975c10f79c4e92890d1ec70a507e2b4f"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/materials-bundle-only.log",
+      "bytes": 131,
+      "sha256": "facc8d2445ff2026f20a212fe5c9666cebdb5d289febb08e4bd2447cbb0a6baf"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/materials-check.log",
+      "bytes": 109,
+      "sha256": "ed6c3caaec5e6cbdcf97db09a8550fa8ae2533c6b0714aa62ba16ec96cdfb90e"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/native-runtime.json",
+      "bytes": 3178,
+      "sha256": "afb42f88024e4396d3b4d4e795b007c1cd4b531c0a53cd1d6e1b2c15b5705596"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/notebook-proof.json",
+      "bytes": 1912,
+      "sha256": "f14ebcea8418b34e4eaeca2648aee7805dd5da2e807adf34b11cfc9b13d457e5"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/notebooks-check.log",
+      "bytes": 65,
+      "sha256": "b6e1604ca68912451f8b56944f0f59b25db373de866e14de00e2948b15b79800"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/private-archive-inventory.json",
+      "bytes": 10859,
+      "sha256": "3c981661ff465f76ec60893a58283dbe5451318eabf3b91c6baa21c04cd7fa79"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/publication-selfcheck.json",
+      "bytes": 679,
+      "sha256": "200b8cfab742825d64ed97db1f7e2169f76c3e13fcfe5dc30961431f3a0c7134"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/publication-selfcheck.py",
+      "bytes": 4689,
+      "sha256": "1a2d036e06f7727daf38e319fe9faa45391dd0d1d74364b428707280b05d5bbc"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/run.py",
+      "bytes": 4018,
+      "sha256": "a579603c6bbde7b1abd6c42d998947143eb18d3c4054503d59ffdeddb9532d4f"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/run_wrapper_final.py",
+      "bytes": 1866,
+      "sha256": "7f17bf98e642298e5f2cbea620de973c197585904e464c992e98000fe6b3bb18"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/source-pins.json",
+      "bytes": 1138,
+      "sha256": "7646415a9e75c9ec788aa13305a41e6bfb86493993bdec1a285c7f3c835116dd"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/wrapper-attempt1.json",
+      "bytes": 780,
+      "sha256": "0cba7bef776549ed632db4ad6bd1c53155d533271871eabc03cd41a343b15023"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/wrapper-final.json",
+      "bytes": 1660,
+      "sha256": "2a138a51341fe7e133fa4157295a1f54d79d86e54c21bcee5d37c1ad34ecfc89"
+    },
+    {
+      "path": "docs/performance/evidence/station-program-client-20261027/wrapper-host-cost.json",
+      "bytes": 14740,
+      "sha256": "466147462d71e33b753f4ff44ab570d051eb8b97f67401e3d884bc489b10a184"
+    },
+    {
+      "path": "docs/station-program-client-checkpoint-20261027.json",
+      "bytes": 13846,
+      "sha256": "ae327dc2b1f1bdad3b67f9182e30295b0200a1cbc349afa28666e085f7539f55"
+    },
+    {
+      "path": "docs/station-program-client-checkpoint-20261027.md",
+      "bytes": 4933,
+      "sha256": "4135eaa769634c8c360c2b9f123966c9a4acfc7e7cda332e0fa7aeff206a8c9e"
+    }
+  ]
+}

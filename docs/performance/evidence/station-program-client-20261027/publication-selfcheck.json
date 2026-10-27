@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "source_commit": "a16aa86c48f3af72b5459353a48d110ded3537c7",
+  "immutable_source_and_generated_blobs_verified": 11,
+  "materials_hashes_verified": 116,
+  "canonical_cpu_passed": 4527,
+  "canonical_skips_not_passes": 133,
+  "canonical_subtests_passed": 48,
+  "native_direct_scripts_passed": 2,
+  "native_wrapper_modes_passed": 4,
+  "independent_host_trials": 43,
+  "canonical_notebook_cells": 25,
+  "private_archive_members_verified": 64,
+  "private_archive_sha256": "566ad49ae6bc440e5d45db7a587d2a710f1ccdd855cf737fb6913d1478d07231",
+  "historical_payloads_from_committed_Git_only": true,
+  "frozen_readout_inventory_verified": true,
+  "qualified": false
+}

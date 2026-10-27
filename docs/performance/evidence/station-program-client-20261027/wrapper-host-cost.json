@@ -1,0 +1,470 @@
+{
+  "scope": "Actual production wrapper with real Python subprocesses and synthetic CLI receipts; NO DDS/ROS/Conda/hardware/physical STOP claim",
+  "source_sha256": "60992721dcd0c4d5bb70f944870b435cb1f96e2fca01d0c8b94877de9324dfdb",
+  "python": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+  "static_guards_pass": true,
+  "static_mutants_rejected": [
+    "shared_group",
+    "early_reaping",
+    "leader_only_signal",
+    "insufficient_stop_grace"
+  ],
+  "summary": {
+    "normal": {
+      "n": 30,
+      "median_wall_ms": 18.739729001026717,
+      "max_wall_ms": 20.21674199932022,
+      "mean_self_CPU_ms": 0.6938000000000012,
+      "mean_child_CPU_ms": 17.98693333333333,
+      "median_trigger_to_return_ms": null
+    },
+    "cancel_verified": {
+      "n": 10,
+      "median_wall_ms": 105.93586349932593,
+      "max_wall_ms": 106.38015099902987,
+      "mean_self_CPU_ms": 1.5104999999999993,
+      "mean_child_CPU_ms": 20.211900000000018,
+      "median_trigger_to_return_ms": 88.50911800072936
+    },
+    "cancel_missing": {
+      "n": 3,
+      "median_wall_ms": 102.18272099882597,
+      "max_wall_ms": 102.42654199828394,
+      "mean_self_CPU_ms": 1.2876666666666672,
+      "mean_child_CPU_ms": 17.018333333333274,
+      "median_trigger_to_return_ms": 85.46991199909826
+    }
+  },
+  "trials": [
+    {
+      "mode": "normal",
+      "wall_s": 0.019289635001769057,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.000889999999999988,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.01333899999999999,
+      "child_sys_s": 0.0051199999999999996,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.01892290500109084,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0007800000000000029,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.012850000000000028,
+      "child_sys_s": 0.005304000000000003,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.01869913200062001,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0005539999999999989,
+      "self_sys_s": 0.00010299999999999893,
+      "child_user_s": 0.01701999999999998,
+      "child_sys_s": 0.0010060000000000069,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.0179997449995426,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0006010000000000043,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.015075000000000005,
+      "child_sys_s": 0.0023190000000000016,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.019731017997401068,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0006320000000000076,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.016069,
+      "child_sys_s": 0.003018999999999994,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.020163691999186995,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0007820000000000049,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.016125,
+      "child_sys_s": 0.0032269999999999938,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.018369230998359853,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0007000000000000062,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.014734999999999998,
+      "child_sys_s": 0.002947000000000005,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.01804850699772942,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0,
+      "self_sys_s": 0.0006640000000000014,
+      "child_user_s": 0.015324000000000004,
+      "child_sys_s": 0.002046000000000006,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.01871775800100295,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0006179999999999936,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.015043000000000029,
+      "child_sys_s": 0.003013999999999989,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.017971591998502845,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0005659999999999971,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.014485999999999999,
+      "child_sys_s": 0.002898999999999999,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.019070712998654926,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0005080000000000084,
+      "self_sys_s": 1.2000000000001593e-05,
+      "child_user_s": 0.015414999999999957,
+      "child_sys_s": 0.0030890000000000084,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.017881061998195946,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0,
+      "self_sys_s": 0.0006380000000000031,
+      "child_user_s": 0.014394000000000018,
+      "child_sys_s": 0.0028799999999999937,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.02021674199932022,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0008129999999999943,
+      "self_sys_s": 0.00018800000000000067,
+      "child_user_s": 0.014973999999999932,
+      "child_sys_s": 0.004291000000000003,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.01963100799912354,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0008510000000000045,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.012858000000000036,
+      "child_sys_s": 0.005929999999999991,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.019252605001383927,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0008220000000000033,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.015356000000000036,
+      "child_sys_s": 0.0030779999999999974,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.018705354999838164,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0007429999999999937,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.01695599999999997,
+      "child_sys_s": 0.0009870000000000156,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.01999199900092208,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0,
+      "self_sys_s": 0.0005729999999999971,
+      "child_user_s": 0.017345000000000055,
+      "child_sys_s": 0.0020379999999999843,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.019938498000556137,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0007329999999999975,
+      "self_sys_s": 0.0001879999999999972,
+      "child_user_s": 0.01700999999999997,
+      "child_sys_s": 0.0020060000000000078,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.018761700001050485,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0006010000000000043,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.01308699999999996,
+      "child_sys_s": 0.005028000000000005,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.019138600000587758,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0007709999999999939,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.016145999999999994,
+      "child_sys_s": 0.00214700000000001,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.01898442099991371,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0008650000000000047,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.01426000000000005,
+      "child_sys_s": 0.00408,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.0174550880001334,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.000908000000000006,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.013633000000000006,
+      "child_sys_s": 0.002927999999999986,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.016724922999856062,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0004950000000000093,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.012368999999999963,
+      "child_sys_s": 0.003818999999999989,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.019197262001398485,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0006540000000000018,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.014669000000000043,
+      "child_sys_s": 0.003909000000000024,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.017737129997840384,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0010060000000000069,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.01380899999999996,
+      "child_sys_s": 0.0029449999999999754,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.01834231100292527,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.000687000000000007,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.01437900000000003,
+      "child_sys_s": 0.003078000000000025,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.019049001999519533,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0004699999999999982,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.01641300000000001,
+      "child_sys_s": 0.0020499999999999963,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.017790540001442423,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.00044099999999999695,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.016304999999999903,
+      "child_sys_s": 0.0010199999999999931,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.01800144799926784,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0004030000000000006,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.014626000000000028,
+      "child_sys_s": 0.002928999999999987,
+      "outcome": "complete"
+    },
+    {
+      "mode": "normal",
+      "wall_s": 0.016955918003077386,
+      "trigger_to_return_s": null,
+      "self_user_s": 0.0005539999999999989,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.01156999999999997,
+      "child_sys_s": 0.004835000000000006,
+      "outcome": "complete"
+    },
+    {
+      "mode": "cancel_verified",
+      "wall_s": 0.10533991999909631,
+      "trigger_to_return_s": 0.08948970599885797,
+      "self_user_s": 0.0004320000000000018,
+      "self_sys_s": 0.0009160000000000001,
+      "child_user_s": 0.014471000000000012,
+      "child_sys_s": 0.0038660000000000083,
+      "outcome": "verified fixture cancellation"
+    },
+    {
+      "mode": "cancel_verified",
+      "wall_s": 0.1055155210015073,
+      "trigger_to_return_s": 0.08815869699901668,
+      "self_user_s": 0.0014139999999999986,
+      "self_sys_s": 0.00010500000000000093,
+      "child_user_s": 0.012817999999999996,
+      "child_sys_s": 0.0069049999999999945,
+      "outcome": "verified fixture cancellation"
+    },
+    {
+      "mode": "cancel_verified",
+      "wall_s": 0.1053809379991435,
+      "trigger_to_return_s": 0.08833386799960863,
+      "self_user_s": 0.0012660000000000032,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.018830000000000013,
+      "child_sys_s": 0.0009850000000000136,
+      "outcome": "verified fixture cancellation"
+    },
+    {
+      "mode": "cancel_verified",
+      "wall_s": 0.10631253300016397,
+      "trigger_to_return_s": 0.08881136800118838,
+      "self_user_s": 0.0008610000000000007,
+      "self_sys_s": 0.0006320000000000006,
+      "child_user_s": 0.01810400000000001,
+      "child_sys_s": 0.003013999999999989,
+      "outcome": "verified fixture cancellation"
+    },
+    {
+      "mode": "cancel_verified",
+      "wall_s": 0.10539960299865925,
+      "trigger_to_return_s": 0.08821370100122294,
+      "self_user_s": 0.0011960000000000026,
+      "self_sys_s": 0.00010600000000000193,
+      "child_user_s": 0.01592899999999997,
+      "child_sys_s": 0.004011999999999988,
+      "outcome": "verified fixture cancellation"
+    },
+    {
+      "mode": "cancel_verified",
+      "wall_s": 0.10638015099902987,
+      "trigger_to_return_s": 0.08875421000266215,
+      "self_user_s": 0.001671999999999993,
+      "self_sys_s": 0.00016299999999999995,
+      "child_user_s": 0.01697800000000005,
+      "child_sys_s": 0.0037719999999999976,
+      "outcome": "verified fixture cancellation"
+    },
+    {
+      "mode": "cancel_verified",
+      "wall_s": 0.10586360700108344,
+      "trigger_to_return_s": 0.08845337300226674,
+      "self_user_s": 0.0012950000000000045,
+      "self_sys_s": 7.500000000000215e-05,
+      "child_user_s": 0.015492999999999979,
+      "child_sys_s": 0.004832000000000003,
+      "outcome": "verified fixture cancellation"
+    },
+    {
+      "mode": "cancel_verified",
+      "wall_s": 0.10609841000041342,
+      "trigger_to_return_s": 0.08881050600029994,
+      "self_user_s": 0.0013760000000000022,
+      "self_sys_s": 8.79999999999978e-05,
+      "child_user_s": 0.01690500000000006,
+      "child_sys_s": 0.003990000000000021,
+      "outcome": "verified fixture cancellation"
+    },
+    {
+      "mode": "cancel_verified",
+      "wall_s": 0.10601393099932466,
+      "trigger_to_return_s": 0.08856486299919197,
+      "self_user_s": 0.001685999999999993,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.01833399999999996,
+      "child_sys_s": 0.0019329999999999903,
+      "outcome": "verified fixture cancellation"
+    },
+    {
+      "mode": "cancel_verified",
+      "wall_s": 0.10600811999756843,
+      "trigger_to_return_s": 0.08842298600211507,
+      "self_user_s": 0.0018219999999999903,
+      "self_sys_s": 0.0,
+      "child_user_s": 0.013977000000000128,
+      "child_sys_s": 0.006971000000000005,
+      "outcome": "verified fixture cancellation"
+    },
+    {
+      "mode": "cancel_missing",
+      "wall_s": 0.10218272099882597,
+      "trigger_to_return_s": 0.08378071900006034,
+      "self_user_s": 0.0006649999999999989,
+      "self_sys_s": 0.0005810000000000017,
+      "child_user_s": 0.014178999999999942,
+      "child_sys_s": 0.004057000000000005,
+      "outcome": "missing receipt rejected"
+    },
+    {
+      "mode": "cancel_missing",
+      "wall_s": 0.10199077099969145,
+      "trigger_to_return_s": 0.08546991199909826,
+      "self_user_s": 0.0003599999999999992,
+      "self_sys_s": 0.000841999999999999,
+      "child_user_s": 0.011233999999999966,
+      "child_sys_s": 0.005103999999999997,
+      "outcome": "missing receipt rejected"
+    },
+    {
+      "mode": "cancel_missing",
+      "wall_s": 0.10242654199828394,
+      "trigger_to_return_s": 0.08594215099947178,
+      "self_user_s": 0.0006130000000000024,
+      "self_sys_s": 0.0008020000000000006,
+      "child_user_s": 0.012610999999999928,
+      "child_sys_s": 0.0038699999999999846,
+      "outcome": "missing receipt rejected"
+    }
+  ]
+}

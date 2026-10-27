@@ -1,0 +1,12 @@
+{
+  "case": "post-Popen register failure",
+  "source_sha256": "60992721dcd0c4d5bb70f944870b435cb1f96e2fca01d0c8b94877de9324dfdb",
+  "DDS": false,
+  "hardware": false,
+  "error": "injected post-Popen register failure",
+  "child_spawned": true,
+  "child_reaped": true,
+  "child_returncode": -9,
+  "all_three_pipes_closed": true,
+  "selector_closed": true
+}

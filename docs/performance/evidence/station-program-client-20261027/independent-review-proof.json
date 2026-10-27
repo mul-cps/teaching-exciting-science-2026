@@ -1,0 +1,149 @@
+{
+  "verdict": "APPROVED scoped wrapper cancellation/process-ownership/resource gate",
+  "root": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022",
+  "branch": "feat/beginner-vulkan-20261022",
+  "HEAD": "32677e9d57bc61c4ecf9bc190a1f4b3c4c576195",
+  "source_pins": {
+    "workshop/blockly_client.py": "60992721dcd0c4d5bb70f944870b435cb1f96e2fca01d0c8b94877de9324dfdb",
+    "tools/run_station_program.py": "4a825c2b4555e5c4fe432c2749d6a23a6e4365ff75ebe9d70f841519281568c5",
+    "tests/blockly_client_native.py": "dc46063863bbf324e4afd73e4ea311e6fa0d79047712013132bba274b4afb217",
+    "tests/test_blockly_client.py": "af889082e229752b2a42ecb7e39af448f2448a7b5d54c712238f28eda93274f7"
+  },
+  "independent_focused_tests": {
+    "command": "/tmp/workshop-test-pinned313-20261027/bin/python -m pytest -q tests/test_blockly_python_client.py tests/test_blockly_client.py",
+    "exit": 0,
+    "observed_stdout": "35 passed in 20.41s"
+  },
+  "native_fixture": {
+    "receipt": "/tmp/station-client-native177-20261027/wrapper-final.json",
+    "receipt_sha256": "2a138a51341fe7e133fa4157295a1f54d79d86e54c21bcee5d37c1ad34ecfc89",
+    "log_sha256": "e7ad2b043e6efbaf1dff1c8ae1420a73533834c9345520aec31d46f3e018dd63",
+    "independently_verified_source_hashes_before_after": true,
+    "wall_s": 6.085254371999326,
+    "new_cancel_job": "a9318ea58d384828",
+    "process_metrics": [
+      {
+        "mode": "run",
+        "outer_pid": 1453671,
+        "exit": 0,
+        "outer_no_ros": true,
+        "group_empty_after_reap": true,
+        "wall_seconds": 1.2329507849972288,
+        "self_CPU_seconds": 0.041308,
+        "reaped_children_CPU_seconds": 0.810121,
+        "cancel_trigger_to_reap_seconds": null
+      },
+      {
+        "mode": "export",
+        "outer_pid": 1453717,
+        "exit": 0,
+        "outer_no_ros": true,
+        "group_empty_after_reap": true,
+        "wall_seconds": 1.2741811110026902,
+        "self_CPU_seconds": 0.040091,
+        "reaped_children_CPU_seconds": 0.843645,
+        "cancel_trigger_to_reap_seconds": null
+      },
+      {
+        "mode": "cancel",
+        "outer_pid": 1453818,
+        "exit": 0,
+        "outer_no_ros": true,
+        "group_empty_after_reap": true,
+        "wall_seconds": 1.1643040019989712,
+        "self_CPU_seconds": 0.061504999999999976,
+        "reaped_children_CPU_seconds": 0.827418,
+        "cancel_trigger_to_reap_seconds": 0.3756942500003788
+      },
+      {
+        "mode": "mismatch",
+        "outer_pid": 1453859,
+        "exit": 0,
+        "outer_no_ros": true,
+        "group_empty_after_reap": true,
+        "wall_seconds": 1.0305774549997295,
+        "self_CPU_seconds": 0.03750400000000001,
+        "reaped_children_CPU_seconds": 0.8048859999999998,
+        "cancel_trigger_to_reap_seconds": null
+      }
+    ],
+    "simulation_only": true,
+    "test_assertions_preserve_existing_terminal_failed_program_cancelled_semantics": true
+  },
+  "independent_actual_process_proofs": {
+    "post_spawn_setup_failure_green": {
+      "case": "post-Popen register failure",
+      "source_sha256": "60992721dcd0c4d5bb70f944870b435cb1f96e2fca01d0c8b94877de9324dfdb",
+      "DDS": false,
+      "hardware": false,
+      "error": "injected post-Popen register failure",
+      "child_spawned": true,
+      "child_reaped": true,
+      "child_returncode": -9,
+      "all_three_pipes_closed": true,
+      "selector_closed": true
+    },
+    "forked_descendant_green": {
+      "case": "normal leader exit plus live owned descendant with closed pipes",
+      "hardware": false,
+      "DDS": false,
+      "source_sha256": "60992721dcd0c4d5bb70f944870b435cb1f96e2fca01d0c8b94877de9324dfdb",
+      "leader": 1449459,
+      "descendant": 1449460,
+      "group": 1449459,
+      "descendant_SIGKILL": true,
+      "descendant_reaped": true,
+      "elapsed_s": 0.020911551000608597,
+      "owned_group_absent": true
+    },
+    "native_supervisor_guard": {
+      "case": "native fixture supervisor may signal only while poll observes owned leader still running",
+      "old_sha256": "c42e1bb38ed88e13a6123a8b15016bd66ff77a9acb5b7f2f3a9b2d4d3bdc064c",
+      "current_sha256": "dc46063863bbf324e4afd73e4ea311e6fa0d79047712013132bba274b4afb217",
+      "old_rejected": true,
+      "current_pass": true,
+      "hardware": false,
+      "DDS": false
+    }
+  },
+  "host_microbenchmark_summary": {
+    "normal": {
+      "n": 30,
+      "median_wall_ms": 18.739729001026717,
+      "max_wall_ms": 20.21674199932022,
+      "mean_self_CPU_ms": 0.6938000000000012,
+      "mean_child_CPU_ms": 17.98693333333333,
+      "median_trigger_to_return_ms": null
+    },
+    "cancel_verified": {
+      "n": 10,
+      "median_wall_ms": 105.93586349932593,
+      "max_wall_ms": 106.38015099902987,
+      "mean_self_CPU_ms": 1.5104999999999993,
+      "mean_child_CPU_ms": 20.211900000000018,
+      "median_trigger_to_return_ms": 88.50911800072936
+    },
+    "cancel_missing": {
+      "n": 3,
+      "median_wall_ms": 102.18272099882597,
+      "max_wall_ms": 102.42654199828394,
+      "mean_self_CPU_ms": 1.2876666666666672,
+      "mean_child_CPU_ms": 17.018333333333274,
+      "median_trigger_to_return_ms": 85.46991199909826
+    }
+  },
+  "static_mutants_rejected": [
+    "shared_group",
+    "early_reaping",
+    "leader_only_signal",
+    "insufficient_stop_grace"
+  ],
+  "resource_review": {
+    "wait_policy": "Nonblocking three-pipe selector at <=100ms cadence; no per-action or per-frame polling/processing added",
+    "allocation_policy": "Per-invocation selector/input view/output chunks; not zero-allocation; inherited stdout/stderr buffering remains",
+    "process_policy": "Owned new session; WNOWAIT leader pin through final group signal; 17s STOP grace plus bounded TERM/KILL/reap; strict positive receipt required",
+    "physical_scope": "Native API fixture is synthetic domain177. No hardware physical STOP, services, resident owner, GPU or full-station qualification inferred"
+  },
+  "diff_check": "PASS",
+  "graft_tokens_saved_this_turn": 4912
+}

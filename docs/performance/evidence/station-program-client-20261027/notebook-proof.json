@@ -1,0 +1,41 @@
+{
+  "command": "env PATH=/tmp/station-client-native177-20261027/notebook-runtime/bin:$PATH PYTHONNOUSERSITE=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 /tmp/station-client-native177-20261027/notebook-runtime/bin/python tools/verify_notebooks.py --output /tmp/station-client-native177-20261027/notebook-verification",
+  "runtime": {
+    "python": "/tmp/station-client-native177-20261027/notebook-runtime/bin/python",
+    "version": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+    "rclpy_discoverable": false,
+    "versions": {
+      "ipykernel": "7.4.0",
+      "nbclient": "0.10.4",
+      "nbformat": "5.10.4",
+      "nbconvert": "7.17.1",
+      "matplotlib": "3.10.8",
+      "Pillow": "12.2.0"
+    }
+  },
+  "gate_source_sha256": "ce63397aa06c14f359b454cf17b33ff7c53d149aa1547daf2e6c721ddd02c9ab",
+  "notebooks": {
+    "Robot_Candy_Factory_Instructor.ipynb": {
+      "source_sha256": "4d3753ee294f407dc689697e788c9a279bd382ea2d4ab646ef1b9efc242ee2b8",
+      "code_cells": 9,
+      "executed_sha256": "2fa61bace326e84b6dc1fad110ac63a5d7d45bae845e832090d76692ba4a6b87"
+    },
+    "Robot_Candy_Factory_Live_SO101.ipynb": {
+      "source_sha256": "089dd00357ff20014520fd22ff36625793bc7008d483a73ac0bc3de9f9cc6b98",
+      "code_cells": 7,
+      "executed_sha256": "aa84d19c0c00c906a511fa44f7f99805af74a5dd89ca078da585b6be1e910d8e"
+    },
+    "Robot_Candy_Factory_Student.ipynb": {
+      "source_sha256": "12aab7ce1039f5bb6a71d727e39b0768cf0119cba510df18e7f9157810b9b78e",
+      "code_cells": 9,
+      "executed_sha256": "640d7f9f2e003b1b514b10edda850a2ff1d265ad36b497dda9fa55ec66e42755"
+    }
+  },
+  "canonical_code_cells_executed": 25,
+  "fresh_kernel_all_three": true,
+  "live_unavailable_no_DEMO_fallback": true,
+  "routing_variants_passed": true,
+  "log_sha256": "64d0be8e1a151e8d2b59197e77f788ec7d2c7a4be8500b17624d2f3e542468f1",
+  "hardware": false,
+  "ROS_started": false
+}

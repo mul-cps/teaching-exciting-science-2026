@@ -1,0 +1,31 @@
+{
+  "python": "3.12.15 (main, Oct 13 2026, 16:52:04) [GCC 15.3.0]",
+  "executable": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/python",
+  "versions": {
+    "rclpy": "7.1.12",
+    "colcon-core": "0.21.3",
+    "rosidl-generator-py": "0.22.2"
+  },
+  "rclpy_file": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/.cache/rclpy-publisher-gid-7.1.12/install/lib/python3.12/site-packages/rclpy/__init__.py",
+  "rclpy_extension": "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/.cache/rclpy-publisher-gid-7.1.12/install/lib/python3.12/site-packages/rclpy/_rclpy_pybind11.cpython-312-x86_64-linux-gnu.so",
+  "station_command_file": "/tmp/station-client-native177-20261027/install/so101_station_workflow/lib/python3.12/site-packages/so101_station_workflow/srv/_station_command.py",
+  "station_command_sha256": "c141f9bafdd1ca252c2fb486bbd9579459726d2b4a9fd0f0bc2df840a82c2667",
+  "request_fields": {
+    "operation": "string",
+    "arguments_json": "string"
+  },
+  "response_fields": {
+    "success": "boolean",
+    "result_json": "string",
+    "message": "string"
+  },
+  "environment": {
+    "ROS_DOMAIN_ID": "177",
+    "ROS_LOCALHOST_ONLY": "1",
+    "ROS_AUTOMATIC_DISCOVERY_RANGE": "LOCALHOST",
+    "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp_so101_gid",
+    "AMENT_PREFIX_PATH": "/tmp/station-client-native177-20261027/install/so101_station_workflow:/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/.cache/rmw-cyclonedds-gid-2.2.4/install:/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/.cache/rmw-cyclonedds-gid-2.2.4/install:/home/bjoern/miniforge3/envs/so101-jazzy",
+    "PYTHONPATH": "/tmp/station-client-native177-20261027/install/so101_station_workflow/lib/python3.12/site-packages:/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/.cache/rclpy-publisher-gid-7.1.12/install/lib/python3.12/site-packages:/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/.cache/rclpy-publisher-gid-7.1.12/install/lib/python3.12/site-packages:/home/bjoern/miniforge3/envs/so101-jazzy/opt/sdformat_vendor/lib/python:/home/bjoern/miniforge3/envs/so101-jazzy/lib/python/site-packages:/home/bjoern/miniforge3/envs/so101-jazzy/opt/gz_math_vendor/lib/python:/home/bjoern/miniforge3/envs/so101-jazzy/lib/python3.12/site-packages:/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/.cache/rclpy-publisher-gid-7.1.12/install/lib/python3.12/site-packages",
+    "LD_LIBRARY_PATH": "/tmp/station-client-native177-20261027/install/so101_station_workflow/lib:/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/.cache/rmw-cyclonedds-gid-2.2.4/install/lib:/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/.cache/rmw-cyclonedds-gid-2.2.4/install/lib:/home/bjoern/miniforge3/envs/so101-jazzy/opt/rviz_ogre_vendor/lib:/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/.cache/rmw-cyclonedds-gid-2.2.4/install/lib"
+  }
+}

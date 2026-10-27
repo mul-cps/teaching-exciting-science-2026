@@ -1,0 +1,26 @@
+{
+  "source_before": {
+    "ZIP": "71dcd43fd02589c17afdb922e951928a62f7d9249f6654e6650454f3256c85f7",
+    "materials_receipt": "b63f4c9576bf4b1c8ea173cf3b88adf195ef67a7a1b92eb29d03597c2fb463ce"
+  },
+  "source_after": {
+    "ZIP": "ef23db5a978d139efbf82ffccf28624ad7cf87e3a76660437201d947759d7293",
+    "materials_receipt": "572bc76dc59e86a8a6547a77e98a2561975c10f79c4e92890d1ec70a507e2b4f"
+  },
+  "ZIP_members_unchanged": true,
+  "ZIP_entries_changed": [
+    "workshop/blockly_client.py"
+  ],
+  "materials_receipt_entries_changed": [
+    "docs/student-workshop.zip",
+    "workshop/blockly_client.py"
+  ],
+  "receipt_entries_verified": 116,
+  "private_or_hardware_code_added": false,
+  "pinned_runtime": "/tmp/workshop-test-pinned313-20261027/bin/python",
+  "checks": [
+    "tools/build_materials.py --bundle-only",
+    "tools/build_materials.py --check",
+    "tools/build_notebooks.py --check"
+  ]
+}

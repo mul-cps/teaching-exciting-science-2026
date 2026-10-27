@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "checker_sha256": "1a2d036e06f7727daf38e319fe9faa45391dd0d1d74364b428707280b05d5bbc",
+  "context": "Private shared-object no-checkout clone; shared production files never modified",
+  "later_mutable_live_files": {
+    "workshop/blockly_client.py": "# unrelated later live source\n",
+    "docs/materials-build.json": "{}\n",
+    "docs/student-workshop.zip": "later unrelated ZIP bytes",
+    "notebooks/Robot_Candy_Factory_Student.ipynb": "invalid later live notebook"
+  },
+  "later_changes_passed": true,
+  "pinned_evidence_corruption_rejected": true,
+  "coherent_inventory_invalid_Git_binding_rejected": true,
+  "invalid_binding_failure": "Git cat-file missing blob, not inventory mismatch",
+  "logs": {
+    "archival-later-live-files": "200b8cfab742825d64ed97db1f7e2169f76c3e13fcfe5dc30961431f3a0c7134",
+    "archival-corrupt-evidence": "0613fb392dc156a9bf65146cda5b27bbe21ff22d7d27d1a9a0844e7f73e84197",
+    "archival-corrupt-Git-binding": "49ac98655187749d881d69b04a8374a0eb790a06d2f005270d86c43e69edb72d"
+  },
+  "GPU_DDS_hardware": false
+}

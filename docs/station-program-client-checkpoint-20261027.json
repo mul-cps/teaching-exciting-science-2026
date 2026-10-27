@@ -1,0 +1,325 @@
+{
+  "schema": "so101-station-program-client-checkpoint-v1",
+  "date": "2026-10-27",
+  "qualified": false,
+  "source_commit": "a16aa86c48f3af72b5459353a48d110ded3537c7",
+  "source_context_commit": "32677e9d57bc61c4ecf9bc190a1f4b3c4c576195",
+  "source_binding": "All 11 frozen source/generated hashes independently match immutable Git blobs at source_commit; historical run receipts predate this commit but bind identical bytes",
+  "problem": "Actual no-ROS outer client cancellation raised InterruptedError while a new admitted synthetic ROS job completed and executed its forbidden tail. Wrapper Bash PID received SIGINT while the ROS descendant continued.",
+  "result": "Owned wrapper process group receives SIGINT; verified cancellation requires one strict positive child terminal receipt and expected exit1; bounded cleanup retains leader PID through final group signal and reap.",
+  "interface": {
+    "endpoint": "/station/program/command",
+    "schema": "ros2/src/so101_station_workflow/srv/StationCommand.srv",
+    "request_fields": {
+      "operation": "string",
+      "arguments_json": "string"
+    },
+    "response_fields": {
+      "success": "boolean",
+      "result_json": "string",
+      "message": "string"
+    },
+    "ROS_schema_changed": false
+  },
+  "source_pins": {
+    "workshop/blockly_client.py": "60992721dcd0c4d5bb70f944870b435cb1f96e2fca01d0c8b94877de9324dfdb",
+    "tools/run_station_program.py": "4a825c2b4555e5c4fe432c2749d6a23a6e4365ff75ebe9d70f841519281568c5",
+    "tests/blockly_client_native.py": "dc46063863bbf324e4afd73e4ea311e6fa0d79047712013132bba274b4afb217",
+    "tests/test_blockly_client.py": "af889082e229752b2a42ecb7e39af448f2448a7b5d54c712238f28eda93274f7",
+    "docs/student-workshop.zip": "ef23db5a978d139efbf82ffccf28624ad7cf87e3a76660437201d947759d7293",
+    "docs/materials-build.json": "572bc76dc59e86a8a6547a77e98a2561975c10f79c4e92890d1ec70a507e2b4f",
+    "tools/build_materials.py": "1cc3d07acfd9cddce561ee9d5c80881f934658ed73884f14102bfe90c2133043",
+    "tools/build_notebooks.py": "0ce2649a99186b84f0e6de328ac1fd0a115bc4a266f1c62dbaa24bfbe2fea69b",
+    "tools/verify_notebooks.py": "ce63397aa06c14f359b454cf17b33ff7c53d149aa1547daf2e6c721ddd02c9ab",
+    "exercises/make_student_bundle.py": "2ea06573074bda67777bafd0439ffab95259857d13150125a5f561d583e2a431",
+    "ros2/src/so101_station_workflow/srv/StationCommand.srv": "e0e0c3e11008c16fccf6fb47a9e5b5e9c5884156c3d873dc4de52c6cdbfc04ac"
+  },
+  "verification": {
+    "canonical_cpu": {
+      "status": "passed",
+      "passed": 4527,
+      "skipped": 133,
+      "subtests_passed": 48,
+      "seconds": 248.35,
+      "terminal": "4527 passed, 133 skipped, 48 subtests passed in 248.35s (0:04:08)",
+      "raw_log_path": "/tmp/station-wrapper-canonical-final-20261027.log",
+      "raw_log_sha256": "ba7d96eaeb9b084f1fdf4aadf0308b042bdb689010ed127e53338e004d37302f",
+      "raw_junit_path": "/tmp/station-wrapper-canonical-final-20261027.xml",
+      "raw_junit_sha256": "53e6ea34cc5e37ef3880ffda443fe292ccf7a118d9226aa34b6eebce9eddc738",
+      "preflight": {
+        "packages_discoverable": {
+          "rclpy": false,
+          "torch": false,
+          "slangpy": false,
+          "pyrealsense2": false,
+          "scservo_sdk": false,
+          "lerobot": false,
+          "ev3dev2": false
+        },
+        "environment": {
+          "ROS_DOMAIN_ID": "177",
+          "ROS_LOCALHOST_ONLY": "1",
+          "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1"
+        },
+        "python": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+        "executable": "/tmp/workshop-test-pinned313-20261027/bin/python"
+      },
+      "skips_not_passes": true
+    },
+    "focused_cpu": {
+      "passed": 84,
+      "seconds": 21.12,
+      "scope": "Client subprocess/receipt tests plus existing Python client/API/controls"
+    },
+    "independent_focused": {
+      "passed": 35,
+      "seconds": 20.41,
+      "overlaps_focused_84": true
+    },
+    "independent_actual_process_trials": 43,
+    "static_mutants_rejected": [
+      "shared_group",
+      "early_reaping",
+      "leader_only_signal",
+      "insufficient_stop_grace"
+    ],
+    "direct_native_scripts": {
+      "passed": 2,
+      "tests": [
+        "tests/blockly_client_native.py",
+        "tests/blockly_external_control_native.py"
+      ],
+      "domain": 177,
+      "seconds": [
+        1.29037076700115,
+        0.8726922360001481
+      ]
+    },
+    "real_wrapper_native": {
+      "passed": true,
+      "modes": [
+        "run",
+        "export",
+        "cancel",
+        "mismatch"
+      ],
+      "wall_seconds": 6.085254371999326,
+      "no_ROS_outer": "Actual Python -I -S; find_spec(rclpy) is None, not a mocked import failure",
+      "real_Conda_wrapper": true,
+      "real_generated_ROS_interface": true,
+      "domain": 177,
+      "simulation_only": true,
+      "new_cancel_job_and_wait_marker": true,
+      "forbidden_tail_absent": true,
+      "simulation_STOP_verified": true,
+      "terminal_state": "Existing Application failed/program cancelled, not a renamed stopped state",
+      "no_active_job": true,
+      "physical_mode_mismatch_before_mutation": true,
+      "outer_groups_empty_and_ROS_child_PIDs_absent": true
+    },
+    "independent_process_ownership_cases": [
+      "Post-Popen registration failure kills/reaps owned process and closes all three pipes/selector",
+      "Normal leader exit plus a forked descendant with closed pipes: final owned-group SIGKILL and descendant reap/group absence",
+      "Leader remains unreaped through final group signal; no signaling a reaped/recycled group"
+    ],
+    "notebooks": {
+      "command": "env PATH=/tmp/station-client-native177-20261027/notebook-runtime/bin:$PATH PYTHONNOUSERSITE=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 /tmp/station-client-native177-20261027/notebook-runtime/bin/python tools/verify_notebooks.py --output /tmp/station-client-native177-20261027/notebook-verification",
+      "runtime": {
+        "python": "/tmp/station-client-native177-20261027/notebook-runtime/bin/python",
+        "version": "3.13.12 | packaged by conda-forge | (main, Feb  5 2026, 05:53:46) [GCC 14.3.0]",
+        "rclpy_discoverable": false,
+        "versions": {
+          "ipykernel": "7.4.0",
+          "nbclient": "0.10.4",
+          "nbformat": "5.10.4",
+          "nbconvert": "7.17.1",
+          "matplotlib": "3.10.8",
+          "Pillow": "12.2.0"
+        }
+      },
+      "gate_source_sha256": "ce63397aa06c14f359b454cf17b33ff7c53d149aa1547daf2e6c721ddd02c9ab",
+      "notebooks": {
+        "Robot_Candy_Factory_Instructor.ipynb": {
+          "source_sha256": "4d3753ee294f407dc689697e788c9a279bd382ea2d4ab646ef1b9efc242ee2b8",
+          "code_cells": 9,
+          "executed_sha256": "2fa61bace326e84b6dc1fad110ac63a5d7d45bae845e832090d76692ba4a6b87"
+        },
+        "Robot_Candy_Factory_Live_SO101.ipynb": {
+          "source_sha256": "089dd00357ff20014520fd22ff36625793bc7008d483a73ac0bc3de9f9cc6b98",
+          "code_cells": 7,
+          "executed_sha256": "aa84d19c0c00c906a511fa44f7f99805af74a5dd89ca078da585b6be1e910d8e"
+        },
+        "Robot_Candy_Factory_Student.ipynb": {
+          "source_sha256": "12aab7ce1039f5bb6a71d727e39b0768cf0119cba510df18e7f9157810b9b78e",
+          "code_cells": 9,
+          "executed_sha256": "640d7f9f2e003b1b514b10edda850a2ff1d265ad36b497dda9fa55ec66e42755"
+        }
+      },
+      "canonical_code_cells_executed": 25,
+      "fresh_kernel_all_three": true,
+      "live_unavailable_no_DEMO_fallback": true,
+      "routing_variants_passed": true,
+      "log_sha256": "64d0be8e1a151e8d2b59197e77f788ec7d2c7a4be8500b17624d2f3e542468f1",
+      "hardware": false,
+      "ROS_started": false
+    },
+    "materials": {
+      "source_before": {
+        "ZIP": "71dcd43fd02589c17afdb922e951928a62f7d9249f6654e6650454f3256c85f7",
+        "materials_receipt": "b63f4c9576bf4b1c8ea173cf3b88adf195ef67a7a1b92eb29d03597c2fb463ce"
+      },
+      "source_after": {
+        "ZIP": "ef23db5a978d139efbf82ffccf28624ad7cf87e3a76660437201d947759d7293",
+        "materials_receipt": "572bc76dc59e86a8a6547a77e98a2561975c10f79c4e92890d1ec70a507e2b4f"
+      },
+      "ZIP_members_unchanged": true,
+      "ZIP_entries_changed": [
+        "workshop/blockly_client.py"
+      ],
+      "materials_receipt_entries_changed": [
+        "docs/student-workshop.zip",
+        "workshop/blockly_client.py"
+      ],
+      "receipt_entries_verified": 116,
+      "private_or_hardware_code_added": false,
+      "pinned_runtime": "/tmp/workshop-test-pinned313-20261027/bin/python",
+      "checks": [
+        "tools/build_materials.py --bundle-only",
+        "tools/build_materials.py --check",
+        "tools/build_notebooks.py --check"
+      ]
+    }
+  },
+  "cancellation_contract": {
+    "child_receipt_tag": "SO101_STATION_PROGRAM_TERMINAL ",
+    "schema": "so101-program-terminal-v1",
+    "required_fields": {
+      "physical": "exact requested Boolean mode",
+      "stop_verified": true,
+      "dispatched": true
+    },
+    "required_child_exit": 1,
+    "receipt_count": 1,
+    "maximum_receipt_line_characters": 512,
+    "rejects": [
+      "missing",
+      "malformed",
+      "duplicate receipt",
+      "duplicate JSON keys",
+      "integer in place of Boolean",
+      "wrong mode",
+      "extra fields",
+      "abnormal exit",
+      "explicit STOP-unverified error"
+    ],
+    "original_exception_type_retained_after_verified_STOP": true,
+    "repeated_SIGINT_deferred_during_cleanup": true,
+    "STOP_grace_seconds": 17,
+    "TERM_grace_seconds": 2,
+    "KILL_drain_seconds": 2,
+    "reap_timeout_seconds": 2,
+    "leader_pin": "waitid(WNOWAIT), last process-group signal before wait/reap",
+    "scope": "Private bridge stderr contract, no ROS schema or station owner API changes"
+  },
+  "resource_cost": {
+    "independent_synthetic_child_processes": {
+      "normal": {
+        "n": 30,
+        "median_wall_ms": 18.739729001026717,
+        "max_wall_ms": 20.21674199932022,
+        "mean_self_CPU_ms": 0.6938000000000012,
+        "mean_child_CPU_ms": 17.98693333333333,
+        "median_trigger_to_return_ms": null
+      },
+      "cancel_verified": {
+        "n": 10,
+        "median_wall_ms": 105.93586349932593,
+        "max_wall_ms": 106.38015099902987,
+        "mean_self_CPU_ms": 1.5104999999999993,
+        "mean_child_CPU_ms": 20.211900000000018,
+        "median_trigger_to_return_ms": 88.50911800072936
+      },
+      "cancel_missing": {
+        "n": 3,
+        "median_wall_ms": 102.18272099882597,
+        "max_wall_ms": 102.42654199828394,
+        "mean_self_CPU_ms": 1.2876666666666672,
+        "mean_child_CPU_ms": 17.018333333333274,
+        "median_trigger_to_return_ms": 85.46991199909826
+      }
+    },
+    "actual_Conda_ROS_process_metrics": [
+      {
+        "mode": "run",
+        "outer_pid": 1453671,
+        "exit": 0,
+        "outer_no_ros": true,
+        "group_empty_after_reap": true,
+        "wall_seconds": 1.2329507849972288,
+        "self_CPU_seconds": 0.041308,
+        "reaped_children_CPU_seconds": 0.810121,
+        "cancel_trigger_to_reap_seconds": null
+      },
+      {
+        "mode": "export",
+        "outer_pid": 1453717,
+        "exit": 0,
+        "outer_no_ros": true,
+        "group_empty_after_reap": true,
+        "wall_seconds": 1.2741811110026902,
+        "self_CPU_seconds": 0.040091,
+        "reaped_children_CPU_seconds": 0.843645,
+        "cancel_trigger_to_reap_seconds": null
+      },
+      {
+        "mode": "cancel",
+        "outer_pid": 1453818,
+        "exit": 0,
+        "outer_no_ros": true,
+        "group_empty_after_reap": true,
+        "wall_seconds": 1.1643040019989712,
+        "self_CPU_seconds": 0.061504999999999976,
+        "reaped_children_CPU_seconds": 0.827418,
+        "cancel_trigger_to_reap_seconds": 0.3756942500003788
+      },
+      {
+        "mode": "mismatch",
+        "outer_pid": 1453859,
+        "exit": 0,
+        "outer_no_ros": true,
+        "group_empty_after_reap": true,
+        "wall_seconds": 1.0305774549997295,
+        "self_CPU_seconds": 0.03750400000000001,
+        "reaped_children_CPU_seconds": 0.8048859999999998,
+        "cancel_trigger_to_reap_seconds": null
+      }
+    ],
+    "resource_review": {
+      "wait_policy": "Nonblocking three-pipe selector at <=100ms cadence; no per-action or per-frame polling/processing added",
+      "allocation_policy": "Per-invocation selector/input view/output chunks; not zero-allocation; inherited stdout/stderr buffering remains",
+      "process_policy": "Owned new session; WNOWAIT leader pin through final group signal; 17s STOP grace plus bounded TERM/KILL/reap; strict positive receipt required",
+      "physical_scope": "Native API fixture is synthetic domain177. No hardware physical STOP, services, resident owner, GPU or full-station qualification inferred"
+    },
+    "comparison_limit": "Separate sequential uncontrolled host process/startup measurements; not matched before/after latency, FPS, realtime deadline, pipeline throughput, power or hardware performance evidence"
+  },
+  "history": "performance/evidence/station-program-client-20261027/history.json",
+  "physical_STOP_verified": false,
+  "physical_recovery_qualified": false,
+  "three_physical_cycles_qualified": false,
+  "station_qualified": false,
+  "release_qualified": false,
+  "deployment": false,
+  "no_hardware_or_GPU_executed": true,
+  "evidence": {
+    "selected_directory": "performance/evidence/station-program-client-20261027",
+    "inventory": "performance/evidence/station-program-client-20261027/readout-inventory.json",
+    "private_raw_archive": {
+      "path": "/tmp/station-program-client-checkpoint-raw-20261027.tar.gz",
+      "sha256": "566ad49ae6bc440e5d45db7a587d2a710f1ccdd855cf737fb6913d1478d07231",
+      "bytes": 158371
+    },
+    "private_archive_checked_in": false
+  }
+}

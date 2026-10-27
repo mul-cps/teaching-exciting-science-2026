@@ -1,0 +1,13 @@
+{
+  "case": "normal leader exit plus live owned descendant with closed pipes",
+  "hardware": false,
+  "DDS": false,
+  "source_sha256": "60992721dcd0c4d5bb70f944870b435cb1f96e2fca01d0c8b94877de9324dfdb",
+  "leader": 1449459,
+  "descendant": 1449460,
+  "group": 1449459,
+  "descendant_SIGKILL": true,
+  "descendant_reaped": true,
+  "elapsed_s": 0.020911551000608597,
+  "owned_group_absent": true
+}

@@ -1,0 +1,21 @@
+{
+  "command": [
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/ros2/conda/so101-conda.sh",
+    "run",
+    "bash",
+    "--noprofile",
+    "--norc",
+    "-c",
+    "source \"$1/local_setup.bash\";exec python \"$2\" --wrapper-overlay \"$1\"",
+    "isolated-wrapper",
+    "/tmp/station-client-native177-20261027/install",
+    "/home/bjoern/git/teaching-exciting-science-2026/.worktrees/beginner-vulkan-20261022/tests/blockly_client_native.py"
+  ],
+  "returncode": 1,
+  "timed_out": false,
+  "reaped": true,
+  "signals": [],
+  "elapsed_seconds": 15.496136228997784,
+  "test_source_sha256": "c42e1bb38ed88e13a6123a8b15016bd66ff77a9acb5b7f2f3a9b2d4d3bdc064c",
+  "log_sha256": "86558312782137d9775076e60f08abb7319601fc67a84e483e455c35af4dd216"
+}

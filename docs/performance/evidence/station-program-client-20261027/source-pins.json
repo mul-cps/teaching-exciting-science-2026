@@ -1,0 +1,13 @@
+{
+  "workshop/blockly_client.py": "60992721dcd0c4d5bb70f944870b435cb1f96e2fca01d0c8b94877de9324dfdb",
+  "tools/run_station_program.py": "4a825c2b4555e5c4fe432c2749d6a23a6e4365ff75ebe9d70f841519281568c5",
+  "tests/blockly_client_native.py": "dc46063863bbf324e4afd73e4ea311e6fa0d79047712013132bba274b4afb217",
+  "tests/test_blockly_client.py": "af889082e229752b2a42ecb7e39af448f2448a7b5d54c712238f28eda93274f7",
+  "docs/student-workshop.zip": "ef23db5a978d139efbf82ffccf28624ad7cf87e3a76660437201d947759d7293",
+  "docs/materials-build.json": "572bc76dc59e86a8a6547a77e98a2561975c10f79c4e92890d1ec70a507e2b4f",
+  "tools/build_materials.py": "1cc3d07acfd9cddce561ee9d5c80881f934658ed73884f14102bfe90c2133043",
+  "tools/build_notebooks.py": "0ce2649a99186b84f0e6de328ac1fd0a115bc4a266f1c62dbaa24bfbe2fea69b",
+  "tools/verify_notebooks.py": "ce63397aa06c14f359b454cf17b33ff7c53d149aa1547daf2e6c721ddd02c9ab",
+  "exercises/make_student_bundle.py": "2ea06573074bda67777bafd0439ffab95259857d13150125a5f561d583e2a431",
+  "ros2/src/so101_station_workflow/srv/StationCommand.srv": "e0e0c3e11008c16fccf6fb47a9e5b5e9c5884156c3d873dc4de52c6cdbfc04ac"
+}
