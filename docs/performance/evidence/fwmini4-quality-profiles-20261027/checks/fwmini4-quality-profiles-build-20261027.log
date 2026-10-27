@@ -1,0 +1,766 @@
+Starting >>> so101_station_vulkan
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/g++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 2.5.6 (/opt/ros/jazzy/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+-- Found Vulkan: /usr/lib/x86_64-linux-gnu/libvulkan.so (found version "1.3.275") found components: glslc missing components: glslangValidator
+-- Found ament_index_cpp: 1.8.4 (/opt/ros/jazzy/share/ament_index_cpp/cmake)
+-- Found rclcpp: 28.1.22 (/opt/ros/jazzy/share/rclcpp/cmake)
+-- Found rosidl_generator_c: 4.6.9 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+-- Found rosidl_generator_cpp: 4.6.9 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+-- Found rmw_implementation_cmake: 7.3.4 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)
+-- Found rmw_fastrtps_cpp: 8.4.4 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)
+-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.13")  
+-- Found FastRTPS: /opt/ros/jazzy/include (Required is at least version "2.13") 
+-- Using RMW implementation 'rmw_fastrtps_cpp' as default
+-- Found rclcpp_components: 28.1.22 (/opt/ros/jazzy/share/rclcpp_components/cmake)
+-- Found sensor_msgs: 5.3.8 (/opt/ros/jazzy/share/sensor_msgs/cmake)
+-- Skipping optional qualify_alignment_divide: native SLANGC_EXECUTABLE unavailable
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Configuring done (1.5s)
+CMake Warning at cmake/alignment.cmake:33 (add_library):
+  Cannot generate a safe runtime search path for target resident_alignment
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libvulkan.so.1] in /usr/lib/x86_64-linux-gnu may be hidden by files in:
+      /home/bjoern/miniforge3/envs/so101-jazzy/lib
+
+  Some of these libraries may not be found correctly.
+Call Stack (most recent call first):
+  CMakeLists.txt:199 (include)
+
+
+CMake Warning at CMakeLists.txt:110 (add_library):
+  Cannot generate a safe runtime search path for target resident_components
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libconsole_bridge.so.1.0] in /usr/lib/x86_64-linux-gnu may be hidden by files in:
+      /home/bjoern/miniforge3/envs/so101-jazzy/lib
+    runtime library [libvulkan.so.1] in /usr/lib/x86_64-linux-gnu may be hidden by files in:
+      /home/bjoern/miniforge3/envs/so101-jazzy/lib
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at cmake/alignment.cmake:38 (add_executable):
+  Cannot generate a safe runtime search path for target qualify_alignment
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libvulkan.so.1] in /usr/lib/x86_64-linux-gnu may be hidden by files in:
+      /home/bjoern/miniforge3/envs/so101-jazzy/lib
+
+  Some of these libraries may not be found correctly.
+Call Stack (most recent call first):
+  CMakeLists.txt:199 (include)
+
+
+CMake Warning at CMakeLists.txt:204 (add_executable):
+  Cannot generate a safe runtime search path for target
+  resident_raw_camera_admission_test because files in some directories may
+  conflict with libraries in implicit directories:
+
+    runtime library [libvulkan.so.1] in /usr/lib/x86_64-linux-gnu may be hidden by files in:
+      /home/bjoern/miniforge3/envs/so101-jazzy/lib
+
+  Some of these libraries may not be found correctly.
+
+
+-- Generating done (0.0s)
+CMake Warning:
+  Manually-specified variables were not used by the project:
+
+    CMAKE_C_COMPILER
+
+
+-- Build files have been written to: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/build/so101_station_vulkan
+[  0%] Built target geometry_spirv
+[  0%] Built target resident_spirv
+[  0%] Built target alignment_spirv
+[  1%] Building CXX object CMakeFiles/camera_startup_gate_test.dir/test/camera_startup_gate_test.cpp.o
+[  5%] Generating parent-shaders/provenance.txt, parent-shaders/source.sha256
+[  5%] Generating child-shaders/provenance.txt, child-shaders/source.sha256
+[  5%] Building CXX object CMakeFiles/cc_copyback_host_benchmark.dir/test/cc_copyback_host_benchmark.cpp.o
+[  5%] Built target parent_spirv
+[  5%] Built target child_spirv
+[  6%] Building CXX object CMakeFiles/cc_copyback_host_benchmark.dir/src/gpu_pipeline.cpp.o
+[  8%] Building CXX object CMakeFiles/context_features_host_test.dir/test/context_features_host_test.cpp.o
+[  9%] Linking CXX executable camera_startup_gate_test
+[ 10%] Building CXX object CMakeFiles/context_features_host_test.dir/src/vulkan_context.cpp.o
+[ 10%] Built target camera_startup_gate_test
+[ 12%] Building CXX object CMakeFiles/cc_copyback_host_benchmark.dir/src/cpu_pipeline.cpp.o
+[ 13%] Building CXX object CMakeFiles/resident_rgbd.dir/src/vulkan_context.cpp.o
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/vulkan_context.cpp: In constructor ‘so101_station_vulkan::Context::Context()’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/vulkan_context.cpp:34:5: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+   34 |     for(uint32_t q=0;q<qn;q++)if(qs[q].queueFlags&VK_QUEUE_COMPUTE_BIT){physical=p;family=q;timestamp_bits=qs[q].timestampValidBits;properties=props;break;}if(physical)break;
+      |     ^~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/vulkan_context.cpp:34:157: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+   34 |     for(uint32_t q=0;q<qn;q++)if(qs[q].queueFlags&VK_QUEUE_COMPUTE_BIT){physical=p;family=q;timestamp_bits=qs[q].timestampValidBits;properties=props;break;}if(physical)break;
+      |                                                                                                                                                             ^~
+[ 15%] Building CXX object CMakeFiles/raw_capture_bridge_host_test.dir/test/raw_capture_bridge_host_test.cpp.o
+[ 16%] Building CXX object CMakeFiles/cc_copyback_host_benchmark.dir/src/frame_pool.cpp.o
+[ 17%] Linking CXX executable context_features_host_test
+[ 17%] Built target context_features_host_test
+[ 19%] Building CXX object CMakeFiles/resident_rgbd.dir/src/frame_pool.cpp.o
+[ 20%] Building CXX object CMakeFiles/raw_capture_bridge_host_test.dir/src/raw_capture_bridge.cpp.o
+[ 21%] Linking CXX executable cc_copyback_host_benchmark
+[ 21%] Built target cc_copyback_host_benchmark
+[ 23%] Building CXX object CMakeFiles/resident_rgbd.dir/src/cpu_pipeline.cpp.o
+[ 24%] Building CXX object CMakeFiles/preparation_host_benchmark.dir/test/preparation_host_benchmark.cpp.o
+[ 26%] Building CXX object CMakeFiles/raw_capture_bridge_host_test.dir/src/frame_pool.cpp.o
+[ 27%] Building CXX object CMakeFiles/parent_preparation_contract.dir/test/parent_preparation_contract.cpp.o
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp: In function ‘void so101_station_vulkan::cpu_reference(Slot&, unsigned int, unsigned int)’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:25:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   25 |   if(ok)cut=(x&&jump(i-1))||(x+1<w&&jump(i+1))||(y&&jump(i-w))||(y+1<h&&jump(i+w));s.cpu_parents[i]=ok&&!cut?i+1:0;
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:25:84: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   25 |   if(ok)cut=(x&&jump(i-1))||(x+1<w&&jump(i+1))||(y&&jump(i-w))||(y+1<h&&jump(i+w));s.cpu_parents[i]=ok&&!cut?i+1:0;
+      |                                                                                    ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp: In function ‘void so101_station_vulkan::cpu_complete_reference(Slot&, unsigned int, unsigned int)’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:32:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   32 |   if(!s.cpu_parents[i])continue;unsigned x=i%w,y=i/w;
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:32:33: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   32 |   if(!s.cpu_parents[i])continue;unsigned x=i%w,y=i/w;
+      |                                 ^~~~~~~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:34:4: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   34 |    if(dy==0&&dx>=0)continue;int nx=int(x)+dx,ny=int(y)+dy;if(nx<0||ny<0||nx>=int(w))continue;unsigned j=unsigned(ny)*w+unsigned(nx);
+      |    ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:34:29: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   34 |    if(dy==0&&dx>=0)continue;int nx=int(x)+dx,ny=int(y)+dy;if(nx<0||ny<0||nx>=int(w))continue;unsigned j=unsigned(ny)*w+unsigned(nx);
+      |                             ^~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:35:4: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   35 |    if(!s.cpu_parents[j]||s.cpu_masks[i]!=s.cpu_masks[j])continue;auto a=root(s.cpu_parents,i),b=root(s.cpu_parents,j);s.cpu_parents[std::max(a,b)-1]=std::min(a,b);
+      |    ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:35:66: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   35 |    if(!s.cpu_parents[j]||s.cpu_masks[i]!=s.cpu_masks[j])continue;auto a=root(s.cpu_parents,i),b=root(s.cpu_parents,j);s.cpu_parents[std::max(a,b)-1]=std::min(a,b);
+      |                                                                  ^~~~
+[ 28%] Building CXX object CMakeFiles/resident_rgbd.dir/src/gpu_pipeline.cpp.o
+[ 30%] Building CXX object CMakeFiles/raw_capture_bridge_host_test.dir/src/alignment.cpp.o
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp: In member function ‘void so101_station_vulkan::Pipeline::destroy_gpu()’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:44:3: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+   44 |   for(auto p:kernels_)if(p)vkDestroyPipeline(context_->device,p,nullptr);if(layout_)vkDestroyPipelineLayout(context_->device,layout_,nullptr);
+      |   ^~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:44:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+   44 |   for(auto p:kernels_)if(p)vkDestroyPipeline(context_->device,p,nullptr);if(layout_)vkDestroyPipelineLayout(context_->device,layout_,nullptr);
+      |                                                                          ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:45:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   45 |   if(descriptor_pool_)vkDestroyDescriptorPool(context_->device,descriptor_pool_,nullptr);if(descriptors_)vkDestroyDescriptorSetLayout(context_->device,descriptors_,nullptr);
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:45:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   45 |   if(descriptor_pool_)vkDestroyDescriptorPool(context_->device,descriptor_pool_,nullptr);if(descriptors_)vkDestroyDescriptorSetLayout(context_->device,descriptors_,nullptr);
+      |                                                                                          ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp: In member function ‘void so101_station_vulkan::Pipeline::submit_impl(const so101_station_vulkan::FrameLease&, const so101_station_vulkan::Buffer*)’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:73:2: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   73 |  if(!pool_->owns(f))throw std::invalid_argument("foreign or empty frame lease");auto& s=f.slot();if(s.submitted)throw std::logic_error("frame already submitted");
+      |  ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:73:81: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   73 |  if(!pool_->owns(f))throw std::invalid_argument("foreign or empty frame lease");auto& s=f.slot();if(s.submitted)throw std::logic_error("frame already submitted");
+      |                                                                                 ^~~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp: In member function ‘void so101_station_vulkan::Pipeline::finish(const so101_station_vulkan::FrameLease&)’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:116:2: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  116 |  if(!ready(f))throw std::logic_error("frame completion not yet available");auto& s=f.slot();
+      |  ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:116:76: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  116 |  if(!ready(f))throw std::logic_error("frame completion not yet available");auto& s=f.slot();
+      |                                                                            ^~~~
+[ 31%] Building CXX object CMakeFiles/preparation_host_benchmark.dir/src/alignment.cpp.o
+[ 32%] Linking CXX shared library libresident_rgbd.so
+[ 32%] Built target resident_rgbd
+[ 34%] Building CXX object CMakeFiles/raw_capture_bridge_host_test.dir/src/alignment_reference.cpp.o
+[ 35%] Building CXX object CMakeFiles/parent_preparation_contract.dir/src/parents.cpp.o
+[ 36%] Building CXX object CMakeFiles/preparation_host_benchmark.dir/src/alignment_reference.cpp.o
+[ 38%] Linking CXX executable raw_capture_bridge_host_test
+[ 38%] Built target raw_capture_bridge_host_test
+[ 39%] Building CXX object CMakeFiles/parent_preparation_contract.dir/src/frame_pool.cpp.o
+[ 41%] Building CXX object CMakeFiles/preparation_host_benchmark.dir/src/geometry.cpp.o
+[ 42%] Building CXX object CMakeFiles/child_preparation_contract.dir/test/child_preparation_contract.cpp.o
+[ 43%] Building CXX object CMakeFiles/preparation_host_benchmark.dir/src/frame_pool.cpp.o
+[ 45%] Building CXX object CMakeFiles/latest_frame_queue_test.dir/test/latest_frame_queue_test.cpp.o
+[ 46%] Linking CXX executable preparation_host_benchmark
+[ 46%] Built target preparation_host_benchmark
+[ 47%] Building CXX object CMakeFiles/child_preparation_contract.dir/src/children.cpp.o
+In file included from /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/test/latest_frame_queue_test.cpp:2:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:31:90: warning: missing initializer for member ‘VkPhysicalDeviceFeatures2::pNext’ [-Wmissing-field-initializers]
+   31 |   VkPhysicalDeviceFeatures2 enabled_features{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+      |                                                                                          ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:31:90: warning: missing initializer for member ‘VkPhysicalDeviceFeatures2::features’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::pNext’ [-Wmissing-field-initializers]
+   32 |   VkPhysicalDeviceVulkan11Features enabled11{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES};
+      |                                                                                                   ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::storageBuffer16BitAccess’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::uniformAndStorageBuffer16BitAccess’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::storagePushConstant16’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::storageInputOutput16’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::multiview’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::multiviewGeometryShader’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::multiviewTessellationShader’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::variablePointersStorageBuffer’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::variablePointers’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::protectedMemory’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::samplerYcbcrConversion’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::shaderDrawParameters’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::pNext’ [-Wmissing-field-initializers]
+   33 |   VkPhysicalDeviceVulkan12Features enabled12{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+      |                                                                                                   ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::samplerMirrorClampToEdge’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::drawIndirectCount’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::storageBuffer8BitAccess’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::uniformAndStorageBuffer8BitAccess’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::storagePushConstant8’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderBufferInt64Atomics’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderSharedInt64Atomics’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderFloat16’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderInt8’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderInputAttachmentArrayDynamicIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderUniformTexelBufferArrayDynamicIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderStorageTexelBufferArrayDynamicIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderUniformBufferArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderSampledImageArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderStorageBufferArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderStorageImageArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderInputAttachmentArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderUniformTexelBufferArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderStorageTexelBufferArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingUniformBufferUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingSampledImageUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingStorageImageUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingStorageBufferUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingUniformTexelBufferUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingStorageTexelBufferUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingUpdateUnusedWhilePending’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingPartiallyBound’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingVariableDescriptorCount’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::runtimeDescriptorArray’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::samplerFilterMinmax’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::scalarBlockLayout’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::imagelessFramebuffer’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::uniformBufferStandardLayout’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderSubgroupExtendedTypes’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::separateDepthStencilLayouts’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::hostQueryReset’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::timelineSemaphore’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::bufferDeviceAddress’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::bufferDeviceAddressCaptureReplay’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::bufferDeviceAddressMultiDevice’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::vulkanMemoryModel’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::vulkanMemoryModelDeviceScope’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::vulkanMemoryModelAvailabilityVisibilityChains’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderOutputViewportIndex’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderOutputLayer’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::subgroupBroadcastDynamicId’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::pNext’ [-Wmissing-field-initializers]
+   34 |   VkPhysicalDeviceVulkan13Features enabled13{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+      |                                                                                                   ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::robustImageAccess’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::inlineUniformBlock’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::descriptorBindingInlineUniformBlockUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::pipelineCreationCacheControl’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::privateData’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::shaderDemoteToHelperInvocation’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::shaderTerminateInvocation’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::subgroupSizeControl’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::computeFullSubgroups’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::synchronization2’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::textureCompressionASTC_HDR’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::shaderZeroInitializeWorkgroupMemory’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::dynamicRendering’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::shaderIntegerDotProduct’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::maintenance4’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:35:141: warning: missing initializer for member ‘VkPhysicalDeviceVideoMaintenance1FeaturesKHR::pNext’ [-Wmissing-field-initializers]
+   35 |   VkPhysicalDeviceVideoMaintenance1FeaturesKHR enabled_video_maintenance1{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_1_FEATURES_KHR};
+      |                                                                                                                                             ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:35:141: warning: missing initializer for member ‘VkPhysicalDeviceVideoMaintenance1FeaturesKHR::videoMaintenance1’ [-Wmissing-field-initializers]
+[ 49%] Building CXX object CMakeFiles/resident_cpu_slang_test.dir/test/cpu_slang_test.cpp.o
+[ 50%] Linking CXX executable resident_cpu_slang_test
+[ 50%] Built target resident_cpu_slang_test
+[ 52%] Building CXX object CMakeFiles/child_preparation_contract.dir/src/parents.cpp.o
+[ 53%] Linking CXX executable latest_frame_queue_test
+[ 53%] Built target latest_frame_queue_test
+[ 54%] Building CXX object CMakeFiles/child_preparation_contract.dir/src/frame_pool.cpp.o
+[ 56%] Building CXX object CMakeFiles/resident_alignment.dir/src/alignment.cpp.o
+[ 57%] Building CXX object CMakeFiles/benchmark_rgbd.dir/src/benchmark_rgbd.cpp.o
+[ 58%] Linking CXX executable child_preparation_contract
+[ 58%] Built target child_preparation_contract
+[ 60%] Building CXX object CMakeFiles/resident_alignment.dir/src/alignment_reference.cpp.o
+[ 61%] Building CXX object CMakeFiles/verify_cc_convergence_fault.dir/test/cc_convergence_probe.cpp.o
+[ 63%] Building CXX object CMakeFiles/resident_alignment.dir/src/raw_capture_bridge.cpp.o
+[ 64%] Linking CXX executable verify_cc_convergence_fault
+[ 64%] Built target verify_cc_convergence_fault
+[ 65%] Building CXX object CMakeFiles/resident_alignment.dir/src/raw_camera_admission.cpp.o
+[ 67%] Building CXX object CMakeFiles/resident_host_microbench.dir/src/host_microbench.cpp.o
+[ 68%] Linking CXX executable benchmark_rgbd
+[ 68%] Built target benchmark_rgbd
+[ 69%] Building CXX object CMakeFiles/resident_lease_test.dir/test/frame_lease_test.cpp.o
+[ 71%] Linking CXX executable resident_host_microbench
+[ 72%] Linking CXX executable resident_lease_test
+[ 72%] Built target resident_host_microbench
+[ 72%] Built target resident_lease_test
+[ 73%] Building CXX object CMakeFiles/resident_geometry.dir/src/geometry.cpp.o
+[ 75%] Building CXX object CMakeFiles/resident_parents.dir/src/parents.cpp.o
+[ 76%] Linking CXX shared library libresident_parents.so
+[ 78%] Linking CXX shared library libresident_geometry.so
+[ 78%] Built target resident_parents
+[ 79%] Building CXX object CMakeFiles/resident_children.dir/src/children.cpp.o
+[ 79%] Built target resident_geometry
+[ 80%] Building CXX object CMakeFiles/geometry_preparation_contract.dir/test/geometry_preparation_contract.cpp.o
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp: In destructor ‘so101_station_vulkan::ChildStorage::~ChildStorage()’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:64:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   64 |   if(!context)return;auto& c=*context;
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:64:22: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   64 |   if(!context)return;auto& c=*context;
+      |                      ^~~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:67:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   67 |   if(commands)vkDestroyCommandPool(c.device,commands,nullptr);for(auto k:kernels)if(k)vkDestroyPipeline(c.device,k,nullptr);if(layout)vkDestroyPipelineLayout(c.device,layout,nullptr);if(descriptor_pool)vkDestroyDescriptorPool(c.device,descriptor_pool,nullptr);if(descriptors)vkDestroyDescriptorSetLayout(c.device,descriptors,nullptr);
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:67:63: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   67 |   if(commands)vkDestroyCommandPool(c.device,commands,nullptr);for(auto k:kernels)if(k)vkDestroyPipeline(c.device,k,nullptr);if(layout)vkDestroyPipelineLayout(c.device,layout,nullptr);if(descriptor_pool)vkDestroyDescriptorPool(c.device,descriptor_pool,nullptr);if(descriptors)vkDestroyDescriptorSetLayout(c.device,descriptors,nullptr);
+      |                                                               ^~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp: In member function ‘so101_station_vulkan::ChildCounts so101_station_vulkan::ChildStorage::result(unsigned int)’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:74:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   74 |   if(!ready(i))throw std::logic_error("child preparation still pending");const auto* words=static_cast<const uint32_t*>(e.readback.mapped);
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:74:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   74 |   if(!ready(i))throw std::logic_error("child preparation still pending");const auto* words=static_cast<const uint32_t*>(e.readback.mapped);
+      |                                                                          ^~~~~
+[ 82%] Linking CXX shared library libresident_alignment.so
+[ 83%] Linking CXX executable geometry_preparation_contract
+[ 83%] Built target resident_alignment
+[ 83%] Built target geometry_preparation_contract
+[ 84%] Building CXX object CMakeFiles/qualify_geometry.dir/test/qualify_geometry.cpp.o
+[ 86%] Building CXX object CMakeFiles/benchmark_geometry.dir/test/benchmark_geometry.cpp.o
+[ 87%] Linking CXX shared library libresident_children.so
+[ 87%] Built target resident_children
+[ 89%] Building CXX object CMakeFiles/resident_components.dir/src/camera_component.cpp.o
+[ 90%] Linking CXX executable qualify_geometry
+[ 90%] Built target qualify_geometry
+[ 91%] Building CXX object CMakeFiles/qualify_alignment.dir/test/alignment_oracle.cpp.o
+[ 93%] Linking CXX executable benchmark_geometry
+[ 93%] Built target benchmark_geometry
+[ 94%] Building CXX object CMakeFiles/resident_raw_camera_admission_test.dir/test/raw_camera_admission_test.cpp.o
+[ 95%] Linking CXX executable resident_raw_camera_admission_test
+[ 95%] Built target resident_raw_camera_admission_test
+[ 97%] Linking CXX executable qualify_alignment
+[ 97%] Built target qualify_alignment
+[ 98%] Linking CXX executable parent_preparation_contract
+[ 98%] Built target parent_preparation_contract
+[100%] Linking CXX shared library libresident_components.so
+[Processing: so101_station_vulkan]
+[100%] Built target resident_components
+-- Install configuration: "Release"
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_rgbd.so
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_components.so
+-- Set non-toolchain portion of runtime path of "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_components.so" to ""
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/benchmark_rgbd
+-- Set non-toolchain portion of runtime path of "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/benchmark_rgbd" to ""
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/resident_lease_test
+-- Set non-toolchain portion of runtime path of "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/resident_lease_test" to ""
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/resident_host_microbench
+-- Set non-toolchain portion of runtime path of "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/resident_host_microbench" to ""
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/verify_cc_convergence_fault
+-- Set non-toolchain portion of runtime path of "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/verify_cc_convergence_fault" to ""
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/raw_camera_admission.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/video.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/parents.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/children.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/alignment.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/raw_capture_bridge.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/camera_startup_gate.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/parent_graph.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/child_graph.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/latest_frame_queue.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/frame_adapter.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/latest_native_scheduler.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/include/so101_station_vulkan/geometry.hpp
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/reduce.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/candidates.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/morphology.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/tiled_components.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/morphology.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/tiled_components.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/compress.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/gather.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/convert.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/connect.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/provenance.txt
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/connect.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/convert.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/reduce.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/gather.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/candidates.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/compress.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/resident.slang
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/shaders/exact_divide.slang
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/launch
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/launch/resident_rgbd.launch.py
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/environment/library_path.sh
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/environment/library_path.dsv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_alignment.so
+-- Set non-toolchain portion of runtime path of "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_alignment.so" to ""
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_alignment
+-- Set non-toolchain portion of runtime path of "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/so101_station_vulkan/qualify_alignment" to ""
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/alignment-shaders
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/alignment-shaders/source.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/alignment-shaders/finalize.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/alignment-shaders/splat.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/alignment-shaders/finalize.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/alignment-shaders/splat.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/alignment-shaders/alignment.slang
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/alignment-shaders/exact_divide.slang
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_geometry.so
+-- Set non-toolchain portion of runtime path of "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_geometry.so" to ""
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/source.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry_support_scan.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry_support_scatter.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry_support_offsets.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry_coordinates.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry_support_offsets.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry_valid_count.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry_valid_count.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry_support_scatter.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry_support_scan.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry_coordinates.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/geometry-shaders/geometry.slang
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_parents.so
+-- Set non-toolchain portion of runtime path of "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_parents.so" to ""
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_hook.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_init.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_pixels.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_validate.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_offsets.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_records.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_scan.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/provenance.txt
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_validate.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_pixels.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/source.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_scan.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_flatten.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_labels.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_init.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_records.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_offsets.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_flatten.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_labels.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents_hook.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/parent-shaders/parents.slang
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_children.so
+-- Set non-toolchain portion of runtime path of "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_children.so" to ""
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_reduce.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_boundary.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_pack_offsets.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_boundary.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_radix_offsets.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_radix_hist.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_pack_scan.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_scatter.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_support.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_fill_jump.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_fill_hook.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_validate.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_reduce.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_radix_offsets.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_validate.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_fill_hook.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_hook.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_jump.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_packed_init.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_hook.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_jobs.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_gather.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_radix_hist.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_init.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_fill_validate.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_fill_validate.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_pack_scan.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_finalize.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_finalize.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_packed_init.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_init.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_support.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_gather.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/provenance.txt
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_fill_jump.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_jump.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_lookup.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_scatter.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_pack_offsets.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_lookup.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_jobs.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/source.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_radix_scatter.spv.sha256
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/child_radix_scatter.spv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/child-shaders/children.slang
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/ament_index/resource_index/package_run_dependencies/so101_station_vulkan
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/ament_index/resource_index/parent_prefix_path/so101_station_vulkan
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/environment/ament_prefix_path.sh
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/environment/ament_prefix_path.dsv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/environment/path.sh
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/environment/path.dsv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/local_setup.bash
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/local_setup.sh
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/local_setup.zsh
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/local_setup.dsv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/package.dsv
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/ament_index/resource_index/packages/so101_station_vulkan
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/ament_index/resource_index/rclcpp_components/so101_station_vulkan
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/cmake/resident_rgbd_targetsExport.cmake
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/cmake/resident_rgbd_targetsExport-release.cmake
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/cmake/ament_cmake_export_targets-extras.cmake
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/cmake/ament_cmake_export_dependencies-extras.cmake
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/cmake/so101_station_vulkanConfig.cmake
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/cmake/so101_station_vulkanConfig-version.cmake
+-- Installing: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/share/so101_station_vulkan/package.xml
+--- stderr: so101_station_vulkan
+CMake Warning at cmake/alignment.cmake:33 (add_library):
+  Cannot generate a safe runtime search path for target resident_alignment
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libvulkan.so.1] in /usr/lib/x86_64-linux-gnu may be hidden by files in:
+      /home/bjoern/miniforge3/envs/so101-jazzy/lib
+
+  Some of these libraries may not be found correctly.
+Call Stack (most recent call first):
+  CMakeLists.txt:199 (include)
+
+
+CMake Warning at CMakeLists.txt:110 (add_library):
+  Cannot generate a safe runtime search path for target resident_components
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libconsole_bridge.so.1.0] in /usr/lib/x86_64-linux-gnu may be hidden by files in:
+      /home/bjoern/miniforge3/envs/so101-jazzy/lib
+    runtime library [libvulkan.so.1] in /usr/lib/x86_64-linux-gnu may be hidden by files in:
+      /home/bjoern/miniforge3/envs/so101-jazzy/lib
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at cmake/alignment.cmake:38 (add_executable):
+  Cannot generate a safe runtime search path for target qualify_alignment
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libvulkan.so.1] in /usr/lib/x86_64-linux-gnu may be hidden by files in:
+      /home/bjoern/miniforge3/envs/so101-jazzy/lib
+
+  Some of these libraries may not be found correctly.
+Call Stack (most recent call first):
+  CMakeLists.txt:199 (include)
+
+
+CMake Warning at CMakeLists.txt:204 (add_executable):
+  Cannot generate a safe runtime search path for target
+  resident_raw_camera_admission_test because files in some directories may
+  conflict with libraries in implicit directories:
+
+    runtime library [libvulkan.so.1] in /usr/lib/x86_64-linux-gnu may be hidden by files in:
+      /home/bjoern/miniforge3/envs/so101-jazzy/lib
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning:
+  Manually-specified variables were not used by the project:
+
+    CMAKE_C_COMPILER
+
+
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/vulkan_context.cpp: In constructor ‘so101_station_vulkan::Context::Context()’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/vulkan_context.cpp:34:5: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+   34 |     for(uint32_t q=0;q<qn;q++)if(qs[q].queueFlags&VK_QUEUE_COMPUTE_BIT){physical=p;family=q;timestamp_bits=qs[q].timestampValidBits;properties=props;break;}if(physical)break;
+      |     ^~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/vulkan_context.cpp:34:157: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+   34 |     for(uint32_t q=0;q<qn;q++)if(qs[q].queueFlags&VK_QUEUE_COMPUTE_BIT){physical=p;family=q;timestamp_bits=qs[q].timestampValidBits;properties=props;break;}if(physical)break;
+      |                                                                                                                                                             ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp: In function ‘void so101_station_vulkan::cpu_reference(Slot&, unsigned int, unsigned int)’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:25:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   25 |   if(ok)cut=(x&&jump(i-1))||(x+1<w&&jump(i+1))||(y&&jump(i-w))||(y+1<h&&jump(i+w));s.cpu_parents[i]=ok&&!cut?i+1:0;
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:25:84: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   25 |   if(ok)cut=(x&&jump(i-1))||(x+1<w&&jump(i+1))||(y&&jump(i-w))||(y+1<h&&jump(i+w));s.cpu_parents[i]=ok&&!cut?i+1:0;
+      |                                                                                    ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp: In function ‘void so101_station_vulkan::cpu_complete_reference(Slot&, unsigned int, unsigned int)’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:32:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   32 |   if(!s.cpu_parents[i])continue;unsigned x=i%w,y=i/w;
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:32:33: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   32 |   if(!s.cpu_parents[i])continue;unsigned x=i%w,y=i/w;
+      |                                 ^~~~~~~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:34:4: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   34 |    if(dy==0&&dx>=0)continue;int nx=int(x)+dx,ny=int(y)+dy;if(nx<0||ny<0||nx>=int(w))continue;unsigned j=unsigned(ny)*w+unsigned(nx);
+      |    ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:34:29: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   34 |    if(dy==0&&dx>=0)continue;int nx=int(x)+dx,ny=int(y)+dy;if(nx<0||ny<0||nx>=int(w))continue;unsigned j=unsigned(ny)*w+unsigned(nx);
+      |                             ^~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:35:4: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   35 |    if(!s.cpu_parents[j]||s.cpu_masks[i]!=s.cpu_masks[j])continue;auto a=root(s.cpu_parents,i),b=root(s.cpu_parents,j);s.cpu_parents[std::max(a,b)-1]=std::min(a,b);
+      |    ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/cpu_pipeline.cpp:35:66: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   35 |    if(!s.cpu_parents[j]||s.cpu_masks[i]!=s.cpu_masks[j])continue;auto a=root(s.cpu_parents,i),b=root(s.cpu_parents,j);s.cpu_parents[std::max(a,b)-1]=std::min(a,b);
+      |                                                                  ^~~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp: In member function ‘void so101_station_vulkan::Pipeline::destroy_gpu()’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:44:3: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+   44 |   for(auto p:kernels_)if(p)vkDestroyPipeline(context_->device,p,nullptr);if(layout_)vkDestroyPipelineLayout(context_->device,layout_,nullptr);
+      |   ^~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:44:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+   44 |   for(auto p:kernels_)if(p)vkDestroyPipeline(context_->device,p,nullptr);if(layout_)vkDestroyPipelineLayout(context_->device,layout_,nullptr);
+      |                                                                          ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:45:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   45 |   if(descriptor_pool_)vkDestroyDescriptorPool(context_->device,descriptor_pool_,nullptr);if(descriptors_)vkDestroyDescriptorSetLayout(context_->device,descriptors_,nullptr);
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:45:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   45 |   if(descriptor_pool_)vkDestroyDescriptorPool(context_->device,descriptor_pool_,nullptr);if(descriptors_)vkDestroyDescriptorSetLayout(context_->device,descriptors_,nullptr);
+      |                                                                                          ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp: In member function ‘void so101_station_vulkan::Pipeline::submit_impl(const so101_station_vulkan::FrameLease&, const so101_station_vulkan::Buffer*)’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:73:2: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   73 |  if(!pool_->owns(f))throw std::invalid_argument("foreign or empty frame lease");auto& s=f.slot();if(s.submitted)throw std::logic_error("frame already submitted");
+      |  ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:73:81: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   73 |  if(!pool_->owns(f))throw std::invalid_argument("foreign or empty frame lease");auto& s=f.slot();if(s.submitted)throw std::logic_error("frame already submitted");
+      |                                                                                 ^~~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp: In member function ‘void so101_station_vulkan::Pipeline::finish(const so101_station_vulkan::FrameLease&)’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:116:2: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  116 |  if(!ready(f))throw std::logic_error("frame completion not yet available");auto& s=f.slot();
+      |  ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/gpu_pipeline.cpp:116:76: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  116 |  if(!ready(f))throw std::logic_error("frame completion not yet available");auto& s=f.slot();
+      |                                                                            ^~~~
+In file included from /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/test/latest_frame_queue_test.cpp:2:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:31:90: warning: missing initializer for member ‘VkPhysicalDeviceFeatures2::pNext’ [-Wmissing-field-initializers]
+   31 |   VkPhysicalDeviceFeatures2 enabled_features{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+      |                                                                                          ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:31:90: warning: missing initializer for member ‘VkPhysicalDeviceFeatures2::features’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::pNext’ [-Wmissing-field-initializers]
+   32 |   VkPhysicalDeviceVulkan11Features enabled11{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES};
+      |                                                                                                   ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::storageBuffer16BitAccess’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::uniformAndStorageBuffer16BitAccess’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::storagePushConstant16’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::storageInputOutput16’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::multiview’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::multiviewGeometryShader’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::multiviewTessellationShader’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::variablePointersStorageBuffer’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::variablePointers’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::protectedMemory’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::samplerYcbcrConversion’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:32:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan11Features::shaderDrawParameters’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::pNext’ [-Wmissing-field-initializers]
+   33 |   VkPhysicalDeviceVulkan12Features enabled12{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+      |                                                                                                   ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::samplerMirrorClampToEdge’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::drawIndirectCount’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::storageBuffer8BitAccess’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::uniformAndStorageBuffer8BitAccess’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::storagePushConstant8’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderBufferInt64Atomics’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderSharedInt64Atomics’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderFloat16’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderInt8’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderInputAttachmentArrayDynamicIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderUniformTexelBufferArrayDynamicIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderStorageTexelBufferArrayDynamicIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderUniformBufferArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderSampledImageArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderStorageBufferArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderStorageImageArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderInputAttachmentArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderUniformTexelBufferArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderStorageTexelBufferArrayNonUniformIndexing’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingUniformBufferUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingSampledImageUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingStorageImageUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingStorageBufferUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingUniformTexelBufferUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingStorageTexelBufferUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingUpdateUnusedWhilePending’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingPartiallyBound’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::descriptorBindingVariableDescriptorCount’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::runtimeDescriptorArray’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::samplerFilterMinmax’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::scalarBlockLayout’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::imagelessFramebuffer’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::uniformBufferStandardLayout’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderSubgroupExtendedTypes’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::separateDepthStencilLayouts’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::hostQueryReset’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::timelineSemaphore’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::bufferDeviceAddress’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::bufferDeviceAddressCaptureReplay’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::bufferDeviceAddressMultiDevice’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::vulkanMemoryModel’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::vulkanMemoryModelDeviceScope’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::vulkanMemoryModelAvailabilityVisibilityChains’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderOutputViewportIndex’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::shaderOutputLayer’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:33:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan12Features::subgroupBroadcastDynamicId’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::pNext’ [-Wmissing-field-initializers]
+   34 |   VkPhysicalDeviceVulkan13Features enabled13{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+      |                                                                                                   ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::robustImageAccess’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::inlineUniformBlock’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::descriptorBindingInlineUniformBlockUpdateAfterBind’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::pipelineCreationCacheControl’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::privateData’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::shaderDemoteToHelperInvocation’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::shaderTerminateInvocation’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::subgroupSizeControl’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::computeFullSubgroups’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::synchronization2’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::textureCompressionASTC_HDR’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::shaderZeroInitializeWorkgroupMemory’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::dynamicRendering’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::shaderIntegerDotProduct’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:34:99: warning: missing initializer for member ‘VkPhysicalDeviceVulkan13Features::maintenance4’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:35:141: warning: missing initializer for member ‘VkPhysicalDeviceVideoMaintenance1FeaturesKHR::pNext’ [-Wmissing-field-initializers]
+   35 |   VkPhysicalDeviceVideoMaintenance1FeaturesKHR enabled_video_maintenance1{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_1_FEATURES_KHR};
+      |                                                                                                                                             ^
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp:35:141: warning: missing initializer for member ‘VkPhysicalDeviceVideoMaintenance1FeaturesKHR::videoMaintenance1’ [-Wmissing-field-initializers]
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp: In destructor ‘so101_station_vulkan::ChildStorage::~ChildStorage()’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:64:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   64 |   if(!context)return;auto& c=*context;
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:64:22: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   64 |   if(!context)return;auto& c=*context;
+      |                      ^~~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:67:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   67 |   if(commands)vkDestroyCommandPool(c.device,commands,nullptr);for(auto k:kernels)if(k)vkDestroyPipeline(c.device,k,nullptr);if(layout)vkDestroyPipelineLayout(c.device,layout,nullptr);if(descriptor_pool)vkDestroyDescriptorPool(c.device,descriptor_pool,nullptr);if(descriptors)vkDestroyDescriptorSetLayout(c.device,descriptors,nullptr);
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:67:63: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   67 |   if(commands)vkDestroyCommandPool(c.device,commands,nullptr);for(auto k:kernels)if(k)vkDestroyPipeline(c.device,k,nullptr);if(layout)vkDestroyPipelineLayout(c.device,layout,nullptr);if(descriptor_pool)vkDestroyDescriptorPool(c.device,descriptor_pool,nullptr);if(descriptors)vkDestroyDescriptorSetLayout(c.device,descriptors,nullptr);
+      |                                                               ^~~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp: In member function ‘so101_station_vulkan::ChildCounts so101_station_vulkan::ChildStorage::result(unsigned int)’:
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:74:3: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   74 |   if(!ready(i))throw std::logic_error("child preparation still pending");const auto* words=static_cast<const uint32_t*>(e.readback.mapped);
+      |   ^~
+/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/source/ros2/src/so101_station_vulkan/src/children.cpp:74:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   74 |   if(!ready(i))throw std::logic_error("child preparation still pending");const auto* words=static_cast<const uint32_t*>(e.readback.mapped);
+      |                                                                          ^~~~~
+---
+Finished <<< so101_station_vulkan [39.7s]
+
+Summary: 1 package finished [39.9s]
+  1 package had stderr output: so101_station_vulkan

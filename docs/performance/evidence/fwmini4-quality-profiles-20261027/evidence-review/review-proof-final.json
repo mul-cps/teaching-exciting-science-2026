@@ -1,0 +1,45 @@
+{
+  "approved": true,
+  "source_commit": "032fd17e4dcc4ac7f6fcb7ed12f53b944370e276",
+  "source_package_files_matched_Git_and_source_archive": 105,
+  "source_sha256": "47c121dc75ac299340305af87cd34712ee5f3aeabd0b7fbfaff72b0a32bc9713",
+  "test_sha256": "d486095bc70fcf56e88d7c602e959ce268257d7a1757627c21df4b572ba7146e",
+  "unit_tests": 30,
+  "test_seconds": 0.082,
+  "all_six_analysis_valid": true,
+  "all_six_independent_metrics_match": true,
+  "unchanged_reviewed_core_function_ASTs": {
+    "number": true,
+    "load": true,
+    "lines": true,
+    "perception_summary": true,
+    "glx_summary": true,
+    "engines": true,
+    "observer_summary": true
+  },
+  "raw_archive_sha256": "a9304d6692553944433a9b46b49938b85c672a5110ebd9cbadc08428e48b572f",
+  "raw_archive_regular_members": 58,
+  "archive_members_exact_to_extracted": true,
+  "producer_policy": "All experimental snapshots validated; fresh=true age0, exact canonical profile/mode, strict finite scalars/nonnegative integers, source conservation+skip decomposition+stage order+published/completed equality, monotonic counters/maxima and receipts, pending/active<=1. Fresh-only endpointdelta for intake; no runner producer summary trusted.",
+  "resource_scope": "No native execution, GPU, USB or SSH in this independent evidence review. No source/raw edits.",
+  "limitations": [
+    "Vulkan intake near30Hz in all three short windows; CPUmedium29.2047 andhigh_quality24.2931Hz cannot qualify all-profile30HzCPU fallback",
+    "Source-ID gaps are not application skips; GPU1/6/11 already present at first nonzero snapshot and flat thereafter, possibly cold-to-normal watermark jump, no zero hardware loss claim",
+    "Zero capture SERVICE gap/duration misses does not mean zero acquisition-gap misses",
+    "Producer intake/status window is separate approximate DDS receipt window, not exact worker event timestamp or collector output window",
+    "VulkanSDK2.58.3 versusCPUoptimizedSDK2.58.4 and sequential unmatched live pixels; CPU percent does not imply uniformly lower CPUms/output",
+    "GLX perdrawable swap-return rate is not fresh image presentation or physical scanout; no fullstation/geometry/control/soak/adoption qualification",
+    "Observer combines different nearest-endpoint window approximately; excludes observer CPU from target sums; DRM engine counters not GPU occupancy"
+  ],
+  "files": [
+    "independent-metrics.json",
+    "provenance-and-initial-gaps.json",
+    "input-sha256.json",
+    "analyzer-tests.log",
+    "analysis.json",
+    "recompute.py"
+  ],
+  "prior_test_sha256": "0793af20fe5aa2bd943b5b0f684f0d72b7df1c0c47e9fc4f25c981cf156e970a",
+  "portable_test_paths": "Reviewed siblingANALYZER binding, CLI binding and defaulttempdir;30tests rerunPASS; analyzer source unchanged",
+  "test_log_final": "analyzer-tests-final-portable.log"
+}

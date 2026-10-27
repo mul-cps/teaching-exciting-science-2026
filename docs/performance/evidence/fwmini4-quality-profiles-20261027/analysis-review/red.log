@@ -1,0 +1,39 @@
+.............FF..F.......
+======================================================================
+FAIL: test_counter_decrease_is_rejected_even_when_conserved (__main__.ProducerTests.test_counter_decrease_is_rejected_even_when_conserved)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_quality_profiles_rviz_analysis_20261027.py", line 205, in test_counter_decrease_is_rejected_even_when_conserved
+    self.assertIn('regress',str(a.producer_summary(d,'vulkan','realtime')['errors']))
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'regress' not found in "['not implemented']"
+
+======================================================================
+FAIL: test_independent_intake_window_is_not_collector_output_or_lifetime_rate (__main__.ProducerTests.test_independent_intake_window_is_not_collector_output_or_lifetime_rate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_quality_profiles_rviz_analysis_20261027.py", line 183, in test_independent_intake_window_is_not_collector_output_or_lifetime_rate
+    self.assertEqual(p['errors'],[])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['not implemented'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'not implemented'
+
+- ['not implemented']
++ []
+
+======================================================================
+FAIL: test_stale_samples_count_but_only_fresh_endpoints_drive_rates (__main__.ProducerTests.test_stale_samples_count_but_only_fresh_endpoints_drive_rates)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_quality_profiles_rviz_analysis_20261027.py", line 227, in test_stale_samples_count_but_only_fresh_endpoints_drive_rates
+    self.assertFalse(p['errors']);self.assertEqual(p['snapshot_window']['measured_unique_intake_hz'],30)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: ['not implemented'] is not false
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.068s
+
+FAILED (failures=3)

@@ -1,0 +1,111 @@
+{
+  "raw_archive_sha256": "a9304d6692553944433a9b46b49938b85c672a5110ebd9cbadc08428e48b572f",
+  "archive_files_exact_to_extracted": 58,
+  "native_source_files_match_Git032fd17_and_source_tar": 105,
+  "loaded_library_basename_hashes": {
+    "libresident_alignment.so": "13ec73d2d230ca413a6da1d7da2a7eda40dabe44a712539a8a9fefb48e561098",
+    "libresident_components.so": "56c6ad5823a0db33cfd2b7fc51c99923e1f29643050b7759c21bbbb728e1f81d",
+    "libresident_rgbd.so": "7a745d7a44bcad485cf72fed12488dd6a17ebc479088333bb941f12c69621818",
+    "librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+    "libvulkan.so.1.3.275": "e833b010f814b72c6aca0300c8b5f19b6106ffa06c24ddc95a293970c7d6058e",
+    "libvulkan_intel.so": "01a6aa501cf9f4cb87ea0b3c9465317e783ff58d1c021b5b59d09f8e6ecde857",
+    "librealsense2.so.2.58.4": "97e305dfc84ee6f5a4a2ae0b9613ff629db82c033df62befc3d158d9c1bbf66e"
+  },
+  "initial_gap_detail": {
+    "realtime/vulkan": {
+      "first_nonzero": {
+        "received": 31,
+        "sdk_color_gap": 1,
+        "sdk_depth_gap": 1
+      },
+      "last_gaps": [
+        1,
+        1
+      ],
+      "post_first_nonzero_gap_deltas": [
+        0,
+        0
+      ]
+    },
+    "realtime/cpu": {
+      "first_nonzero": {
+        "received": 30,
+        "sdk_color_gap": 0,
+        "sdk_depth_gap": 0
+      },
+      "last_gaps": [
+        0,
+        0
+      ],
+      "post_first_nonzero_gap_deltas": [
+        0,
+        0
+      ]
+    },
+    "medium/vulkan": {
+      "first_nonzero": {
+        "received": 31,
+        "sdk_color_gap": 6,
+        "sdk_depth_gap": 6
+      },
+      "last_gaps": [
+        6,
+        6
+      ],
+      "post_first_nonzero_gap_deltas": [
+        0,
+        0
+      ]
+    },
+    "medium/cpu": {
+      "first_nonzero": {
+        "received": 29,
+        "sdk_color_gap": 11,
+        "sdk_depth_gap": 12
+      },
+      "last_gaps": [
+        13,
+        23
+      ],
+      "post_first_nonzero_gap_deltas": [
+        2,
+        11
+      ]
+    },
+    "high_quality/vulkan": {
+      "first_nonzero": {
+        "received": 31,
+        "sdk_color_gap": 11,
+        "sdk_depth_gap": 11
+      },
+      "last_gaps": [
+        11,
+        11
+      ],
+      "post_first_nonzero_gap_deltas": [
+        0,
+        0
+      ]
+    },
+    "high_quality/cpu": {
+      "first_nonzero": {
+        "received": 26,
+        "sdk_color_gap": 9,
+        "sdk_depth_gap": 9
+      },
+      "last_gaps": [
+        83,
+        84
+      ],
+      "post_first_nonzero_gap_deltas": [
+        74,
+        75
+      ]
+    }
+  },
+  "limitations": [
+    "Loaded library identity is retained runner /proc/maps path + disk file SHA, no binary payload or mapped-page rehash in this offline review",
+    "Initial first-nonzero SDK counter gaps may include cold-to-normal watermark jump; no zero hardware frame loss claim",
+    "DRM/GLX IntelADLN renderer andVulkanintel driver bound tosamehost; notphysicalscanout validation"
+  ]
+}

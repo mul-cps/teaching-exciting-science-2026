@@ -1,0 +1,58 @@
+{
+  "integration_status": "PASS except requested failure-handler hardening pending author delta",
+  "focused_tests": 33,
+  "focused_seconds": 27.86,
+  "manifest_files": 19,
+  "source_pin_matches": 18,
+  "lifecycle_actual_method_host_test": "PASS",
+  "lifecycle_partial_start_failure": "PASS first/second thread construction failure, stop exactly once, capture joined before SDK stop, worker joined before teardown",
+  "TSan": {
+    "toolchain": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-c++ GCC15.3",
+    "lifecycle": "PASS no reports",
+    "actual_scheduler": "PASS no reports",
+    "actual_record_failure_body": "PASS forced bad_alloc with reserved metadata and200 two-thread first-writer races",
+    "limitation": "GCC warns atomic_thread_fence unsupported by TSan; no claim of snapshot-memory-order proof",
+    "system_toolchain_attempt": "GCC16 link failed: missing /usr/lib64/libtsan.so.2.0.0; conda toolchain used successfully",
+    "concurrent_producer_worker_observer": {
+      "offered": 100000,
+      "accepted_consistent_snapshots": 818,
+      "accepted_while_producer_and_worker_live": 816,
+      "bounded_retry_failures": 76444,
+      "completed": 37175,
+      "replaced": 24314,
+      "contention": 38511
+    }
+  },
+  "resource_microbenchmark": {
+    "calls_per_cost": 100000,
+    "intake_replace_ns": 57.1828,
+    "admission_observe_ns": 3.01468,
+    "duplicate_ns": 31.3375,
+    "stopped_skip_ns": 41.2116,
+    "dispatch_raw_ns": 57.4977,
+    "skip_no_slot_raw_ns": 39.9136,
+    "clock_pair_baseline_ns": 18.898,
+    "full_cycle_ns": 171.657,
+    "contended_intake_ns": 42.7015,
+    "hot_heap_allocations": 0,
+    "owned_handle_releases_inside_scheduler": 0,
+    "simulated_30Hz_offered": 300,
+    "overload_ms": [
+      80,
+      180
+    ],
+    "blocked_publication_latest_id": 300,
+    "contention_attempts": 100000
+  },
+  "scope": "SDK-free host bodies and static integration guards, except existing CPU SDK software-frame focused tests; no GPU/USB/SSH, no hardware cadence/performance qualification",
+  "atomic_payload_review": {
+    "all_snapshot_stats_atomic": true,
+    "payload_storage": "Counters NATIVE_FIELDS std::atomic<uint64_t>",
+    "payload_loads": "NATIVE_FIELDS .load(memory_order_relaxed)",
+    "pending_native_and_metadata": "mutex protected; never read by snapshot",
+    "coherence_refinement_pending": "maximum relaxed store should be release for acquire-fence synchronization",
+    "reference": "https://eel.is/c++draft/atomics.fences#4"
+  },
+  "manifest_note": "18original pins stable; scheduler perf test changed to root-approved frozen d1d7751740dbef844f21e65a6de854e61a5c423ea539299f0485fa2a82e3a215",
+  "test_gap": "Recommend nonzero-token roundtrip/mismatch/reuse fixture in bridge host fake; source behavior reviewed correct"
+}

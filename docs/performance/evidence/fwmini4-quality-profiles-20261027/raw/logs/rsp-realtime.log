@@ -1,0 +1,5 @@
+[WARN] [1793113829.885481558] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793113829.885539439] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[WARN] [1793113829.913785464] [kdl_parser]: The root link base_link has an inertia specified in the URDF, but KDL does not support a root link with an inertia.  As a workaround, you can add an extra dummy link to your URDF.
+[INFO] [1793113829.913988565] [follower.robot_state_publisher]: Robot initialized
+[INFO] [1793113890.489573048] [rclcpp]: signal_handler(SIGINT/SIGTERM)

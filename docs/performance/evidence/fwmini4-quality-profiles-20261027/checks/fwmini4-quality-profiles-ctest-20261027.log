@@ -1,0 +1,34 @@
+Internal ctest changing into directory: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/build/so101_station_vulkan
+Test project /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/build/so101_station_vulkan
+      Start  1: resident_cpu_slang_contract
+ 1/14 Test  #1: resident_cpu_slang_contract .......   Passed    0.00 sec
+      Start  2: resident_frame_leases
+ 2/14 Test  #2: resident_frame_leases .............   Passed    0.02 sec
+      Start  3: resident_cpu_reference
+ 3/14 Test  #3: resident_cpu_reference ............   Passed    0.00 sec
+      Start  4: resident_alignment_sdk_oracle
+ 4/14 Test  #4: resident_alignment_sdk_oracle .....   Passed   16.29 sec
+      Start  5: raw_capture_bridge_host
+ 5/14 Test  #5: raw_capture_bridge_host ...........   Passed    0.10 sec
+      Start  6: resident_raw_camera_admission
+ 6/14 Test  #6: resident_raw_camera_admission .....   Passed    6.27 sec
+      Start  7: resident_camera_startup_gate
+ 7/14 Test  #7: resident_camera_startup_gate ......   Passed    0.00 sec
+      Start  8: resident_geometry_host_contract
+ 8/14 Test  #8: resident_geometry_host_contract ...   Passed    0.01 sec
+      Start  9: resident_preparation_host_paths
+ 9/14 Test  #9: resident_preparation_host_paths ...   Passed    0.06 sec
+      Start 10: resident_parent_host_contract
+10/14 Test #10: resident_parent_host_contract .....   Passed    0.01 sec
+      Start 11: resident_child_host_contract
+11/14 Test #11: resident_child_host_contract ......   Passed    0.01 sec
+      Start 12: resident_cc_copyback_host_paths
+12/14 Test #12: resident_cc_copyback_host_paths ...   Passed    0.06 sec
+      Start 13: resident_context_features_host
+13/14 Test #13: resident_context_features_host ....   Passed    0.00 sec
+      Start 14: resident_latest_frame_queue
+14/14 Test #14: resident_latest_frame_queue .......   Passed    0.03 sec
+
+100% tests passed, 0 tests failed out of 14
+
+Total Test time (real) =  22.87 sec

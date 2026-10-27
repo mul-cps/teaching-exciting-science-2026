@@ -1,0 +1,8 @@
+--pid
+weston:512373
+--pid
+keyboard:512397
+--pid
+desktop:512398
+--pid
+xwayland:512596

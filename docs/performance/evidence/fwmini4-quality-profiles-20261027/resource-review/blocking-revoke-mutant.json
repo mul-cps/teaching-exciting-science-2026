@@ -1,0 +1,6 @@
+{
+  "compiled": true,
+  "rejected": true,
+  "reason": "bounded2s watchdog: inserted revoke mutex blocks behind held publisher; actual source completes without release",
+  "source_sha256": "46653b571a73921f9f4a0e8f482346f367489d2b6654bec41661f86b4d7fe59a"
+}

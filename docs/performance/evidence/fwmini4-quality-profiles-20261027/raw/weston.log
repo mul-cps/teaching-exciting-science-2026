@@ -1,0 +1,63 @@
+Date: 2026-10-27 CET
+[16:10:01.545] weston 13.0.0
+               https://wayland.freedesktop.org
+               Bug reports to: https://gitlab.freedesktop.org/wayland/weston/issues/
+               Build: 13.0.0
+[16:10:01.545] Command line: usr/bin/weston --backend=headless --shell=desktop-shell.so --renderer=gl --width=1920 --height=1080 --socket=workshop-rviz --xwayland --idle-time=0 --config=/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/weston.ini --log=/home/bjoern/.local/share/exciting-science/validation/quality-profiles-rviz-20261027/weston.log
+[16:10:01.545] OS: Linux, 7.0.0-38-generic, #38~24.04.4-Ubuntu SMP PREEMPT_DYNAMIC Mon Sep 14 16:37:11 UTC 2, x86_64
+[16:10:01.545] Flight recorder: enabled
+[16:10:01.545] Using config file '/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/weston.ini'
+[16:10:01.545] Output repaint window is 7 ms maximum.
+[16:10:01.545] Loading module '/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/runtime/usr/lib/x86_64-linux-gnu/libweston-13/headless-backend.so'
+[16:10:01.550] Loading module '/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/runtime/usr/lib/x86_64-linux-gnu/libweston-13/gl-renderer.so'
+[16:10:01.578] Using rendering device: /dev/dri/renderD128
+[16:10:01.578] EGL version: 1.5
+[16:10:01.578] EGL vendor: Mesa Project
+[16:10:01.578] EGL client APIs: OpenGL OpenGL_ES 
+[16:10:01.578] EGL features:
+               EGL Wayland extension: no
+               context priority: yes
+               buffer age: no
+               partial update: yes
+               swap buffers with damage: no
+               configless context: yes
+               surfaceless context: yes
+               dmabuf support: modifiers
+[16:10:01.581] GL version: OpenGL ES 3.2 Mesa 25.2.8-0ubuntu0.24.04.4
+[16:10:01.581] GLSL version: OpenGL ES GLSL ES 3.20
+[16:10:01.581] GL vendor: Intel
+[16:10:01.581] GL renderer: Mesa Intel(R) Graphics (ADL-N)
+[16:10:01.589] GL ES 3.2 - renderer features:
+               read-back format: ARGB8888
+               glReadPixels supports y-flip: yes
+               wl_shm 10 bpc formats: yes
+               wl_shm 16 bpc formats: yes
+               wl_shm half-float formats: yes
+               internal R and RG formats: yes
+               OES_EGL_image_external: yes
+[16:10:01.589] Using GL renderer
+[16:10:01.589] Registered plugin API 'weston_windowed_output_api_v2' of size 16
+[16:10:01.589] Color manager: no-op
+[16:10:01.589] Output 'headless' attempts EOTF mode: SDR
+[16:10:01.589] Output 'headless' using color profile: stock sRGB color profile
+[16:10:01.591] Output 'headless' enabled with head(s) headless
+[16:10:01.591] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: yes
+               cursor planes: no
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: yes
+               color operations: yes
+               presentation clock: CLOCK_MONOTONIC_RAW, id 4
+               presentation clock resolution: 0.000000001 s
+[16:10:01.591] Loading module '/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/runtime/usr/lib/x86_64-linux-gnu/weston/desktop-shell.so'
+[16:10:01.591] Loading module '/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/runtime/usr/lib/x86_64-linux-gnu/libweston-13/xwayland.so'
+[16:10:01.592] Registered plugin API 'weston_xwayland_v3' of size 32
+[16:10:01.592] Registered plugin API 'weston_xwayland_surface_v1' of size 16
+[16:10:01.592] xserver listening on display :2
+[16:10:01.592] launching '/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/runtime/usr/libexec/weston-keyboard'
+[16:10:01.594] launching '/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/runtime/usr/libexec/weston-desktop-shell'
+[16:10:29.237] launching '/usr/bin/Xwayland'
+[16:10:29.323] xfixes version: 6.0
+[16:10:29.330] created wm, root 1262

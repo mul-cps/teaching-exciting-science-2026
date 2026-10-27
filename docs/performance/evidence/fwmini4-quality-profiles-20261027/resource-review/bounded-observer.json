@@ -1,0 +1,22 @@
+{
+  "calls_per_cost": 100000,
+  "intake_replace_ns": 65.5858,
+  "admission_observe_ns": 2.9217,
+  "duplicate_ns": 34.4927,
+  "stopped_skip_ns": 41.532,
+  "dispatch_raw_ns": 59.3308,
+  "skip_no_slot_raw_ns": 41.2264,
+  "clock_pair_baseline_ns": 19.5082,
+  "full_cycle_ns": 169.779,
+  "contended_intake_ns": 39.6603,
+  "bounded_snapshot_stale_ns": 2.8159,
+  "hot_heap_allocations": 0,
+  "owned_handle_releases_inside_scheduler": 0,
+  "simulated_30Hz_offered": 300,
+  "overload_ms": [
+    80,
+    180
+  ],
+  "blocked_publication_latest_id": 300,
+  "contention_attempts": 100000
+}

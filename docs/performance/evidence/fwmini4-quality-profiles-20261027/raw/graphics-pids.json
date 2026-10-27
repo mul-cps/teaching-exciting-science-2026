@@ -1,0 +1,26 @@
+{
+  "weston": {
+    "pid": 512373,
+    "parent": 1,
+    "command": "usr/bin/weston --backend=headless --shell=desktop-shell.so --renderer=gl --width=1920 --height=1080 --socket=workshop-rviz --xwayland --idle-time=0 --config=/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/weston.ini --log=/home/bjoern/.local/share/exciting-science/validation/quality-profiles-rviz-20261027/weston.log ",
+    "starttime": 62919382
+  },
+  "keyboard": {
+    "pid": 512397,
+    "parent": 512373,
+    "command": "/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/runtime/usr/libexec/weston-keyboard ",
+    "starttime": 62919387
+  },
+  "desktop": {
+    "pid": 512398,
+    "parent": 512373,
+    "command": "/home/bjoern/.local/share/exciting-science/validation/rviz-coexistence-20261027/runtime/usr/libexec/weston-desktop-shell ",
+    "starttime": 62919387
+  },
+  "xwayland": {
+    "pid": 512596,
+    "parent": 512373,
+    "command": "/usr/bin/Xwayland :2 -rootless -listen 19 -listen 20 -displayfd 32 -wm 30 -terminate ",
+    "starttime": 62922152
+  }
+}

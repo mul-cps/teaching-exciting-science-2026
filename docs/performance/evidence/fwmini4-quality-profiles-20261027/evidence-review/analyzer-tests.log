@@ -1,0 +1,35 @@
+test_allocation_growth_and_summary_mismatch_are_errors (__main__.ErrorTests.test_allocation_growth_and_summary_mismatch_are_errors) ... ok
+test_camera_pid_and_alias_not_double_counted (__main__.ErrorTests.test_camera_pid_and_alias_not_double_counted) ... ok
+test_collector_errors_and_mode_are_not_safety_pass (__main__.ErrorTests.test_collector_errors_and_mode_are_not_safety_pass) ... ok
+test_engine_client_disappearance_not_zero_utilization (__main__.ErrorTests.test_engine_client_disappearance_not_zero_utilization) ... ok
+test_interval_zero_elapsed_and_overlap_rejected (__main__.ErrorTests.test_interval_zero_elapsed_and_overlap_rejected) ... ok
+test_measurement_receipts_must_be_inside_exact_inferred_bounds (__main__.ErrorTests.test_measurement_receipts_must_be_inside_exact_inferred_bounds) ... ok
+test_missing_metadata_not_borrowed_from_other_drawable (__main__.ErrorTests.test_missing_metadata_not_borrowed_from_other_drawable) ... ok
+test_missing_process_row_invalidates_sum (__main__.ErrorTests.test_missing_process_row_invalidates_sum) ... ok
+test_no_cpu_window_is_invalid_not_zero (__main__.ErrorTests.test_no_cpu_window_is_invalid_not_zero) ... ok
+test_profile_mode_and_extents_reject_mislabeled_inputs (__main__.ErrorTests.test_profile_mode_and_extents_reject_mislabeled_inputs) ... ok
+test_status_profile_and_extent_changes_are_rejected (__main__.ErrorTests.test_status_profile_and_extent_changes_are_rejected) ... ok
+test_requested_profile_and_fresh_label_are_required (__main__.ProducerBoundaryTests.test_requested_profile_and_fresh_label_are_required) ... ok
+test_skip_decomposition_is_independent_and_counter_regression_checked_between_endpoints (__main__.ProducerBoundaryTests.test_skip_decomposition_is_independent_and_counter_regression_checked_between_endpoints) ... ok
+test_stale_bad_payload_is_not_silently_ignored (__main__.ProducerBoundaryTests.test_stale_bad_payload_is_not_silently_ignored) ... ok
+test_fresh_snapshot_age_must_be_zero (__main__.ProducerCoherenceTests.test_fresh_snapshot_age_must_be_zero) ... ok
+test_scheduler_stage_order_and_completed_published_commit (__main__.ProducerCoherenceTests.test_scheduler_stage_order_and_completed_published_commit) ... ok
+test_active_and_pending_occupancy_are_bounded (__main__.ProducerTests.test_active_and_pending_occupancy_are_bounded) ... ok
+test_conservation_flag_cannot_hide_bad_numeric_sum (__main__.ProducerTests.test_conservation_flag_cannot_hide_bad_numeric_sum) ... ok
+test_counter_decrease_is_rejected_even_when_conserved (__main__.ProducerTests.test_counter_decrease_is_rejected_even_when_conserved) ... ok
+test_independent_intake_window_is_not_collector_output_or_lifetime_rate (__main__.ProducerTests.test_independent_intake_window_is_not_collector_output_or_lifetime_rate) ... ok
+test_missing_or_malformed_counter_fields_rejected (__main__.ProducerTests.test_missing_or_malformed_counter_fields_rejected) ... ok
+test_stale_only_and_single_fresh_have_no_inferred_rate (__main__.ProducerTests.test_stale_only_and_single_fresh_have_no_inferred_rate) ... ok
+test_stale_samples_count_but_only_fresh_endpoints_drive_rates (__main__.ProducerTests.test_stale_samples_count_but_only_fresh_endpoints_drive_rates) ... ok
+test_zero_receipt_interval_and_policy_rejected (__main__.ProducerTests.test_zero_receipt_interval_and_policy_rejected) ... ok
+test_cli_shared_logs_six_runs (__main__.Tests.test_cli_shared_logs_six_runs) ... ok
+test_collector_math_and_expected_first_status (__main__.Tests.test_collector_math_and_expected_first_status) ... ok
+test_cpu_counter_math_and_actual_window (__main__.Tests.test_cpu_counter_math_and_actual_window) ... ok
+test_empty_and_software_glx_are_errors_not_zero (__main__.Tests.test_empty_and_software_glx_are_errors_not_zero) ... ok
+test_pid_change_and_counter_regression_are_not_cpu_zero (__main__.Tests.test_pid_change_and_counter_regression_are_not_cpu_zero) ... ok
+test_shared_profile_logs_use_distinct_windows_no_sum (__main__.Tests.test_shared_profile_logs_use_distinct_windows_no_sum) ... ok
+
+----------------------------------------------------------------------
+Ran 30 tests in 0.082s
+
+OK

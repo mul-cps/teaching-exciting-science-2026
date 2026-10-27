@@ -1,0 +1,1421 @@
+{
+  "realtime/vulkan": {
+    "collector_window": {
+      "begin": 629246.088800383,
+      "end": 629261.095358287,
+      "seconds": 15.006557903951034
+    },
+    "perception": {
+      "unique_outputs": 450,
+      "output_hz": 29.986889923739326,
+      "CPU_ms": 2720.0,
+      "total_four_core_CPU_percent": 4.531352255142831,
+      "CPU_ms_per_output": 6.044444444444444,
+      "receipt_age_p95_ms": 28.531875,
+      "source_ID_gaps": {
+        "source_frame": 1,
+        "depth_source_frame": 1
+      }
+    },
+    "producer": {
+      "snapshot_window_seconds": 14.180356764001772,
+      "begin": 629246.088800383,
+      "end": 629260.269157147,
+      "fresh_snapshots": 15,
+      "all_snapshots": 15,
+      "unique_intake_hz": 30.041557281650547,
+      "published_status_delta_hz": 29.971037194134933,
+      "capture_service_hz": 481.37011738156485,
+      "delta": {
+        "received": 426,
+        "received_unique": 426,
+        "completed": 425,
+        "skipped": 1,
+        "replaced": 1,
+        "contention_discard": 0,
+        "stopped_discard": 0,
+        "duplicate_or_regressed": 0,
+        "invalid_received": 0,
+        "selected": 425,
+        "submitted": 425,
+        "computed": 425,
+        "published": 425,
+        "capture_service_calls": 6826,
+        "sdk_color_id_gaps": 1,
+        "sdk_depth_id_gaps": 1,
+        "capture_gap_deadline_misses": 0,
+        "capture_duration_deadline_misses": 0,
+        "dropped": 0,
+        "acquisition_gap_deadline_misses": 160,
+        "received_age_unknown": 0
+      },
+      "cumulative_maxima": {
+        "capture_service_gap_max_ms": 2.949,
+        "capture_duration_max_ms": 1.56,
+        "acquisition_gap_max_ms": 35.62
+      },
+      "max_active": 1,
+      "max_pending": 0
+    },
+    "primary_viewport": {
+      "display": 96082001171264,
+      "drawable": 8388612,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ],
+      "intervals": 13,
+      "covered_seconds": 13.311753298,
+      "swaps": 416,
+      "swap_hz": 31.25057914516048,
+      "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+    },
+    "viewports": [
+      {
+        "display": 96082001171264,
+        "drawable": 8388614,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.336843914,
+        "swaps": 448,
+        "swap_hz": 31.24816052175373,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 96082001171264,
+        "drawable": 8388610,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ],
+        "intervals": 13,
+        "covered_seconds": 13.31175424,
+        "swaps": 416,
+        "swap_hz": 31.250576933728006,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 96082001171264,
+        "drawable": 8388612,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ],
+        "intervals": 13,
+        "covered_seconds": 13.311753298,
+        "swaps": 416,
+        "swap_hz": 31.25057914516048,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      }
+    ],
+    "observer": {
+      "begin": 629246.127904122,
+      "end": 629261.141838451,
+      "seconds": 15.013934329035692,
+      "begin_offset": 0.03910373896360397,
+      "end_offset": 0.04648016404826194,
+      "external_four_core_CPU_percent": 7.642900087692744,
+      "processes": {
+        "desktop": {
+          "pid": 512398,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3873,
+          "RSS_max_pages": 3873,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "pid": 512397,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2694,
+          "RSS_max_pages": 2694,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "pid": 512625,
+          "starttime_ticks": 62922214,
+          "CPU_ms": 120.0,
+          "total_four_core_CPU_percent": 0.19981438137758809,
+          "RSS_end_pages": 6874,
+          "RSS_max_pages": 6874,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "pid": 512627,
+          "starttime_ticks": 62922214,
+          "CPU_ms": 2980.0,
+          "total_four_core_CPU_percent": 4.962057137543438,
+          "RSS_end_pages": 52073,
+          "RSS_max_pages": 52175,
+          "engine_delta_ns": {
+            "1040": {
+              "copy": 0,
+              "video": 0,
+              "render": 0,
+              "video-enhance": 0
+            },
+            "1039": {
+              "copy": 0,
+              "video": 0,
+              "render": 2357323904,
+              "video-enhance": 0
+            }
+          }
+        },
+        "scene": {
+          "pid": 512626,
+          "starttime_ticks": 62922214,
+          "CPU_ms": 420.0,
+          "total_four_core_CPU_percent": 0.6993503348215583,
+          "RSS_end_pages": 16872,
+          "RSS_max_pages": 16872,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "pid": 512373,
+          "starttime_ticks": 62919382,
+          "CPU_ms": 180.0,
+          "total_four_core_CPU_percent": 0.2997215720663821,
+          "RSS_end_pages": 20201,
+          "RSS_max_pages": 20201,
+          "engine_delta_ns": {
+            "1036": {
+              "copy": 0,
+              "video": 0,
+              "render": 198074188,
+              "video-enhance": 0
+            }
+          }
+        },
+        "xwayland": {
+          "pid": 512596,
+          "starttime_ticks": 62922152,
+          "CPU_ms": 890.0,
+          "total_four_core_CPU_percent": 1.4819566618837785,
+          "RSS_end_pages": 19868,
+          "RSS_max_pages": 19868,
+          "engine_delta_ns": {
+            "1038": {
+              "copy": 0,
+              "video": 0,
+              "render": 449373444,
+              "video-enhance": 0
+            }
+          }
+        }
+      },
+      "host_busy_percent": 15.053039232193973,
+      "sampling_wall_cost_mean": 0.004968353757628591,
+      "sampling_wall_cost_max": 0.006173022091388702
+    },
+    "approximate_combined_four_core_CPU_percent": 12.174252342835576,
+    "loaded_libraries": {
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_alignment.so": "13ec73d2d230ca413a6da1d7da2a7eda40dabe44a712539a8a9fefb48e561098",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_components.so": "56c6ad5823a0db33cfd2b7fc51c99923e1f29643050b7759c21bbbb728e1f81d",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_rgbd.so": "7a745d7a44bcad485cf72fed12488dd6a17ebc479088333bb941f12c69621818",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/scalar-sdk/librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+      "/usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275": "e833b010f814b72c6aca0300c8b5f19b6106ffa06c24ddc95a293970c7d6058e",
+      "/usr/lib/x86_64-linux-gnu/libvulkan_intel.so": "01a6aa501cf9f4cb87ea0b3c9465317e783ff58d1c021b5b59d09f8e6ecde857"
+    }
+  },
+  "realtime/cpu": {
+    "collector_window": {
+      "begin": 629266.541565781,
+      "end": 629281.56660121,
+      "seconds": 15.02503542904742
+    },
+    "perception": {
+      "unique_outputs": 451,
+      "output_hz": 30.016568155845818,
+      "CPU_ms": 6100.0,
+      "total_four_core_CPU_percent": 10.149726482852522,
+      "CPU_ms_per_output": 13.52549889135255,
+      "receipt_age_p95_ms": 14.755099,
+      "source_ID_gaps": {
+        "source_frame": 0,
+        "depth_source_frame": 0
+      }
+    },
+    "producer": {
+      "snapshot_window_seconds": 14.200173608027399,
+      "begin": 629266.541565781,
+      "end": 629280.741739389,
+      "fresh_snapshots": 15,
+      "all_snapshots": 15,
+      "unique_intake_hz": 29.999633226961464,
+      "published_status_delta_hz": 29.999633226961464,
+      "capture_service_hz": 482.1772035328759,
+      "delta": {
+        "received": 426,
+        "received_unique": 426,
+        "completed": 426,
+        "skipped": 0,
+        "replaced": 0,
+        "contention_discard": 0,
+        "stopped_discard": 0,
+        "duplicate_or_regressed": 0,
+        "invalid_received": 0,
+        "selected": 426,
+        "submitted": 426,
+        "computed": 426,
+        "published": 426,
+        "capture_service_calls": 6847,
+        "sdk_color_id_gaps": 0,
+        "sdk_depth_id_gaps": 0,
+        "capture_gap_deadline_misses": 0,
+        "capture_duration_deadline_misses": 0,
+        "dropped": 0,
+        "acquisition_gap_deadline_misses": 104,
+        "received_age_unknown": 0
+      },
+      "cumulative_maxima": {
+        "capture_service_gap_max_ms": 5.183,
+        "capture_duration_max_ms": 0.25,
+        "acquisition_gap_max_ms": 35.417
+      },
+      "max_active": 1,
+      "max_pending": 0
+    },
+    "primary_viewport": {
+      "display": 96082001171264,
+      "drawable": 8388612,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ],
+      "intervals": 14,
+      "covered_seconds": 14.337830998,
+      "swaps": 448,
+      "swap_hz": 31.24600925080593,
+      "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+    },
+    "viewports": [
+      {
+        "display": 96082001171264,
+        "drawable": 8388610,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.338012275,
+        "swaps": 448,
+        "swap_hz": 31.245614204218555,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 96082001171264,
+        "drawable": 8388612,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.337830998,
+        "swaps": 448,
+        "swap_hz": 31.24600925080593,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 96082001171264,
+        "drawable": 8388614,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.334367677,
+        "swaps": 448,
+        "swap_hz": 31.25355858694987,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      }
+    ],
+    "observer": {
+      "begin": 629266.548650183,
+      "end": 629281.56115539,
+      "seconds": 15.012505206977949,
+      "begin_offset": 0.007084402022883296,
+      "end_offset": -0.0054458200465887785,
+      "external_four_core_CPU_percent": 7.7601971419033875,
+      "processes": {
+        "desktop": {
+          "pid": 512398,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3873,
+          "RSS_max_pages": 3873,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "pid": 512397,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2694,
+          "RSS_max_pages": 2694,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "pid": 512625,
+          "starttime_ticks": 62922214,
+          "CPU_ms": 130.0,
+          "total_four_core_CPU_percent": 0.21648618636211164,
+          "RSS_end_pages": 6947,
+          "RSS_max_pages": 6947,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "pid": 512627,
+          "starttime_ticks": 62922214,
+          "CPU_ms": 3030.0,
+          "total_four_core_CPU_percent": 5.045793420593833,
+          "RSS_end_pages": 52062,
+          "RSS_max_pages": 52062,
+          "engine_delta_ns": {
+            "1040": {
+              "copy": 0,
+              "video": 0,
+              "render": 0,
+              "video-enhance": 0
+            },
+            "1039": {
+              "copy": 0,
+              "video": 0,
+              "render": 5424575572,
+              "video-enhance": 0
+            }
+          }
+        },
+        "scene": {
+          "pid": 512626,
+          "starttime_ticks": 62922214,
+          "CPU_ms": 460.0,
+          "total_four_core_CPU_percent": 0.766028044050549,
+          "RSS_end_pages": 16877,
+          "RSS_max_pages": 16877,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "pid": 512373,
+          "starttime_ticks": 62919382,
+          "CPU_ms": 190.0,
+          "total_four_core_CPU_percent": 0.31640288776000935,
+          "RSS_end_pages": 20201,
+          "RSS_max_pages": 20201,
+          "engine_delta_ns": {
+            "1036": {
+              "copy": 0,
+              "video": 0,
+              "render": 395859984,
+              "video-enhance": 0
+            }
+          }
+        },
+        "xwayland": {
+          "pid": 512596,
+          "starttime_ticks": 62922152,
+          "CPU_ms": 850.0,
+          "total_four_core_CPU_percent": 1.415486603136884,
+          "RSS_end_pages": 19868,
+          "RSS_max_pages": 19868,
+          "engine_delta_ns": {
+            "1038": {
+              "copy": 0,
+              "video": 0,
+              "render": 918782956,
+              "video-enhance": 0
+            }
+          }
+        }
+      },
+      "host_busy_percent": 21.595690961117658,
+      "sampling_wall_cost_mean": 0.005819075511897982,
+      "sampling_wall_cost_max": 0.007828827016055584
+    },
+    "approximate_combined_four_core_CPU_percent": 17.90992362475591,
+    "loaded_libraries": {
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_alignment.so": "13ec73d2d230ca413a6da1d7da2a7eda40dabe44a712539a8a9fefb48e561098",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_components.so": "56c6ad5823a0db33cfd2b7fc51c99923e1f29643050b7759c21bbbb728e1f81d",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_rgbd.so": "7a745d7a44bcad485cf72fed12488dd6a17ebc479088333bb941f12c69621818",
+      "/opt/ros/jazzy/lib/x86_64-linux-gnu/librealsense2.so.2.58.4": "97e305dfc84ee6f5a4a2ae0b9613ff629db82c033df62befc3d158d9c1bbf66e",
+      "/usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275": "e833b010f814b72c6aca0300c8b5f19b6106ffa06c24ddc95a293970c7d6058e"
+    }
+  },
+  "medium/vulkan": {
+    "collector_window": {
+      "begin": 629296.205755665,
+      "end": 629311.24360429,
+      "seconds": 15.037848624982871
+    },
+    "perception": {
+      "unique_outputs": 205,
+      "output_hz": 13.63226915713374,
+      "CPU_ms": 5970.0,
+      "total_four_core_CPU_percent": 9.924956935132734,
+      "CPU_ms_per_output": 29.121951219512194,
+      "receipt_age_p95_ms": 106.456352,
+      "source_ID_gaps": {
+        "source_frame": 243,
+        "depth_source_frame": 243
+      }
+    },
+    "producer": {
+      "snapshot_window_seconds": 14.200031204032712,
+      "begin": 629296.205755665,
+      "end": 629310.405786869,
+      "fresh_snapshots": 15,
+      "all_snapshots": 15,
+      "unique_intake_hz": 30.0703564565925,
+      "published_status_delta_hz": 13.661941809318371,
+      "capture_service_hz": 478.8017647502866,
+      "delta": {
+        "received": 427,
+        "received_unique": 427,
+        "completed": 194,
+        "skipped": 231,
+        "replaced": 231,
+        "contention_discard": 0,
+        "stopped_discard": 0,
+        "duplicate_or_regressed": 0,
+        "invalid_received": 0,
+        "selected": 195,
+        "submitted": 195,
+        "computed": 194,
+        "published": 194,
+        "capture_service_calls": 6799,
+        "sdk_color_id_gaps": 6,
+        "sdk_depth_id_gaps": 6,
+        "capture_gap_deadline_misses": 0,
+        "capture_duration_deadline_misses": 0,
+        "dropped": 0,
+        "acquisition_gap_deadline_misses": 212,
+        "received_age_unknown": 0
+      },
+      "cumulative_maxima": {
+        "capture_service_gap_max_ms": 4.827,
+        "capture_duration_max_ms": 0.968,
+        "acquisition_gap_max_ms": 39.964
+      },
+      "max_active": 1,
+      "max_pending": 1
+    },
+    "primary_viewport": {
+      "display": 101684556126144,
+      "drawable": 8388612,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ],
+      "intervals": 14,
+      "covered_seconds": 14.335554305,
+      "swaps": 448,
+      "swap_hz": 31.250971568204037,
+      "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+    },
+    "viewports": [
+      {
+        "display": 101684556126144,
+        "drawable": 8388610,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.335571004,
+        "swaps": 448,
+        "swap_hz": 31.25093516505176,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 101684556126144,
+        "drawable": 8388612,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.335554305,
+        "swaps": 448,
+        "swap_hz": 31.250971568204037,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 101684556126144,
+        "drawable": 8388614,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.293946057,
+        "swaps": 447,
+        "swap_hz": 31.27198033471633,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      }
+    ],
+    "observer": {
+      "begin": 629296.245807189,
+      "end": 629311.2618166,
+      "seconds": 15.016009410959668,
+      "begin_offset": 0.04005152406170964,
+      "end_offset": 0.018212310038506985,
+      "external_four_core_CPU_percent": 8.54088436481631,
+      "processes": {
+        "desktop": {
+          "pid": 512398,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3873,
+          "RSS_max_pages": 3873,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "pid": 512397,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2694,
+          "RSS_max_pages": 2694,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "pid": 513260,
+          "starttime_ticks": 62928377,
+          "CPU_ms": 140.0,
+          "total_four_core_CPU_percent": 0.23308456356223844,
+          "RSS_end_pages": 6859,
+          "RSS_max_pages": 6859,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "pid": 513262,
+          "starttime_ticks": 62928377,
+          "CPU_ms": 3370.0,
+          "total_four_core_CPU_percent": 5.610678422891026,
+          "RSS_end_pages": 53360,
+          "RSS_max_pages": 53360,
+          "engine_delta_ns": {
+            "1046": {
+              "copy": 0,
+              "video": 0,
+              "render": 0,
+              "video-enhance": 0
+            },
+            "1045": {
+              "copy": 0,
+              "video": 0,
+              "render": 2458980680,
+              "video-enhance": 0
+            }
+          }
+        },
+        "scene": {
+          "pid": 513261,
+          "starttime_ticks": 62928377,
+          "CPU_ms": 480.0,
+          "total_four_core_CPU_percent": 0.7991470750705318,
+          "RSS_end_pages": 16838,
+          "RSS_max_pages": 16838,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "pid": 512373,
+          "starttime_ticks": 62919382,
+          "CPU_ms": 210.0,
+          "total_four_core_CPU_percent": 0.3496268453433577,
+          "RSS_end_pages": 20201,
+          "RSS_max_pages": 20201,
+          "engine_delta_ns": {
+            "1036": {
+              "copy": 0,
+              "video": 0,
+              "render": 198060096,
+              "video-enhance": 0
+            }
+          }
+        },
+        "xwayland": {
+          "pid": 512596,
+          "starttime_ticks": 62922152,
+          "CPU_ms": 930.0,
+          "total_four_core_CPU_percent": 1.5483474579491556,
+          "RSS_end_pages": 20129,
+          "RSS_max_pages": 20129,
+          "engine_delta_ns": {
+            "1038": {
+              "copy": 0,
+              "video": 0,
+              "render": 461145932,
+              "video-enhance": 0
+            }
+          }
+        }
+      },
+      "host_busy_percent": 21.42977860402231,
+      "sampling_wall_cost_mean": 0.0054099252910063365,
+      "sampling_wall_cost_max": 0.0069792220601812005
+    },
+    "approximate_combined_four_core_CPU_percent": 18.465841299949044,
+    "loaded_libraries": {
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_alignment.so": "13ec73d2d230ca413a6da1d7da2a7eda40dabe44a712539a8a9fefb48e561098",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_components.so": "56c6ad5823a0db33cfd2b7fc51c99923e1f29643050b7759c21bbbb728e1f81d",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_rgbd.so": "7a745d7a44bcad485cf72fed12488dd6a17ebc479088333bb941f12c69621818",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/scalar-sdk/librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+      "/usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275": "e833b010f814b72c6aca0300c8b5f19b6106ffa06c24ddc95a293970c7d6058e",
+      "/usr/lib/x86_64-linux-gnu/libvulkan_intel.so": "01a6aa501cf9f4cb87ea0b3c9465317e783ff58d1c021b5b59d09f8e6ecde857"
+    }
+  },
+  "medium/cpu": {
+    "collector_window": {
+      "begin": 629318.603779267,
+      "end": 629333.617898519,
+      "seconds": 15.014119251980446
+    },
+    "perception": {
+      "unique_outputs": 406,
+      "output_hz": 27.04121321977953,
+      "CPU_ms": 16300.0,
+      "total_four_core_CPU_percent": 27.14111917995113,
+      "CPU_ms_per_output": 40.14778325123153,
+      "receipt_age_p95_ms": 69.219307,
+      "source_ID_gaps": {
+        "source_frame": 44,
+        "depth_source_frame": 44
+      }
+    },
+    "producer": {
+      "snapshot_window_seconds": 14.141541404998861,
+      "begin": 629318.603779267,
+      "end": 629332.745320672,
+      "fresh_snapshots": 15,
+      "all_snapshots": 15,
+      "unique_intake_hz": 29.204737176246542,
+      "published_status_delta_hz": 27.01261404679462,
+      "capture_service_hz": 477.9535558698556,
+      "delta": {
+        "received": 423,
+        "received_unique": 413,
+        "completed": 382,
+        "skipped": 30,
+        "replaced": 30,
+        "contention_discard": 0,
+        "stopped_discard": 0,
+        "duplicate_or_regressed": 10,
+        "invalid_received": 0,
+        "selected": 383,
+        "submitted": 382,
+        "computed": 382,
+        "published": 382,
+        "capture_service_calls": 6759,
+        "sdk_color_id_gaps": 13,
+        "sdk_depth_id_gaps": 23,
+        "capture_gap_deadline_misses": 0,
+        "capture_duration_deadline_misses": 0,
+        "dropped": 0,
+        "acquisition_gap_deadline_misses": 144,
+        "received_age_unknown": 0
+      },
+      "cumulative_maxima": {
+        "capture_service_gap_max_ms": 7.887,
+        "capture_duration_max_ms": 0.253,
+        "acquisition_gap_max_ms": 99.525
+      },
+      "max_active": 1,
+      "max_pending": 1
+    },
+    "primary_viewport": {
+      "display": 101684556126144,
+      "drawable": 8388612,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ],
+      "intervals": 14,
+      "covered_seconds": 14.338097079,
+      "swaps": 448,
+      "swap_hz": 31.24542939914628,
+      "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+    },
+    "viewports": [
+      {
+        "display": 101684556126144,
+        "drawable": 8388610,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.338138583,
+        "swaps": 448,
+        "swap_hz": 31.24533895433057,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 101684556126144,
+        "drawable": 8388612,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.338097079,
+        "swaps": 448,
+        "swap_hz": 31.24542939914628,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 101684556126144,
+        "drawable": 8388614,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.338042734,
+        "swaps": 448,
+        "swap_hz": 31.24554782764396,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      }
+    ],
+    "observer": {
+      "begin": 629318.570055033,
+      "end": 629333.584196293,
+      "seconds": 15.014141260064207,
+      "begin_offset": -0.033724234090186656,
+      "end_offset": -0.03370222600642592,
+      "external_four_core_CPU_percent": 11.472517609659374,
+      "processes": {
+        "desktop": {
+          "pid": 512398,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3873,
+          "RSS_max_pages": 3873,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "pid": 512397,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2694,
+          "RSS_max_pages": 2694,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "pid": 513260,
+          "starttime_ticks": 62928377,
+          "CPU_ms": 140.0,
+          "total_four_core_CPU_percent": 0.23311356536318031,
+          "RSS_end_pages": 6869,
+          "RSS_max_pages": 6869,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "pid": 513262,
+          "starttime_ticks": 62928377,
+          "CPU_ms": 5000.0,
+          "total_four_core_CPU_percent": 8.32548447725644,
+          "RSS_end_pages": 53303,
+          "RSS_max_pages": 53303,
+          "engine_delta_ns": {
+            "1046": {
+              "copy": 0,
+              "video": 0,
+              "render": 0,
+              "video-enhance": 0
+            },
+            "1045": {
+              "copy": 0,
+              "video": 0,
+              "render": 5672072276,
+              "video-enhance": 0
+            }
+          }
+        },
+        "scene": {
+          "pid": 513261,
+          "starttime_ticks": 62928377,
+          "CPU_ms": 510.0,
+          "total_four_core_CPU_percent": 0.8491994166801569,
+          "RSS_end_pages": 16922,
+          "RSS_max_pages": 16922,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "pid": 512373,
+          "starttime_ticks": 62919382,
+          "CPU_ms": 220.0,
+          "total_four_core_CPU_percent": 0.36632131699928333,
+          "RSS_end_pages": 20201,
+          "RSS_max_pages": 20201,
+          "engine_delta_ns": {
+            "1036": {
+              "copy": 0,
+              "video": 0,
+              "render": 397621796,
+              "video-enhance": 0
+            }
+          }
+        },
+        "xwayland": {
+          "pid": 512596,
+          "starttime_ticks": 62922152,
+          "CPU_ms": 1020.0,
+          "total_four_core_CPU_percent": 1.6983988333603137,
+          "RSS_end_pages": 20129,
+          "RSS_max_pages": 20129,
+          "engine_delta_ns": {
+            "1038": {
+              "copy": 0,
+              "video": 0,
+              "render": 918391084,
+              "video-enhance": 0
+            }
+          }
+        }
+      },
+      "host_busy_percent": 43.75947448206165,
+      "sampling_wall_cost_mean": 0.00579400529810505,
+      "sampling_wall_cost_max": 0.009171275072731078
+    },
+    "approximate_combined_four_core_CPU_percent": 38.6136367896105,
+    "loaded_libraries": {
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_alignment.so": "13ec73d2d230ca413a6da1d7da2a7eda40dabe44a712539a8a9fefb48e561098",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_components.so": "56c6ad5823a0db33cfd2b7fc51c99923e1f29643050b7759c21bbbb728e1f81d",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_rgbd.so": "7a745d7a44bcad485cf72fed12488dd6a17ebc479088333bb941f12c69621818",
+      "/opt/ros/jazzy/lib/x86_64-linux-gnu/librealsense2.so.2.58.4": "97e305dfc84ee6f5a4a2ae0b9613ff629db82c033df62befc3d158d9c1bbf66e",
+      "/usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275": "e833b010f814b72c6aca0300c8b5f19b6106ffa06c24ddc95a293970c7d6058e"
+    }
+  },
+  "high_quality/vulkan": {
+    "collector_window": {
+      "begin": 629349.431827226,
+      "end": 629364.4388534579,
+      "seconds": 15.007026231964119
+    },
+    "perception": {
+      "unique_outputs": 93,
+      "output_hz": 6.197097183845474,
+      "CPU_ms": 10370.0,
+      "total_four_core_CPU_percent": 17.275241343139133,
+      "CPU_ms_per_output": 111.50537634408602,
+      "receipt_age_p95_ms": 196.249035,
+      "source_ID_gaps": {
+        "source_frame": 353,
+        "depth_source_frame": 353
+      }
+    },
+    "producer": {
+      "snapshot_window_seconds": 14.120272936066613,
+      "begin": 629349.431827226,
+      "end": 629363.552100162,
+      "fresh_snapshots": 15,
+      "all_snapshots": 15,
+      "unique_intake_hz": 30.098568343848836,
+      "published_status_delta_hz": 6.161353990387879,
+      "capture_service_hz": 477.5403443354652,
+      "delta": {
+        "received": 425,
+        "received_unique": 425,
+        "completed": 87,
+        "skipped": 336,
+        "replaced": 336,
+        "contention_discard": 0,
+        "stopped_discard": 0,
+        "duplicate_or_regressed": 0,
+        "invalid_received": 0,
+        "selected": 88,
+        "submitted": 88,
+        "computed": 87,
+        "published": 87,
+        "capture_service_calls": 6743,
+        "sdk_color_id_gaps": 11,
+        "sdk_depth_id_gaps": 11,
+        "capture_gap_deadline_misses": 0,
+        "capture_duration_deadline_misses": 0,
+        "dropped": 0,
+        "acquisition_gap_deadline_misses": 201,
+        "received_age_unknown": 0
+      },
+      "cumulative_maxima": {
+        "capture_service_gap_max_ms": 6.499,
+        "capture_duration_max_ms": 2.905,
+        "acquisition_gap_max_ms": 37.768
+      },
+      "max_active": 1,
+      "max_pending": 1
+    },
+    "primary_viewport": {
+      "display": 97617229247328,
+      "drawable": 8388612,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ],
+      "intervals": 14,
+      "covered_seconds": 14.304474972,
+      "swaps": 447,
+      "swap_hz": 31.248962361426823,
+      "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+    },
+    "viewports": [
+      {
+        "display": 97617229247328,
+        "drawable": 8388610,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.304465854,
+        "swaps": 447,
+        "swap_hz": 31.248982280243904,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 97617229247328,
+        "drawable": 8388612,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.304474972,
+        "swaps": 447,
+        "swap_hz": 31.248962361426823,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 97617229247328,
+        "drawable": 8388614,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.30430405,
+        "swaps": 447,
+        "swap_hz": 31.24933575499606,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      }
+    ],
+    "observer": {
+      "begin": 629349.423129421,
+      "end": 629364.438797174,
+      "seconds": 15.01566775306128,
+      "begin_offset": -0.008697804994881153,
+      "end_offset": -5.628389772027731e-05,
+      "external_four_core_CPU_percent": 8.507780146770717,
+      "processes": {
+        "desktop": {
+          "pid": 512398,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3873,
+          "RSS_max_pages": 3873,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "pid": 512397,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2694,
+          "RSS_max_pages": 2694,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "pid": 513984,
+          "starttime_ticks": 62933634,
+          "CPU_ms": 150.0,
+          "total_four_core_CPU_percent": 0.24973914325158658,
+          "RSS_end_pages": 6834,
+          "RSS_max_pages": 6834,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "pid": 513986,
+          "starttime_ticks": 62933634,
+          "CPU_ms": 3310.0,
+          "total_four_core_CPU_percent": 5.510910427751677,
+          "RSS_end_pages": 56645,
+          "RSS_max_pages": 56645,
+          "engine_delta_ns": {
+            "1052": {
+              "copy": 0,
+              "video": 0,
+              "render": 0,
+              "video-enhance": 0
+            },
+            "1051": {
+              "copy": 0,
+              "video": 0,
+              "render": 2519266932,
+              "video-enhance": 0
+            }
+          }
+        },
+        "scene": {
+          "pid": 513985,
+          "starttime_ticks": 62933634,
+          "CPU_ms": 470.0,
+          "total_four_core_CPU_percent": 0.7825159821883046,
+          "RSS_end_pages": 16907,
+          "RSS_max_pages": 16907,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "pid": 512373,
+          "starttime_ticks": 62919382,
+          "CPU_ms": 220.0,
+          "total_four_core_CPU_percent": 0.36628407676899366,
+          "RSS_end_pages": 20201,
+          "RSS_max_pages": 20201,
+          "engine_delta_ns": {
+            "1036": {
+              "copy": 0,
+              "video": 0,
+              "render": 197801812,
+              "video-enhance": 0
+            }
+          }
+        },
+        "xwayland": {
+          "pid": 512596,
+          "starttime_ticks": 62922152,
+          "CPU_ms": 960.0,
+          "total_four_core_CPU_percent": 1.598330516810154,
+          "RSS_end_pages": 20132,
+          "RSS_max_pages": 20132,
+          "engine_delta_ns": {
+            "1038": {
+              "copy": 0,
+              "video": 0,
+              "render": 450239452,
+              "video-enhance": 0
+            }
+          }
+        }
+      },
+      "host_busy_percent": 28.281461434370772,
+      "sampling_wall_cost_mean": 0.005329914162835933,
+      "sampling_wall_cost_max": 0.008278622990474105
+    },
+    "approximate_combined_four_core_CPU_percent": 25.78302148990985,
+    "loaded_libraries": {
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_alignment.so": "13ec73d2d230ca413a6da1d7da2a7eda40dabe44a712539a8a9fefb48e561098",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_components.so": "56c6ad5823a0db33cfd2b7fc51c99923e1f29643050b7759c21bbbb728e1f81d",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_rgbd.so": "7a745d7a44bcad485cf72fed12488dd6a17ebc479088333bb941f12c69621818",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/scalar-sdk/librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+      "/usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275": "e833b010f814b72c6aca0300c8b5f19b6106ffa06c24ddc95a293970c7d6058e",
+      "/usr/lib/x86_64-linux-gnu/libvulkan_intel.so": "01a6aa501cf9f4cb87ea0b3c9465317e783ff58d1c021b5b59d09f8e6ecde857"
+    }
+  },
+  "high_quality/cpu": {
+    "collector_window": {
+      "begin": 629371.288195382,
+      "end": 629386.2928747999,
+      "seconds": 15.004679417936131
+    },
+    "perception": {
+      "unique_outputs": 225,
+      "output_hz": 14.995322041405425,
+      "CPU_ms": 16900.0,
+      "total_four_core_CPU_percent": 28.15788249997241,
+      "CPU_ms_per_output": 75.11111111111111,
+      "receipt_age_p95_ms": 120.48278099999999,
+      "source_ID_gaps": {
+        "source_frame": 223,
+        "depth_source_frame": 223
+      }
+    },
+    "producer": {
+      "snapshot_window_seconds": 14.160397320985794,
+      "begin": 629371.288195382,
+      "end": 629385.448592703,
+      "fresh_snapshots": 15,
+      "all_snapshots": 15,
+      "unique_intake_hz": 24.293103661024393,
+      "published_status_delta_hz": 14.971331325980149,
+      "capture_service_hz": 477.4583542214707,
+      "delta": {
+        "received": 347,
+        "received_unique": 344,
+        "completed": 212,
+        "skipped": 130,
+        "replaced": 130,
+        "contention_discard": 0,
+        "stopped_discard": 0,
+        "duplicate_or_regressed": 3,
+        "invalid_received": 0,
+        "selected": 213,
+        "submitted": 213,
+        "computed": 213,
+        "published": 212,
+        "capture_service_calls": 6761,
+        "sdk_color_id_gaps": 83,
+        "sdk_depth_id_gaps": 84,
+        "capture_gap_deadline_misses": 0,
+        "capture_duration_deadline_misses": 0,
+        "dropped": 0,
+        "acquisition_gap_deadline_misses": 166,
+        "received_age_unknown": 0
+      },
+      "cumulative_maxima": {
+        "capture_service_gap_max_ms": 8.2,
+        "capture_duration_max_ms": 0.359,
+        "acquisition_gap_max_ms": 101.466
+      },
+      "max_active": 1,
+      "max_pending": 1
+    },
+    "primary_viewport": {
+      "display": 97617229247328,
+      "drawable": 8388612,
+      "area": 464940,
+      "dimensions": [
+        [
+          574,
+          810
+        ]
+      ],
+      "intervals": 14,
+      "covered_seconds": 14.287731054,
+      "swaps": 447,
+      "swap_hz": 31.285583295946605,
+      "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+    },
+    "viewports": [
+      {
+        "display": 97617229247328,
+        "drawable": 8388610,
+        "area": 1,
+        "dimensions": [
+          [
+            1,
+            1
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.287821511,
+        "swaps": 447,
+        "swap_hz": 31.285385225162614,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 97617229247328,
+        "drawable": 8388612,
+        "area": 464940,
+        "dimensions": [
+          [
+            574,
+            810
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.287731054,
+        "swaps": 447,
+        "swap_hz": 31.285583295946605,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      },
+      {
+        "display": 97617229247328,
+        "drawable": 8388614,
+        "area": 200960,
+        "dimensions": [
+          [
+            640,
+            314
+          ]
+        ],
+        "intervals": 14,
+        "covered_seconds": 14.287574041,
+        "swaps": 447,
+        "swap_hz": 31.285927108218445,
+        "renderer": "Mesa Intel(R) Graphics (ADL-N)"
+      }
+    ],
+    "observer": {
+      "begin": 629371.246428752,
+      "end": 629386.260991698,
+      "seconds": 15.014562946045771,
+      "begin_offset": -0.04176663001999259,
+      "end_offset": -0.03188310191035271,
+      "external_four_core_CPU_percent": 12.288069966671248,
+      "processes": {
+        "desktop": {
+          "pid": 512398,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 3873,
+          "RSS_max_pages": 3873,
+          "engine_delta_ns": {}
+        },
+        "keyboard": {
+          "pid": 512397,
+          "starttime_ticks": 62919387,
+          "CPU_ms": 0.0,
+          "total_four_core_CPU_percent": 0.0,
+          "RSS_end_pages": 2694,
+          "RSS_max_pages": 2694,
+          "engine_delta_ns": {}
+        },
+        "rsp": {
+          "pid": 513984,
+          "starttime_ticks": 62933634,
+          "CPU_ms": 160.0,
+          "total_four_core_CPU_percent": 0.2664080209576422,
+          "RSS_end_pages": 6913,
+          "RSS_max_pages": 6913,
+          "engine_delta_ns": {}
+        },
+        "rviz": {
+          "pid": 513986,
+          "starttime_ticks": 62933634,
+          "CPU_ms": 5390.0,
+          "total_four_core_CPU_percent": 8.974620206010572,
+          "RSS_end_pages": 56611,
+          "RSS_max_pages": 56611,
+          "engine_delta_ns": {
+            "1052": {
+              "copy": 0,
+              "video": 0,
+              "render": 0,
+              "video-enhance": 0
+            },
+            "1051": {
+              "copy": 0,
+              "video": 0,
+              "render": 4901087360,
+              "video-enhance": 0
+            }
+          }
+        },
+        "scene": {
+          "pid": 513985,
+          "starttime_ticks": 62933634,
+          "CPU_ms": 530.0,
+          "total_four_core_CPU_percent": 0.8824765694221899,
+          "RSS_end_pages": 16954,
+          "RSS_max_pages": 16954,
+          "engine_delta_ns": {}
+        },
+        "weston": {
+          "pid": 512373,
+          "starttime_ticks": 62919382,
+          "CPU_ms": 220.0,
+          "total_four_core_CPU_percent": 0.36631102881675803,
+          "RSS_end_pages": 20201,
+          "RSS_max_pages": 20201,
+          "engine_delta_ns": {
+            "1036": {
+              "copy": 0,
+              "video": 0,
+              "render": 334179664,
+              "video-enhance": 0
+            }
+          }
+        },
+        "xwayland": {
+          "pid": 512596,
+          "starttime_ticks": 62922152,
+          "CPU_ms": 1080.0,
+          "total_four_core_CPU_percent": 1.798254141464085,
+          "RSS_end_pages": 20132,
+          "RSS_max_pages": 20132,
+          "engine_delta_ns": {
+            "1038": {
+              "copy": 0,
+              "video": 0,
+              "render": 789947860,
+              "video-enhance": 0
+            }
+          }
+        }
+      },
+      "host_busy_percent": 46.81454302868579,
+      "sampling_wall_cost_mean": 0.005928003987827838,
+      "sampling_wall_cost_max": 0.011791410972364247
+    },
+    "approximate_combined_four_core_CPU_percent": 40.44595246664366,
+    "loaded_libraries": {
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_alignment.so": "13ec73d2d230ca413a6da1d7da2a7eda40dabe44a712539a8a9fefb48e561098",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_components.so": "56c6ad5823a0db33cfd2b7fc51c99923e1f29643050b7759c21bbbb728e1f81d",
+      "/home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_rgbd.so": "7a745d7a44bcad485cf72fed12488dd6a17ebc479088333bb941f12c69621818",
+      "/opt/ros/jazzy/lib/x86_64-linux-gnu/librealsense2.so.2.58.4": "97e305dfc84ee6f5a4a2ae0b9613ff629db82c033df62befc3d158d9c1bbf66e",
+      "/usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275": "e833b010f814b72c6aca0300c8b5f19b6106ffa06c24ddc95a293970c7d6058e"
+    }
+  }
+}

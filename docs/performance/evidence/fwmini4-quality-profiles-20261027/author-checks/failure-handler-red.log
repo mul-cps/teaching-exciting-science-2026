@@ -1,0 +1,9 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_actual_handler_noescape_once_and_nonstandard_tick ____________
+tests/test_resident_failure_containment.py:22: in test_actual_handler_noescape_once_and_nonstandard_tick
+    assert 'void latch_failure(const char* reason)noexcept' in source
+E   assert 'void latch_failure(const char* reason)noexcept' in '#include "so101_station_vulkan/frame_adapter.hpp"\n#include "so101_station_vulkan/raw_capture_bridge.hpp"\n#include "...NODE(so101_station_vulkan::CameraComponent)\nRCLCPP_COMPONENTS_REGISTER_NODE(so101_station_vulkan::ObjectsComponent)\n'
+=========================== short test summary info ============================
+FAILED tests/test_resident_failure_containment.py::test_actual_handler_noescape_once_and_nonstandard_tick
+1 failed in 0.05s

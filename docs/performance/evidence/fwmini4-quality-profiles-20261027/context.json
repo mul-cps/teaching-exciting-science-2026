@@ -1,0 +1,65 @@
+{
+  "source_commit": "032fd17e4dcc4ac7f6fcb7ed12f53b944370e276",
+  "native_source_files": 105,
+  "native_source_pins": "checks/quality-profiles-native-source-pins-20261027.json",
+  "raw_archive_sha256": "a9304d6692553944433a9b46b49938b85c672a5110ebd9cbadc08428e48b572f",
+  "raw_archive_members": 70,
+  "native_build_seconds": 39.9,
+  "native_ctest": {
+    "passed": 14,
+    "failed": 0,
+    "seconds": 22.87
+  },
+  "canonical_cpu": {
+    "passed": 4341,
+    "skipped": 134,
+    "subtests_passed": 48,
+    "seconds": 216.47,
+    "python": "/tmp/workshop-test-pinned313-20261027/bin/python",
+    "source_pin_count": 496,
+    "changed_during_run": [
+      "tests/test_resident_failure_containment.py"
+    ],
+    "test_only_delta": "improve test to extract actual production timer lambda; production and other tests unchanged",
+    "final_exact_handler_supplement": {
+      "passed": 1,
+      "seconds": 0.25
+    },
+    "offline_shader_toolchain_supplement": {
+      "passed": 1,
+      "seconds": 0.78
+    },
+    "new_skip_reason": "offline shader toolchain not supplied to canonical command; explicitly rerun with pinned Slang/SPIRV tool paths and passed",
+    "other_skips": 133,
+    "environment": {
+      "SF64_TESTFLOAT_GEN": "/tmp/workshop-testfloat-reference-20261027/TestFloat-3e/build/Linux-x86_64-GCC/testfloat_gen",
+      "RAW_BRIDGE_SDK_PREFIX": "/home/bjoern/miniforge3/envs/so101-jazzy",
+      "RAW_BRIDGE_VULKAN_INCLUDE": "/usr/include"
+    },
+    "command": "/tmp/workshop-test-pinned313-20261027/bin/python tools/test_cpu.py --basetemp /tmp/quality-profiles-cpu-final-20261027-basetemp --junitxml /tmp/quality-profiles-cpu-final-20261027.xml"
+  },
+  "runtime": {
+    "host": "cps-wkstn-fwmini4.local",
+    "camera": "D435i",
+    "serial": "243322071783",
+    "USB_megabits_per_second": 5000,
+    "ROS": "native Jazzy",
+    "RMW": "rmw_fastrtps_cpp",
+    "ROS_DOMAIN_ID": 179,
+    "ROS_LOCALHOST_ONLY": 1,
+    "owner_service_PID_before_after": 181501,
+    "owner_service_active_before_after": true,
+    "managed_camera_and_graphics_stopped_after_runs": true
+  },
+  "limits": [
+    "six sequential 15-second collector windows, not full-stack soak",
+    "runtime safety/profile passed fields do not assert nominal30Hz intake or full station qualification",
+    "CPU fallback intake below30Hz at medium and high_quality; retain actual measured values",
+    "no private image/calibration/credential contents published; no physical actuation"
+  ],
+  "qualified": false,
+  "execution_eligible": false,
+  "offline_analyzer_tests_passed": 30,
+  "offline_analyzer_reviewed_base_tests_preserved": 17,
+  "raw_archive_regular_files": 58
+}

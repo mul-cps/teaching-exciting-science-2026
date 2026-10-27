@@ -1,0 +1,19 @@
+[INFO] [launch]: All log files can be found below /home/bjoern/.ros/log/2026-10-27-16-11-11-646911-cps-wkstn-fwmini4-513177
+[INFO] [launch]: Default logging verbosity is set to INFO
+[WARN] [1793113871.717696377] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793113871.717743502] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[INFO] [component_container-1]: process started with pid [513193]
+[component_container-1] [WARN] [1793113871.911939459] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[component_container-1] [WARN] [1793113871.911960004] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[component_container-1] [INFO] [1793113872.144402445] [resident_rgbd_container]: Load Library: /home/bjoern/.local/share/exciting-science/validation/quality-profiles-build-20261027/install/so101_station_vulkan/lib/libresident_components.so
+[component_container-1] [INFO] [1793113872.154598238] [resident_rgbd_container]: Found class: rclcpp_components::NodeFactoryTemplate<so101_station_vulkan::CameraComponent>
+[component_container-1] [INFO] [1793113872.154654423] [resident_rgbd_container]: Instantiate class: rclcpp_components::NodeFactoryTemplate<so101_station_vulkan::CameraComponent>
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/resident_camera' in container '/resident_rgbd_container'
+[component_container-1] [INFO] [1793113874.260324869] [resident_rgbd_container]: Found class: rclcpp_components::NodeFactoryTemplate<so101_station_vulkan::CameraComponent>
+[component_container-1] [INFO] [1793113874.260365720] [resident_rgbd_container]: Found class: rclcpp_components::NodeFactoryTemplate<so101_station_vulkan::ObjectsComponent>
+[component_container-1] [INFO] [1793113874.260375496] [resident_rgbd_container]: Instantiate class: rclcpp_components::NodeFactoryTemplate<so101_station_vulkan::ObjectsComponent>
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/resident_measurements' in container '/resident_rgbd_container'
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[INFO] [component_container-1]: sending signal 'SIGINT' to process[component_container-1]
+[INFO] [component_container-1]: process has finished cleanly [pid 513193]
+[component_container-1] [INFO] [1793113889.515188342] [rclcpp]: signal_handler(SIGINT/SIGTERM)

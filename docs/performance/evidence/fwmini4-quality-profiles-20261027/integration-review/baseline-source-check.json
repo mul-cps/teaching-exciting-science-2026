@@ -1,0 +1,97 @@
+{
+  "ros2/src/so101_station_vulkan/include/so101_station_vulkan/pipeline.hpp": {
+    "expected": "e145310402b0328e8173e9eee358e4bdf931f8672800bb0fc1594b91f1ce0f8b",
+    "actual": "e145310402b0328e8173e9eee358e4bdf931f8672800bb0fc1594b91f1ce0f8b",
+    "match": true
+  },
+  "ros2/src/so101_station_vulkan/include/so101_station_vulkan/raw_camera_admission.hpp": {
+    "expected": "e336493c44fa9ed04472a3ef6aea9a2a368f5d7129897bb77fff08915046750a",
+    "actual": "e336493c44fa9ed04472a3ef6aea9a2a368f5d7129897bb77fff08915046750a",
+    "match": true
+  },
+  "ros2/src/so101_station_vulkan/launch/resident_rgbd.launch.py": {
+    "expected": "410359fd21bc6adab4e019f33d2e9af4c567902f5eb2d760a5edf0cd8e43a8f8",
+    "actual": "410359fd21bc6adab4e019f33d2e9af4c567902f5eb2d760a5edf0cd8e43a8f8",
+    "match": true
+  },
+  "ros2/src/so101_station_vulkan/src/camera_component.cpp": {
+    "expected": "0ddd3784d25b77dc8142081d6505a7314d0e5800fc7b8e6352943e33a56befee",
+    "actual": "0ddd3784d25b77dc8142081d6505a7314d0e5800fc7b8e6352943e33a56befee",
+    "match": true
+  },
+  "ros2/src/so101_station_vulkan/src/raw_camera_admission.cpp": {
+    "expected": "6cb7fa37f19463ba8733bdb4db0f57ddb2610ddcafebdae75d7eb434a94cc003",
+    "actual": "6cb7fa37f19463ba8733bdb4db0f57ddb2610ddcafebdae75d7eb434a94cc003",
+    "match": true
+  },
+  "ros2/src/so101_station_vulkan/src/raw_capture_bridge.cpp": {
+    "expected": "dbb25fe88f6b7cc77fbe132a314c494e67812e7ccf182f273f27ad825d425ca9",
+    "actual": "dbb25fe88f6b7cc77fbe132a314c494e67812e7ccf182f273f27ad825d425ca9",
+    "match": true
+  },
+  "ros2/src/so101_station_vulkan/test/raw_camera_admission_test.cpp": {
+    "expected": "698b35ba16d95174fa63255ecda4055592f7e7ee677fb8821656e2d263dd3e69",
+    "actual": "698b35ba16d95174fa63255ecda4055592f7e7ee677fb8821656e2d263dd3e69",
+    "match": true
+  },
+  "ros2/src/so101_station_vulkan/test/raw_resident_perf_benchmark.cpp": {
+    "expected": "e63e0572dbff19292d200a83fde90bb77e06a4e660d56cf2ef273aa3feaab6cc",
+    "actual": "e63e0572dbff19292d200a83fde90bb77e06a4e660d56cf2ef273aa3feaab6cc",
+    "match": true
+  },
+  "tests/test_camera_resolution_profiles.py": {
+    "expected": "b23076b5c221a225530854f9d333dab592190fee4bca7f46298594912e4406cd",
+    "actual": "b23076b5c221a225530854f9d333dab592190fee4bca7f46298594912e4406cd",
+    "match": true
+  },
+  "tests/test_camera_startup_perf.py": {
+    "expected": "d4eed8c69015ebbbc1fed2c798aa81a44a054991531a1cec1b13ed81c1f66539",
+    "actual": "d4eed8c69015ebbbc1fed2c798aa81a44a054991531a1cec1b13ed81c1f66539",
+    "match": true
+  },
+  "tests/test_latest_frame_perf_review.py": {
+    "expected": "37fb6b8f5db538f22fc616f0b885eefc0d18743a993597b9d421cc96184c6f92",
+    "actual": "37fb6b8f5db538f22fc616f0b885eefc0d18743a993597b9d421cc96184c6f92",
+    "match": true
+  },
+  "tests/test_latest_frame_policy.py": {
+    "expected": "197a03a4c59741749276cff3a69d28e22a4533f361d6fc7a61dc08136b3cd056",
+    "actual": "197a03a4c59741749276cff3a69d28e22a4533f361d6fc7a61dc08136b3cd056",
+    "match": true
+  },
+  "tests/test_native_raw_camera_admission.py": {
+    "expected": "7c8469c49e8babcef6b04ccd86bb185fa4a1f8d97d654ee61beaa32d878ac267",
+    "actual": "7c8469c49e8babcef6b04ccd86bb185fa4a1f8d97d654ee61beaa32d878ac267",
+    "match": true
+  },
+  "tests/test_raw_resident_perf.py": {
+    "expected": "8f91eb2592154415a58458b4be35996c4c98c766e7f8d1f981ce2ce21e5e7372",
+    "actual": "8f91eb2592154415a58458b4be35996c4c98c766e7f8d1f981ce2ce21e5e7372",
+    "match": true
+  },
+  "ros2/src/so101_station_vulkan/include/so101_station_vulkan/latest_native_scheduler.hpp": {
+    "expected": "960dd27e4aff1cab8e40d2a69e0bb367abbbb329af4c712758fed5684b3e6fe6",
+    "actual": "960dd27e4aff1cab8e40d2a69e0bb367abbbb329af4c712758fed5684b3e6fe6",
+    "match": true
+  },
+  "ros2/src/so101_station_vulkan/test/latest_native_scheduler_test.cpp": {
+    "expected": "b634c9c345bfc488be8257b796f8fb8638ab19f400d514cfe8e892da280db944",
+    "actual": "b634c9c345bfc488be8257b796f8fb8638ab19f400d514cfe8e892da280db944",
+    "match": true
+  },
+  "tests/test_latest_native_scheduler.py": {
+    "expected": "e639cc7df120ba2fce6a51dc65620b1ef75e5d1eeaad556784041923e072424c",
+    "actual": "e639cc7df120ba2fce6a51dc65620b1ef75e5d1eeaad556784041923e072424c",
+    "match": true
+  },
+  "tests/test_latest_native_scheduler_perf_review.py": {
+    "expected": "aa20307e15fbf43c9c2db41386d2984dde74cd93fcafabb858183757f81a535e",
+    "actual": "d1d7751740dbef844f21e65a6de854e61a5c423ea539299f0485fa2a82e3a215",
+    "match": false
+  },
+  "tests/test_resident_camera_thread_lifecycle.py": {
+    "expected": "33dd1376e3359e2a1cb574eb52e84daeffae38d5149de389bf44a26deeea6750",
+    "actual": "33dd1376e3359e2a1cb574eb52e84daeffae38d5149de389bf44a26deeea6750",
+    "match": true
+  }
+}

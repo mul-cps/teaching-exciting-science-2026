@@ -1,0 +1,31 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_maximum_payload_store_orders_the_reader_acquire_fence __________
+
+    def test_maximum_payload_store_orders_the_reader_acquire_fence():
+        # Maxima can be the only newly observed payload in a bounded snapshot. Its
+        # store must participate in the reader's trailing acquire-fence ordering.
+        # TSan cannot establish this fence-based snapshot-coherence contract.
+        def check(source):
+            code=resource_body(source, 'static void maximum(')
+            assert re.search(r'field\.store\(value,std::memory_order_release\)', code)
+            assert 'memory_order_relaxed' not in code[code.index('field.store'):]
+        source=HEADER.read_text()
+>       check(source)
+
+tests/test_latest_native_scheduler_perf_review.py:270: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = '#pragma once\n#include <atomic>\n#include <cmath>\n#include <cstdint>\n#include <limits>\n#include <mutex>\n#include ...hot()const{Snapshot s;while(!try_snapshot(s)){}return s;} // Host observers/tests only.\n#undef NATIVE_FIELDS\n};\n}\n'
+
+    def check(source):
+        code=resource_body(source, 'static void maximum(')
+>       assert re.search(r'field\.store\(value,std::memory_order_release\)', code)
+E       AssertionError: assert None
+E        +  where None = <function search at 0x7face51823e0>('field\\.store\\(value,std::memory_order_release\\)', 'if(value>field.load(std::memory_order_relaxed))field.store(value,std::memory_order_relaxed);')
+E        +    where <function search at 0x7face51823e0> = re.search
+
+tests/test_latest_native_scheduler_perf_review.py:267: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_latest_native_scheduler_perf_review.py::test_maximum_payload_store_orders_the_reader_acquire_fence
+1 failed, 4 deselected in 0.05s

@@ -1,0 +1,9 @@
+{
+  "number": true,
+  "load": true,
+  "lines": true,
+  "perception_summary": true,
+  "glx_summary": true,
+  "engines": true,
+  "observer_summary": true
+}

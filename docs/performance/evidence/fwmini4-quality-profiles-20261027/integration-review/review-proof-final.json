@@ -1,0 +1,71 @@
+{
+  "integration_status": "PASS frozen final source/lifecycle/resource gate",
+  "focused_tests": 37,
+  "focused_seconds": 31.03,
+  "manifest_files": 19,
+  "source_pin_matches": 18,
+  "lifecycle_actual_method_host_test": "PASS",
+  "lifecycle_partial_start_failure": "PASS first/second thread construction failure, stop exactly once, capture joined before SDK stop, worker joined before teardown",
+  "TSan": {
+    "toolchain": "/home/bjoern/miniforge3/envs/so101-jazzy/bin/x86_64-conda-linux-gnu-c++ GCC15.3",
+    "lifecycle": "PASS no reports",
+    "actual_scheduler": "PASS no reports",
+    "actual_record_failure_body": "PASS forced bad_alloc with reserved metadata and200 two-thread first-writer races",
+    "limitation": "GCC warns atomic_thread_fence unsupported by TSan; no claim of snapshot-memory-order proof",
+    "system_toolchain_attempt": "GCC16 link failed: missing /usr/lib64/libtsan.so.2.0.0; conda toolchain used successfully",
+    "concurrent_producer_worker_observer": {
+      "offered": 100000,
+      "accepted_consistent_snapshots": 1721,
+      "accepted_while_producer_and_worker_live": 1706,
+      "bounded_retry_failures": 77439,
+      "completed": 38590,
+      "replaced": 21808,
+      "contention": 39602
+    },
+    "actual_final_handler_tick_timer_bodies": "PASS no runtime reports; final-handler/tsan.log"
+  },
+  "resource_microbenchmark": {
+    "calls_per_cost": 100000,
+    "intake_replace_ns": 64.1089,
+    "admission_observe_ns": 3.12619,
+    "duplicate_ns": 33.1208,
+    "stopped_skip_ns": 42.9449,
+    "dispatch_raw_ns": 63.7069,
+    "skip_no_slot_raw_ns": 44.0566,
+    "clock_pair_baseline_ns": 20.8134,
+    "full_cycle_ns": 189.355,
+    "contended_intake_ns": 43.2163,
+    "hot_heap_allocations": 0,
+    "owned_handle_releases_inside_scheduler": 0,
+    "simulated_30Hz_offered": 300,
+    "overload_ms": [
+      80,
+      180
+    ],
+    "blocked_publication_latest_id": 300,
+    "contention_attempts": 100000
+  },
+  "scope": "SDK-free host bodies and static integration guards, except existing CPU SDK software-frame focused tests; no GPU/USB/SSH, no hardware cadence/performance qualification",
+  "atomic_payload_review": {
+    "all_snapshot_stats_atomic": true,
+    "payload_storage": "Counters NATIVE_FIELDS std::atomic<uint64_t>",
+    "payload_loads": "NATIVE_FIELDS .load(memory_order_relaxed)",
+    "pending_native_and_metadata": "mutex protected; never read by snapshot",
+    "coherence_refinement_pending": "RESOLVED maximum.store(memory_order_release), guarded by relaxed-store negative mutant",
+    "reference": "https://eel.is/c++draft/atomics.fences#4"
+  },
+  "manifest_note": "Final22file source/test pins retained; production camera25de/helper5c09 exactly match frozen candidate",
+  "test_gap": "RESOLVED nonzero token roundtrip/mismatch/reset witnesses added",
+  "approved": true,
+  "focused_log": "final-focused-tests.log",
+  "supplement_final_exact_timer_harness": "PASS1test0.26s; final-handler-test.log",
+  "source_pins": "final-source-sha256.json",
+  "source_pin_count": 22,
+  "diff_check": "PASS",
+  "test_only_drift": "Failure test refined d47e to1bc2 during previous focused run; supplemented exact1bc2test after freeze",
+  "resource_review_proof": "/tmp/latest-native-final-resource-review-20261027/review-proof.json",
+  "resource_review_sha256": "d677f245ec277b4acc86a09485de24f6f24115830f0af5e85e6357a891082c1a",
+  "same_writer_ordering": "Objects measurement_writer is constructor-bound failures_ publisher; finalize_unknown calls failures_ under the same gate mutex. Local publication commit order on one measurement writer only; no cross-topic delivery or physical scanout guarantee.",
+  "failure_containment": "noexcept,idempotent,preallocated bounded diagnostics; revoke/stop precede fallible work; std/nonstd exceptions and timer cancel,heap denial,DDS,status,logger errors tested; UNKNOWN delivery best effort",
+  "token_tests": "nonzero token roundtrip,core/depth mismatch rejection,core slot reset,old-token/new-owner sameaddress+calibration isolation,no readmission"
+}

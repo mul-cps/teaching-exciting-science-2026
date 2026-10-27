@@ -1,0 +1,131 @@
+{
+  "gate": "PASS final frozen helper/capture/publication-gate performance/resource refinement; lifecycle/canonical/native qualification separate",
+  "source_pins": {
+    "ros2/src/so101_station_vulkan/src/camera_component.cpp": "25de28160ae268d1959e405d668a699d6ede401df038bfb074baa7c26257dc87",
+    "ros2/src/so101_station_vulkan/include/so101_station_vulkan/latest_native_scheduler.hpp": "5c09437ee2fc2b3b14b46023106ed92692c296876fc66c70addafdd24b932a21",
+    "ros2/src/so101_station_vulkan/include/so101_station_vulkan/raw_camera_admission.hpp": "e336493c44fa9ed04472a3ef6aea9a2a368f5d7129897bb77fff08915046750a",
+    "ros2/src/so101_station_vulkan/src/raw_camera_admission.cpp": "6cb7fa37f19463ba8733bdb4db0f57ddb2610ddcafebdae75d7eb434a94cc003",
+    "tests/test_latest_native_scheduler_perf_review.py": "34b941b9e92eb8d0222454185be0f3866b6d34a46831e9e626153eb457e55b5f"
+  },
+  "production_edits": false,
+  "focused_tests": {
+    "passed": 6,
+    "seconds": 1.9,
+    "log": "focused-helper.log"
+  },
+  "helper_costs": {
+    "calls_per_cost": 100000,
+    "intake_replace_ns": 56.5661,
+    "admission_observe_ns": 2.84226,
+    "duplicate_ns": 28.8704,
+    "stopped_skip_ns": 38.5875,
+    "dispatch_raw_ns": 54.8912,
+    "skip_no_slot_raw_ns": 38.226,
+    "clock_pair_baseline_ns": 18.0167,
+    "full_cycle_ns": 157.935,
+    "contended_intake_ns": 39.8806,
+    "hot_heap_allocations": 0,
+    "owned_handle_releases_inside_scheduler": 0,
+    "simulated_30Hz_offered": 300,
+    "overload_ms": [
+      80,
+      180
+    ],
+    "blocked_publication_latest_id": 300,
+    "contention_attempts": 100000
+  },
+  "bounded_observer": {
+    "calls_per_cost": 100000,
+    "intake_replace_ns": 65.5858,
+    "admission_observe_ns": 2.9217,
+    "duplicate_ns": 34.4927,
+    "stopped_skip_ns": 41.532,
+    "dispatch_raw_ns": 59.3308,
+    "skip_no_slot_raw_ns": 41.2264,
+    "clock_pair_baseline_ns": 19.5082,
+    "full_cycle_ns": 169.779,
+    "contended_intake_ns": 39.6603,
+    "bounded_snapshot_stale_ns": 2.8159,
+    "hot_heap_allocations": 0,
+    "owned_handle_releases_inside_scheduler": 0,
+    "simulated_30Hz_offered": 300,
+    "overload_ms": [
+      80,
+      180
+    ],
+    "blocked_publication_latest_id": 300,
+    "contention_attempts": 100000
+  },
+  "actual_publication_gate": {
+    "calls_per_batch": 100000,
+    "successful_revoke_raw_ns": 21.8693,
+    "clock_pair_baseline_ns": 18.1524,
+    "blocked_publisher_first_revoke_ns": 170,
+    "blocked_publisher_repeated_revoke_ns": 4.06536,
+    "zero_token_ns": 0.0002,
+    "hot_heap_allocations": 0,
+    "blocked_callback_entered_before_revoke": true,
+    "ordered_unknown_after_entered_callback": true,
+    "new_callback_after_revoke_denied": true,
+    "stale_token_does_not_revoke_new_session": true,
+    "SDK_GPU_DDS_calls": 0
+  },
+  "gate_runtime_libraries": "gate-runtime-libraries.txt; libstdc++/libm/libgcc/libc only; no SDK/Vulkan runtime linked",
+  "mutants": {
+    "static_intake": 6,
+    "static_capture_and_gate": 9,
+    "destructive_handoff": {
+      "compiled": true,
+      "rejected": true,
+      "detected_owned_releases_inside": 715,
+      "source_sha256": "5d46e101bc317133949403aa0359db638e5ce5f07b78a90505ceb2228d8bd70c"
+    },
+    "blocking_revoke": {
+      "compiled": true,
+      "rejected": true,
+      "reason": "bounded2s watchdog: inserted revoke mutex blocks behind held publisher; actual source completes without release",
+      "source_sha256": "46653b571a73921f9f4a0e8f482346f367489d2b6654bec41661f86b4d7fe59a"
+    },
+    "static_maximum_ordering": 1
+  },
+  "UBSan": {
+    "helper_bounded_observer": true,
+    "actual_gate": true,
+    "mode": "undefined trap, no runtime dependency"
+  },
+  "capture_review": {
+    "sdk_handle_only_handoff": true,
+    "own_fullframe_copies_alignment_bridge_DDS_on_worker_only": true,
+    "capture_gate_mutex_avoided": true,
+    "capture_snapshot_calls": 0,
+    "sole_periodic_poll_sleep_until_ms": 2,
+    "per_frame_notify": false,
+    "SDK_getter_and_ROS_clock_cost_allocation_not_measured": true,
+    "cold_serial_capacity_reserved": true,
+    "snapshot_diagnostic_only_bounded_retries": 8,
+    "stale_sample_explicit_freshness_and_age": true
+  },
+  "timing_scope": "local uncontrolled CPU; batch helper costs include fixed proxy bookkeeping; dispatch/skip/successfulCAS raw costs include one clock-sample overhead separately reported; zero-token constant path compiler folded, not a measured function call cost",
+  "ownership_scope": "actual helper with move-only native proxy/reserved metadata; actual gate methods from production CPP, publication callback blocked by host CV as DDS stand-in; no SDK/GPU/DDS operations",
+  "whole_30Hz_camera_or_station_qualified": false,
+  "GPU_SSH_USB_executed": false,
+  "final_lifecycle_race_TSan_review_owner": "independent thinker, not duplicated",
+  "capture_resource_body_sha256": {
+    "void capture_loop(": "684391ad86b4096f384e6843b0c8b44c21662cf28b7da86631d8093299a356cb",
+    "void capture_pending(": "55acda9a9f76ecafe9bbecee202f8f15426776b8076a380e8d48e3b934e6adf4",
+    "void record_failure(": "eea52dd58b107bf9f089ef553131c291d223f8c86e617e4c9d4a8bfdda5f5216",
+    "void original_metadata(": "781cfe9998a8e45d8eee6ccd24f21e69b9d622d833d2b81794e34c6bc1e0fe5d",
+    "void verify_original(": "8c15ab327b4142acb920a8f25ecb5807b23db30eb858ff7bdc24aa713f2f0520",
+    "CameraSourceObservation inspect_original(": "2d7f8c4bf506ee88452dfc8334352c8f654f67bf8a1e2b1bdf5ee4140f61cd08",
+    "void report_status(": "00dab4a19997c58cc187bb33bee48cfba9b8d75b0dc24fcc122b14ea95062b5a",
+    "void worker_loop(": "11452fc546d8cad17309c4b79cc11f3ddeceeccdb1d704c99c7ab23f68d9c24e"
+  },
+  "memory_ordering": {
+    "maximum_payload_store": "memory_order_release",
+    "static_relaxed_store_mutant_rejected": true,
+    "RED_log": "max-order-red.log",
+    "TSan_not_a_fence_model_proof": true
+  },
+  "final_camera_capture_resource_bodies_unchanged_from_reviewed0ddd": true,
+  "handler_hardening_lifecycle_review": "independent thinker owns, not duplicated"
+}

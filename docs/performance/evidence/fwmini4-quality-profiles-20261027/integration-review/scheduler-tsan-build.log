@@ -1,0 +1,13 @@
+In file included from /home/bjoern/miniforge3/envs/so101-jazzy/lib/gcc/x86_64-conda-linux-gnu/15.3.0/include/c++/atomic:52,
+                 from ros2/src/so101_station_vulkan/include/so101_station_vulkan/latest_native_scheduler.hpp:2,
+                 from ros2/src/so101_station_vulkan/test/latest_native_scheduler_test.cpp:1:
+In function 'void std::atomic_thread_fence(memory_order)',
+    inlined from 'bool so101_station_vulkan::LatestNativeScheduler<Native, Metadata>::try_snapshot(Snapshot&, unsigned int) const [with Native = {anonymous}::Native; Metadata = {anonymous}::BlockingMetadata]' at ros2/src/so101_station_vulkan/include/so101_station_vulkan/latest_native_scheduler.hpp:120:28:
+/home/bjoern/miniforge3/envs/so101-jazzy/lib/gcc/x86_64-conda-linux-gnu/15.3.0/include/c++/bits/atomic_base.h:147:26: warning: 'atomic_thread_fence' is not supported with '-fsanitize=thread' [-Wtsan]
+  147 |   { __atomic_thread_fence(int(__m)); }
+      |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~
+In function 'void std::atomic_thread_fence(memory_order)',
+    inlined from 'bool so101_station_vulkan::LatestNativeScheduler<Native, Metadata>::try_snapshot(Snapshot&, unsigned int) const [with Native = {anonymous}::Native; Metadata = {anonymous}::Metadata]' at ros2/src/so101_station_vulkan/include/so101_station_vulkan/latest_native_scheduler.hpp:120:28:
+/home/bjoern/miniforge3/envs/so101-jazzy/lib/gcc/x86_64-conda-linux-gnu/15.3.0/include/c++/bits/atomic_base.h:147:26: warning: 'atomic_thread_fence' is not supported with '-fsanitize=thread' [-Wtsan]
+  147 |   { __atomic_thread_fence(int(__m)); }
+      |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~
