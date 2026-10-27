@@ -23,11 +23,27 @@ def main():
         program=body['program']
     elif args.program: program=strict_json(args.program.read_text())
     else: parser.error('provide a program JSON file or --stdin-json')
+    previous_interrupt=None
+    if args.stdin_json:
+        import signal
+        def interrupt(signum,frame):
+            # Bash/Conda may forward the same group interrupt again. Keep the
+            # bounded STOP/close sequence intact after the first interruption.
+            signal.signal(signal.SIGINT,signal.SIG_IGN)
+            raise KeyboardInterrupt
+        previous_interrupt=signal.signal(signal.SIGINT,interrupt)
     try:
         result=run_program(program,physical=args.physical,timeout=args.timeout,wrapper_bridge=False)
         print(json.dumps(result,allow_nan=False))
     except BaseException as error:
+        expected={'physical':args.physical,'stop_verified':True,'dispatched':True}
+        if args.stdin_json and getattr(error,'_station_program_verified_stop',None)==expected:
+            receipt={'schema':'so101-program-terminal-v1',**expected}
+            print('SO101_STATION_PROGRAM_TERMINAL '+json.dumps(receipt,separators=(',',':')),
+                  file=sys.stderr,flush=True)
         print(str(error),file=sys.stderr); return 1
+    finally:
+        if previous_interrupt is not None:signal.signal(signal.SIGINT,previous_interrupt)
     return 0
 
 

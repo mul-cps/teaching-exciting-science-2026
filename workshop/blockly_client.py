@@ -151,6 +151,7 @@ def run_program(program, *, physical=True, transport=None, timeout=190., cancel=
             try:
                 stop=transport('stop',_json({}),8.)
                 if not _verified_stop(stop,physical): raise RuntimeError('terminal correlated STOP acknowledgement missing')
+                error._station_program_verified_stop={'physical':physical,'stop_verified':True,'dispatched':True}
             except BaseException as stop_error:
                 raise RuntimeError(f'{error}; STOP unverified: {stop_error}') from error
         raise
@@ -211,29 +212,114 @@ def _launcher_prefix():
 
 
 def _wrapper_run(program,physical,timeout,*,cancel=None):
+    import selectors
+    import signal
     root=Path(__file__).resolve().parents[1]
     entry=root/'tools/run_station_program.py'
-    process=subprocess.Popen(_launcher_prefix()+[str(entry),'--stdin-json',
-                              '--physical' if physical else '--simulation','--timeout',str(timeout)],
-                             stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
-    deadline=time.monotonic()+timeout+20
-    body=_json({'program':program})
+    body=memoryview(_json({'program':program}).encode('utf-8'))
+    selector=selectors.DefaultSelector()
     try:
-        while True:
-            if cancel is not None and cancel.is_set(): raise InterruptedError('ROS bridge cancelled')
-            if time.monotonic()>=deadline: raise TimeoutError('ROS bridge deadline expired')
-            try:
-                output,errors=process.communicate(body,timeout=.1)
-                break
-            except subprocess.TimeoutExpired: body=None
-    except BaseException as error:
-        # SIGINT lets the child run the same terminal STOP verification path.
-        # A missing/failed child response stays explicit; never resubmit a run.
-        import signal
-        process.send_signal(signal.SIGINT)
-        try: _,errors=process.communicate(timeout=12)
-        except subprocess.TimeoutExpired: raise RuntimeError('ROS bridge did not verify STOP; retain station ownership and inspect') from error
-        if 'STOP unverified' in errors: raise RuntimeError(errors[-2000:]) from error
+        process=subprocess.Popen(_launcher_prefix()+[str(entry),'--stdin-json',
+                              '--physical' if physical else '--simulation','--timeout',str(timeout)],
+                             stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                                 start_new_session=True)
+    except BaseException:
+        selector.close()
         raise
-    if process.returncode: raise RuntimeError('ROS program bridge failed: '+errors[-2000:])
-    return json.loads(output)
+    output=[]; errors=[]
+    def close_pipe(pipe):
+        selector.unregister(pipe)
+        pipe.close()
+    def pump(seconds):
+        nonlocal body
+        for key,_ in selector.select(seconds):
+            pipe=key.fileobj
+            if key.data=='input':
+                try:written=os.write(pipe.fileno(),body)
+                except BrokenPipeError:close_pipe(pipe);continue
+                body=body[written:]
+                if not body:close_pipe(pipe)
+            else:
+                chunk=os.read(pipe.fileno(),65536)
+                if chunk:(output if key.data=='output' else errors).append(chunk)
+                else:close_pipe(pipe)
+    def leader_exited():
+        # Observe without reaping: keep this owned PID/PGID reserved until the
+        # final group signal, even if the wrapper exits before its descendants.
+        return os.waitid(os.P_PID,process.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is not None
+    def signal_group(value):
+        try:os.killpg(process.pid,value)
+        except ProcessLookupError:pass
+    def drain(seconds):
+        until=time.monotonic()+seconds
+        while time.monotonic()<until:
+            if leader_exited() and not selector.get_map():return True
+            pump(min(.1,max(0.,until-time.monotonic())))
+        return leader_exited() and not selector.get_map()
+    primary=None; grace_failed=False; previous_interrupt=None
+    def defer_interrupts():
+        nonlocal previous_interrupt
+        if previous_interrupt is None and threading.current_thread() is threading.main_thread():
+            previous_interrupt=signal.signal(signal.SIGINT,signal.SIG_IGN)
+    try:
+        for pipe,label,event in ((process.stdin,'input',selectors.EVENT_WRITE),
+                                 (process.stdout,'output',selectors.EVENT_READ),
+                                 (process.stderr,'errors',selectors.EVENT_READ)):
+            os.set_blocking(pipe.fileno(),False)
+            selector.register(pipe,event,label)
+        deadline=time.monotonic()+timeout+20
+        try:
+            while not (leader_exited() and not selector.get_map()):
+                if cancel is not None and cancel.is_set():raise InterruptedError('ROS bridge cancelled')
+                if time.monotonic()>=deadline:raise TimeoutError('ROS bridge deadline expired')
+                pump(.1)
+        except BaseException as error:
+            primary=error
+            defer_interrupts()
+            # Signal the owned group, including the ROS child behind Bash/Conda.
+            # Allow an in-flight 5s RPC, 8s STOP and 2s close, plus margin.
+            signal_group(signal.SIGINT)
+            grace_failed=not drain(17.)
+        if grace_failed:
+            signal_group(signal.SIGTERM)
+            drain(2.)
+        # The leader is still unreaped here. Reap only after the last signal so
+        # a recycled PGID can never receive cleanup intended for this client.
+        signal_group(signal.SIGKILL)
+        if not drain(2.):raise RuntimeError('ROS bridge client cleanup incomplete; STOP unverified') from primary
+        process.wait(timeout=2.)
+    finally:
+        # Also cover setup/read failures; defer repeated Ctrl-C until reaped.
+        defer_interrupts()
+        try:
+            if process.returncode is None:
+                signal_group(signal.SIGKILL)
+                process.wait(timeout=2.)
+        finally:
+            for pipe in (process.stdin,process.stdout,process.stderr):pipe.close()
+            selector.close()
+            if previous_interrupt is not None:signal.signal(signal.SIGINT,previous_interrupt)
+    stderr=b''.join(errors).decode('utf-8',errors='replace')
+    if primary is not None:
+        if grace_failed:raise RuntimeError('ROS bridge did not verify STOP; client process group reaped; inspect station ownership') from primary
+        tag='SO101_STATION_PROGRAM_TERMINAL '
+        receipts=[]
+        def receipt_pairs(pairs):
+            value=dict(pairs)
+            if len(value)!=len(pairs):raise ValueError('duplicate terminal field')
+            return value
+        for line in stderr.splitlines():
+            if line.startswith(tag):
+                try:
+                    if len(line)>512:raise ValueError('oversized terminal receipt')
+                    receipts.append(json.loads(line[len(tag):],object_pairs_hook=receipt_pairs))
+                except ValueError:receipts.append(None)
+        expected={'schema':'so101-program-terminal-v1','physical':physical,
+                  'stop_verified':True,'dispatched':True}
+        strict_receipt=(len(receipts)==1 and isinstance(receipts[0],dict) and
+                        all(type(receipts[0].get(key)) is bool for key in ('physical','stop_verified','dispatched')))
+        if process.returncode!=1 or not strict_receipt or receipts!=[expected] or 'STOP unverified' in stderr:
+            raise RuntimeError('ROS bridge STOP unverified: missing or invalid terminal receipt; '+stderr[-2000:]) from primary
+        raise primary
+    if process.returncode:raise RuntimeError('ROS program bridge failed: '+stderr[-2000:])
+    return json.loads(b''.join(output).decode('utf-8'))
