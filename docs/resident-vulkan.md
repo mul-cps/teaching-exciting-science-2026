@@ -16,8 +16,8 @@ fallback. Camera admission does not yet accept `cpu-slang`. See the
 Separate child preparation now keeps one-based parent membership immutable in
 existing workspace through gather and preserves uniform reducer barrier flow.
 The [Intel parent-map experiment](performance/intel-child-parent-cache-20261027.md)
-records the original failure and exact frozen-case matches on Intel and AMD.
-Its full geometry and performance qualification remains open.
+records the original failure and the retained 58-case child-preparation matrix passing
+on both Intel and AMD. Full geometry and performance qualification remain open.
 
 | Stage | Implemented boundary | Qualification limitation |
 |---|---|---|
@@ -37,6 +37,16 @@ Its full geometry and performance qualification remains open.
 Modes are `cpu`, `auto`, and strict `vulkan`. Native CPU mode executes equivalent conversion/masks/depth cuts/connectivity/compact reduction. `auto` tries a hardware Vulkan device first and reports the initialization failure reason when CPU is selected. Runtime dispatch/fence/source errors invalidate the frame, publish unknown/restart-required and stop owned capture; **runtime CPU recovery has not been qualified**. Strict `vulkan` never silently runs CPU compute.
 
 The camera component enumerates the actual sensor profiles before starting a single RealSense owner; it requires 640×480×30 RGB8/Z16. Missing camera or profile causes a clear initialization error. Auto tries Vulkan first: supported source/SDK/profile admission, bounded startup stability and three original live-cohort SDK/depth/XYZ/compact cold checks precede raw Vulkan readiness. Strict Vulkan refuses failed admission and never silently falls back. Explicit CPU uses vendor CPU alignment and native Core; auto initialization fallback reports a concrete reason. Shared Alignment→Core device-depth ownership lasts through the consuming Core fence. It publishes adapted RGB compatibility images only when ordinary ROS subscribers request serialization. Internal composed consumers receive the lease through intra-process ROS type adaptation. Calibration generation, hardware time/domain, source frame number, device serial, original acquisition dimensions and host receipt time remain attached to the lease. Raw hardware timestamps are not relabeled as ROS-clock timestamps.
+
+The [bounded fwmini4 camera smoke](performance/fwmini4-camera-live-20261027.md)
+ran the actual D435i at 640×480×30 with scalar SDK 2.58.3 and native ROS.
+All three 15-second CPU, strict Vulkan and auto runs delivered about 30 unique
+outputs/s. Vulkan used 18.7% of one core (4.7% of four-core capacity), versus
+70.4% (17.6%) for CPU with the same SDK. Optimized system SDK 2.58.4 CPU also
+sustained 30 Hz at 36.9% of one core; scalar CPU is not the fastest baseline.
+System-SDK strict mode refused its alignment convention and auto correctly fell
+back. This qualifies process-local SDK selection, not deployment; full geometry,
+marker CPU costs, control and soak remain unmeasured.
 
 Build with the existing native ROS wrapper and isolated prefixes:
 

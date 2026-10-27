@@ -1,0 +1,152 @@
+[
+  {
+    "path": "camera-live-provenance.json",
+    "bytes": 1713,
+    "sha256": "24c91a79a6516767fb0e1ff5a27bcfb0a566cc2f069644a5bcb6328f1c1d59d7"
+  },
+  {
+    "path": "build-3.stdout",
+    "bytes": 112577,
+    "sha256": "9d17e5b7870ecd2798e562e39305afd6552b9586fb989357aff61a0fce9c5591"
+  },
+  {
+    "path": "live/vulkan.runner.json",
+    "bytes": 1929,
+    "sha256": "7371a3eaa9823ff723db5771dbeba93141c633820b7b0b17aafa7cff781524cd"
+  },
+  {
+    "path": "live/cpu.collector.log",
+    "bytes": 1251,
+    "sha256": "6d927cad0a2712e9942cf00d30d468cc31c3a128d88983276ed0554b55277279"
+  },
+  {
+    "path": "live/auto.runner.json",
+    "bytes": 1913,
+    "sha256": "16f8f894238a8f122f1e7f27d33143c871c2c008e907067a4c8bf202a9b15379"
+  },
+  {
+    "path": "live/vulkan.launch.log",
+    "bytes": 2000,
+    "sha256": "0743575a94fce28fcdb6513c8b80aef4f1fc6df8f3a5cd66ff4be937c9be262d"
+  },
+  {
+    "path": "live/auto.json",
+    "bytes": 317334,
+    "sha256": "3f3c1945e0dd1a6567ff061579c099d59dbab0cf3dc59b9db6160b4531057094"
+  },
+  {
+    "path": "live/cpu.json",
+    "bytes": 314976,
+    "sha256": "bc54e1d7c92aabb85753615f845345a59e72cbf06eb143b874283dd9ac268bbb"
+  },
+  {
+    "path": "live/auto.launch.log",
+    "bytes": 2000,
+    "sha256": "56e0e894c82af8803e7d3c856818dfc9f53b35dadc20ea17bd928671faf33fd7"
+  },
+  {
+    "path": "live/vulkan.json",
+    "bytes": 317183,
+    "sha256": "6a7b95a515c151e17e863662a0bc98527b4f5d94f31e1d840525ebc13d2e23a5"
+  },
+  {
+    "path": "live/auto.collector.log",
+    "bytes": 1269,
+    "sha256": "4f6afd6f4ed88692d3054861c23036af5be83c6a1d05c6978b523bcf45f57cab"
+  },
+  {
+    "path": "live/vulkan.collector.log",
+    "bytes": 1280,
+    "sha256": "be5b7d558cfddcad39b041cbfbd0cb6670f8eac0059503c7f1829cbeabdcd180"
+  },
+  {
+    "path": "live/cpu.runner.json",
+    "bytes": 1894,
+    "sha256": "28cce55c3dcaed0b368e7ce6cced3d38b5237dc1e5b37e700832e5db00780db8"
+  },
+  {
+    "path": "live/cpu.launch.log",
+    "bytes": 2000,
+    "sha256": "68c2754a0d5b33be081afb248ca3f87922d38e48097e82eb953c7f4e8be00d75"
+  },
+  {
+    "path": "live-system-sdk/cpu.collector.log",
+    "bytes": 1249,
+    "sha256": "742171cd2d0b59bc90797db19f9065a3f1a8c3beae29e61bf34236266b737a73"
+  },
+  {
+    "path": "live-system-sdk/auto.launch.log",
+    "bytes": 1905,
+    "sha256": "8546e0d5e822dddfa720205d7fca9727488c741e1aaf6b3bed02b1e8e143b28a"
+  },
+  {
+    "path": "live-system-sdk/auto.collector.log",
+    "bytes": 1453,
+    "sha256": "bd61c11e3abfdcaca621b64fe4093f6635585aa2c8f8b16450fdd1bd18706e14"
+  },
+  {
+    "path": "live-system-sdk/vulkan.launch.log",
+    "bytes": 2328,
+    "sha256": "e5076f72b3dd04bb7be419f1155562a601203bbb02da3b9ffe65ce4e34d0dd89"
+  },
+  {
+    "path": "live-system-sdk/cpu.json",
+    "bytes": 315090,
+    "sha256": "c9aac19f5750b5c0999b4a40d09877c762654beb19442ac4dc3444418df271c7"
+  },
+  {
+    "path": "live-system-sdk/cpu.launch.log",
+    "bytes": 1905,
+    "sha256": "a7d2b698245bd7b781473461c478afdc8379b1fdf2863146200dd40031c83044"
+  },
+  {
+    "path": "live-system-sdk/vulkan.collector.log",
+    "bytes": 848,
+    "sha256": "13afdf054e9df06659735633823458a329e1d62197b424a2fff951a681267740"
+  },
+  {
+    "path": "live-system-sdk/cpu-serial-failure/cpu.collector.log",
+    "bytes": 1145,
+    "sha256": "cb131912594401086577da91edb8228df78a46a95d858449a31dbe45e4acae47"
+  },
+  {
+    "path": "live-system-sdk/cpu-serial-failure/cpu.json",
+    "bytes": 947,
+    "sha256": "b28435c76e69fe1d8064e596789f66e8915c7f62d38a601596bc42e43f76fab0"
+  },
+  {
+    "path": "live-system-sdk/cpu-serial-failure/cpu.runner.json",
+    "bytes": 1392,
+    "sha256": "b6ab727c4305281fce1a84df3b04847a430e56f7f68eb046eb61a70d736a07ec"
+  },
+  {
+    "path": "live-system-sdk/cpu-serial-failure/cpu.launch.log",
+    "bytes": 2964,
+    "sha256": "ad1cc0c0532b479673046e53795015e336b771627bbce95dccac7323fccf19e9"
+  },
+  {
+    "path": "live-system-sdk/auto.json",
+    "bytes": 3222,
+    "sha256": "9626cd452db3121dbe1d7d9958fea12380c439bbafbc37b395046614a577eef2"
+  },
+  {
+    "path": "live-system-sdk/auto.runner.json",
+    "bytes": 2115,
+    "sha256": "b96594d90d25603a5e135e9524fef86f042e94ef4fe396d764f9620943c71991"
+  },
+  {
+    "path": "live-system-sdk/vulkan.json",
+    "bytes": 950,
+    "sha256": "810d11ff3d0ab24e036b63df07e28c35caaecfb04989b02a6dc31434028f34bf"
+  },
+  {
+    "path": "live-system-sdk/vulkan.runner.json",
+    "bytes": 1399,
+    "sha256": "ff55cc3f3950ffffb40c3357fdc17678b40a64e6065b612c22eba74332b64db3"
+  },
+  {
+    "path": "live-system-sdk/cpu.runner.json",
+    "bytes": 1893,
+    "sha256": "4924fd31fa72f53785216920efb3677495794bef18a8da7817b396b9a8041e9f"
+  }
+]

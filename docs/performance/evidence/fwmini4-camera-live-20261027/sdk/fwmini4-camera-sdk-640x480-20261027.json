@@ -1,0 +1,28 @@
+{
+  "scope": "SDK acquisition only; excludes alignment, Core, geometry, ROS and control",
+  "physical_camera": true,
+  "width": 640,
+  "height": 480,
+  "requested_fps": 30,
+  "usb": "3.2",
+  "observed_pairs": 300,
+  "unique_pairs": 300,
+  "unique_color": 300,
+  "unique_depth": 300,
+  "elapsed_s": 10.007204032037407,
+  "unique_pairs_per_s": 29.978403462102868,
+  "process_cpu_s": 0.920614859,
+  "cpu_ms_per_unique_pair": 3.0687161966666663,
+  "host_interval_ms_p50": 33.359654946252704,
+  "host_interval_ms_p95": 33.57887991005555,
+  "first_pair": [
+    31,
+    29
+  ],
+  "last_pair": [
+    330,
+    328
+  ],
+  "depth_scale_m": 0.0010000000474974513,
+  "full_station_qualified": false
+}

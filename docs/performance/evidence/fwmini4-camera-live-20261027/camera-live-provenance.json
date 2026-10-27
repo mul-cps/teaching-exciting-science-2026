@@ -1,0 +1,24 @@
+{
+  "source_checkpoint": "0542ababa017cce482156c906a52d595a1a9cf50",
+  "launch_fix_commit": "2e578b84637ab30ee08abf3110e25e5e0fbb35d0",
+  "runtime": "native ROS Jazzy/FastDDS, isolated domain179; isolated scalar SDK only",
+  "files_sha256": {
+    "/home/bjoern/.local/share/exciting-science/validation/0542aba/scalar-sdk/librealsense2.so.2.58.3": "067df4f44d66500dc30186dd2e1f6f3e7b8654fd758c1044714157ffcc3d252d",
+    "/home/bjoern/.local/share/exciting-science/validation/0542aba/install/so101_station_vulkan/lib/libresident_components.so": "8410b6a94dcc6013d8e2b3588e821db4324d82e2713781912f6b8a3d549af880",
+    "/home/bjoern/.local/share/exciting-science/validation/0542aba/install/so101_station_vulkan/lib/libresident_alignment.so": "8e3f644648ba6bd4caecad68c872e028fc82e4191ca613b8d60b071dddd1bb52",
+    "/home/bjoern/.local/share/exciting-science/validation/0542aba/install/so101_station_vulkan/lib/libresident_rgbd.so": "3b837195ffdec5548ef565f217877b48850acc498e92e35bb4073f41c1ff03a2",
+    "/home/bjoern/.local/share/exciting-science/validation/0542aba/install/so101_station_vulkan/share/so101_station_vulkan/launch/resident_rgbd.launch.py": "f7b45c382130d3c44324434a3c90f6b1b3882e08fd76a388ba3f81ff67261bb1",
+    "/tmp/fwmini4-resident-live-runner-20261027.py": "ca33db3002e04127839863943ccb4bdb7a12431b86de94a12655addd0686b1fb"
+  },
+  "running_container_libraries": [
+    {
+      "pid": 492124,
+      "libraries": [
+        "/home/bjoern/.local/share/exciting-science/validation/0542aba/scalar-sdk/librealsense2.so.2.58.3",
+        "/opt/ros/jazzy/lib/librclcpp.so",
+        "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33",
+        "/usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "observed_utc": "2026-10-27T12:51:17.737928+00:00",
+  "owner_unit": "MainPID=181501\nActiveState=active\nActiveEnterTimestamp=Thu 2026-10-22 11:36:45 CEST\n",
+  "camera_video_nodes": [
+    "/dev/video0",
+    "/dev/video1",
+    "/dev/video2",
+    "/dev/video3",
+    "/dev/video4",
+    "/dev/video5"
+  ],
+  "camera_fuser_exit": 1,
+  "camera_fuser_stdout": "",
+  "camera_fuser_stderr": "",
+  "resident_test_container_pids": [],
+  "usb_speed_mbps": "5000",
+  "cold_gate_evidence": "Admitted raw_vulkan status requires three original-cohort checks through ColdCameraSelfcheck::require_complete; no separate cold pixel dump collected.",
+  "gate_source_sha256": {
+    "src/camera_component.cpp": "243d437145d503e83855ffa25d3bb2aff934ea996730b061be742a20b8f66b24",
+    "src/raw_camera_admission.cpp": "94fbf44d3100e2cae71b25128895138807d7e2b6c651a07a51146cd410b2a891",
+    "include/so101_station_vulkan/raw_camera_admission.hpp": "46a891c1ca571059c4a1fc81cb4fd71e419db744130266b8779e401b948cd43c"
+  }
+}

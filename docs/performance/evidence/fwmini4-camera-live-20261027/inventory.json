@@ -1,0 +1,58 @@
+{
+  "README.md": {
+    "bytes": 1975,
+    "sha256": "0c3164f7d3b39b431d1498db3cefb8a8006302574de2a8792870616a389abf99"
+  },
+  "camera-live-final-state.json": {
+    "bytes": 999,
+    "sha256": "eaca6435099aa06a6cd257c2b25cc335cbe80bd955b2dd3f517d8a999ff134b2"
+  },
+  "camera-live-provenance.json": {
+    "bytes": 1713,
+    "sha256": "24c91a79a6516767fb0e1ff5a27bcfb0a566cc2f069644a5bcb6328f1c1d59d7"
+  },
+  "collect_resident_live.py": {
+    "bytes": 5759,
+    "sha256": "f6f42ed3be23045f9d9a5123a6b25f7ea741680fb9d3c0fb6099a361b121ede5"
+  },
+  "fwmini4-camera-build-0542aba-20261027-v3.sh": {
+    "bytes": 1407,
+    "sha256": "60356bc81e079b99cb3d4a98c65f3deced7418e8b17e67bbe27bc32d9a904dab"
+  },
+  "fwmini4-camera-live-native-20261027.tar.gz": {
+    "bytes": 112797,
+    "sha256": "325d00b3387ab8e4845363a22db69a26c6d32741a112195ef9935ee9f4539e33"
+  },
+  "fwmini4-resident-live-runner-20261027.py": {
+    "bytes": 3437,
+    "sha256": "ca33db3002e04127839863943ccb4bdb7a12431b86de94a12655addd0686b1fb"
+  },
+  "raw-archive-inventory.json": {
+    "bytes": 4603,
+    "sha256": "15794eeb958624ecc98477ba9a3ce516d08aaa16ff5f40b84b4d925d5683c3bc"
+  },
+  "sdk/fwmini4-camera-sdk-640x480-20261027.json": {
+    "bytes": 688,
+    "sha256": "692d5488230172246c73e0d78030249149f2b61c433c2ea566f10f81bad2696f"
+  },
+  "sdk/fwmini4-camera-sdk-capture-20261027.py": {
+    "bytes": 2206,
+    "sha256": "4216f418096b1ba6c8be073107d8ef038620be097f4155a3c278832c065d686e"
+  },
+  "sdk/fwmini4-camera-sdk-highest-20261027.json": {
+    "bytes": 803,
+    "sha256": "57221cbad87ad3cf23612dda397ba49c1efe19884df5217b9e4538399a9ac567"
+  },
+  "sdk/fwmini4-camera-sdk-highest-capture-20261027.py": {
+    "bytes": 2312,
+    "sha256": "09c20174385fbf911381ec24e62c1679bc49c90b2bf7fa7da9be0cf846f6e7e0"
+  },
+  "selfcheck-result.json": {
+    "bytes": 6648,
+    "sha256": "8265b23e071f8dc80f2481ab044e2463535160c417aa3f70b647b0f44050df3e"
+  },
+  "selfcheck.py": {
+    "bytes": 4035,
+    "sha256": "c64b0d55c1d85c837f1191e8c0fb59512ddc1d25b151a0978e4d72c177bfd7e3"
+  }
+}

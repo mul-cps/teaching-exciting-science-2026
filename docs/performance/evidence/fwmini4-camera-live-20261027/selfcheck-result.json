@@ -1,0 +1,215 @@
+{
+  "archive_sha256": "325d00b3387ab8e4845363a22db69a26c6d32741a112195ef9935ee9f4539e33",
+  "archive_member_bytes_match_extracted": true,
+  "no_ELF_or_images": true,
+  "live_runs": {
+    "live/cpu": {
+      "passed": true,
+      "one_core_percent": 70.42521904472669,
+      "total_four_core_percent": 17.606304761181672,
+      "cpu_ms_per_output": 23.488888888888887,
+      "unique_outputs": 450,
+      "output_hz": 29.98235437098109,
+      "collector_receipt_age_p95_ms": 20.247909
+    },
+    "live/vulkan": {
+      "passed": true,
+      "one_core_percent": 18.653789662170414,
+      "total_four_core_percent": 4.663447415542604,
+      "cpu_ms_per_output": 6.208425720620842,
+      "unique_outputs": 451,
+      "output_hz": 30.04592549156735,
+      "collector_receipt_age_p95_ms": 22.599142999999998
+    },
+    "live/auto": {
+      "passed": true,
+      "one_core_percent": 18.12321555410085,
+      "total_four_core_percent": 4.530803888525212,
+      "cpu_ms_per_output": 6.031042128603104,
+      "unique_outputs": 451,
+      "output_hz": 30.049890495953978,
+      "collector_receipt_age_p95_ms": 22.262079
+    },
+    "live-system-sdk/cpu": {
+      "passed": true,
+      "one_core_percent": 36.87162272172229,
+      "total_four_core_percent": 9.217905680430572,
+      "cpu_ms_per_output": 12.28381374722838,
+      "unique_outputs": 451,
+      "output_hz": 30.01642932761147,
+      "collector_receipt_age_p95_ms": 11.334731
+    },
+    "live-system-sdk/vulkan": {
+      "passed": false,
+      "collector_exit": 1,
+      "errors": [
+        "cold admission/startup timeout before required ready status",
+        "no unique measured source output",
+        "steady window incomplete"
+      ]
+    },
+    "live-system-sdk/auto": {
+      "passed": false,
+      "collector_exit": 1,
+      "errors": [
+        "requested mode did not reach required backend/alignment; retain concrete fallback reason",
+        "cold admission/startup timeout before required ready status",
+        "no unique measured source output",
+        "steady window incomplete"
+      ]
+    }
+  },
+  "raw_members_verified": 30,
+  "comparisons": {
+    "same_scalar_SDK_strict_vs_CPU": {
+      "steady_process_CPU_per_time_reduction_percent": 73.51262812498534,
+      "process_CPU_per_output_reduction_percent": 73.56867006358203,
+      "same_SDK": true,
+      "same_frozen_inputs": false
+    },
+    "cross_SDK_strict_vs_optimized_system_CPU": {
+      "steady_process_CPU_per_time_reduction_percent": 49.408818258544265,
+      "process_CPU_per_output_reduction_percent": 49.45848375451264,
+      "same_SDK": false,
+      "same_frozen_inputs": false,
+      "controlled_speedup_claim": false
+    }
+  },
+  "SDK_capture": {
+    "640x480": {
+      "scope": "SDK acquisition only; excludes alignment, Core, geometry, ROS and control",
+      "physical_camera": true,
+      "width": 640,
+      "height": 480,
+      "requested_fps": 30,
+      "usb": "3.2",
+      "observed_pairs": 300,
+      "unique_pairs": 300,
+      "unique_color": 300,
+      "unique_depth": 300,
+      "elapsed_s": 10.007204032037407,
+      "unique_pairs_per_s": 29.978403462102868,
+      "process_cpu_s": 0.920614859,
+      "cpu_ms_per_unique_pair": 3.0687161966666663,
+      "host_interval_ms_p50": 33.359654946252704,
+      "host_interval_ms_p95": 33.57887991005555,
+      "first_pair": [
+        31,
+        29
+      ],
+      "last_pair": [
+        330,
+        328
+      ],
+      "depth_scale_m": 0.0010000000474974513,
+      "full_station_qualified": false,
+      "process_one_core_percent": 9.199521225436316
+    },
+    "highest": {
+      "scope": "SDK acquisition only; excludes alignment, Core, geometry, ROS and control",
+      "physical_camera": true,
+      "color_width": 1920,
+      "color_height": 1080,
+      "depth_width": 1280,
+      "depth_height": 720,
+      "requested_fps": 30,
+      "usb": "3.2",
+      "observed_pairs": 300,
+      "unique_pairs": 300,
+      "unique_color": 300,
+      "unique_depth": 300,
+      "elapsed_s": 10.007181968074292,
+      "unique_pairs_per_s": 29.978469558871204,
+      "process_cpu_s": 5.177028967,
+      "cpu_ms_per_unique_pair": 17.256763223333333,
+      "host_interval_ms_p50": 33.357247011736035,
+      "host_interval_ms_p95": 33.55170927243307,
+      "first_pair": [
+        31,
+        29
+      ],
+      "last_pair": [
+        330,
+        328
+      ],
+      "depth_scale_m": 0.0010000000474974513,
+      "full_station_qualified": false,
+      "resident_pipeline_supports_this_resolution": false,
+      "process_one_core_percent": 51.73313509753464
+    }
+  },
+  "passed": true,
+  "final_state": {
+    "observed_utc": "2026-10-27T12:51:17.737928+00:00",
+    "owner_unit": "MainPID=181501\nActiveState=active\nActiveEnterTimestamp=Thu 2026-10-22 11:36:45 CEST\n",
+    "camera_video_nodes": [
+      "/dev/video0",
+      "/dev/video1",
+      "/dev/video2",
+      "/dev/video3",
+      "/dev/video4",
+      "/dev/video5"
+    ],
+    "camera_fuser_exit": 1,
+    "camera_fuser_stdout": "",
+    "camera_fuser_stderr": "",
+    "resident_test_container_pids": [],
+    "usb_speed_mbps": "5000",
+    "cold_gate_evidence": "Admitted raw_vulkan status requires three original-cohort checks through ColdCameraSelfcheck::require_complete; no separate cold pixel dump collected.",
+    "gate_source_sha256": {
+      "src/camera_component.cpp": "243d437145d503e83855ffa25d3bb2aff934ea996730b061be742a20b8f66b24",
+      "src/raw_camera_admission.cpp": "94fbf44d3100e2cae71b25128895138807d7e2b6c651a07a51146cd410b2a891",
+      "include/so101_station_vulkan/raw_camera_admission.hpp": "46a891c1ca571059c4a1fc81cb4fd71e419db744130266b8779e401b948cd43c"
+    }
+  },
+  "contiguous_source_ids": {
+    "cpu": {
+      "source_frame": {
+        "first": 77,
+        "last": 526,
+        "count": 450,
+        "missing_between": 0,
+        "regressions": 0
+      },
+      "depth_source_frame": {
+        "first": 74,
+        "last": 523,
+        "count": 450,
+        "missing_between": 0,
+        "regressions": 0
+      }
+    },
+    "vulkan": {
+      "source_frame": {
+        "first": 54,
+        "last": 504,
+        "count": 451,
+        "missing_between": 0,
+        "regressions": 0
+      },
+      "depth_source_frame": {
+        "first": 52,
+        "last": 502,
+        "count": 451,
+        "missing_between": 0,
+        "regressions": 0
+      }
+    },
+    "auto": {
+      "source_frame": {
+        "first": 54,
+        "last": 504,
+        "count": 451,
+        "missing_between": 0,
+        "regressions": 0
+      },
+      "depth_source_frame": {
+        "first": 51,
+        "last": 501,
+        "count": 451,
+        "missing_between": 0,
+        "regressions": 0
+      }
+    }
+  }
+}
